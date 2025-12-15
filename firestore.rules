@@ -1,0 +1,26 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // --- ACCESS CODES ---
+    // STRICT: Read-only for everyone (needed for PIN check client-side)
+    // BLOCKED: No writes allowed from client SDK. Only Admin SDK (backend) or Console can create codes.
+    match /access_codes/{codeId} {
+      allow read: if true; 
+      allow write: if false; 
+    }
+
+    // --- ARTIFACTS / TOURNAMENT DATA ---
+    match /artifacts/{appId}/public/data/{collectionName}/{docId} {
+       // Read: Public (Spectators need to see the bracket)
+       allow read: if true;
+       
+       // Write: Ideally, this should check for a Custom Claim or Auth token.
+       // Since we are using "Phase 0 PINs" (Client-side logic), we have to leave this open
+       // BUT we can rate-limit or validate schema structure here if we wanted to go deep.
+       // For Phase 0: Allow write, but your frontend "permissions.js" acts as the gatekeeper.
+       allow write: if true; 
+    }
+  }
+}

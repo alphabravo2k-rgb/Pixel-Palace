@@ -1,112 +1,95 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, Button } from '../ui/Components';
-import VetoPanel from './VetoPanel';
+import VetoPanel from './VetoPanel'; 
 import { useTournament } from '../tournament/useTournament';
 import { isAdmin } from '../tournament/permissions';
-import { useAuth } from '../auth/useAuth';
+import { useSession } from '../auth/useSession'; // FIXED
 
 const MatchModal = ({ match, onClose }) => {
-  const { updateMatch, teams } = useTournament();
-  const { user } = useAuth();
-  const [isUpdating, setIsUpdating] = useState(false);
-  const [updateError, setUpdateError] = useState(null);
-  const [confirmWinId, setConfirmWinId] = useState(null); // For two-step admin confirmation
+  const { adminUpdateMatch, teams } = useTournament();
+  const { session } = useSession(); // FIXED
+  const [loading, setLoading] = useState(false);
+  const [confirmWinId, setConfirmWinId] = useState(null);
   
-  // Cleanup timer to prevent memory leaks if component unmounts
+  // Cleanup timer
   useEffect(() => {
     let timer;
-    if (confirmWinId) {
-      timer = setTimeout(() => setConfirmWinId(null), 3000);
-    }
+    if (confirmWinId) timer = setTimeout(() => setConfirmWinId(null), 3000);
     return () => clearTimeout(timer);
   }, [confirmWinId]);
 
   if (!match) return null;
 
-  const team1 = teams.find(t => t.id === match.team1Id);
-  const team2 = teams.find(t => t.id === match.team2Id);
+  const team1 = teams?.find(t => t.id === match.team1Id) || { name: 'Team 1' };
+  const team2 = teams?.find(t => t.id === match.team2Id) || { name: 'Team 2' };
 
-  const handleWin = async (winnerId) => {
-    // Two-step confirmation for Admin actions
+  const handleForceWin = async (winnerId) => {
     if (confirmWinId !== winnerId) {
         setConfirmWinId(winnerId);
-        // Timeout is now handled by the useEffect above
         return;
     }
 
-    setIsUpdating(true);
-    setUpdateError(null);
-
+    setLoading(true);
     try {
-      await updateMatch(match.id, {
-        winnerId,
-        status: 'completed'
-      });
-      onClose();
-    } catch (err) {
-      setUpdateError("Failed to update match result. Check console.");
-      console.error(err);
+        await adminUpdateMatch(match.id, { 
+            winnerId, 
+            status: 'completed',
+            'vetoState.phase': 'completed'
+        });
+        onClose();
+    } catch (e) {
+        alert("Admin Action Failed: " + e.message);
     } finally {
-      setIsUpdating(false);
-      setConfirmWinId(null);
+        setLoading(false);
+        setConfirmWinId(null);
     }
   };
 
   return (
-    <Modal isOpen={!!match} onClose={onClose} title="Match Details" maxWidth="max-w-4xl">
+    <Modal isOpen={!!match} onClose={onClose} title="Match Control" maxWidth="max-w-5xl">
       <div className="space-y-6">
-        {/* Match Header */}
-        <div className="flex justify-between items-center text-center p-4 bg-slate-900/50 rounded-lg">
-          <div className="w-1/3">
-            <div className="text-2xl font-bold text-white">{team1?.name}</div>
-          </div>
-          <div className="w-1/3 text-4xl font-black text-slate-700">VS</div>
-          <div className="w-1/3">
-            <div className="text-2xl font-bold text-white">{team2?.name}</div>
-          </div>
+        <div className="grid grid-cols-3 items-center text-center p-6 bg-slate-900 rounded-xl border border-slate-800">
+            <div className="text-2xl font-black text-white">{team1.name}</div>
+            <div className="flex flex-col items-center gap-1">
+                <span className="text-slate-500 font-mono text-xs uppercase">VS</span>
+                <span className={`px-3 py-1 rounded text-xs font-bold uppercase ${
+                    match.status === 'live' ? 'bg-red-900 text-red-200 animate-pulse' : 
+                    match.status === 'completed' ? 'bg-green-900 text-green-200' : 'bg-slate-700 text-slate-300'
+                }`}>
+                    {match.status}
+                </span>
+            </div>
+            <div className="text-2xl font-black text-white">{team2.name}</div>
         </div>
 
-        {/* Error Feedback */}
-        {updateError && (
-            <div className="bg-red-900/50 border border-red-500 text-red-200 p-3 rounded text-sm text-center">
-                {updateError}
-            </div>
-        )}
+        <div className="min-h-[300px]">
+            <VetoPanel match={match} />
+        </div>
 
-        {/* Veto System */}
-        <VetoPanel match={match} />
-
-        {/* Admin Controls */}
-        {isAdmin(user) && match.status !== 'completed' && (
-          <div className="border-t border-slate-700 pt-4 mt-4">
-            <div className="flex justify-between items-center mb-2">
-                <h4 className="text-sm text-slate-400 uppercase">Admin Zone</h4>
-                <span className="text-xs text-slate-500">Double-tap to confirm win</span>
+        {isAdmin(session) && (
+            <div className="border-t border-slate-800 pt-4 bg-red-950/10 -mx-4 px-4 pb-2 rounded-b">
+                <h4 className="text-red-400 text-xs font-bold uppercase mb-3 flex items-center gap-2">
+                    🛡️ Admin Override
+                </h4>
+                <div className="flex gap-3">
+                    <Button 
+                        variant={confirmWinId === match.team1Id ? "danger" : "ghost"}
+                        onClick={() => handleForceWin(match.team1Id)} 
+                        disabled={loading}
+                        className={confirmWinId === match.team1Id ? "animate-pulse ring-2 ring-red-500" : ""}
+                    >
+                        {confirmWinId === match.team1Id ? "Confirm?" : `Force Win: ${team1.name}`}
+                    </Button>
+                    <Button 
+                        variant={confirmWinId === match.team2Id ? "danger" : "ghost"}
+                        onClick={() => handleForceWin(match.team2Id)} 
+                        disabled={loading}
+                        className={confirmWinId === match.team2Id ? "animate-pulse ring-2 ring-red-500" : ""}
+                    >
+                        {confirmWinId === match.team2Id ? "Confirm?" : `Force Win: ${team2.name}`}
+                    </Button>
+                </div>
             </div>
-            
-            <div className="flex gap-4">
-              <Button 
-                onClick={() => handleWin(match.team1Id)} 
-                className={`flex-1 transition-all ${confirmWinId === match.team1Id ? 'animate-pulse ring-2 ring-red-500 ring-offset-2 ring-offset-slate-900' : ''}`}
-                variant={confirmWinId === match.team1Id ? "danger" : "ghost"}
-                disabled={isUpdating}
-                aria-pressed={confirmWinId === match.team1Id}
-                aria-label={confirmWinId === match.team1Id ? `Confirm victory for ${team1?.name}` : `Set ${team1?.name} as winner`}
-              >
-                {isUpdating ? 'Updating...' : confirmWinId === match.team1Id ? `Confirm: ${team1?.name} Won?` : `Force Win: ${team1?.name}`}
-              </Button>
-              <Button 
-                onClick={() => handleWin(match.team2Id)} 
-                className={`flex-1 transition-all ${confirmWinId === match.team2Id ? 'animate-pulse ring-2 ring-red-500 ring-offset-2 ring-offset-slate-900' : ''}`}
-                variant={confirmWinId === match.team2Id ? "danger" : "ghost"}
-                disabled={isUpdating}
-                aria-pressed={confirmWinId === match.team2Id}
-                aria-label={confirmWinId === match.team2Id ? `Confirm victory for ${team2?.name}` : `Set ${team2?.name} as winner`}
-              >
-                {isUpdating ? 'Updating...' : confirmWinId === match.team2Id ? `Confirm: ${team2?.name} Won?` : `Force Win: ${team2?.name}`}
-              </Button>
-            </div>
-          </div>
         )}
       </div>
     </Modal>

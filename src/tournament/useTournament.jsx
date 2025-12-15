@@ -94,7 +94,10 @@ export const TournamentProvider = ({ children }) => {
                     bannedMaps: banned,
                     pickedMap: picked
                 },
-                metadata: m.metadata // Keep raw for debugging/RPCs
+                metadata: m.metadata, // Keep raw for debugging/RPCs
+                server_ip: m.server_ip,
+                gotv_ip: m.gotv_ip,
+                stream_url: m.stream_url
             };
         });
 
@@ -162,11 +165,16 @@ export const TournamentProvider = ({ children }) => {
 
     // Map frontend updates to SQL columns
     const sqlUpdates = {};
-    if (updates.status === 'completed') sqlUpdates.state = 'complete';
+    if (updates.status === 'completed') {
+        sqlUpdates.state = 'complete';
+        sqlUpdates.is_locked = false; // Unlock if forcing end
+    }
     if (updates.winnerId) sqlUpdates.winner_id = updates.winnerId;
     
-    // If forcing win, we might want to clear locks
-    if (updates.status === 'completed') sqlUpdates.is_locked = false;
+    // Server/Stream updates
+    if (updates.stream_url !== undefined) sqlUpdates.stream_url = updates.stream_url;
+    if (updates.server_ip !== undefined) sqlUpdates.server_ip = updates.server_ip;
+    if (updates.gotv_ip !== undefined) sqlUpdates.gotv_ip = updates.gotv_ip;
 
     const { data, error } = await supabase.rpc('admin_update_match', {
         match_id: matchId,

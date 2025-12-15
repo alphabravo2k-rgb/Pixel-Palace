@@ -37,11 +37,11 @@ const PinLogin = () => {
             <input 
                 type="text" 
                 inputMode="text"
-                className="w-full bg-slate-950 border border-slate-700 rounded-lg p-4 text-center text-xl tracking-widest text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all placeholder:tracking-normal font-mono uppercase"
-                placeholder="ABCD-1234"
+                className="w-full bg-slate-950 border border-slate-700 rounded-lg p-4 text-center text-xl tracking-widest text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all placeholder:tracking-normal font-mono"
+                placeholder="Abc.xy1234"
                 value={pin}
-                onChange={(e) => setPin(e.target.value.toUpperCase())}
-                maxLength={12} 
+                onChange={(e) => setPin(e.target.value)}
+                maxLength={20} 
                 autoFocus
             />
         </div>

@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useEffect, useState } from 'react';
 import { useTournament } from '../tournament/useTournament';
-import { Tv, Lock, Trophy, AlertTriangle, Map as MapIcon, Shield, Radio, AlertOctagon } from 'lucide-react';
+import { Tv, Lock, Trophy, AlertTriangle, Map as MapIcon, Shield, Radio, AlertOctagon, Calendar } from 'lucide-react';
 
 // Configuration matches your "Command Center" logic
 const BRACKET_ORDER = ['R32', 'R16', 'QF', 'SF', 'GF'];
@@ -26,6 +26,20 @@ const Bracket = ({ onMatchClick }) => {
     if (!score || typeof score !== 'string' || score.includes('Decision')) return ['-', '-'];
     const parts = score.match(/\d+/g) || []; 
     return [(parts[0] || '-'), (parts[1] || '-')];
+  };
+
+  // Helper to format start time
+  const formatSchedule = (match) => {
+      // Assuming match.start_time or match.metadata.start_time exists
+      const timeStr = match.start_time || match.metadata?.start_time;
+      if (!timeStr) return null;
+
+      const date = new Date(timeStr);
+      const now = new Date();
+      const isToday = date.toDateString() === now.toDateString();
+      
+      const time = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      return isToday ? `Today ${time}` : `${date.toLocaleDateString([], { weekday: 'short' })} ${time}`;
   };
 
   // Group flat matches into rounds
@@ -108,7 +122,6 @@ const Bracket = ({ onMatchClick }) => {
             const startX = (rectA1.right - containerRect.left) + containerScrollLeft;
             const endX = (rectB.left - containerRect.left) + containerScrollLeft;
             
-            // Calculate vertically centered anchor points
             const yA1 = (rectA1.top + rectA1.height / 2 - containerRect.top) + containerScrollTop;
             const yA2 = (rectA2.top + rectA2.height / 2 - containerRect.top) + containerScrollTop;
             const yB = (rectB.top + rectB.height / 2 - containerRect.top) + containerScrollTop;
@@ -170,14 +183,13 @@ const Bracket = ({ onMatchClick }) => {
           <div className="flex flex-col justify-around gap-8 h-full">
             {bracketData[round].map((match) => {
               const [scoreA, scoreB] = parseScore(match.score);
+              const scheduleText = formatSchedule(match);
               
               // Status logic
               const isLive = match.status === 'live';
               const isCompleted = match.status === 'completed';
-              // Check metadata for granular states (Dispute, Veto, etc.)
-              // Assuming metadata has: { dispute: true, vetoState: { phase: 'ban' }, needs_admin: true }
               const hasDispute = match.metadata?.dispute; 
-              const needsAdmin = match.metadata?.needs_admin; // "Call Admin" / SOS
+              const needsAdmin = match.metadata?.needs_admin;
               const isVetoing = isLive && match.vetoState?.phase !== 'complete';
               
               const team1 = getTeam(match.team1Id);
@@ -222,7 +234,7 @@ const Bracket = ({ onMatchClick }) => {
 
                   <div className="p-3 flex items-center justify-between gap-4">
                     {/* Team 1 Block */}
-                    <div className={`flex items-center gap-2 flex-1 min-w-0 overflow-hidden ${isCompleted && winnerId === match.team1Id ? 'text-green-400 font-bold' : 'text-zinc-300'}`}>
+                    <div className={`flex items-center gap-2 flex-1 min-w-0 overflow-hidden ${isCompleted && winnerId === match.team1Id ? 'text-green-400 font-bold' : isCompleted ? 'text-zinc-500 opacity-50' : 'text-zinc-300'}`}>
                         {team1.logo_url && <img src={team1.logo_url} className="w-5 h-5 object-contain rounded-sm bg-black/40 flex-shrink-0" alt=""/>}
                         <span className="truncate text-xs">{team1.name}</span>
                         {isCompleted && winnerId === match.team1Id && <span className="text-[10px] text-zinc-500 ml-1 font-mono">{scoreA}</span>}
@@ -231,7 +243,7 @@ const Bracket = ({ onMatchClick }) => {
                     <div className="text-[10px] text-zinc-600 font-bold px-1">VS</div>
 
                     {/* Team 2 Block */}
-                    <div className={`flex items-center gap-2 flex-1 min-w-0 overflow-hidden justify-end ${isCompleted && winnerId === match.team2Id ? 'text-green-400 font-bold' : 'text-zinc-300'}`}>
+                    <div className={`flex items-center gap-2 flex-1 min-w-0 overflow-hidden justify-end ${isCompleted && winnerId === match.team2Id ? 'text-green-400 font-bold' : isCompleted ? 'text-zinc-500 opacity-50' : 'text-zinc-300'}`}>
                         {isCompleted && winnerId === match.team2Id && <span className="text-[10px] text-zinc-500 mr-1 font-mono">{scoreB}</span>}
                         <span className="truncate text-xs text-right">{team2.name}</span>
                         {team2.logo_url && <img src={team2.logo_url} className="w-5 h-5 object-contain rounded-sm bg-black/40 flex-shrink-0" alt=""/>}
@@ -241,12 +253,22 @@ const Bracket = ({ onMatchClick }) => {
                   {/* Enhanced Footer / Status Bar */}
                   {!match.isDummy && (
                     <div className={`px-3 py-1.5 flex justify-between items-center border-t ${needsAdmin ? 'border-red-900/30 bg-red-900/10' : hasDispute ? 'border-yellow-900/30 bg-yellow-900/10' : 'border-zinc-800/50 bg-[#0b0c0f]/50'} rounded-b-lg`}>
-                      <span className="text-[10px] text-zinc-600 font-mono tracking-wider">
-                          {match.display_id || `M${match.matchIndex+1}`}
-                      </span>
+                      {/* Left: Schedule Time or Match ID */}
+                      <div className="flex items-center gap-1.5">
+                          {match.status === 'scheduled' && scheduleText ? (
+                              <>
+                                <Calendar className="w-3 h-3 text-zinc-500" />
+                                <span className="text-[9px] text-zinc-400 font-bold tracking-wide">{scheduleText}</span>
+                              </>
+                          ) : (
+                              <span className="text-[9px] text-zinc-600 font-mono tracking-wider">
+                                  {match.display_id || `M${match.matchIndex+1}`}
+                              </span>
+                          )}
+                      </div>
                       
+                      {/* Right: Status Indicators */}
                       <div className="flex gap-2 items-center">
-                        {/* Status Badges */}
                         {needsAdmin ? (
                             <div className="flex items-center gap-1 text-red-500 animate-pulse">
                                 <AlertOctagon className="w-3 h-3" />

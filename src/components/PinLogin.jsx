@@ -35,10 +35,10 @@ const PinLogin = () => {
 
         <div>
             <input 
-                type="text" 
+                type="password" 
                 inputMode="text"
                 className="w-full bg-slate-950 border border-slate-700 rounded-lg p-4 text-center text-xl tracking-widest text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all placeholder:tracking-normal font-mono"
-                placeholder="Abc.xy1234"
+                placeholder="••••••••"
                 value={pin}
                 onChange={(e) => setPin(e.target.value)}
                 maxLength={20} 
@@ -47,8 +47,33 @@ const PinLogin = () => {
         </div>
 
         {error && (
-            <div className="text-red-400 text-sm text-center bg-red-900/20 p-2 rounded animate-shake">
-                {error}
+            <div className="space-y-3">
+                <div className="text-red-400 text-sm text-center bg-red-900/20 p-2 rounded animate-shake">
+                    {error}
+                </div>
+                
+                {/* Support Options on Failure */}
+                <div className="pt-2 border-t border-white/5 space-y-2">
+                    <p className="text-[10px] text-center text-slate-500 uppercase tracking-widest font-bold">Login Issues?</p>
+                    <div className="grid grid-cols-2 gap-2">
+                        <a 
+                            href="https://discord.com/users/425754174932910090" 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-[10px] text-center bg-[#5865F2]/10 text-[#5865F2] hover:bg-[#5865F2]/20 border border-[#5865F2]/20 rounded py-2 transition-colors font-bold"
+                        >
+                            Contact Bravo.gg
+                        </a>
+                        <a 
+                            href="https://discord.gg/fKgaGEtY" 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-[10px] text-center bg-[#5865F2]/10 text-[#5865F2] hover:bg-[#5865F2]/20 border border-[#5865F2]/20 rounded py-2 transition-colors font-bold"
+                        >
+                            Epic Support Team
+                        </a>
+                    </div>
+                </div>
             </div>
         )}
 

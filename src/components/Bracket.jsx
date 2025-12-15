@@ -214,38 +214,21 @@ const Bracket = ({ onMatchClick }) => {
                   {/* Status Strip */}
                   <div className={`h-0.5 w-full ${statusStrip}`}></div>
 
-                  <div className="p-3 flex flex-col gap-2">
-                    {/* Team 1 Row */}
-                    <div className="flex justify-between items-center h-5">
-                      <div className="flex items-center gap-2 overflow-hidden w-full">
-                        <div className={`w-1 h-full rounded-full ${isCompleted && winnerId === match.team1Id ? 'bg-green-500' : 'bg-zinc-700'}`}></div>
-                        
-                        {/* Logo or Placeholder */}
-                        <div className="w-5 h-5 flex-shrink-0 bg-black/30 rounded-sm flex items-center justify-center border border-white/5">
-                           {team1.logo_url ? <img src={team1.logo_url} className="w-full h-full object-cover" alt=""/> : <span className="text-[8px] text-zinc-600 font-bold">T1</span>}
-                        </div>
-                        
-                        <span className={`text-xs font-bold truncate ${isCompleted && winnerId === match.team1Id ? 'text-green-400' : 'text-zinc-300'}`}>
-                          {team1.name}
-                        </span>
-                      </div>
-                      <span className="text-xs font-mono text-zinc-500 bg-black/20 px-1.5 py-0.5 rounded min-w-[1.5rem] text-center">{scoreA}</span>
+                  <div className="p-3 flex items-center justify-between gap-4">
+                    {/* Team 1 Block */}
+                    <div className={`flex items-center gap-2 flex-1 min-w-0 overflow-hidden ${isCompleted && winnerId === match.team1Id ? 'text-green-400 font-bold' : 'text-zinc-300'}`}>
+                        {team1.logo_url && <img src={team1.logo_url} className="w-5 h-5 object-contain rounded-sm bg-black/40 flex-shrink-0" alt=""/>}
+                        <span className="truncate text-xs">{team1.name}</span>
+                        {isCompleted && winnerId === match.team1Id && <span className="text-[10px] text-zinc-500 ml-1 font-mono">{scoreA}</span>}
                     </div>
 
-                    {/* Team 2 Row */}
-                    <div className="flex justify-between items-center h-5">
-                      <div className="flex items-center gap-2 overflow-hidden w-full">
-                        <div className={`w-1 h-full rounded-full ${isCompleted && winnerId === match.team2Id ? 'bg-green-500' : 'bg-zinc-700'}`}></div>
-                        
-                        <div className="w-5 h-5 flex-shrink-0 bg-black/30 rounded-sm flex items-center justify-center border border-white/5">
-                           {team2.logo_url ? <img src={team2.logo_url} className="w-full h-full object-cover" alt=""/> : <span className="text-[8px] text-zinc-600 font-bold">T2</span>}
-                        </div>
+                    <div className="text-[10px] text-zinc-600 font-bold px-1">VS</div>
 
-                        <span className={`text-xs font-bold truncate ${isCompleted && winnerId === match.team2Id ? 'text-green-400' : 'text-zinc-300'}`}>
-                          {team2.name}
-                        </span>
-                      </div>
-                      <span className="text-xs font-mono text-zinc-500 bg-black/20 px-1.5 py-0.5 rounded min-w-[1.5rem] text-center">{scoreB}</span>
+                    {/* Team 2 Block */}
+                    <div className={`flex items-center gap-2 flex-1 min-w-0 overflow-hidden justify-end ${isCompleted && winnerId === match.team2Id ? 'text-green-400 font-bold' : 'text-zinc-300'}`}>
+                        {isCompleted && winnerId === match.team2Id && <span className="text-[10px] text-zinc-500 mr-1 font-mono">{scoreB}</span>}
+                        <span className="truncate text-xs text-right">{team2.name}</span>
+                        {team2.logo_url && <img src={team2.logo_url} className="w-5 h-5 object-contain rounded-sm bg-black/40 flex-shrink-0" alt=""/>}
                     </div>
                   </div>
 

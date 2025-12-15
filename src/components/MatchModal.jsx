@@ -4,7 +4,7 @@ import VetoPanel from './VetoPanel';
 import { useTournament } from '../tournament/useTournament';
 import { isAdmin, isTeamCaptain } from '../tournament/permissions';
 import { useSession } from '../auth/useSession';
-import { MonitorPlay, Server, Calendar, Tv, Shield, Copy, AlertTriangle } from 'lucide-react';
+import { MonitorPlay, Server, Tv, Shield, Copy, AlertTriangle, Play, Pause, RotateCcw, Edit3 } from 'lucide-react';
 
 const MatchModal = ({ match, onClose }) => {
   const { adminUpdateMatch, teams } = useTournament();
@@ -14,16 +14,18 @@ const MatchModal = ({ match, onClose }) => {
   const [copyFeedback, setCopyFeedback] = useState({});
 
   // Local state for edits
-  const [streamUrl, setStreamUrl] = useState(match?.stream_url || '');
-  const [serverIp, setServerIp] = useState(match?.server_ip || '');
-  const [gotvIp, setGotvIp] = useState(match?.gotv_ip || '');
+  const [streamUrl, setStreamUrl] = useState('');
+  const [serverIp, setServerIp] = useState('');
+  const [gotvIp, setGotvIp] = useState('');
+  const [manualScore, setManualScore] = useState('');
   
-  // Update local state when match changes
+  // Sync state when match opens
   useEffect(() => {
     if (match) {
         setStreamUrl(match.stream_url || '');
         setServerIp(match.server_ip || '');
         setGotvIp(match.gotv_ip || '');
+        setManualScore(match.score || '');
     }
   }, [match]);
 
@@ -36,28 +38,46 @@ const MatchModal = ({ match, onClose }) => {
   const userIsAdmin = isAdmin(session);
   const userIsCaptain1 = isTeamCaptain(session, match.team1Id);
   const userIsCaptain2 = isTeamCaptain(session, match.team2Id);
-  const canSeeServerIp = userIsAdmin || (match.status === 'live' && (userIsCaptain1 || userIsCaptain2));
   
+  // VISIBILITY RULES:
+  // 1. Admins see everything always.
+  // 2. Captains see Server IP ONLY if match is 'live' (Open).
+  const isMatchLive = match.status === 'live';
+  const canSeeServerIp = userIsAdmin || (isMatchLive && (userIsCaptain1 || userIsCaptain2));
+
   const handleCopy = (text, key) => {
     navigator.clipboard.writeText(`connect ${text}`);
     setCopyFeedback({ ...copyFeedback, [key]: true });
     setTimeout(() => setCopyFeedback(prev => ({ ...prev, [key]: false })), 2000);
   };
 
-  const handleUpdateDetails = async () => {
+  // Generic Update Handler
+  const handleUpdate = async (updates) => {
       setLoading(true);
       try {
-          await adminUpdateMatch(match.id, {
-              stream_url: streamUrl,
-              server_ip: serverIp,
-              gotv_ip: gotvIp
-          });
-          // Show success feedback if needed
+          await adminUpdateMatch(match.id, updates);
       } catch (e) {
           alert("Update Failed: " + e.message);
       } finally {
           setLoading(false);
       }
+  };
+
+  // Specific Actions
+  const saveSettings = () => handleUpdate({ 
+      stream_url: streamUrl, 
+      server_ip: serverIp, 
+      gotv_ip: gotvIp,
+      score: manualScore
+  });
+
+  const setMatchState = (newState) => {
+      if (newState === 'live') {
+          if (!serverIp && !confirm("Server IP is empty. Start match anyway?")) return;
+      }
+      // Map UI state to SQL state ('open', 'pending', 'paused')
+      const sqlState = newState === 'live' ? 'open' : newState === 'scheduled' ? 'pending' : newState;
+      handleUpdate({ status: newState }); // useTournament maps 'status' back to SQL 'state'
   };
 
   const handleForceWin = async (winnerId) => {
@@ -80,31 +100,35 @@ const MatchModal = ({ match, onClose }) => {
   return (
     <Modal isOpen={!!match} onClose={onClose} title="Match Control Center" maxWidth="max-w-5xl">
       <div className="space-y-6">
-        {/* Header Section */}
-        <div className="bg-[#0b0c0f] rounded-xl border border-zinc-800 overflow-hidden relative">
-            {/* Background Gradient/Image could go here */}
+        
+        {/* MATCH HEADER (Scoreboard) */}
+        <div className="bg-[#0b0c0f] rounded-xl border border-zinc-800 overflow-hidden relative shadow-lg">
             <div className="absolute inset-0 bg-gradient-to-b from-fuchsia-900/10 to-transparent pointer-events-none" />
-            
             <div className="relative p-6 grid grid-cols-3 items-center">
                 {/* Team 1 */}
                 <div className="text-right">
-                    <h2 className="text-3xl font-black text-white tracking-tight">{team1.name}</h2>
+                    <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight truncate">{team1.name}</h2>
                     <div className="text-xs font-mono text-zinc-500 mt-1 uppercase tracking-widest">
                         Seed #{team1.seed_number || '?'}
                     </div>
                 </div>
 
-                {/* Score / VS */}
-                <div className="flex flex-col items-center justify-center">
-                    <div className="text-zinc-700 font-black text-4xl italic tracking-tighter opacity-50 select-none">VS</div>
-                    <Badge color={match.status === 'live' ? 'green' : 'gray'}>
-                        {match.status === 'live' ? 'LIVE NOW' : match.status}
+                {/* Center Status */}
+                <div className="flex flex-col items-center justify-center space-y-2">
+                    {match.score ? (
+                        <div className="text-4xl font-mono font-bold text-white tracking-widest">{match.score}</div>
+                    ) : (
+                        <div className="text-zinc-700 font-black text-4xl italic tracking-tighter opacity-50 select-none">VS</div>
+                    )}
+                    
+                    <Badge color={match.status === 'live' ? 'green' : match.status === 'completed' ? 'gray' : 'yellow'}>
+                        {match.status === 'live' ? 'LIVE • PLAYING' : match.status.toUpperCase()}
                     </Badge>
                 </div>
 
                 {/* Team 2 */}
                 <div className="text-left">
-                    <h2 className="text-3xl font-black text-white tracking-tight">{team2.name}</h2>
+                    <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight truncate">{team2.name}</h2>
                     <div className="text-xs font-mono text-zinc-500 mt-1 uppercase tracking-widest">
                         Seed #{team2.seed_number || '?'}
                     </div>
@@ -112,40 +136,38 @@ const MatchModal = ({ match, onClose }) => {
             </div>
         </div>
 
-        {/* Tab Navigation (Admin Only or if needed) */}
+        {/* ADMIN NAVIGATION */}
         {userIsAdmin && (
-            <div className="flex gap-2 border-b border-zinc-800 pb-2">
+            <div className="flex flex-wrap gap-2 border-b border-zinc-800 pb-2">
                 <button 
                     onClick={() => setActiveTab('overview')}
-                    className={`px-4 py-2 text-sm font-bold rounded-lg transition-colors ${activeTab === 'overview' ? 'bg-zinc-800 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+                    className={`px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-colors ${activeTab === 'overview' ? 'bg-zinc-800 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
                 >
-                    Overview & Veto
+                    Overview
                 </button>
                 <button 
                     onClick={() => setActiveTab('settings')}
-                    className={`px-4 py-2 text-sm font-bold rounded-lg transition-colors ${activeTab === 'settings' ? 'bg-zinc-800 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+                    className={`px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-colors ${activeTab === 'settings' ? 'bg-zinc-800 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
                 >
-                    Server & Stream
+                    Settings & Score
                 </button>
                 <button 
                     onClick={() => setActiveTab('admin')}
-                    className={`px-4 py-2 text-sm font-bold rounded-lg transition-colors ${activeTab === 'admin' ? 'bg-red-900/20 text-red-400' : 'text-zinc-500 hover:text-red-400'}`}
+                    className={`px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-colors ${activeTab === 'admin' ? 'bg-red-900/20 text-red-400' : 'text-zinc-500 hover:text-red-400'}`}
                 >
-                    Admin Danger Zone
+                    Danger Zone
                 </button>
             </div>
         )}
 
-        {/* --- VIEW: OVERVIEW --- */}
+        {/* --- TAB: OVERVIEW (Public/Captain View) --- */}
         {activeTab === 'overview' && (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                {/* Veto Panel */}
-                <VetoPanel match={match} />
-
-                {/* Server Info (Visible to Players/Admins) */}
-                {(canSeeServerIp || userIsAdmin) && (
+                
+                {/* SERVER CONNECTION CARD */}
+                {(canSeeServerIp || userIsAdmin) ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {/* Game Server */}
+                        {/* SERVER IP */}
                         {match.server_ip && match.server_ip !== 'HIDDEN' ? (
                             <div 
                                 onClick={() => handleCopy(match.server_ip, 'server')}
@@ -170,11 +192,11 @@ const MatchModal = ({ match, onClose }) => {
                         ) : (
                             <div className="bg-zinc-900/50 border border-zinc-800 p-4 rounded-xl opacity-75 flex flex-col items-center justify-center text-center">
                                 <Shield className="w-6 h-6 text-zinc-600 mb-2" />
-                                <span className="text-xs font-bold text-zinc-500 uppercase">Server IP Hidden</span>
+                                <span className="text-xs font-bold text-zinc-500 uppercase">Server IP Not Set</span>
                             </div>
                         )}
 
-                        {/* GOTV (Public/Admin) */}
+                        {/* GOTV IP */}
                         {match.gotv_ip && match.gotv_ip !== 'HIDDEN' && (
                             <div 
                                 onClick={() => handleCopy(match.gotv_ip, 'gotv')}
@@ -183,7 +205,7 @@ const MatchModal = ({ match, onClose }) => {
                                 <div className="absolute top-0 left-0 w-1 h-full bg-purple-500" />
                                 <div className="flex justify-between items-start mb-2">
                                     <div className="text-xs font-bold text-purple-400 uppercase flex items-center gap-2">
-                                        <MonitorPlay className="w-4 h-4" /> GOTV (Spectator)
+                                        <MonitorPlay className="w-4 h-4" /> GOTV (Public)
                                     </div>
                                     <Copy className="w-4 h-4 text-purple-500 opacity-50 group-hover:opacity-100" />
                                 </div>
@@ -198,16 +220,61 @@ const MatchModal = ({ match, onClose }) => {
                             </div>
                         )}
                     </div>
+                ) : (
+                    // CAPTAIN WAITING VIEW
+                    <div className="bg-yellow-900/10 border border-yellow-500/20 p-6 rounded-xl flex items-center justify-center gap-4 text-center">
+                        <AlertTriangle className="w-8 h-8 text-yellow-500 opacity-50" />
+                        <div>
+                            <h4 className="text-yellow-500 font-bold text-sm uppercase">Server Details Locked</h4>
+                            <p className="text-zinc-500 text-xs mt-1">
+                                IPs will be revealed by the Admin once Veto is complete and the match is marked LIVE.
+                            </p>
+                        </div>
+                    </div>
                 )}
+
+                {/* Veto Panel */}
+                <VetoPanel match={match} />
             </div>
         )}
 
-        {/* --- VIEW: SETTINGS (Admin) --- */}
+        {/* --- TAB: SETTINGS & STATE (Admin) --- */}
         {activeTab === 'settings' && userIsAdmin && (
-            <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                
+                {/* MATCH STATE CONTROLS */}
+                <div className="bg-zinc-900/50 p-4 rounded-xl border border-zinc-800">
+                    <h4 className="text-xs font-bold text-zinc-500 uppercase mb-3">Match Lifecycle</h4>
+                    <div className="flex gap-3">
+                        <Button 
+                            onClick={() => setMatchState('live')}
+                            className={`flex-1 flex items-center justify-center gap-2 ${match.status === 'live' ? 'bg-green-600' : 'bg-zinc-800'}`}
+                            disabled={match.status === 'live' || loading}
+                        >
+                            <Play className="w-4 h-4" /> {match.status === 'live' ? 'Match is Live' : 'Start Match (Reveal IP)'}
+                        </Button>
+                        <Button 
+                            onClick={() => setMatchState('paused')}
+                            className="bg-yellow-900/30 text-yellow-500 border border-yellow-900/50 hover:bg-yellow-900/50"
+                            disabled={loading}
+                        >
+                            <Pause className="w-4 h-4" /> Pause
+                        </Button>
+                        <Button 
+                            onClick={() => setMatchState('scheduled')}
+                            variant="ghost"
+                            className="text-zinc-500 hover:text-white"
+                            disabled={loading}
+                        >
+                            <RotateCcw className="w-4 h-4" /> Reset
+                        </Button>
+                    </div>
+                </div>
+
+                {/* SERVER DETAILS FORM */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Game Server IP</label>
+                        <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Game Server IP (Secret)</label>
                         <input 
                             className="w-full bg-[#0b0c0f] border border-zinc-700 rounded p-3 text-white focus:border-blue-500 outline-none font-mono text-sm"
                             value={serverIp}
@@ -216,7 +283,7 @@ const MatchModal = ({ match, onClose }) => {
                         />
                     </div>
                     <div>
-                        <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">GOTV IP</label>
+                        <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">GOTV IP (Public)</label>
                         <input 
                             className="w-full bg-[#0b0c0f] border border-zinc-700 rounded p-3 text-white focus:border-purple-500 outline-none font-mono text-sm"
                             value={gotvIp}
@@ -225,29 +292,39 @@ const MatchModal = ({ match, onClose }) => {
                         />
                     </div>
                     <div className="md:col-span-2">
+                        <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Manual Score</label>
+                        <div className="relative">
+                            <Edit3 className="absolute left-3 top-3 w-4 h-4 text-zinc-500" />
+                            <input 
+                                className="w-full bg-[#0b0c0f] border border-zinc-700 rounded p-3 pl-10 text-white focus:border-green-500 outline-none font-mono"
+                                value={manualScore}
+                                onChange={(e) => setManualScore(e.target.value)}
+                                placeholder="e.g. 13 - 9"
+                            />
+                        </div>
+                    </div>
+                    <div className="md:col-span-2">
                         <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Stream URL</label>
-                        <div className="flex gap-2">
-                            <div className="relative flex-grow">
-                                <Tv className="absolute left-3 top-3 w-4 h-4 text-zinc-500" />
-                                <input 
-                                    className="w-full bg-[#0b0c0f] border border-zinc-700 rounded p-3 pl-10 text-white focus:border-purple-500 outline-none"
-                                    value={streamUrl}
-                                    onChange={(e) => setStreamUrl(e.target.value)}
-                                    placeholder="https://twitch.tv/..."
-                                />
-                            </div>
+                        <div className="relative">
+                            <Tv className="absolute left-3 top-3 w-4 h-4 text-zinc-500" />
+                            <input 
+                                className="w-full bg-[#0b0c0f] border border-zinc-700 rounded p-3 pl-10 text-white focus:border-purple-500 outline-none"
+                                value={streamUrl}
+                                onChange={(e) => setStreamUrl(e.target.value)}
+                                placeholder="https://twitch.tv/..."
+                            />
                         </div>
                     </div>
                 </div>
-                <div className="flex justify-end pt-4">
-                    <Button onClick={handleUpdateDetails} disabled={loading}>
-                        {loading ? 'Saving...' : 'Save Configuration'}
+                <div className="flex justify-end pt-2">
+                    <Button onClick={saveSettings} disabled={loading}>
+                        {loading ? 'Saving...' : 'Save Changes'}
                     </Button>
                 </div>
             </div>
         )}
 
-        {/* --- VIEW: ADMIN DANGER ZONE --- */}
+        {/* --- TAB: DANGER ZONE (Admin) --- */}
         {activeTab === 'admin' && userIsAdmin && (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
                 <div className="bg-red-950/10 border border-red-900/30 p-6 rounded-xl">
@@ -275,10 +352,6 @@ const MatchModal = ({ match, onClose }) => {
                             Force Win: {team2.name}
                         </Button>
                     </div>
-                </div>
-                {/* Placeholder for future features like Reset Match */}
-                <div className="text-center">
-                    <p className="text-zinc-600 text-xs uppercase tracking-widest">More admin tools coming in Phase 1</p>
                 </div>
             </div>
         )}

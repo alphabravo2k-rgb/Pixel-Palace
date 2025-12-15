@@ -28,18 +28,35 @@ const Bracket = ({ onMatchClick }) => {
     return [(parts[0] || '-'), (parts[1] || '-')];
   };
 
-  // Helper to format start time
+  // Helper to format start time (Universal/Local)
   const formatSchedule = (match) => {
       // Assuming match.start_time or match.metadata.start_time exists
+      // SQL column might be 'start_time' directly if mapped in useTournament, or inside metadata
       const timeStr = match.start_time || match.metadata?.start_time;
-      if (!timeStr) return null;
+      
+      if (!timeStr) return "TBD"; // Default if no time set
 
       const date = new Date(timeStr);
       const now = new Date();
-      const isToday = date.toDateString() === now.toDateString();
       
-      const time = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      return isToday ? `Today ${time}` : `${date.toLocaleDateString([], { weekday: 'short' })} ${time}`;
+      // Invalid Date check
+      if (isNaN(date.getTime())) return "TBD";
+
+      // Relative Time Logic (e.g., "In 2 hours", "Tomorrow")
+      const diffMs = date - now;
+      const diffHrs = diffMs / (1000 * 60 * 60);
+      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+      const timeString = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+      if (diffHrs > 0 && diffHrs < 24 && date.getDate() === now.getDate()) {
+          return `Today ${timeString}`;
+      } else if (diffDays === 1) {
+          return `Tmrw ${timeString}`;
+      } else {
+          // Fallback to Short Date + Time (e.g., "Dec 25 14:00")
+          return `${date.toLocaleDateString([], { month: 'short', day: 'numeric' })} ${timeString}`;
+      }
   };
 
   // Group flat matches into rounds
@@ -94,6 +111,8 @@ const Bracket = ({ onMatchClick }) => {
     const calcLines = () => {
       const newLines = [];
       const containerRect = containerRef.current.getBoundingClientRect();
+      const containerScrollLeft = containerRef.current.scrollLeft;
+      const containerScrollTop = containerRef.current.scrollTop;
       
       for (let i = 0; i < BRACKET_ORDER.length - 1; i++) {
         const roundA = BRACKET_ORDER[i];
@@ -115,13 +134,13 @@ const Bracket = ({ onMatchClick }) => {
             const rectA1 = elA1.getBoundingClientRect();
             const rectA2 = elA2.getBoundingClientRect();
 
-            // Re-calculating using offsets relative to the scrollable container
-            const containerScrollLeft = containerRef.current.scrollLeft;
-            const containerScrollTop = containerRef.current.scrollTop;
-
+            // Calculate precise connection points relative to the SCROLLABLE container
+            // Start: Right edge of previous round cards
             const startX = (rectA1.right - containerRect.left) + containerScrollLeft;
+            // End: Left edge of current round card
             const endX = (rectB.left - containerRect.left) + containerScrollLeft;
             
+            // Vertical Centers
             const yA1 = (rectA1.top + rectA1.height / 2 - containerRect.top) + containerScrollTop;
             const yA2 = (rectA2.top + rectA2.height / 2 - containerRect.top) + containerScrollTop;
             const yB = (rectB.top + rectB.height / 2 - containerRect.top) + containerScrollTop;
@@ -153,9 +172,13 @@ const Bracket = ({ onMatchClick }) => {
     // Recalculate on load and resize
     const timer = setTimeout(calcLines, 500); 
     window.addEventListener('resize', calcLines);
+    // Also re-calc on scroll to fix any fixed-position glitches if SVG wasn't absolute correctly
+    containerRef.current.addEventListener('scroll', calcLines); 
+
     return () => {
       clearTimeout(timer);
       window.removeEventListener('resize', calcLines);
+      if(containerRef.current) containerRef.current.removeEventListener('scroll', calcLines);
     };
   }, [bracketData]);
 
@@ -253,12 +276,14 @@ const Bracket = ({ onMatchClick }) => {
                   {/* Enhanced Footer / Status Bar */}
                   {!match.isDummy && (
                     <div className={`px-3 py-1.5 flex justify-between items-center border-t ${needsAdmin ? 'border-red-900/30 bg-red-900/10' : hasDispute ? 'border-yellow-900/30 bg-yellow-900/10' : 'border-zinc-800/50 bg-[#0b0c0f]/50'} rounded-b-lg`}>
-                      {/* Left: Schedule Time or Match ID */}
+                      {/* Left: Schedule Time or TBD */}
                       <div className="flex items-center gap-1.5">
-                          {match.status === 'scheduled' && scheduleText ? (
+                          {match.status === 'scheduled' ? (
                               <>
                                 <Calendar className="w-3 h-3 text-zinc-500" />
-                                <span className="text-[9px] text-zinc-400 font-bold tracking-wide">{scheduleText}</span>
+                                <span className={`text-[9px] font-bold tracking-wide ${scheduleText === 'TBD' ? 'text-zinc-600' : 'text-zinc-400'}`}>
+                                    {scheduleText}
+                                </span>
                               </>
                           ) : (
                               <span className="text-[9px] text-zinc-600 font-mono tracking-wider">

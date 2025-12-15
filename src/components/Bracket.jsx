@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useLayoutEffect } from 'react';
+import React, { useMemo, useRef, useState, useLayoutEffect } from 'react';
 import { useTournament } from '../tournament/useTournament';
 import { Tv, Lock, Trophy, AlertTriangle, Map as MapIcon, Shield, AlertOctagon, Calendar, Loader2 } from 'lucide-react';
 
@@ -221,8 +221,8 @@ const Bracket = ({ onMatchClick }) => {
   const { matches, teams, loading } = useTournament();
   const containerRef = useRef(null);
   const contentRef = useRef(null);
-  const svgRef = useRef(null); // Ref for SVG element for direct DOM manipulation
   const matchRefs = useRef(new Map());
+  const [connections, setConnections] = useState([]); // Store path data, not full SVG logic
 
   // 1. O(1) Team Lookup
   const teamMap = useMemo(() => {
@@ -236,15 +236,17 @@ const Bracket = ({ onMatchClick }) => {
   // 2. Compute Bracket Structure (Memoized)
   const bracketData = useMemo(() => buildBracketStructure(matches), [matches]);
 
-  // 3. Robust Line Drawing Effect (Imperative SVG)
+  // 3. Declarative Line Drawing (Phase 4 Fix)
   useLayoutEffect(() => {
-    if (!contentRef.current || !containerRef.current || !svgRef.current) return;
+    if (!contentRef.current || !containerRef.current) return;
 
-    // Snapshot refs to avoid mid-render mutation issues (basic safety)
-    const currentMatchRefs = matchRefs.current;
+    let animationFrameId;
 
-    const calcLines = () => {
-      let paths = '';
+    const updateLines = () => {
+      // If component unmounted or hidden, skip
+      if (!contentRef.current) return;
+
+      const newConnections = [];
       const parentRect = contentRef.current.getBoundingClientRect();
       
       for (let i = 0; i < BRACKET_ORDER.length - 1; i++) {
@@ -255,20 +257,22 @@ const Bracket = ({ onMatchClick }) => {
         const matchesB = bracketData[roundB];
 
         matchesB.forEach((matchB, idxB) => {
+          // Logic: Match B connects to Match A1 (2*idx) and Match A2 (2*idx + 1)
           const idxA1 = idxB * 2;
           const idxA2 = idxB * 2 + 1;
 
           // Retrieve elements from Ref Map
-          const elB = currentMatchRefs.get(matchB.id);
-          const elA1 = matchesA[idxA1] ? currentMatchRefs.get(matchesA[idxA1].id) : null;
-          const elA2 = matchesA[idxA2] ? currentMatchRefs.get(matchesA[idxA2].id) : null;
+          const elB = matchRefs.current.get(matchB.id);
+          const elA1 = matchesA[idxA1] ? matchRefs.current.get(matchesA[idxA1].id) : null;
+          const elA2 = matchesA[idxA2] ? matchRefs.current.get(matchesA[idxA2].id) : null;
 
           if (elB && elA1 && elA2) {
             const rectB = elB.getBoundingClientRect();
             const rectA1 = elA1.getBoundingClientRect();
             const rectA2 = elA2.getBoundingClientRect();
 
-            // Calculate coordinates relative to the content wrapper (pure layout)
+            // Calculate coordinates relative to the content wrapper.
+            // Using Element.getBoundingClientRect delta ensures we are scroll-independent relative to the wrapper.
             const startX = rectA1.right - parentRect.left;
             const endX = rectB.left - parentRect.left;
             
@@ -278,34 +282,34 @@ const Bracket = ({ onMatchClick }) => {
 
             const midX = startX + (endX - startX) / 2;
 
-            // Generate SVG Path String directly
-            paths += `
-              <path 
-                d="M ${startX} ${yA1} H ${midX} V ${yA2} H ${startX} M ${midX} ${yB} H ${endX}" 
-                stroke="#52525b" 
-                stroke-width="1.5" 
-                fill="none" 
-              />
-            `;
+            // Create Path String
+            const d = `M ${startX} ${yA1} H ${midX} V ${yA2} H ${startX} M ${midX} ${yB} H ${endX}`;
+            newConnections.push({ key: `${roundA}-${idxB}`, d });
           }
         });
       }
-      // Direct DOM update - No React render cycle needed for geometry updates
-      svgRef.current.innerHTML = paths;
+      setConnections(newConnections);
+    };
+
+    // Throttled Update Loop
+    const handleResize = () => {
+      if (animationFrameId) cancelAnimationFrame(animationFrameId);
+      animationFrameId = requestAnimationFrame(updateLines);
     };
 
     // Initial calculation
-    calcLines();
+    handleResize();
 
-    // Use ResizeObserver for robust layout updates
-    const resizeObserver = new ResizeObserver(() => {
-        requestAnimationFrame(calcLines);
-    });
-    
+    const resizeObserver = new ResizeObserver(handleResize);
     resizeObserver.observe(contentRef.current);
-    resizeObserver.observe(containerRef.current);
+    
+    // We also observe the container just in case resizing the window changes layout
+    if (containerRef.current) {
+        resizeObserver.observe(containerRef.current);
+    }
 
     return () => {
+      if (animationFrameId) cancelAnimationFrame(animationFrameId);
       resizeObserver.disconnect();
     };
   }, [bracketData]); 
@@ -334,11 +338,18 @@ const Bracket = ({ onMatchClick }) => {
       {/* Content Wrapper scales with content */}
       <div className="relative min-w-max" ref={contentRef}>
         
-        {/* SVG Layer - Direct DOM Manipulation */}
-        <svg 
-            ref={svgRef} 
-            className="absolute inset-0 w-full h-full pointer-events-none z-0" 
-        />
+        {/* Declarative SVG Layer */}
+        <svg className="absolute inset-0 w-full h-full pointer-events-none z-0">
+          {connections.map(conn => (
+            <path 
+                key={conn.key} 
+                d={conn.d} 
+                stroke="#52525b" 
+                strokeWidth="1.5" 
+                fill="none" 
+            />
+          ))}
+        </svg>
 
         <div className="flex gap-20 relative z-10 pb-20">
           {BRACKET_ORDER.map((round) => (

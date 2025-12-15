@@ -2,11 +2,11 @@ import React, { useState } from 'react';
 import { useTournament } from '../tournament/useTournament';
 import { MAP_POOL } from '../lib/constants';
 import { isTeamCaptain } from '../tournament/permissions';
-import { useAuth } from '../auth/useAuth';
+import { useSession } from '../auth/useSession'; // FIXED
 
 const VetoPanel = ({ match }) => {
-  const { updateMatch, teams } = useTournament();
-  const { user } = useAuth();
+  const { submitVeto, teams } = useTournament();
+  const { session } = useSession(); // FIXED
   const [error, setError] = useState(null);
   
   if (!match || !match.vetoState) return null;
@@ -18,12 +18,12 @@ const VetoPanel = ({ match }) => {
   const currentTeamId = vetoState.turn;
   const currentTeam = currentTeamId === match.team1Id ? team1 : team2;
   
-  // SECURED: Only the Captain of the active team can interact
-  const canVeto = isTeamCaptain(user, currentTeam);
+  // Use session instead of user
+  const canVeto = isTeamCaptain(session, currentTeamId);
 
   const handleVeto = async (mapId) => {
     if (!canVeto) {
-        setError("Only the Team Captain can veto maps.");
+        setError("Only the Active Team Captain can veto.");
         return;
     }
     setError(null);
@@ -32,34 +32,32 @@ const VetoPanel = ({ match }) => {
     const remainingMaps = MAP_POOL.filter(m => !newBanned.includes(m.id));
     
     let updates = {};
+    let actionDesc = `Banned ${MAP_POOL.find(m => m.id === mapId)?.name}`;
 
     try {
         if (remainingMaps.length === 1) {
-          // Veto complete, last map is picked
           updates = {
             'vetoState.bannedMaps': newBanned,
             'vetoState.pickedMap': remainingMaps[0].id,
             'vetoState.phase': 'complete',
             'status': 'live'
           };
+          actionDesc += ` (Auto-pick ${remainingMaps[0].name})`;
         } else {
-          // Switch turn
           updates = {
             'vetoState.bannedMaps': newBanned,
             'vetoState.turn': currentTeamId === match.team1Id ? match.team2Id : match.team1Id
           };
         }
     
-        await updateMatch(match.id, updates);
+        await submitVeto(match.id, updates, actionDesc);
     } catch (err) {
-        setError("Failed to submit veto. Please try again.");
-        console.error(err);
+        setError("Veto failed. Refresh and try again.");
     }
   };
 
   return (
     <div className="space-y-4">
-      {/* Veto Header */}
       <div className="flex justify-between items-center bg-slate-900 p-3 rounded-lg border border-slate-700">
         <div className={`text-lg font-bold flex items-center gap-2 ${vetoState.turn === match.team1Id ? 'text-yellow-400' : 'text-slate-500'}`}>
           {vetoState.turn === match.team1Id && <span className="animate-pulse">▶</span>}
@@ -125,12 +123,6 @@ const VetoPanel = ({ match }) => {
           );
         })}
       </div>
-      
-      {!vetoState.pickedMap && (
-        <div className="text-center text-xs text-slate-500 mt-2">
-            {canVeto ? "It is your turn to ban." : "Waiting for opponent captain..."}
-        </div>
-      )}
     </div>
   );
 };

@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState, useLayoutEffect } from 'react';
+import React, { useMemo, useRef, useLayoutEffect } from 'react';
 import { useTournament } from '../tournament/useTournament';
 import { Tv, Lock, Trophy, AlertTriangle, Map as MapIcon, Shield, AlertOctagon, Calendar, Loader2 } from 'lucide-react';
 
@@ -38,7 +38,7 @@ const formatSchedule = (match) => {
   }
 };
 
-// Bracket Engine: Deterministic Slot Filling
+// Bracket Engine: Deterministic Slot Filling with Guards
 const buildBracketStructure = (matches) => {
   const groups = {};
   
@@ -55,15 +55,24 @@ const buildBracketStructure = (matches) => {
     }));
   });
 
-  // Hydrate with real matches
+  // Hydrate with real matches safely
   matches.forEach(match => {
     const roundLabel = ROUND_MAP[match.round];
-    if (groups[roundLabel] && groups[roundLabel][match.matchIndex]) {
+    
+    // Safety Guard: Check if round exists and index is valid
+    if (
+        groups[roundLabel] && 
+        match.matchIndex != null && 
+        match.matchIndex >= 0 && 
+        match.matchIndex < groups[roundLabel].length
+    ) {
       // Replace dummy with real match
       groups[roundLabel][match.matchIndex] = {
         ...match,
         isDummy: false
       };
+    } else {
+        console.warn('Invalid match placement detected:', match);
     }
   });
 
@@ -212,8 +221,8 @@ const Bracket = ({ onMatchClick }) => {
   const { matches, teams, loading } = useTournament();
   const containerRef = useRef(null);
   const contentRef = useRef(null);
+  const svgRef = useRef(null); // Ref for SVG element for direct DOM manipulation
   const matchRefs = useRef(new Map());
-  const [lines, setLines] = useState([]);
 
   // 1. O(1) Team Lookup
   const teamMap = useMemo(() => {
@@ -227,12 +236,15 @@ const Bracket = ({ onMatchClick }) => {
   // 2. Compute Bracket Structure (Memoized)
   const bracketData = useMemo(() => buildBracketStructure(matches), [matches]);
 
-  // 3. Robust Line Drawing Effect
+  // 3. Robust Line Drawing Effect (Imperative SVG)
   useLayoutEffect(() => {
-    if (!contentRef.current || !containerRef.current) return;
+    if (!contentRef.current || !containerRef.current || !svgRef.current) return;
+
+    // Snapshot refs to avoid mid-render mutation issues (basic safety)
+    const currentMatchRefs = matchRefs.current;
 
     const calcLines = () => {
-      const newLines = [];
+      let paths = '';
       const parentRect = contentRef.current.getBoundingClientRect();
       
       for (let i = 0; i < BRACKET_ORDER.length - 1; i++) {
@@ -243,14 +255,13 @@ const Bracket = ({ onMatchClick }) => {
         const matchesB = bracketData[roundB];
 
         matchesB.forEach((matchB, idxB) => {
-          // Logic: Match B (in next round) connects to Match A1 (2*idx) and Match A2 (2*idx + 1)
           const idxA1 = idxB * 2;
           const idxA2 = idxB * 2 + 1;
 
           // Retrieve elements from Ref Map
-          const elB = matchRefs.current.get(matchB.id);
-          const elA1 = matchesA[idxA1] ? matchRefs.current.get(matchesA[idxA1].id) : null;
-          const elA2 = matchesA[idxA2] ? matchRefs.current.get(matchesA[idxA2].id) : null;
+          const elB = currentMatchRefs.get(matchB.id);
+          const elA1 = matchesA[idxA1] ? currentMatchRefs.get(matchesA[idxA1].id) : null;
+          const elA2 = matchesA[idxA2] ? currentMatchRefs.get(matchesA[idxA2].id) : null;
 
           if (elB && elA1 && elA2) {
             const rectB = elB.getBoundingClientRect();
@@ -267,26 +278,20 @@ const Bracket = ({ onMatchClick }) => {
 
             const midX = startX + (endX - startX) / 2;
 
-            newLines.push(
+            // Generate SVG Path String directly
+            paths += `
               <path 
-                key={`${roundA}-${idxB}`}
-                d={`
-                  M ${startX} ${yA1} 
-                  H ${midX} 
-                  V ${yA2} 
-                  H ${startX} 
-                  M ${midX} ${yB} 
-                  H ${endX}
-                `}
+                d="M ${startX} ${yA1} H ${midX} V ${yA2} H ${startX} M ${midX} ${yB} H ${endX}" 
                 stroke="#52525b" 
-                strokeWidth="1.5" 
+                stroke-width="1.5" 
                 fill="none" 
               />
-            );
+            `;
           }
         });
       }
-      setLines(newLines);
+      // Direct DOM update - No React render cycle needed for geometry updates
+      svgRef.current.innerHTML = paths;
     };
 
     // Initial calculation
@@ -294,19 +299,14 @@ const Bracket = ({ onMatchClick }) => {
 
     // Use ResizeObserver for robust layout updates
     const resizeObserver = new ResizeObserver(() => {
-        // Debounce slightly or run immediately
         requestAnimationFrame(calcLines);
     });
     
     resizeObserver.observe(contentRef.current);
     resizeObserver.observe(containerRef.current);
 
-    // Scroll listener just in case (though contentRef approach usually avoids this)
-    containerRef.current.addEventListener('scroll', calcLines);
-
     return () => {
       resizeObserver.disconnect();
-      if(containerRef.current) containerRef.current.removeEventListener('scroll', calcLines);
     };
   }, [bracketData]); 
 
@@ -334,10 +334,11 @@ const Bracket = ({ onMatchClick }) => {
       {/* Content Wrapper scales with content */}
       <div className="relative min-w-max" ref={contentRef}>
         
-        {/* SVG Layer */}
-        <svg className="absolute inset-0 w-full h-full pointer-events-none z-0">
-          {lines}
-        </svg>
+        {/* SVG Layer - Direct DOM Manipulation */}
+        <svg 
+            ref={svgRef} 
+            className="absolute inset-0 w-full h-full pointer-events-none z-0" 
+        />
 
         <div className="flex gap-20 relative z-10 pb-20">
           {BRACKET_ORDER.map((round) => (

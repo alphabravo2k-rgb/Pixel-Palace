@@ -1,13 +1,14 @@
-import React, { useMemo, useRef, useEffect, useState } from 'react';
+import React, { useMemo, useRef, useState, useLayoutEffect } from 'react';
 import { useTournament } from '../tournament/useTournament';
-import { Tv, Lock, Trophy, AlertTriangle, Map as MapIcon, Shield, Radio, AlertOctagon, Calendar } from 'lucide-react';
+import { Tv, Lock, Trophy, AlertTriangle, Map as MapIcon, Shield, AlertOctagon, Calendar, Loader2 } from 'lucide-react';
 
 // --- CONFIGURATION ---
 const BRACKET_ORDER = ['R32', 'R16', 'QF', 'SF', 'GF'];
 const ROUND_MAP = { 1: 'R32', 2: 'R16', 3: 'QF', 4: 'SF', 5: 'GF' };
 const ROUND_STRUCTURE = { 'R32': 16, 'R16': 8, 'QF': 4, 'SF': 2, 'GF': 1 };
 
-// --- HELPERS ---
+// --- PURE LOGIC HELPERS ---
+
 const parseScore = (score) => {
   if (!score || typeof score !== 'string' || score.includes('Decision')) return ['-', '-'];
   const parts = score.match(/\d+/g) || []; 
@@ -19,10 +20,9 @@ const formatSchedule = (match) => {
   if (!timeStr) return "TBD"; 
 
   const date = new Date(timeStr);
-  const now = new Date();
-  
   if (isNaN(date.getTime())) return "TBD";
 
+  const now = new Date();
   const diffMs = date - now;
   const diffHrs = diffMs / (1000 * 60 * 60);
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
@@ -38,42 +38,78 @@ const formatSchedule = (match) => {
   }
 };
 
+// Bracket Engine: Deterministic Slot Filling
 const buildBracketStructure = (matches) => {
-  const groups = BRACKET_ORDER.reduce((acc, round) => ({ ...acc, [round]: [] }), {});
+  const groups = {};
   
-  // 1. Place real matches
+  // Initialize rounds with empty slots based on structure
+  BRACKET_ORDER.forEach(round => {
+    const totalSlots = ROUND_STRUCTURE[round];
+    groups[round] = Array(totalSlots).fill(null).map((_, index) => ({
+      id: `slot-${round}-${index}`, // Stable ID for React keys
+      round,
+      matchIndex: index,
+      isDummy: true,
+      status: 'scheduled',
+      display_id: `M${index + 1}`
+    }));
+  });
+
+  // Hydrate with real matches
   matches.forEach(match => {
     const roundLabel = ROUND_MAP[match.round];
-    if (groups[roundLabel]) {
-      groups[roundLabel].push(match);
+    if (groups[roundLabel] && groups[roundLabel][match.matchIndex]) {
+      // Replace dummy with real match
+      groups[roundLabel][match.matchIndex] = {
+        ...match,
+        isDummy: false
+      };
     }
   });
 
-  // 2. Fill gaps with Dummies
-  BRACKET_ORDER.forEach(round => {
-    const targetCount = ROUND_STRUCTURE[round];
-    const currentCount = groups[round].length;
-    
-    if (currentCount < targetCount) {
-      const needed = targetCount - currentCount;
-      const dummies = Array(needed).fill(null).map((_, i) => ({
-        id: `dummy-${round}-${currentCount + i}`,
-        round: round,
-        matchIndex: currentCount + i,
-        team1Id: null,
-        team2Id: null,
-        score: null,
-        status: 'scheduled',
-        isDummy: true,
-        display_id: `M${currentCount + i + 1}`
-      }));
-      groups[round] = [...groups[round], ...dummies];
-    }
-    // Sort by matchIndex for consistent ordering
-    groups[round].sort((a, b) => a.matchIndex - b.matchIndex);
-  });
-  
   return groups;
+};
+
+// Domain Logic: Derive Status Flags
+const getMatchStatus = (match) => {
+  const isLive = match.status === 'live';
+  const isCompleted = match.status === 'completed';
+  const hasDispute = match.metadata?.dispute;
+  const needsAdmin = match.metadata?.needs_admin;
+  const isVetoing = isLive && match.vetoState?.phase !== 'complete';
+
+  let borderColor = 'border-zinc-800';
+  let shadow = '';
+  let statusStrip = 'bg-zinc-800';
+  let Icon = null;
+  let label = null;
+  let textClass = 'text-zinc-600';
+
+  if (needsAdmin) {
+      borderColor = 'border-red-500';
+      shadow = 'shadow-[0_0_15px_rgba(239,68,68,0.2)]';
+      statusStrip = 'bg-red-500 animate-pulse';
+      Icon = AlertOctagon;
+      label = 'SOS';
+      textClass = 'text-red-500 animate-pulse';
+  } else if (hasDispute) {
+      borderColor = 'border-yellow-500';
+      shadow = 'shadow-[0_0_15px_rgba(234,179,8,0.2)]';
+      statusStrip = 'bg-yellow-500 animate-pulse';
+      Icon = AlertTriangle;
+      label = 'DISPUTE';
+      textClass = 'text-yellow-500 animate-pulse';
+  } else if (isLive) {
+      borderColor = 'border-green-500';
+      shadow = 'shadow-[0_0_15px_rgba(34,197,94,0.15)]';
+      statusStrip = 'bg-green-500 animate-pulse';
+      // Icon handled in JSX for live state
+  } else if (isCompleted) {
+      borderColor = 'border-zinc-700';
+      statusStrip = 'bg-zinc-700';
+  }
+
+  return { isLive, isCompleted, isVetoing, borderColor, shadow, statusStrip, Icon, label, textClass };
 };
 
 // --- SUB-COMPONENTS ---
@@ -81,43 +117,22 @@ const buildBracketStructure = (matches) => {
 const BracketMatch = ({ match, team1, team2, onClick, setRef }) => {
   const [scoreA, scoreB] = parseScore(match.score);
   const scheduleText = formatSchedule(match);
-  
-  const isLive = match.status === 'live';
-  const isCompleted = match.status === 'completed';
-  const hasDispute = match.metadata?.dispute; 
-  const needsAdmin = match.metadata?.needs_admin;
-  const isVetoing = isLive && match.vetoState?.phase !== 'complete';
+  const { isLive, isCompleted, isVetoing, borderColor, shadow, statusStrip, Icon, label, textClass } = getMatchStatus(match);
   const winnerId = match.winnerId;
 
-  let borderColor = 'border-zinc-800';
-  let shadow = '';
-  let statusStrip = 'bg-zinc-800';
-
-  if (needsAdmin) {
-      borderColor = 'border-red-500';
-      shadow = 'shadow-[0_0_15px_rgba(239,68,68,0.2)]';
-      statusStrip = 'bg-red-500 animate-pulse';
-  } else if (hasDispute) {
-      borderColor = 'border-yellow-500';
-      shadow = 'shadow-[0_0_15px_rgba(234,179,8,0.2)]';
-      statusStrip = 'bg-yellow-500 animate-pulse';
-  } else if (isLive) {
-      borderColor = 'border-green-500';
-      shadow = 'shadow-[0_0_15px_rgba(34,197,94,0.15)]';
-      statusStrip = 'bg-green-500 animate-pulse';
-  } else if (match.status === 'completed') {
-      borderColor = 'border-zinc-700';
-      statusStrip = 'bg-zinc-700';
-  }
+  // Safe Click Handler
+  const handleClick = () => {
+    if (!match.isDummy && onClick) onClick(match);
+  };
 
   return (
     <div 
       ref={setRef}
-      onClick={!match.isDummy ? onClick : undefined}
+      onClick={handleClick}
       className={`
-        w-full relative bg-[#15191f] border rounded-lg cursor-pointer transition-all duration-300 group z-10
-        ${borderColor} ${shadow} hover:border-zinc-600
-        ${match.isDummy ? 'opacity-30 cursor-default border-dashed' : 'hover:scale-[1.02]'}
+        w-full relative bg-[#15191f] border rounded-lg transition-all duration-300 group z-10
+        ${borderColor} ${shadow} 
+        ${match.isDummy ? 'opacity-30 cursor-default border-dashed' : 'cursor-pointer hover:border-zinc-600 hover:scale-[1.02]'}
       `}
     >
       <div className={`h-0.5 w-full ${statusStrip}`}></div>
@@ -141,7 +156,7 @@ const BracketMatch = ({ match, team1, team2, onClick, setRef }) => {
       </div>
 
       {!match.isDummy && (
-        <div className={`px-3 py-1.5 flex justify-between items-center border-t ${needsAdmin ? 'border-red-900/30 bg-red-900/10' : hasDispute ? 'border-yellow-900/30 bg-yellow-900/10' : 'border-zinc-800/50 bg-[#0b0c0f]/50'} rounded-b-lg`}>
+        <div className={`px-3 py-1.5 flex justify-between items-center border-t ${label ? 'border-zinc-800/50 bg-black/20' : 'border-zinc-800/50 bg-[#0b0c0f]/50'} rounded-b-lg`}>
           <div className="flex items-center gap-1.5">
               {match.status === 'scheduled' ? (
                   <>
@@ -158,29 +173,30 @@ const BracketMatch = ({ match, team1, team2, onClick, setRef }) => {
           </div>
           
           <div className="flex gap-2 items-center">
-            {needsAdmin ? (
-                <div className="flex items-center gap-1 text-red-500 animate-pulse">
-                    <AlertOctagon className="w-3 h-3" />
-                    <span className="text-[9px] font-bold tracking-wider">SOS</span>
+            {Icon && (
+                <div className={`flex items-center gap-1 ${textClass}`}>
+                    <Icon className="w-3 h-3" />
+                    <span className="text-[9px] font-bold tracking-wider">{label}</span>
                 </div>
-            ) : hasDispute ? (
-                <div className="flex items-center gap-1 text-yellow-500 animate-pulse">
-                    <AlertTriangle className="w-3 h-3" />
-                    <span className="text-[9px] font-bold tracking-wider">DISPUTE</span>
-                </div>
-            ) : isVetoing ? (
+            )}
+            
+            {isVetoing && (
                 <div className="flex items-center gap-1 text-blue-400">
                     <MapIcon className="w-3 h-3" />
                     <span className="text-[9px] font-bold tracking-wider">VETO</span>
                 </div>
-            ) : isLive ? (
+            )}
+
+            {isLive && (
                 <div className="flex items-center gap-1.5">
                     <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-ping"></span>
                     <span className="text-[9px] font-bold text-green-500 tracking-wider">LIVE</span>
                 </div>
-            ) : match.status === 'scheduled' ? (
+            )}
+
+            {match.status === 'scheduled' && !Icon && (
                 <Lock className="w-3 h-3 text-zinc-600" />
-            ) : null}
+            )}
 
             {match.stream_url && <Tv className="w-3 h-3 text-purple-500" />}
           </div>
@@ -193,13 +209,13 @@ const BracketMatch = ({ match, team1, team2, onClick, setRef }) => {
 // --- MAIN COMPONENT ---
 
 const Bracket = ({ onMatchClick }) => {
-  const { matches, teams } = useTournament();
+  const { matches, teams, loading } = useTournament();
   const containerRef = useRef(null);
   const contentRef = useRef(null);
   const matchRefs = useRef(new Map());
   const [lines, setLines] = useState([]);
 
-  // 1. Performance Optimization: O(1) Team Lookup
+  // 1. O(1) Team Lookup
   const teamMap = useMemo(() => {
     const map = new Map();
     teams.forEach(t => map.set(t.id, t));
@@ -208,12 +224,12 @@ const Bracket = ({ onMatchClick }) => {
 
   const getTeam = (teamId) => teamMap.get(teamId) || { name: 'TBD', logo_url: null };
 
-  // 2. Bracket Computation
+  // 2. Compute Bracket Structure (Memoized)
   const bracketData = useMemo(() => buildBracketStructure(matches), [matches]);
 
-  // 3. Line Logic using Refs
-  useEffect(() => {
-    if (!contentRef.current) return;
+  // 3. Robust Line Drawing Effect
+  useLayoutEffect(() => {
+    if (!contentRef.current || !containerRef.current) return;
 
     const calcLines = () => {
       const newLines = [];
@@ -227,6 +243,7 @@ const Bracket = ({ onMatchClick }) => {
         const matchesB = bracketData[roundB];
 
         matchesB.forEach((matchB, idxB) => {
+          // Logic: Match B (in next round) connects to Match A1 (2*idx) and Match A2 (2*idx + 1)
           const idxA1 = idxB * 2;
           const idxA2 = idxB * 2 + 1;
 
@@ -240,6 +257,7 @@ const Bracket = ({ onMatchClick }) => {
             const rectA1 = elA1.getBoundingClientRect();
             const rectA2 = elA2.getBoundingClientRect();
 
+            // Calculate coordinates relative to the content wrapper (pure layout)
             const startX = rectA1.right - parentRect.left;
             const endX = rectB.left - parentRect.left;
             
@@ -271,18 +289,49 @@ const Bracket = ({ onMatchClick }) => {
       setLines(newLines);
     };
 
-    // Calculate lines after render & layout
-    const timer = setTimeout(calcLines, 300);
-    window.addEventListener('resize', calcLines);
+    // Initial calculation
+    calcLines();
+
+    // Use ResizeObserver for robust layout updates
+    const resizeObserver = new ResizeObserver(() => {
+        // Debounce slightly or run immediately
+        requestAnimationFrame(calcLines);
+    });
     
+    resizeObserver.observe(contentRef.current);
+    resizeObserver.observe(containerRef.current);
+
+    // Scroll listener just in case (though contentRef approach usually avoids this)
+    containerRef.current.addEventListener('scroll', calcLines);
+
     return () => {
-      clearTimeout(timer);
-      window.removeEventListener('resize', calcLines);
+      resizeObserver.disconnect();
+      if(containerRef.current) containerRef.current.removeEventListener('scroll', calcLines);
     };
-  }, [bracketData]); // Re-run when bracket structure changes
+  }, [bracketData]); 
+
+  // Loading State
+  if (loading && matches.length === 0) {
+      return (
+          <div className="flex flex-col items-center justify-center h-[500px] text-zinc-500 gap-4">
+              <Loader2 className="w-10 h-10 animate-spin text-zinc-600" />
+              <p className="text-xs uppercase tracking-widest font-bold">Syncing Tournament Data...</p>
+          </div>
+      );
+  }
+
+  if (!loading && matches.length === 0) {
+      return (
+        <div className="flex flex-col items-center justify-center h-[500px] text-zinc-500 gap-4">
+            <Trophy className="w-12 h-12 opacity-20" />
+            <p className="text-sm tracking-widest uppercase font-bold">No matches found</p>
+        </div>
+      );
+  }
 
   return (
     <div className="w-full h-full overflow-auto bg-[#0b0c0f] p-8" ref={containerRef}>
+      {/* Content Wrapper scales with content */}
       <div className="relative min-w-max" ref={contentRef}>
         
         {/* SVG Layer */}
@@ -302,7 +351,7 @@ const Bracket = ({ onMatchClick }) => {
               <div className="flex flex-col justify-around gap-8 h-full">
                 {bracketData[round].map((match) => (
                   <BracketMatch 
-                    key={match.id}
+                    key={match.id} // Stable ID from buildBracketStructure
                     match={match}
                     team1={getTeam(match.team1Id)}
                     team2={getTeam(match.team2Id)}

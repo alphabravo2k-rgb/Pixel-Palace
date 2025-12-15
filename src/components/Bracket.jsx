@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useEffect, useState } from 'react';
 import { useTournament } from '../tournament/useTournament';
-import { Tv, Lock, Trophy, AlertTriangle, Map as MapIcon, Shield } from 'lucide-react';
+import { Tv, Lock, Trophy, AlertTriangle, Map as MapIcon, Shield, Radio, AlertOctagon } from 'lucide-react';
 
 // Configuration matches your "Command Center" logic
 const BRACKET_ORDER = ['R32', 'R16', 'QF', 'SF', 'GF'];
@@ -108,6 +108,7 @@ const Bracket = ({ onMatchClick }) => {
             const startX = (rectA1.right - containerRect.left) + containerScrollLeft;
             const endX = (rectB.left - containerRect.left) + containerScrollLeft;
             
+            // Calculate vertically centered anchor points
             const yA1 = (rectA1.top + rectA1.height / 2 - containerRect.top) + containerScrollTop;
             const yA2 = (rectA2.top + rectA2.height / 2 - containerRect.top) + containerScrollTop;
             const yB = (rectB.top + rectB.height / 2 - containerRect.top) + containerScrollTop;
@@ -126,7 +127,7 @@ const Bracket = ({ onMatchClick }) => {
                   H ${endX}
                 `}
                 stroke="#52525b" 
-                strokeWidth="2" 
+                strokeWidth="1.5" 
                 fill="none" 
               />
             );
@@ -150,7 +151,7 @@ const Bracket = ({ onMatchClick }) => {
     <div className="relative w-full h-full overflow-auto p-8 bg-[#0b0c0f]" ref={containerRef}>
       
       {/* SVG Layer for Lines */}
-      <svg className="absolute top-0 left-0 w-[2000px] h-[1500px] pointer-events-none z-0">
+      <svg className="absolute top-0 left-0 w-[3000px] h-[2000px] pointer-events-none z-0">
         {lines}
       </svg>
 
@@ -174,8 +175,9 @@ const Bracket = ({ onMatchClick }) => {
               const isLive = match.status === 'live';
               const isCompleted = match.status === 'completed';
               // Check metadata for granular states (Dispute, Veto, etc.)
-              // Assuming metadata has: { dispute: true, vetoState: { phase: 'ban' } }
+              // Assuming metadata has: { dispute: true, vetoState: { phase: 'ban' }, needs_admin: true }
               const hasDispute = match.metadata?.dispute; 
+              const needsAdmin = match.metadata?.needs_admin; // "Call Admin" / SOS
               const isVetoing = isLive && match.vetoState?.phase !== 'complete';
               
               const team1 = getTeam(match.team1Id);
@@ -187,7 +189,11 @@ const Bracket = ({ onMatchClick }) => {
               let shadow = '';
               let statusStrip = 'bg-zinc-800';
 
-              if (hasDispute) {
+              if (needsAdmin) {
+                  borderColor = 'border-red-500';
+                  shadow = 'shadow-[0_0_15px_rgba(239,68,68,0.2)]';
+                  statusStrip = 'bg-red-500 animate-pulse';
+              } else if (hasDispute) {
                   borderColor = 'border-yellow-500';
                   shadow = 'shadow-[0_0_15px_rgba(234,179,8,0.2)]';
                   statusStrip = 'bg-yellow-500 animate-pulse';
@@ -234,14 +240,19 @@ const Bracket = ({ onMatchClick }) => {
 
                   {/* Enhanced Footer / Status Bar */}
                   {!match.isDummy && (
-                    <div className={`px-3 py-1.5 flex justify-between items-center border-t ${hasDispute ? 'border-yellow-900/30 bg-yellow-900/10' : 'border-zinc-800/50 bg-[#0b0c0f]/50'} rounded-b-lg`}>
+                    <div className={`px-3 py-1.5 flex justify-between items-center border-t ${needsAdmin ? 'border-red-900/30 bg-red-900/10' : hasDispute ? 'border-yellow-900/30 bg-yellow-900/10' : 'border-zinc-800/50 bg-[#0b0c0f]/50'} rounded-b-lg`}>
                       <span className="text-[10px] text-zinc-600 font-mono tracking-wider">
                           {match.display_id || `M${match.matchIndex+1}`}
                       </span>
                       
                       <div className="flex gap-2 items-center">
                         {/* Status Badges */}
-                        {hasDispute ? (
+                        {needsAdmin ? (
+                            <div className="flex items-center gap-1 text-red-500 animate-pulse">
+                                <AlertOctagon className="w-3 h-3" />
+                                <span className="text-[9px] font-bold tracking-wider">SOS</span>
+                            </div>
+                        ) : hasDispute ? (
                             <div className="flex items-center gap-1 text-yellow-500 animate-pulse">
                                 <AlertTriangle className="w-3 h-3" />
                                 <span className="text-[9px] font-bold tracking-wider">DISPUTE</span>

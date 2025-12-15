@@ -1,140 +1,187 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { 
-  collection, 
-  onSnapshot, 
-  addDoc, 
-  updateDoc, 
-  doc, 
-  serverTimestamp, 
-  query 
-} from "firebase/firestore";
-import { db } from '../firebase/client';
-import { useSession } from '../auth/useSession'; // FIXED: Imports Session, not Auth
+import { supabase } from '../supabase/client';
+import { useSession } from '../auth/useSession';
 import { ROLES } from '../lib/roles';
+import { MAP_POOL } from '../lib/constants';
 
 const TournamentContext = createContext();
-const APP_ID = "cs2-tournament-manager"; 
 
 export const TournamentProvider = ({ children }) => {
-  const { session } = useSession(); // FIXED: Uses session
+  const { session } = useSession();
   const [teams, setTeams] = useState([]);
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Sync Logic - Always runs
+  // Helper: Parse SQL Veto Log strings (e.g. "BAN Mirage") -> UI Map IDs
+  const parseVetoLog = (log = []) => {
+      const banned = [];
+      let picked = null;
+      
+      if (Array.isArray(log)) {
+          log.forEach(entry => {
+              if (typeof entry !== 'string') return;
+              // Format assumption: "BAN MapName" or "PICK MapName"
+              const parts = entry.split(' '); 
+              if (parts.length < 2) return;
+              
+              const action = parts[0].toUpperCase();
+              const mapName = parts.slice(1).join(' '); 
+              
+              // Find ID from Constant Pool
+              const mapObj = MAP_POOL.find(m => m.name.toLowerCase() === mapName.toLowerCase());
+              if (mapObj) {
+                  if (action === 'BAN') banned.push(mapObj.id);
+                  if (action === 'PICK') picked = mapObj.id;
+              }
+          });
+      }
+      return { banned, picked };
+  };
+
+  const fetchData = async () => {
+    try {
+        setLoading(true);
+        
+        // 1. Fetch Matches with Team Names (SQL Joins)
+        const { data: matchesData, error: matchesError } = await supabase
+            .from('matches')
+            .select(`
+                *, 
+                player1:player1_id(display_name), 
+                player2:player2_id(display_name), 
+                winner:winner_id(display_name)
+            `)
+            .order('round', { ascending: true });
+
+        if (matchesError) throw matchesError;
+
+        // 2. Fetch Teams (From 'players' table)
+        const { data: teamsData, error: teamsError } = await supabase
+            .from('players')
+            .select('*')
+            .order('seed_number', { ascending: true });
+
+        if (teamsError) throw teamsError;
+
+        // 3. Map SQL Data -> UI Format
+        const uiTeams = teamsData.map(t => ({
+            id: t.id,
+            name: t.display_name,
+            captainId: null, // Logic managed by access_keys table, not exposed here directly
+            players: [], // Roster logic requires separate query if needed
+            ...t
+        }));
+
+        const uiMatches = matchesData.map(m => {
+            const { banned, picked } = parseVetoLog(m.metadata?.veto_log);
+            
+            // Determine turn from metadata ("A" vs "B")
+            // Default to Player 1 if waiting
+            const turnId = m.metadata?.turn === 'B' ? m.player2_id : m.player1_id;
+
+            return {
+                id: m.id,
+                round: m.round,
+                matchIndex: 0, // SQL sort order handles this
+                team1Id: m.player1_id,
+                team2Id: m.player2_id,
+                winnerId: m.winner_id,
+                status: m.state === 'open' ? 'live' : m.state === 'complete' ? 'completed' : 'scheduled',
+                vetoState: {
+                    phase: m.state === 'complete' ? 'complete' : 'ban',
+                    turn: turnId,
+                    bannedMaps: banned,
+                    pickedMap: picked
+                },
+                metadata: m.metadata // Keep raw for debugging/RPCs
+            };
+        });
+
+        setTeams(uiTeams);
+        setMatches(uiMatches);
+        setLoading(false);
+
+    } catch (err) {
+        console.error("Supabase Sync Error:", err);
+        setError(err.message);
+        setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    setLoading(true);
-    const teamsQuery = query(collection(db, 'artifacts', APP_ID, 'public', 'data', 'teams'));
-    const unsubTeams = onSnapshot(teamsQuery, (snapshot) => {
-      setTeams(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
-    }, (err) => console.error("Teams Sync Error", err));
+    fetchData();
 
-    const matchesQuery = query(collection(db, 'artifacts', APP_ID, 'public', 'data', 'matches'));
-    const unsubMatches = onSnapshot(matchesQuery, (snapshot) => {
-      const ms = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-      ms.sort((a, b) => (a.round - b.round) || (a.matchIndex - b.matchIndex));
-      setMatches(ms);
-      setLoading(false);
-    }, (err) => console.error("Matches Sync Error", err));
+    // Realtime: Listen for ANY change to matches or players
+    const channel = supabase.channel('tournament_db_changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, () => fetchData())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, () => fetchData())
+        .subscribe();
 
-    return () => { unsubTeams(); unsubMatches(); };
+    return () => { supabase.removeChannel(channel); };
   }, []);
 
-  // --- ACTIONS ---
-
-  const createTeam = async (name) => {
-    if (!session.isAuthenticated) throw new Error("Must be logged in");
-    try {
-      await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'teams'), {
-        name,
-        captainName: session.identity,
-        players: [{ 
-            name: session.identity, 
-            role: 'CAPTAIN', 
-            addedAt: new Date().toISOString() 
-        }],
-        createdAt: serverTimestamp()
-      });
-    } catch (err) {
-      console.error(err);
-      throw err;
-    }
-  };
-
-  const joinTeam = async (teamId, playerName, rank) => {
-    const team = teams.find(t => t.id === teamId);
-    if (!team) throw new Error("Team not found");
-    
-    if (team.players.length >= 6) throw new Error("Roster full (5 Main + 1 Sub)");
-    
-    const role = team.players.length >= 5 ? 'SUBSTITUTE' : 'PLAYER';
-    
-    try {
-        const newPlayers = [...team.players, { name: playerName, rank, role, addedAt: new Date().toISOString() }];
-        await updateDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'teams', teamId), {
-          players: newPlayers
-        });
-    } catch (err) {
-        console.error(err);
-        throw err;
-    }
-  };
+  // --- RPC ACTIONS (Executing SQL Functions) ---
 
   const submitVeto = async (matchId, vetoData, actionDescription) => {
-    const matchRef = doc(db, 'artifacts', APP_ID, 'public', 'data', 'matches', matchId);
+    if (!session.pin) throw new Error("Authorization Required");
     
-    const logEntry = {
-        actor: session.identity,
-        role: session.role,
-        action: actionDescription,
-        timestamp: new Date().toISOString(),
-        payload: vetoData
+    // We need to format the log entry for SQL: "BAN MapName"
+    const mapName = actionDescription.replace(/^(Banned|Picked)\s+/i, '').replace(/\s+\(.*\)$/, '').trim();
+    const actionType = actionDescription.toUpperCase().includes('PICK') ? 'PICK' : 'BAN';
+    const logEntry = `${actionType} ${mapName}`;
+
+    // Get current match to calculate next state for the DB
+    const currentMatch = matches.find(m => m.id === matchId);
+    const oldLog = currentMatch?.metadata?.veto_log || [];
+    const newLog = [...oldLog, logEntry];
+    
+    // Toggle Turn: A -> B -> A
+    const nextTurn = currentMatch?.metadata?.turn === 'A' ? 'B' : 'A';
+
+    const newMetadata = {
+        veto_log: newLog,
+        turn: nextTurn
     };
+
+    const { data, error } = await supabase.rpc('submit_veto', {
+        match_id: matchId,
+        input_pin: session.pin,
+        new_metadata: newMetadata
+    });
+
+    if (error) throw new Error(error.message);
+    if (data && !data.success) throw new Error(data.error);
+  };
+
+  const adminUpdateMatch = async (matchId, updates) => {
+    if (!session.pin) throw new Error("Authorization Required");
+    if (session.role !== ROLES.ADMIN && session.role !== ROLES.OWNER) {
+        throw new Error("Unauthorized");
+    }
+
+    // Map frontend updates to SQL columns
+    const sqlUpdates = {};
+    if (updates.status === 'completed') sqlUpdates.state = 'complete';
+    if (updates.winnerId) sqlUpdates.winner_id = updates.winnerId;
     
-    try {
-        const currentMatch = matches.find(m => m.id === matchId);
-        const currentLog = currentMatch.vetoLog || [];
+    // If forcing win, we might want to clear locks
+    if (updates.status === 'completed') sqlUpdates.is_locked = false;
 
-        await updateDoc(matchRef, {
-            ...vetoData,
-            vetoLog: [...currentLog, logEntry]
-        });
-    } catch (err) {
-        console.error("Veto Failed", err);
-        throw err;
-    }
+    const { data, error } = await supabase.rpc('admin_update_match', {
+        match_id: matchId,
+        input_pin: session.pin,
+        updates: sqlUpdates
+    });
+
+    if (error) throw new Error(error.message);
+    if (data && !data.success) throw new Error(data.error);
   };
 
-  const adminUpdateMatch = async (matchId, data) => {
-      if (session.role !== ROLES.ADMIN && session.role !== ROLES.OWNER) {
-          throw new Error("Unauthorized: Admin Access Required");
-      }
-      await updateDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'matches', matchId), data);
-  };
-  
-  const createMatch = async (round, index, team1Id, team2Id) => {
-    if (session.role !== ROLES.ADMIN && session.role !== ROLES.OWNER) return;
-    try {
-        await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'matches'), {
-          round,
-          matchIndex: index,
-          team1Id,
-          team2Id,
-          winnerId: null,
-          status: 'scheduled',
-          vetoState: {
-            phase: 'ban',
-            turn: team1Id,
-            bannedMaps: [],
-            pickedMap: null
-          }
-        });
-    } catch (err) {
-        console.error("Create Match Failed", err);
-        setError("Failed to create match.");
-    }
-  };
+  // Stubs for actions now handled by SQL Scripts
+  const createTeam = async () => alert("Please use the SQL Registration Script in Supabase Dashboard.");
+  const joinTeam = async () => alert("Registration is handled via Discord/SQL.");
+  const createMatch = async () => alert("Matches are generated via SQL Script.");
 
   return (
     <TournamentContext.Provider value={{ 

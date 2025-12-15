@@ -38,6 +38,32 @@ const formatSchedule = (match) => {
   }
 };
 
+// Data Normalizer: Assigns matchIndex if missing to prevent dropped matches
+const normalizeMatches = (matches) => {
+  const counters = {};
+
+  return matches.map(match => {
+    const roundLabel = ROUND_MAP[match.round];
+    
+    // If round is unknown, we can't place it, so return as is (will be dropped later)
+    if (!roundLabel) return match;
+
+    // If matchIndex is missing or invalid, assign the next available slot for this round
+    if (match.matchIndex == null) {
+      counters[roundLabel] = (counters[roundLabel] || 0);
+      const newIndex = counters[roundLabel]++;
+      return {
+        ...match,
+        matchIndex: newIndex
+      };
+    }
+
+    // If matchIndex exists, respect it but track count to avoid collisions if mixed data
+    counters[roundLabel] = Math.max((counters[roundLabel] || 0), match.matchIndex + 1);
+    return match;
+  });
+};
+
 // Bracket Engine: Deterministic Slot Filling with Guards
 const buildBracketStructure = (matches) => {
   const groups = {};
@@ -233,8 +259,13 @@ const Bracket = ({ onMatchClick }) => {
 
   const getTeam = (teamId) => teamMap.get(teamId) || { name: 'TBD', logo_url: null };
 
-  // 2. Compute Bracket Structure (Memoized)
-  const bracketData = useMemo(() => buildBracketStructure(matches), [matches]);
+  // 2. Compute Bracket Structure (Memoized with Normalization)
+  const bracketData = useMemo(() => {
+      // Step A: Normalize matches to ensure every match has a valid index
+      const safeMatches = normalizeMatches(matches || []);
+      // Step B: Build the structure using safe data
+      return buildBracketStructure(safeMatches);
+  }, [matches]);
 
   // 3. Declarative Line Drawing (Phase 4 Fix)
   useLayoutEffect(() => {

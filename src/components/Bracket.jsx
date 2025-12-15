@@ -18,7 +18,8 @@ const ROUND_STRUCTURE = {
 
 const Bracket = ({ onMatchClick }) => {
   const { matches, teams } = useTournament();
-  const containerRef = useRef(null);
+  const containerRef = useRef(null); // The scrollable window
+  const contentRef = useRef(null);   // The actual content wrapper
   const [lines, setLines] = useState([]);
 
   // Helper to parse score "13-10" -> ["13", "10"]
@@ -30,19 +31,14 @@ const Bracket = ({ onMatchClick }) => {
 
   // Helper to format start time (Universal/Local)
   const formatSchedule = (match) => {
-      // Assuming match.start_time or match.metadata.start_time exists
-      // SQL column might be 'start_time' directly if mapped in useTournament, or inside metadata
       const timeStr = match.start_time || match.metadata?.start_time;
-      
-      if (!timeStr) return "TBD"; // Default if no time set
+      if (!timeStr) return "TBD"; 
 
       const date = new Date(timeStr);
       const now = new Date();
       
-      // Invalid Date check
       if (isNaN(date.getTime())) return "TBD";
 
-      // Relative Time Logic (e.g., "In 2 hours", "Tomorrow")
       const diffMs = date - now;
       const diffHrs = diffMs / (1000 * 60 * 60);
       const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
@@ -54,7 +50,6 @@ const Bracket = ({ onMatchClick }) => {
       } else if (diffDays === 1) {
           return `Tmrw ${timeString}`;
       } else {
-          // Fallback to Short Date + Time (e.g., "Dec 25 14:00")
           return `${date.toLocaleDateString([], { month: 'short', day: 'numeric' })} ${timeString}`;
       }
   };
@@ -106,13 +101,11 @@ const Bracket = ({ onMatchClick }) => {
 
   // --- LINE CALCULATION LOGIC ---
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (!contentRef.current) return;
 
     const calcLines = () => {
       const newLines = [];
-      const containerRect = containerRef.current.getBoundingClientRect();
-      const containerScrollLeft = containerRef.current.scrollLeft;
-      const containerScrollTop = containerRef.current.scrollTop;
+      const parentRect = contentRef.current.getBoundingClientRect(); // Coordinate system relative to content wrapper
       
       for (let i = 0; i < BRACKET_ORDER.length - 1; i++) {
         const roundA = BRACKET_ORDER[i];
@@ -134,16 +127,13 @@ const Bracket = ({ onMatchClick }) => {
             const rectA1 = elA1.getBoundingClientRect();
             const rectA2 = elA2.getBoundingClientRect();
 
-            // Calculate precise connection points relative to the SCROLLABLE container
-            // Start: Right edge of previous round cards
-            const startX = (rectA1.right - containerRect.left) + containerScrollLeft;
-            // End: Left edge of current round card
-            const endX = (rectB.left - containerRect.left) + containerScrollLeft;
+            // Calculate coordinates relative to the contentRef wrapper
+            const startX = rectA1.right - parentRect.left;
+            const endX = rectB.left - parentRect.left;
             
-            // Vertical Centers
-            const yA1 = (rectA1.top + rectA1.height / 2 - containerRect.top) + containerScrollTop;
-            const yA2 = (rectA2.top + rectA2.height / 2 - containerRect.top) + containerScrollTop;
-            const yB = (rectB.top + rectB.height / 2 - containerRect.top) + containerScrollTop;
+            const yA1 = (rectA1.top + rectA1.height / 2) - parentRect.top;
+            const yA2 = (rectA2.top + rectA2.height / 2) - parentRect.top;
+            const yB = (rectB.top + rectB.height / 2) - parentRect.top;
 
             const midX = startX + (endX - startX) / 2;
 
@@ -169,166 +159,159 @@ const Bracket = ({ onMatchClick }) => {
       setLines(newLines);
     };
 
-    // Recalculate on load and resize
     const timer = setTimeout(calcLines, 500); 
     window.addEventListener('resize', calcLines);
-    // Also re-calc on scroll to fix any fixed-position glitches if SVG wasn't absolute correctly
-    containerRef.current.addEventListener('scroll', calcLines); 
-
+    
     return () => {
       clearTimeout(timer);
       window.removeEventListener('resize', calcLines);
-      if(containerRef.current) containerRef.current.removeEventListener('scroll', calcLines);
     };
   }, [bracketData]);
 
 
   return (
-    <div className="relative w-full h-full overflow-auto p-8 bg-[#0b0c0f]" ref={containerRef}>
+    <div className="w-full h-full overflow-auto bg-[#0b0c0f] p-8" ref={containerRef}>
       
-      {/* SVG Layer for Lines */}
-      <svg className="absolute top-0 left-0 w-[3000px] h-[2000px] pointer-events-none z-0">
-        {lines}
-      </svg>
+      {/* Content Wrapper that scales with content (min-w-max) */}
+      <div className="relative min-w-max" ref={contentRef}>
+        
+        {/* SVG Layer - Now fills the Content Wrapper exactly */}
+        <svg className="absolute inset-0 w-full h-full pointer-events-none z-0">
+          {lines}
+        </svg>
 
-      <div className="flex gap-20 min-w-max relative z-10 pt-8 pb-20">
-      {BRACKET_ORDER.map((round) => (
-        <div key={round} className="w-64 shrink-0 flex flex-col justify-around">
-          
-          {/* Round Header */}
-          <div className="text-center mb-8">
-            <span className="bg-[#1c222b] px-3 py-1 rounded text-[10px] font-bold text-zinc-400 border border-zinc-800 tracking-widest uppercase shadow-sm">
-              {round}
-            </span>
-          </div>
-
-          {/* Matches Column */}
-          <div className="flex flex-col justify-around gap-8 h-full">
-            {bracketData[round].map((match) => {
-              const [scoreA, scoreB] = parseScore(match.score);
-              const scheduleText = formatSchedule(match);
+        <div className="flex gap-20 relative z-10 pb-20">
+          {BRACKET_ORDER.map((round) => (
+            <div key={round} className="w-64 shrink-0 flex flex-col justify-around">
               
-              // Status logic
-              const isLive = match.status === 'live';
-              const isCompleted = match.status === 'completed';
-              const hasDispute = match.metadata?.dispute; 
-              const needsAdmin = match.metadata?.needs_admin;
-              const isVetoing = isLive && match.vetoState?.phase !== 'complete';
-              
-              const team1 = getTeam(match.team1Id);
-              const team2 = getTeam(match.team2Id);
-              const winnerId = match.winnerId;
+              {/* Round Header */}
+              <div className="text-center mb-8">
+                <span className="bg-[#1c222b] px-3 py-1 rounded text-[10px] font-bold text-zinc-400 border border-zinc-800 tracking-widest uppercase shadow-sm">
+                  {round}
+                </span>
+              </div>
 
-              // Border Color Logic
-              let borderColor = 'border-zinc-800';
-              let shadow = '';
-              let statusStrip = 'bg-zinc-800';
+              {/* Matches Column */}
+              <div className="flex flex-col justify-around gap-8 h-full">
+                {bracketData[round].map((match) => {
+                  const [scoreA, scoreB] = parseScore(match.score);
+                  const scheduleText = formatSchedule(match);
+                  
+                  const isLive = match.status === 'live';
+                  const isCompleted = match.status === 'completed';
+                  const hasDispute = match.metadata?.dispute; 
+                  const needsAdmin = match.metadata?.needs_admin;
+                  const isVetoing = isLive && match.vetoState?.phase !== 'complete';
+                  
+                  const team1 = getTeam(match.team1Id);
+                  const team2 = getTeam(match.team2Id);
+                  const winnerId = match.winnerId;
 
-              if (needsAdmin) {
-                  borderColor = 'border-red-500';
-                  shadow = 'shadow-[0_0_15px_rgba(239,68,68,0.2)]';
-                  statusStrip = 'bg-red-500 animate-pulse';
-              } else if (hasDispute) {
-                  borderColor = 'border-yellow-500';
-                  shadow = 'shadow-[0_0_15px_rgba(234,179,8,0.2)]';
-                  statusStrip = 'bg-yellow-500 animate-pulse';
-              } else if (isLive) {
-                  borderColor = 'border-green-500';
-                  shadow = 'shadow-[0_0_15px_rgba(34,197,94,0.15)]';
-                  statusStrip = 'bg-green-500 animate-pulse';
-              } else if (match.status === 'completed') {
-                  borderColor = 'border-zinc-700';
-                  statusStrip = 'bg-zinc-700'; // Solid finished line
-              }
+                  let borderColor = 'border-zinc-800';
+                  let shadow = '';
+                  let statusStrip = 'bg-zinc-800';
 
-              return (
-                <div 
-                  key={match.id} 
-                  id={`match-${match.id}`}
-                  onClick={() => !match.isDummy && onMatchClick(match)}
-                  className={`
-                    w-full relative bg-[#15191f] border rounded-lg cursor-pointer transition-all duration-300 group z-10
-                    ${borderColor} ${shadow} hover:border-zinc-600
-                    ${match.isDummy ? 'opacity-30 cursor-default border-dashed' : 'hover:scale-[1.02]'}
-                  `}
-                >
-                  {/* Status Strip */}
-                  <div className={`h-0.5 w-full ${statusStrip}`}></div>
+                  if (needsAdmin) {
+                      borderColor = 'border-red-500';
+                      shadow = 'shadow-[0_0_15px_rgba(239,68,68,0.2)]';
+                      statusStrip = 'bg-red-500 animate-pulse';
+                  } else if (hasDispute) {
+                      borderColor = 'border-yellow-500';
+                      shadow = 'shadow-[0_0_15px_rgba(234,179,8,0.2)]';
+                      statusStrip = 'bg-yellow-500 animate-pulse';
+                  } else if (isLive) {
+                      borderColor = 'border-green-500';
+                      shadow = 'shadow-[0_0_15px_rgba(34,197,94,0.15)]';
+                      statusStrip = 'bg-green-500 animate-pulse';
+                  } else if (match.status === 'completed') {
+                      borderColor = 'border-zinc-700';
+                      statusStrip = 'bg-zinc-700';
+                  }
 
-                  <div className="p-3 flex items-center justify-between gap-4">
-                    {/* Team 1 Block */}
-                    <div className={`flex items-center gap-2 flex-1 min-w-0 overflow-hidden ${isCompleted && winnerId === match.team1Id ? 'text-green-400 font-bold' : isCompleted ? 'text-zinc-500 opacity-50' : 'text-zinc-300'}`}>
-                        {team1.logo_url && <img src={team1.logo_url} className="w-5 h-5 object-contain rounded-sm bg-black/40 flex-shrink-0" alt=""/>}
-                        <span className="truncate text-xs">{team1.name}</span>
-                        {isCompleted && winnerId === match.team1Id && <span className="text-[10px] text-zinc-500 ml-1 font-mono">{scoreA}</span>}
-                    </div>
+                  return (
+                    <div 
+                      key={match.id} 
+                      id={`match-${match.id}`}
+                      onClick={() => !match.isDummy && onMatchClick(match)}
+                      className={`
+                        w-full relative bg-[#15191f] border rounded-lg cursor-pointer transition-all duration-300 group z-10
+                        ${borderColor} ${shadow} hover:border-zinc-600
+                        ${match.isDummy ? 'opacity-30 cursor-default border-dashed' : 'hover:scale-[1.02]'}
+                      `}
+                    >
+                      <div className={`h-0.5 w-full ${statusStrip}`}></div>
 
-                    <div className="text-[10px] text-zinc-600 font-bold px-1">VS</div>
+                      <div className="p-3 flex items-center justify-between gap-4">
+                        {/* Team 1 Block */}
+                        <div className={`flex items-center gap-2 flex-1 min-w-0 overflow-hidden ${isCompleted && winnerId === match.team1Id ? 'text-green-400 font-bold' : isCompleted ? 'text-zinc-500 opacity-50' : 'text-zinc-300'}`}>
+                            {team1.logo_url && <img src={team1.logo_url} className="w-5 h-5 object-contain rounded-sm bg-black/40 flex-shrink-0" alt=""/>}
+                            <span className="truncate text-xs">{team1.name}</span>
+                            {isCompleted && winnerId === match.team1Id && <span className="text-[10px] text-zinc-500 ml-1 font-mono">{scoreA}</span>}
+                        </div>
 
-                    {/* Team 2 Block */}
-                    <div className={`flex items-center gap-2 flex-1 min-w-0 overflow-hidden justify-end ${isCompleted && winnerId === match.team2Id ? 'text-green-400 font-bold' : isCompleted ? 'text-zinc-500 opacity-50' : 'text-zinc-300'}`}>
-                        {isCompleted && winnerId === match.team2Id && <span className="text-[10px] text-zinc-500 mr-1 font-mono">{scoreB}</span>}
-                        <span className="truncate text-xs text-right">{team2.name}</span>
-                        {team2.logo_url && <img src={team2.logo_url} className="w-5 h-5 object-contain rounded-sm bg-black/40 flex-shrink-0" alt=""/>}
-                    </div>
-                  </div>
+                        <div className="text-[10px] text-zinc-600 font-bold px-1">VS</div>
 
-                  {/* Enhanced Footer / Status Bar */}
-                  {!match.isDummy && (
-                    <div className={`px-3 py-1.5 flex justify-between items-center border-t ${needsAdmin ? 'border-red-900/30 bg-red-900/10' : hasDispute ? 'border-yellow-900/30 bg-yellow-900/10' : 'border-zinc-800/50 bg-[#0b0c0f]/50'} rounded-b-lg`}>
-                      {/* Left: Schedule Time or TBD */}
-                      <div className="flex items-center gap-1.5">
-                          {match.status === 'scheduled' ? (
-                              <>
-                                <Calendar className="w-3 h-3 text-zinc-500" />
-                                <span className={`text-[9px] font-bold tracking-wide ${scheduleText === 'TBD' ? 'text-zinc-600' : 'text-zinc-400'}`}>
-                                    {scheduleText}
-                                </span>
-                              </>
-                          ) : (
-                              <span className="text-[9px] text-zinc-600 font-mono tracking-wider">
-                                  {match.display_id || `M${match.matchIndex+1}`}
-                              </span>
-                          )}
+                        {/* Team 2 Block */}
+                        <div className={`flex items-center gap-2 flex-1 min-w-0 overflow-hidden justify-end ${isCompleted && winnerId === match.team2Id ? 'text-green-400 font-bold' : isCompleted ? 'text-zinc-500 opacity-50' : 'text-zinc-300'}`}>
+                            {isCompleted && winnerId === match.team2Id && <span className="text-[10px] text-zinc-500 mr-1 font-mono">{scoreB}</span>}
+                            <span className="truncate text-xs text-right">{team2.name}</span>
+                            {team2.logo_url && <img src={team2.logo_url} className="w-5 h-5 object-contain rounded-sm bg-black/40 flex-shrink-0" alt=""/>}
+                        </div>
                       </div>
-                      
-                      {/* Right: Status Indicators */}
-                      <div className="flex gap-2 items-center">
-                        {needsAdmin ? (
-                            <div className="flex items-center gap-1 text-red-500 animate-pulse">
-                                <AlertOctagon className="w-3 h-3" />
-                                <span className="text-[9px] font-bold tracking-wider">SOS</span>
-                            </div>
-                        ) : hasDispute ? (
-                            <div className="flex items-center gap-1 text-yellow-500 animate-pulse">
-                                <AlertTriangle className="w-3 h-3" />
-                                <span className="text-[9px] font-bold tracking-wider">DISPUTE</span>
-                            </div>
-                        ) : isVetoing ? (
-                            <div className="flex items-center gap-1 text-blue-400">
-                                <MapIcon className="w-3 h-3" />
-                                <span className="text-[9px] font-bold tracking-wider">VETO</span>
-                            </div>
-                        ) : isLive ? (
-                            <div className="flex items-center gap-1.5">
-                                <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-ping"></span>
-                                <span className="text-[9px] font-bold text-green-500 tracking-wider">LIVE</span>
-                            </div>
-                        ) : match.status === 'scheduled' ? (
-                            <Lock className="w-3 h-3 text-zinc-600" />
-                        ) : null}
 
-                        {/* Stream Indicator */}
-                        {match.stream_url && <Tv className="w-3 h-3 text-purple-500" />}
-                      </div>
+                      {!match.isDummy && (
+                        <div className={`px-3 py-1.5 flex justify-between items-center border-t ${needsAdmin ? 'border-red-900/30 bg-red-900/10' : hasDispute ? 'border-yellow-900/30 bg-yellow-900/10' : 'border-zinc-800/50 bg-[#0b0c0f]/50'} rounded-b-lg`}>
+                          <div className="flex items-center gap-1.5">
+                              {match.status === 'scheduled' ? (
+                                  <>
+                                    <Calendar className="w-3 h-3 text-zinc-500" />
+                                    <span className={`text-[9px] font-bold tracking-wide ${scheduleText === 'TBD' ? 'text-zinc-600' : 'text-zinc-400'}`}>
+                                        {scheduleText}
+                                    </span>
+                                  </>
+                              ) : (
+                                  <span className="text-[9px] text-zinc-600 font-mono tracking-wider">
+                                      {match.display_id || `M${match.matchIndex+1}`}
+                                  </span>
+                              )}
+                          </div>
+                          
+                          <div className="flex gap-2 items-center">
+                            {needsAdmin ? (
+                                <div className="flex items-center gap-1 text-red-500 animate-pulse">
+                                    <AlertOctagon className="w-3 h-3" />
+                                    <span className="text-[9px] font-bold tracking-wider">SOS</span>
+                                </div>
+                            ) : hasDispute ? (
+                                <div className="flex items-center gap-1 text-yellow-500 animate-pulse">
+                                    <AlertTriangle className="w-3 h-3" />
+                                    <span className="text-[9px] font-bold tracking-wider">DISPUTE</span>
+                                </div>
+                            ) : isVetoing ? (
+                                <div className="flex items-center gap-1 text-blue-400">
+                                    <MapIcon className="w-3 h-3" />
+                                    <span className="text-[9px] font-bold tracking-wider">VETO</span>
+                                </div>
+                            ) : isLive ? (
+                                <div className="flex items-center gap-1.5">
+                                    <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-ping"></span>
+                                    <span className="text-[9px] font-bold text-green-500 tracking-wider">LIVE</span>
+                                </div>
+                            ) : match.status === 'scheduled' ? (
+                                <Lock className="w-3 h-3 text-zinc-600" />
+                            ) : null}
+
+                            {match.stream_url && <Tv className="w-3 h-3 text-purple-500" />}
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
-      ))}
       </div>
     </div>
   );

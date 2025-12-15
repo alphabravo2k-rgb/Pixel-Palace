@@ -77,12 +77,10 @@ const Bracket = ({ onMatchClick }) => {
   useEffect(() => {
     if (!containerRef.current) return;
 
-    // We need to wait for render to get positions
     const calcLines = () => {
       const newLines = [];
       const containerRect = containerRef.current.getBoundingClientRect();
       
-      // Iterate through rounds to connect R[i] -> R[i+1]
       for (let i = 0; i < BRACKET_ORDER.length - 1; i++) {
         const roundA = BRACKET_ORDER[i];
         const roundB = BRACKET_ORDER[i+1];
@@ -91,7 +89,6 @@ const Bracket = ({ onMatchClick }) => {
         const matchesB = bracketData[roundB];
 
         matchesB.forEach((matchB, idxB) => {
-          // Logic: Match B (in next round) connects to Match A1 (2*idx) and Match A2 (2*idx + 1)
           const idxA1 = idxB * 2;
           const idxA2 = idxB * 2 + 1;
 
@@ -104,19 +101,21 @@ const Bracket = ({ onMatchClick }) => {
             const rectA1 = elA1.getBoundingClientRect();
             const rectA2 = elA2.getBoundingClientRect();
 
-            // Coordinates relative to container
-            const startX = rectA1.right - containerRect.left;
-            const endX = rectB.left - containerRect.left;
+            // Coordinates relative to container (subtract scroll offset if needed, 
+            // but for absolute inside relative container, relative coords are safer)
+            // Using offsetLeft/offsetTop logic is more robust against scroll
             
-            const yA1 = (rectA1.top + rectA1.bottom) / 2 - containerRect.top;
-            const yA2 = (rectA2.top + rectA2.bottom) / 2 - containerRect.top;
-            const yB = (rectB.top + rectB.bottom) / 2 - containerRect.top;
+            // Re-calculating using offsets relative to the scrollable container
+            const containerScrollLeft = containerRef.current.scrollLeft;
+            const containerScrollTop = containerRef.current.scrollTop;
 
-            // Draw a fork shape
-            // Path 1: From A1 to mid-point
-            // Path 2: From A2 to mid-point
-            // Path 3: From mid-point to B
+            const startX = (rectA1.right - containerRect.left) + containerScrollLeft;
+            const endX = (rectB.left - containerRect.left) + containerScrollLeft;
             
+            const yA1 = (rectA1.top + rectA1.height / 2 - containerRect.top) + containerScrollTop;
+            const yA2 = (rectA2.top + rectA2.height / 2 - containerRect.top) + containerScrollTop;
+            const yB = (rectB.top + rectB.height / 2 - containerRect.top) + containerScrollTop;
+
             const midX = startX + (endX - startX) / 2;
 
             newLines.push(
@@ -130,8 +129,8 @@ const Bracket = ({ onMatchClick }) => {
                   M ${midX} ${yB} 
                   H ${endX}
                 `}
-                stroke="#3f3f46" 
-                strokeWidth="1.5" 
+                stroke="#52525b" 
+                strokeWidth="2" 
                 fill="none" 
               />
             );
@@ -141,8 +140,9 @@ const Bracket = ({ onMatchClick }) => {
       setLines(newLines);
     };
 
-    // Calculate after a slight delay to allow layout to settle, and on resize
-    const timer = setTimeout(calcLines, 100);
+    // Recalculate on load and resize
+    // Adding a slight delay to ensure DOM is painted
+    const timer = setTimeout(calcLines, 500); 
     window.addEventListener('resize', calcLines);
     return () => {
       clearTimeout(timer);
@@ -152,26 +152,27 @@ const Bracket = ({ onMatchClick }) => {
 
 
   return (
-    <div className="relative w-full overflow-x-auto p-8" ref={containerRef}>
+    <div className="relative w-full h-full overflow-auto p-8 bg-[#0b0c0f]" ref={containerRef}>
       
       {/* SVG Layer for Lines */}
-      <svg className="absolute top-0 left-0 w-full h-full pointer-events-none z-0">
+      {/* Note: SVG needs to be big enough to cover scroll area */}
+      <svg className="absolute top-0 left-0 w-[2000px] h-[1500px] pointer-events-none z-0">
         {lines}
       </svg>
 
-      <div className="flex gap-16 min-w-max relative z-10">
+      <div className="flex gap-20 min-w-max relative z-10 pt-8 pb-20">
       {BRACKET_ORDER.map((round) => (
-        <div key={round} className="w-60 shrink-0 flex flex-col justify-around">
+        <div key={round} className="w-56 shrink-0 flex flex-col justify-around">
           
           {/* Round Header */}
-          <div className="text-center mb-6 -mt-8">
-            <span className="bg-[#1c222b] px-3 py-1 rounded text-[10px] font-bold text-zinc-400 border border-zinc-800 tracking-widest uppercase">
+          <div className="text-center mb-8">
+            <span className="bg-[#1c222b] px-3 py-1 rounded text-[10px] font-bold text-zinc-400 border border-zinc-800 tracking-widest uppercase shadow-sm">
               {round}
             </span>
           </div>
 
           {/* Matches Column */}
-          <div className="flex flex-col gap-6 h-full justify-around py-4">
+          <div className="flex flex-col justify-around gap-8 h-full">
             {bracketData[round].map((match) => {
               const [scoreA, scoreB] = parseScore(match.score);
               const isLive = match.status === 'live';
@@ -186,58 +187,42 @@ const Bracket = ({ onMatchClick }) => {
                   id={`match-${match.id}`}
                   onClick={() => !match.isDummy && onMatchClick(match)}
                   className={`
-                    w-full bg-[#15191f] border rounded cursor-pointer transition-all duration-300 group relative
+                    w-full relative bg-[#15191f] border rounded cursor-pointer transition-all duration-300 group z-10
                     ${isLive ? 'border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.1)]' : 'border-zinc-800 hover:border-zinc-600'}
-                    ${match.isDummy ? 'opacity-40 cursor-default border-dashed' : 'hover:scale-[1.02]'}
+                    ${match.isDummy ? 'opacity-30 cursor-default border-dashed' : 'hover:scale-[1.02]'}
                   `}
                 >
-                  {/* Status Strip */}
-                  <div className={`h-0.5 w-full ${isLive ? 'bg-green-500 animate-pulse' : 'bg-transparent'}`}></div>
-
-                  <div className="p-2 flex flex-col gap-1.5">
-                    {/* Team 1 Row */}
-                    <div className="flex justify-between items-center h-5">
-                      <div className="flex items-center gap-2 overflow-hidden w-full">
-                        <div className={`w-1 h-full absolute left-0 top-0 bottom-1/2 ${isCompleted && winnerId === match.team1Id ? 'bg-green-500' : 'bg-transparent'}`}></div>
-                        
-                        {/* Logo or Placeholder */}
-                        <div className="w-4 h-4 flex-shrink-0 bg-black/30 rounded-sm flex items-center justify-center">
-                           {team1.logo_url ? <img src={team1.logo_url} className="w-full h-full object-cover" alt=""/> : <span className="text-[8px] text-zinc-600 font-bold">T1</span>}
+                  {/* COMPACT SINGLE-BLOCK DESIGN */}
+                  <div className="flex flex-col text-xs font-bold">
+                    
+                    {/* Team 1 */}
+                    <div className={`flex justify-between items-center px-3 py-1.5 ${isCompleted && winnerId === match.team1Id ? 'bg-green-900/20 text-green-400' : 'text-zinc-300'} border-b border-zinc-800/50`}>
+                        <div className="flex items-center gap-2 truncate">
+                            {team1.logo_url && <img src={team1.logo_url} className="w-4 h-4 object-contain rounded-sm bg-black/40" alt=""/>}
+                            <span className="truncate">{team1.name}</span>
                         </div>
-                        
-                        <span className={`text-xs font-bold truncate ${isCompleted && winnerId === match.team1Id ? 'text-green-400' : 'text-zinc-300'}`}>
-                          {team1.name}
-                        </span>
-                      </div>
-                      <span className="text-xs font-mono text-zinc-500 bg-black/20 px-1 rounded min-w-[1.5rem] text-center">{scoreA}</span>
+                        <span className="font-mono text-zinc-500 ml-2">{scoreA}</span>
                     </div>
 
-                    {/* Team 2 Row */}
-                    <div className="flex justify-between items-center h-5">
-                      <div className="flex items-center gap-2 overflow-hidden w-full">
-                        <div className={`w-1 h-full absolute left-0 top-1/2 bottom-0 ${isCompleted && winnerId === match.team2Id ? 'bg-green-500' : 'bg-transparent'}`}></div>
-                        
-                        <div className="w-4 h-4 flex-shrink-0 bg-black/30 rounded-sm flex items-center justify-center">
-                           {team2.logo_url ? <img src={team2.logo_url} className="w-full h-full object-cover" alt=""/> : <span className="text-[8px] text-zinc-600 font-bold">T2</span>}
+                    {/* Team 2 */}
+                    <div className={`flex justify-between items-center px-3 py-1.5 ${isCompleted && winnerId === match.team2Id ? 'bg-green-900/20 text-green-400' : 'text-zinc-300'}`}>
+                        <div className="flex items-center gap-2 truncate">
+                            {team2.logo_url && <img src={team2.logo_url} className="w-4 h-4 object-contain rounded-sm bg-black/40" alt=""/>}
+                            <span className="truncate">{team2.name}</span>
                         </div>
-
-                        <span className={`text-xs font-bold truncate ${isCompleted && winnerId === match.team2Id ? 'text-green-400' : 'text-zinc-300'}`}>
-                          {team2.name}
-                        </span>
-                      </div>
-                      <span className="text-xs font-mono text-zinc-500 bg-black/20 px-1 rounded min-w-[1.5rem] text-center">{scoreB}</span>
+                        <span className="font-mono text-zinc-500 ml-2">{scoreB}</span>
                     </div>
+
                   </div>
 
-                  {/* Metadata Footer (Only for real matches) */}
-                  {!match.isDummy && (
-                    <div className="px-2 pb-1 flex justify-between items-center border-t border-zinc-800/50 pt-1 mt-0.5">
-                      <span className="text-[9px] text-zinc-600 font-mono tracking-wider">{match.display_id || `M${match.matchIndex+1}`}</span>
-                      <div className="flex gap-2">
-                        {match.stream_url && <Tv className="w-3 h-3 text-purple-500" />}
-                        {match.status === 'scheduled' && <Lock className="w-3 h-3 text-zinc-600" />}
+                  {/* Tiny Status Bar if Live */}
+                  {isLive && (
+                      <div className="absolute top-0 right-0 -mt-1 -mr-1">
+                          <span className="flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                          </span>
                       </div>
-                    </div>
                   )}
                 </div>
               );

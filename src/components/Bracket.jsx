@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useEffect, useState } from 'react';
 import { useTournament } from '../tournament/useTournament';
-import { Tv, Lock, Shield, Trophy } from 'lucide-react';
+import { Tv, Lock, Trophy } from 'lucide-react';
 
 // Configuration matches your "Command Center" logic
 const BRACKET_ORDER = ['R32', 'R16', 'QF', 'SF', 'GF'];
@@ -28,11 +28,11 @@ const Bracket = ({ onMatchClick }) => {
     return [(parts[0] || '-'), (parts[1] || '-')];
   };
 
-  // Group flat matches into rounds for the column view
+  // Group flat matches into rounds
   const bracketData = useMemo(() => {
     const groups = BRACKET_ORDER.reduce((acc, round) => ({ ...acc, [round]: [] }), {});
     
-    // 1. Place real matches into their rounds
+    // 1. Place real matches
     matches.forEach(match => {
       const roundLabel = ROUND_MAP[match.round];
       if (groups[roundLabel]) {
@@ -40,7 +40,7 @@ const Bracket = ({ onMatchClick }) => {
       }
     });
 
-    // 2. Fill gaps with "Dummy/TBD" matches to ensure visual completeness
+    // 2. Fill gaps with Dummies
     BRACKET_ORDER.forEach(round => {
       const targetCount = ROUND_STRUCTURE[round];
       const currentCount = groups[round].length;
@@ -58,11 +58,9 @@ const Bracket = ({ onMatchClick }) => {
           isDummy: true,
           display_id: `M${currentCount + i + 1}`
         }));
-        // Append dummies to the round
         groups[round] = [...groups[round], ...dummies];
       }
-      
-      // Sort by matchIndex to keep order consistent for drawing lines
+      // Sort by matchIndex for consistent ordering
       groups[round].sort((a, b) => a.matchIndex - b.matchIndex);
     });
     
@@ -75,150 +73,172 @@ const Bracket = ({ onMatchClick }) => {
     return teams.find(t => t.id === teamId) || { name: 'TBD', logo_url: null };
   };
 
-  // Effect to calculate connector lines positions
+  // --- LINE CALCULATION LOGIC ---
   useEffect(() => {
     if (!containerRef.current) return;
-    
-    const newLines = [];
-    const roundWidth = 280; // Approximate width of a match card column + gap
-    const cardHeight = 80; // Approximate height of a card
 
-    // Loop through rounds to connect them (R32->R16, R16->QF, etc.)
-    for (let i = 0; i < BRACKET_ORDER.length - 1; i++) {
-        const currentRound = BRACKET_ORDER[i];
-        const nextRound = BRACKET_ORDER[i+1];
-        const currentMatches = bracketData[currentRound];
-        const nextMatches = bracketData[nextRound];
+    // We need to wait for render to get positions
+    const calcLines = () => {
+      const newLines = [];
+      const containerRect = containerRef.current.getBoundingClientRect();
+      
+      // Iterate through rounds to connect R[i] -> R[i+1]
+      for (let i = 0; i < BRACKET_ORDER.length - 1; i++) {
+        const roundA = BRACKET_ORDER[i];
+        const roundB = BRACKET_ORDER[i+1];
+        
+        const matchesA = bracketData[roundA];
+        const matchesB = bracketData[roundB];
 
-        // We connect pairs of matches in the current round to one match in the next round
-        // Logic: Match 0 and Match 1 in R32 -> Match 0 in R16
-        nextMatches.forEach((nextMatch, nextIdx) => {
-            const sourceIdx1 = nextIdx * 2;
-            const sourceIdx2 = nextIdx * 2 + 1;
+        matchesB.forEach((matchB, idxB) => {
+          // Logic: Match B (in next round) connects to Match A1 (2*idx) and Match A2 (2*idx + 1)
+          const idxA1 = idxB * 2;
+          const idxA2 = idxB * 2 + 1;
 
-            if (currentMatches[sourceIdx1] && currentMatches[sourceIdx2]) {
-                newLines.push({
-                    roundIdx: i,
-                    startX: 0, // Relative to the gap
-                    startY1: sourceIdx1, // Logic index, visual calc below
-                    startY2: sourceIdx2,
-                    endY: nextIdx
-                });
-            }
+          const elB = document.getElementById(`match-${matchB.id}`);
+          const elA1 = matchesA[idxA1] ? document.getElementById(`match-${matchesA[idxA1].id}`) : null;
+          const elA2 = matchesA[idxA2] ? document.getElementById(`match-${matchesA[idxA2].id}`) : null;
+
+          if (elB && elA1 && elA2) {
+            const rectB = elB.getBoundingClientRect();
+            const rectA1 = elA1.getBoundingClientRect();
+            const rectA2 = elA2.getBoundingClientRect();
+
+            // Coordinates relative to container
+            const startX = rectA1.right - containerRect.left;
+            const endX = rectB.left - containerRect.left;
+            
+            const yA1 = (rectA1.top + rectA1.bottom) / 2 - containerRect.top;
+            const yA2 = (rectA2.top + rectA2.bottom) / 2 - containerRect.top;
+            const yB = (rectB.top + rectB.bottom) / 2 - containerRect.top;
+
+            // Draw a fork shape
+            // Path 1: From A1 to mid-point
+            // Path 2: From A2 to mid-point
+            // Path 3: From mid-point to B
+            
+            const midX = startX + (endX - startX) / 2;
+
+            newLines.push(
+              <path 
+                key={`${roundA}-${idxB}`}
+                d={`
+                  M ${startX} ${yA1} 
+                  H ${midX} 
+                  V ${yA2} 
+                  H ${startX} 
+                  M ${midX} ${yB} 
+                  H ${endX}
+                `}
+                stroke="#3f3f46" 
+                strokeWidth="1.5" 
+                fill="none" 
+              />
+            );
+          }
         });
-    }
-    // Set lines state (simplified for this conceptual rendering, 
-    // real SVG lines need exact pixel refs which is complex in React without layout effect/refs for every card.
-    // Instead, we will use CSS pseudo-elements or simplified SVG overlay for the 'tree' look in the render loop)
+      }
+      setLines(newLines);
+    };
+
+    // Calculate after a slight delay to allow layout to settle, and on resize
+    const timer = setTimeout(calcLines, 100);
+    window.addEventListener('resize', calcLines);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('resize', calcLines);
+    };
   }, [bracketData]);
 
 
   return (
-    <div className="flex-grow overflow-x-auto overflow-y-hidden p-8 min-w-full" ref={containerRef}>
-      <div className="flex gap-16">
-      {BRACKET_ORDER.map((round, roundIdx) => (
-        <div key={round} className="w-64 shrink-0 flex flex-col justify-around relative">
+    <div className="relative w-full overflow-x-auto p-8" ref={containerRef}>
+      
+      {/* SVG Layer for Lines */}
+      <svg className="absolute top-0 left-0 w-full h-full pointer-events-none z-0">
+        {lines}
+      </svg>
+
+      <div className="flex gap-16 min-w-max relative z-10">
+      {BRACKET_ORDER.map((round) => (
+        <div key={round} className="w-60 shrink-0 flex flex-col justify-around">
           
           {/* Round Header */}
-          <div className="text-center mb-6 absolute top-0 w-full -mt-12">
+          <div className="text-center mb-6 -mt-8">
             <span className="bg-[#1c222b] px-3 py-1 rounded text-[10px] font-bold text-zinc-400 border border-zinc-800 tracking-widest uppercase">
               {round}
             </span>
           </div>
 
-          {/* Matches List */}
-          <div className={`flex flex-col justify-around h-full py-4 gap-4`}>
-            {bracketData[round].map((match, matchIdx) => {
+          {/* Matches Column */}
+          <div className="flex flex-col gap-6 h-full justify-around py-4">
+            {bracketData[round].map((match) => {
               const [scoreA, scoreB] = parseScore(match.score);
               const isLive = match.status === 'live';
+              const isCompleted = match.status === 'completed';
               const team1 = getTeam(match.team1Id);
               const team2 = getTeam(match.team2Id);
-              
-              // Winner Logic
-              const isCompleted = match.status === 'completed';
               const winnerId = match.winnerId;
 
-              // Handle Click
-              const handleClick = () => {
-                if (!match.isDummy) onMatchClick(match);
-              };
-
               return (
-                <div key={match.id} className="relative flex items-center h-full">
-                  
-                  {/* COMPACT MATCH CARD */}
-                  <div 
-                      onClick={handleClick}
-                      className={`
-                      w-full relative bg-[#15191f] border rounded-md cursor-pointer transition-all duration-300 group z-10 overflow-hidden
-                      ${isLive ? 'border-green-500 shadow-[0_0_10px_rgba(34,197,94,0.15)]' : 'border-zinc-800 hover:border-zinc-600'}
-                      ${match.status === 'scheduled' ? 'opacity-75 hover:opacity-100' : ''}
-                      ${match.isDummy ? 'opacity-40 cursor-default' : 'cursor-pointer'}
-                      `}
-                  >
-                      {/* Status Bar */}
-                      <div className={`h-1 w-full ${isLive ? 'bg-green-500 animate-pulse' : 'bg-zinc-800'}`}></div>
+                <div 
+                  key={match.id} 
+                  id={`match-${match.id}`}
+                  onClick={() => !match.isDummy && onMatchClick(match)}
+                  className={`
+                    w-full bg-[#15191f] border rounded cursor-pointer transition-all duration-300 group relative
+                    ${isLive ? 'border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.1)]' : 'border-zinc-800 hover:border-zinc-600'}
+                    ${match.isDummy ? 'opacity-40 cursor-default border-dashed' : 'hover:scale-[1.02]'}
+                  `}
+                >
+                  {/* Status Strip */}
+                  <div className={`h-0.5 w-full ${isLive ? 'bg-green-500 animate-pulse' : 'bg-transparent'}`}></div>
 
-                      <div className="p-2 flex flex-col gap-1">
-                          {/* Team A Row */}
-                          <div className="flex justify-between items-center h-6">
-                              <div className="flex items-center gap-2 overflow-hidden">
-                                  <div className={`w-3 h-3 rounded-sm flex-shrink-0 ${isCompleted && winnerId === match.team1Id ? 'bg-green-500' : 'bg-zinc-700'}`}>
-                                      {team1.logo_url && <img src={team1.logo_url} className="w-full h-full object-cover" alt="" />}
-                                  </div>
-                                  <span className={`text-xs font-bold truncate ${isCompleted && winnerId === match.team1Id ? 'text-green-400' : 'text-zinc-300'}`}>
-                                      {team1.name}
-                                  </span>
-                              </div>
-                              <span className="text-xs font-mono text-zinc-500">{scoreA}</span>
-                          </div>
+                  <div className="p-2 flex flex-col gap-1.5">
+                    {/* Team 1 Row */}
+                    <div className="flex justify-between items-center h-5">
+                      <div className="flex items-center gap-2 overflow-hidden w-full">
+                        <div className={`w-1 h-full absolute left-0 top-0 bottom-1/2 ${isCompleted && winnerId === match.team1Id ? 'bg-green-500' : 'bg-transparent'}`}></div>
+                        
+                        {/* Logo or Placeholder */}
+                        <div className="w-4 h-4 flex-shrink-0 bg-black/30 rounded-sm flex items-center justify-center">
+                           {team1.logo_url ? <img src={team1.logo_url} className="w-full h-full object-cover" alt=""/> : <span className="text-[8px] text-zinc-600 font-bold">T1</span>}
+                        </div>
+                        
+                        <span className={`text-xs font-bold truncate ${isCompleted && winnerId === match.team1Id ? 'text-green-400' : 'text-zinc-300'}`}>
+                          {team1.name}
+                        </span>
+                      </div>
+                      <span className="text-xs font-mono text-zinc-500 bg-black/20 px-1 rounded min-w-[1.5rem] text-center">{scoreA}</span>
+                    </div>
 
-                          {/* Team B Row */}
-                          <div className="flex justify-between items-center h-6">
-                              <div className="flex items-center gap-2 overflow-hidden">
-                                  <div className={`w-3 h-3 rounded-sm flex-shrink-0 ${isCompleted && winnerId === match.team2Id ? 'bg-green-500' : 'bg-zinc-700'}`}>
-                                      {team2.logo_url && <img src={team2.logo_url} className="w-full h-full object-cover" alt="" />}
-                                  </div>
-                                  <span className={`text-xs font-bold truncate ${isCompleted && winnerId === match.team2Id ? 'text-green-400' : 'text-zinc-300'}`}>
-                                      {team2.name}
-                                  </span>
-                              </div>
-                              <span className="text-xs font-mono text-zinc-500">{scoreB}</span>
-                          </div>
+                    {/* Team 2 Row */}
+                    <div className="flex justify-between items-center h-5">
+                      <div className="flex items-center gap-2 overflow-hidden w-full">
+                        <div className={`w-1 h-full absolute left-0 top-1/2 bottom-0 ${isCompleted && winnerId === match.team2Id ? 'bg-green-500' : 'bg-transparent'}`}></div>
+                        
+                        <div className="w-4 h-4 flex-shrink-0 bg-black/30 rounded-sm flex items-center justify-center">
+                           {team2.logo_url ? <img src={team2.logo_url} className="w-full h-full object-cover" alt=""/> : <span className="text-[8px] text-zinc-600 font-bold">T2</span>}
+                        </div>
+
+                        <span className={`text-xs font-bold truncate ${isCompleted && winnerId === match.team2Id ? 'text-green-400' : 'text-zinc-300'}`}>
+                          {team2.name}
+                        </span>
                       </div>
-                      
-                      {/* Footer Info */}
-                      <div className="px-2 pb-1 flex justify-between items-center text-[9px] text-zinc-600 uppercase tracking-wider">
-                          <span>{match.isDummy ? 'TBD' : `M${match.matchIndex + 1}`}</span>
-                          {isLive && <span className="text-green-500 font-bold animate-pulse">LIVE</span>}
-                      </div>
+                      <span className="text-xs font-mono text-zinc-500 bg-black/20 px-1 rounded min-w-[1.5rem] text-center">{scoreB}</span>
+                    </div>
                   </div>
 
-                  {/* CONNECTING LINES (CSS-based Tree) */}
-                  {/* Draw line to the right for winners advancing */}
-                  {round !== 'GF' && (
-                      <div className={`absolute -right-8 h-px bg-zinc-700 w-8 top-1/2 z-0`}></div>
-                  )}
-                  
-                  {/* Vertical Brackets for the Previous Round */}
-                  {/* Logic: If I am an EVEN index in R16+, I connect to 2 matches on the left */}
-                  {/* Actually, it's easier to draw from Left to Right. 
-                      Every match in R32 draws a line to the right.
-                      In R16, every match has a "fork" on its left connecting the two R32 matches. */}
-                  
-                  {round !== 'R32' && (
-                      <div className="absolute -left-8 top-1/2 -translate-y-1/2 w-8 flex items-center">
-                          {/* Horizontal Stub coming into this card */}
-                          <div className="w-4 h-px bg-zinc-700"></div>
-                          {/* Vertical Bar connecting the pair from previous round */}
-                          <div className="w-px h-[calc(100%+2rem)] bg-zinc-700 absolute left-0" style={{ height: 'calc(100% + 40px)', top: '-20px' }}></div> 
-                          {/* Note: Precise height calc requires fixed row heights or JS ref. 
-                              For this CSS-only version, we use a fixed approximation that looks okay if cards are evenly spaced.
-                              Ideally, the parent flex container 'justify-around' handles the spacing.
-                           */}
+                  {/* Metadata Footer (Only for real matches) */}
+                  {!match.isDummy && (
+                    <div className="px-2 pb-1 flex justify-between items-center border-t border-zinc-800/50 pt-1 mt-0.5">
+                      <span className="text-[9px] text-zinc-600 font-mono tracking-wider">{match.display_id || `M${match.matchIndex+1}`}</span>
+                      <div className="flex gap-2">
+                        {match.stream_url && <Tv className="w-3 h-3 text-purple-500" />}
+                        {match.status === 'scheduled' && <Lock className="w-3 h-3 text-zinc-600" />}
                       </div>
+                    </div>
                   )}
-
                 </div>
               );
             })}

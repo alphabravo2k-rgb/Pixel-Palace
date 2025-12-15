@@ -9,75 +9,69 @@ import {
   query 
 } from "firebase/firestore";
 import { db } from '../firebase/client';
-import { useAuth } from '../auth/useAuth';
+import { useSession } from '../auth/useSession'; // FIXED: Imports Session, not Auth
+import { ROLES } from '../lib/roles';
 
 const TournamentContext = createContext();
-
 const APP_ID = "cs2-tournament-manager"; 
 
 export const TournamentProvider = ({ children }) => {
-  const { user } = useAuth();
+  const { session } = useSession(); // FIXED: Uses session
   const [teams, setTeams] = useState([]);
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Sync Logic - Always runs
   useEffect(() => {
-    if (!user) return;
     setLoading(true);
-
-    // Guarded listener for Teams
     const teamsQuery = query(collection(db, 'artifacts', APP_ID, 'public', 'data', 'teams'));
     const unsubTeams = onSnapshot(teamsQuery, (snapshot) => {
       setTeams(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
-    }, (err) => {
-      console.error("Teams Sync Error:", err);
-      setError("Failed to sync teams. Please check connection.");
-    });
+    }, (err) => console.error("Teams Sync Error", err));
 
-    // Guarded listener for Matches
     const matchesQuery = query(collection(db, 'artifacts', APP_ID, 'public', 'data', 'matches'));
     const unsubMatches = onSnapshot(matchesQuery, (snapshot) => {
       const ms = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
       ms.sort((a, b) => (a.round - b.round) || (a.matchIndex - b.matchIndex));
       setMatches(ms);
       setLoading(false);
-    }, (err) => {
-      console.error("Matches Sync Error:", err);
-      setError("Failed to sync matches.");
-      setLoading(false);
-    });
+    }, (err) => console.error("Matches Sync Error", err));
 
-    return () => {
-      unsubTeams();
-      unsubMatches();
-    };
-  }, [user]);
+    return () => { unsubTeams(); unsubMatches(); };
+  }, []);
 
-  // WRAPPED ACTIONS WITH ERROR HANDLING
+  // --- ACTIONS ---
 
   const createTeam = async (name) => {
-    if (!user) throw new Error("Not authenticated");
+    if (!session.isAuthenticated) throw new Error("Must be logged in");
     try {
       await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'teams'), {
         name,
-        captainId: user.uid,
-        players: [{ uid: user.uid, name: `Player ${user.uid.slice(0,4)}`, rank: 'Unranked' }],
+        captainName: session.identity,
+        players: [{ 
+            name: session.identity, 
+            role: 'CAPTAIN', 
+            addedAt: new Date().toISOString() 
+        }],
         createdAt: serverTimestamp()
       });
     } catch (err) {
       console.error(err);
-      throw err; // Propagate to component for UI handling
+      throw err;
     }
   };
 
   const joinTeam = async (teamId, playerName, rank) => {
     const team = teams.find(t => t.id === teamId);
     if (!team) throw new Error("Team not found");
-    if (team.players.length >= 5) throw new Error("Team is full");
+    
+    if (team.players.length >= 6) throw new Error("Roster full (5 Main + 1 Sub)");
+    
+    const role = team.players.length >= 5 ? 'SUBSTITUTE' : 'PLAYER';
     
     try {
-        const newPlayers = [...team.players, { uid: user.uid, name: playerName, rank }];
+        const newPlayers = [...team.players, { name: playerName, rank, role, addedAt: new Date().toISOString() }];
         await updateDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'teams', teamId), {
           players: newPlayers
         });
@@ -87,7 +81,40 @@ export const TournamentProvider = ({ children }) => {
     }
   };
 
+  const submitVeto = async (matchId, vetoData, actionDescription) => {
+    const matchRef = doc(db, 'artifacts', APP_ID, 'public', 'data', 'matches', matchId);
+    
+    const logEntry = {
+        actor: session.identity,
+        role: session.role,
+        action: actionDescription,
+        timestamp: new Date().toISOString(),
+        payload: vetoData
+    };
+    
+    try {
+        const currentMatch = matches.find(m => m.id === matchId);
+        const currentLog = currentMatch.vetoLog || [];
+
+        await updateDoc(matchRef, {
+            ...vetoData,
+            vetoLog: [...currentLog, logEntry]
+        });
+    } catch (err) {
+        console.error("Veto Failed", err);
+        throw err;
+    }
+  };
+
+  const adminUpdateMatch = async (matchId, data) => {
+      if (session.role !== ROLES.ADMIN && session.role !== ROLES.OWNER) {
+          throw new Error("Unauthorized: Admin Access Required");
+      }
+      await updateDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'matches', matchId), data);
+  };
+  
   const createMatch = async (round, index, team1Id, team2Id) => {
+    if (session.role !== ROLES.ADMIN && session.role !== ROLES.OWNER) return;
     try {
         await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'matches'), {
           round,
@@ -98,7 +125,7 @@ export const TournamentProvider = ({ children }) => {
           status: 'scheduled',
           vetoState: {
             phase: 'ban',
-            turn: team1Id, // Team 1 starts banning
+            turn: team1Id,
             bannedMaps: [],
             pickedMap: null
           }
@@ -106,15 +133,6 @@ export const TournamentProvider = ({ children }) => {
     } catch (err) {
         console.error("Create Match Failed", err);
         setError("Failed to create match.");
-    }
-  };
-
-  const updateMatch = async (matchId, data) => {
-    try {
-        await updateDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'matches', matchId), data);
-    } catch (err) {
-        console.error("Update Match Failed", err);
-        throw err;
     }
   };
 
@@ -126,9 +144,9 @@ export const TournamentProvider = ({ children }) => {
       error,
       createTeam, 
       joinTeam, 
-      createMatch, 
-      updateMatch,
-      currentUserId: user?.uid 
+      createMatch,
+      submitVeto, 
+      adminUpdateMatch,
     }}>
       {children}
     </TournamentContext.Provider>

@@ -1,6 +1,5 @@
-import React, { createContext, useContext, useState } from 'react';
-import { collection, query, where, getDocs } from "firebase/firestore";
-import { db } from '../firebase/client';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { supabase } from '../supabase/client';
 import { ROLES } from '../lib/roles';
 
 const SessionContext = createContext();
@@ -11,71 +10,91 @@ export const SessionProvider = ({ children }) => {
     role: ROLES.SPECTATOR,
     teamId: null,
     identity: 'Anonymous',
-    loading: true
+    pin: null, // Required to authorize RPC calls
+    loading: false
   });
 
   const [isPinModalOpen, setIsPinModalOpen] = useState(true);
 
-  const verifyPin = async (pin) => {
-    // 1. SAFETY: Backdoor only works in Development Mode
-    const isDev = import.meta.env.DEV; 
-    if (isDev && pin === '0000') {
-        console.warn("⚠️ USING DEV BACKDOOR - DO NOT USE IN PRODUCTION");
-        setSession({
+  // Attempt to restore session from browser storage on load
+  useEffect(() => {
+    const stored = sessionStorage.getItem('pp_user_session');
+    if (stored) {
+        try {
+            const parsed = JSON.parse(stored);
+            setSession(parsed);
+            setIsPinModalOpen(false);
+        } catch (e) {
+            sessionStorage.removeItem('pp_user_session');
+        }
+    }
+  }, []);
+
+  const verifyPin = async (inputPin) => {
+    // 1. Dev Backdoor (Only works in localhost)
+    if (import.meta.env.DEV && inputPin === '0000') {
+        const devSession = {
             isAuthenticated: true,
             role: ROLES.OWNER,
             teamId: null,
             identity: 'Dev Owner',
+            pin: '0000',
             loading: false
-        });
-        setIsPinModalOpen(false);
+        };
+        updateSession(devSession);
         return true;
     }
 
     try {
-        // 2. Query Firestore
-        // Schema: { code, role, label, teamId, expiresAt (Timestamp/ISO string) }
-        const q = query(collection(db, 'access_codes'), where('code', '==', pin));
-        const snapshot = await getDocs(q);
+        // 2. Call Supabase RPC: verify_pin
+        // This executes the logic inside your PostgreSQL database
+        const cleanPin = inputPin.trim();
+        const { data, error } = await supabase.rpc('verify_pin', { input_pin: cleanPin });
 
-        if (!snapshot.empty) {
-            const data = snapshot.docs[0].data();
-            
-            // 3. Expiration Check
-            if (data.expiresAt) {
-                const expires = new Date(data.expiresAt);
-                const now = new Date();
-                if (now > expires) {
-                    console.error("Access Code Expired");
-                    return false; // Code is dead
-                }
-            }
+        if (error) {
+            console.error("Auth RPC Error:", error);
+            return false;
+        }
 
-            setSession({
+        // 3. Handle SQL Response
+        if (data && data.valid) {
+            const newSession = {
                 isAuthenticated: true,
                 role: data.role,
-                teamId: data.teamId || null,
-                identity: data.label || 'Unknown User',
+                teamId: data.team_id || null,
+                identity: `${data.role} ${data.team_id ? `(${data.team_id.slice(0,4)})` : ''}`,
+                pin: cleanPin, // Store PIN for future RPC calls
                 loading: false
-            });
-            setIsPinModalOpen(false);
+            };
+            updateSession(newSession);
             return true;
+        } else {
+            console.warn("Invalid PIN response:", data?.error);
+            return false;
         }
     } catch (err) {
-        console.error("PIN Verification Failed", err);
+        console.error("Verification Execution Failed", err);
+        return false;
     }
+  };
 
-    return false;
+  const updateSession = (newSession) => {
+      setSession(newSession);
+      sessionStorage.setItem('pp_user_session', JSON.stringify(newSession));
+      setIsPinModalOpen(false);
   };
 
   const logout = () => {
-    setSession({
+    const emptySession = {
         isAuthenticated: false,
         role: ROLES.SPECTATOR,
         teamId: null,
         identity: 'Anonymous',
+        pin: null,
         loading: false
-    });
+    };
+    setSession(emptySession);
+    sessionStorage.removeItem('pp_user_session');
     setIsPinModalOpen(true);
   };
 

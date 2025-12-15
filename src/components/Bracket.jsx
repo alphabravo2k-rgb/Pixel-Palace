@@ -10,22 +10,61 @@ const ROUND_MAP = { 1: 'R32', 2: 'R16', 3: 'QF', 4: 'SF', 5: 'GF' };
 const Bracket = ({ onMatchClick }) => {
   const { matches, teams } = useTournament();
 
+  // Helper to generate dummy structure if matches are empty
+  const generateDummyStructure = () => {
+    // Structure: Round Name -> Number of matches needed
+    const structure = {
+      'R32': 16,
+      'R16': 8,
+      'QF': 4,
+      'SF': 2,
+      'GF': 1
+    };
+
+    const groups = {};
+    
+    BRACKET_ORDER.forEach(round => {
+      groups[round] = Array(structure[round]).fill(null).map((_, i) => ({
+        id: `dummy-${round}-${i}`,
+        round: round,
+        matchIndex: i,
+        team1Id: null,
+        team2Id: null,
+        score: null,
+        status: 'scheduled',
+        isDummy: true
+      }));
+    });
+
+    return groups;
+  };
+
   // Group flat matches into rounds for the column view
   const bracketData = useMemo(() => {
+    // If no real matches, return dummy structure immediately
+    if (!matches || matches.length === 0) {
+      return generateDummyStructure();
+    }
+
     const groups = BRACKET_ORDER.reduce((acc, round) => ({ ...acc, [round]: [] }), {});
     
+    // Fill with real matches
     matches.forEach(match => {
       const roundLabel = ROUND_MAP[match.round];
       if (groups[roundLabel]) {
         groups[roundLabel].push(match);
       }
     });
+
+    // Optional: Fill gaps in real rounds with dummies if needed (hybrid approach)
+    // For now, we assume if matches exist, the set is complete or managed by SQL
     
     return groups;
   }, [matches]);
 
   // Helper to get team data safely
   const getTeam = (teamId) => {
+    if (!teamId) return { name: 'TBD', logo_url: null };
     return teams.find(t => t.id === teamId) || { name: 'TBD', logo_url: null };
   };
 
@@ -36,19 +75,8 @@ const Bracket = ({ onMatchClick }) => {
     return [(parts[0] || '-'), (parts[1] || '-')];
   };
 
-  if (matches.length === 0) {
-    return (
-        <div className="flex flex-col items-center justify-center h-64 text-zinc-500 gap-4">
-            <Trophy className="w-12 h-12 opacity-20" />
-            <p className="text-sm tracking-widest uppercase font-bold">No matches scheduled yet</p>
-        </div>
-    );
-  }
-
   // --- SVG CONNECTOR COMPONENT ---
   const Connector = ({ type }) => {
-      // Basic SVG paths to draw lines between columns
-      // Type 'straight' for simple connections, 'fork' for converging
       if (type === 'fork') {
           return (
             <svg className="absolute right-[-24px] top-1/2 -translate-y-1/2 w-6 h-full pointer-events-none overflow-visible z-0" style={{ height: 'calc(100% + 2rem)' }}>
@@ -84,16 +112,22 @@ const Bracket = ({ onMatchClick }) => {
                 const team1 = getTeam(match.team1Id);
                 const team2 = getTeam(match.team2Id);
 
+                // Disable click for dummy matches
+                const handleClick = () => {
+                  if (!match.isDummy) onMatchClick(match);
+                };
+
                 return (
                   <div key={match.id} className="relative flex items-center">
                     
                     {/* The Match Card */}
                     <div 
-                        onClick={() => onMatchClick(match)}
+                        onClick={handleClick}
                         className={`
-                        w-full relative bg-[#15191f] border rounded-xl cursor-pointer transition-all duration-300 group hover:scale-[1.02] z-10
+                        w-full relative bg-[#15191f] border rounded-xl transition-all duration-300 group hover:scale-[1.02] z-10
                         ${isLive ? 'border-l-4 border-l-green-500 border-y-zinc-800 border-r-zinc-800 shadow-[0_0_20px_rgba(34,197,94,0.1)]' : 'border-zinc-800 hover:border-zinc-600'}
                         ${match.status === 'scheduled' ? 'opacity-75 hover:opacity-100' : ''}
+                        ${match.isDummy ? 'opacity-50 cursor-default' : 'cursor-pointer'}
                         `}
                     >
                         <div className="p-4 space-y-3">
@@ -133,7 +167,7 @@ const Bracket = ({ onMatchClick }) => {
                         {/* Footer / Info Bar */}
                         <div className="bg-[#0b0c0f]/50 px-3 py-2 flex justify-between items-center border-t border-zinc-800 rounded-b-xl">
                         <span className="text-[10px] font-mono text-zinc-600 uppercase tracking-wider">
-                            {match.display_id || `M${match.matchIndex + 1}`}
+                            {match.display_id || (match.isDummy ? 'TBD' : `M${match.matchIndex + 1}`)}
                         </span>
                         <div className="flex items-center gap-2">
                             {match.stream_url && <Tv className="w-3 h-3 text-purple-500 animate-pulse"/>}
@@ -143,7 +177,7 @@ const Bracket = ({ onMatchClick }) => {
                                 <span className="text-[9px] font-bold text-green-500 tracking-wider">LIVE</span>
                             </div>
                             )}
-                            {match.status === 'scheduled' && <Lock className="w-3 h-3 text-zinc-600"/>}
+                            {match.status === 'scheduled' && !match.isDummy && <Lock className="w-3 h-3 text-zinc-600"/>}
                         </div>
                         </div>
                     </div>
@@ -155,13 +189,11 @@ const Bracket = ({ onMatchClick }) => {
                     {round !== 'R32' && (
                         <div className="absolute -left-8 top-1/2 -translate-y-1/2 w-8 h-[1px] bg-zinc-800 z-0"></div>
                     )}
-                    {/* Vertical connectors for pairs would go here if we calculated exact heights, 
-                        but for dynamic scrolling flex lists, simple horizontal stubs are safer visually. */}
                   </div>
                 );
               })
             ) : (
-              // Empty Slot / TBD Placeholder
+              // Empty Slot / TBD Placeholder (Only used if dummy logic fails or specific round is empty in mixed mode)
               <div className="h-32 border border-dashed border-zinc-800/50 rounded-xl flex flex-col items-center justify-center gap-2 opacity-30">
                 <Shield className="w-6 h-6 text-zinc-600"/>
                 <span className="text-[10px] text-zinc-600 uppercase tracking-widest font-bold">Waiting for Teams</span>

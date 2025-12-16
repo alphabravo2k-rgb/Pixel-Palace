@@ -1,6 +1,12 @@
 import React from 'react';
 import { useTournament } from '../tournament/useTournament';
 
+const ROLE_LABELS = {
+  CAPTAIN: 'Captain',
+  PLAYER: 'Player',
+  SUBSTITUTE: 'Sub'
+};
+
 const TeamRoster = () => {
   const { teams, loading } = useTournament();
 
@@ -29,16 +35,22 @@ const TeamRoster = () => {
           <ul className="space-y-1">
             {team.players && team.players.length > 0 ? (
                 team.players.map(p => (
-                  <li key={p.uid} className="text-xs text-zinc-400 flex justify-between">
+                  <li key={`${team.id}-${p.uid}`} className="text-xs text-zinc-400 flex justify-between">
                     <span>
                       {p.role === 'CAPTAIN' && '⭐ '}
                       {p.name}
                     </span>
-                    <span className="text-zinc-600">{p.role}</span>
+                    <span className="text-zinc-600">
+                      {ROLE_LABELS[p.role] || p.role}
+                    </span>
                   </li>
                 ))
             ) : (
-                <li className="text-xs text-zinc-600 italic">Roster pending...</li>
+                <li className="text-xs text-zinc-600 italic">
+                  {team.players === undefined
+                    ? 'Roster unavailable'
+                    : 'Roster pending...'}
+                </li>
             )}
           </ul>
         </div>

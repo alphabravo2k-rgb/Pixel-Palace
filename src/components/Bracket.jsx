@@ -40,6 +40,32 @@ const formatSchedule = (match) => {
   }
 };
 
+// Data Normalizer: Assigns matchIndex if missing to prevent dropped matches
+const normalizeMatches = (matches) => {
+  const counters = {};
+
+  return matches.map(match => {
+    const roundLabel = ROUND_MAP[match.round];
+    
+    // If round is unknown, we can't place it
+    if (!roundLabel) return match;
+
+    // If matchIndex is missing or invalid, assign the next available slot for this round
+    if (match.matchIndex == null) {
+      counters[roundLabel] = (counters[roundLabel] || 0);
+      const newIndex = counters[roundLabel]++;
+      return {
+        ...match,
+        matchIndex: newIndex
+      };
+    }
+
+    // If matchIndex exists, respect it but track count
+    counters[roundLabel] = Math.max((counters[roundLabel] || 0), match.matchIndex + 1);
+    return match;
+  });
+};
+
 // Bracket Engine: Deterministic Slot Filling with Guards
 const buildBracketStructure = (matches) => {
   const groups = {};
@@ -73,8 +99,6 @@ const buildBracketStructure = (matches) => {
         ...match,
         isDummy: false
       };
-    } else {
-        // Optional: log warning if match doesn't fit bracket structure
     }
   });
 
@@ -114,7 +138,6 @@ const getMatchStatus = (match) => {
       borderColor = 'border-green-500';
       shadow = 'shadow-[0_0_15px_rgba(34,197,94,0.15)]';
       statusStrip = 'bg-green-500 animate-pulse';
-      // Icon handled in JSX for live state
   } else if (isCompleted) {
       borderColor = 'border-zinc-700';
       statusStrip = 'bg-zinc-700';
@@ -125,7 +148,7 @@ const getMatchStatus = (match) => {
 
 // --- SUB-COMPONENTS ---
 
-const BracketMatch = ({ match, team1, team2, onClick, setRef, isFocus }) => {
+const BracketMatch = ({ match, onClick, setRef, isFocus }) => {
   const [scoreA, scoreB] = parseScore(match.score);
   const scheduleText = formatSchedule(match);
   const { isLive, isCompleted, isVetoing, borderColor, shadow, statusStrip, Icon, label, textClass } = getMatchStatus(match);
@@ -138,6 +161,12 @@ const BracketMatch = ({ match, team1, team2, onClick, setRef, isFocus }) => {
 
   // TEAM/CAPTAIN LOCK: If not my match, dim it significantly to reduce noise
   const opacityClass = isFocus ? 'opacity-100' : 'opacity-20 grayscale cursor-not-allowed';
+
+  // RESOLVE NAMES FROM PROPS
+  const t1Name = match.team1Name || 'TBD';
+  const t2Name = match.team2Name || 'TBD';
+  const t1Logo = match.team1Logo;
+  const t2Logo = match.team2Logo;
 
   return (
     <div 
@@ -154,8 +183,8 @@ const BracketMatch = ({ match, team1, team2, onClick, setRef, isFocus }) => {
       <div className="p-3 flex items-center justify-between gap-4">
         {/* Team 1 Block */}
         <div className={`flex items-center gap-2 flex-1 min-w-0 overflow-hidden ${isCompleted && winnerId === match.team1Id ? 'text-green-400 font-bold' : isCompleted ? 'text-zinc-500 opacity-50' : 'text-zinc-300'}`}>
-            {team1.logo_url && <img src={team1.logo_url} className="w-5 h-5 object-contain rounded-sm bg-black/40 flex-shrink-0" alt=""/>}
-            <span className="truncate text-xs">{team1.name}</span>
+            {t1Logo && <img src={t1Logo} className="w-5 h-5 object-contain rounded-sm bg-black/40 flex-shrink-0" alt=""/>}
+            <span className="truncate text-xs">{t1Name}</span>
             {isCompleted && winnerId === match.team1Id && <span className="text-[10px] text-zinc-500 ml-1 font-mono">{scoreA}</span>}
         </div>
 
@@ -164,8 +193,8 @@ const BracketMatch = ({ match, team1, team2, onClick, setRef, isFocus }) => {
         {/* Team 2 Block */}
         <div className={`flex items-center gap-2 flex-1 min-w-0 overflow-hidden justify-end ${isCompleted && winnerId === match.team2Id ? 'text-green-400 font-bold' : isCompleted ? 'text-zinc-500 opacity-50' : 'text-zinc-300'}`}>
             {isCompleted && winnerId === match.team2Id && <span className="text-[10px] text-zinc-500 mr-1 font-mono">{scoreB}</span>}
-            <span className="truncate text-xs text-right">{team2.name}</span>
-            {team2.logo_url && <img src={team2.logo_url} className="w-5 h-5 object-contain rounded-sm bg-black/40 flex-shrink-0" alt=""/>}
+            <span className="truncate text-xs text-right">{t2Name}</span>
+            {t2Logo && <img src={t2Logo} className="w-5 h-5 object-contain rounded-sm bg-black/40 flex-shrink-0" alt=""/>}
         </div>
       </div>
 
@@ -237,18 +266,19 @@ const Bracket = ({ onMatchClick }) => {
     return map;
   }, [teams]);
 
-  const getTeam = (teamId) => teamMap.get(teamId) || { name: 'TBD', logo_url: null };
-
-  // 2. Compute Bracket Structure (Memoized)
+  // 2. Compute Bracket Structure (Memoized with Normalization)
   const bracketData = useMemo(() => {
-      return buildBracketStructure(matches || []);
+      // Step A: Normalize matches to ensure every match has a valid index
+      const safeMatches = normalizeMatches(matches || []);
+      // Step B: Build the structure using safe data
+      return buildBracketStructure(safeMatches);
   }, [matches]);
 
-  // TEAM/CAPTAIN LOCK MODE LOGIC
-  const hasTeamContext = !!session.teamId;
+  // CAPTAIN LOCK MODE LOGIC
+  const isCaptain = session.role === ROLES.CAPTAIN;
   const myTeamId = session.teamId;
 
-  // 3. Declarative Line Drawing
+  // 3. Declarative Line Drawing (Phase 4 Fix)
   useLayoutEffect(() => {
     if (!contentRef.current || !containerRef.current || !svgRef.current) return;
 
@@ -326,7 +356,6 @@ const Bracket = ({ onMatchClick }) => {
     };
   }, [bracketData]); 
 
-  // Loading State
   if (loading && (!matches || matches.length === 0)) {
       return (
           <div className="flex flex-col items-center justify-center h-[500px] text-zinc-500 gap-4">
@@ -367,14 +396,17 @@ const Bracket = ({ onMatchClick }) => {
 
               <div className="flex flex-col justify-around gap-8 h-full">
                 {bracketData[round].map((match) => {
-                    const isMyMatch = hasTeamContext ? (match.team1Id === myTeamId || match.team2Id === myTeamId) : true;
+                    // Logic: If Captain, is this MY match?
+                    // Captain sees all matches but non-relevant ones are dimmed
+                    const isMyMatch = isCaptain ? (match.team1Id === myTeamId || match.team2Id === myTeamId) : true;
+                    
                     return (
                       <BracketMatch 
                         key={match.id} 
                         match={match}
-                        team1={getTeam(match.team1Id)}
-                        team2={getTeam(match.team2Id)}
-                        isFocus={isMyMatch || !hasTeamContext} // Only dim if I am a team member AND it's not my match
+                        team1={null} 
+                        team2={null}
+                        isFocus={isMyMatch || !isCaptain} // Only dim if I am a captain AND it's not my match
                         onClick={() => onMatchClick(match)}
                         setRef={(el) => {
                           if (el) matchRefs.current.set(match.id, el);

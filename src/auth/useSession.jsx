@@ -95,7 +95,7 @@ export const SessionProvider = ({ children }) => {
   const logout = () => {
     const emptySession = {
         isAuthenticated: false,
-        role: ROLES.SPECTATOR,a
+        role: ROLES.SPECTATOR,
         teamId: null,
         identity: 'Anonymous',
         pin: null,

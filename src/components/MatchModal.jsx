@@ -36,12 +36,11 @@ const MatchModal = ({ match, onClose }) => {
 
   if (!match) return null;
 
-  // Use team names from match object (populated by useTournament)
-  // Fallback to searching teams list if match object is stale
-  const t1Name = match.team1Name || teams.find(t => t.id === match.team1Id)?.name || 'TBD';
-  const t2Name = match.team2Name || teams.find(t => t.id === match.team2Id)?.name || 'TBD';
+  // Use team names from match object (provided by useTournament)
+  const t1Name = match.team1Name || 'TBD';
+  const t2Name = match.team2Name || 'TBD';
   
-  // Seeds
+  // Try to find seed info
   const t1Seed = teams.find(t => t.id === match.team1Id)?.seed_number || '?';
   const t2Seed = teams.find(t => t.id === match.team2Id)?.seed_number || '?';
 
@@ -354,10 +353,10 @@ const MatchModal = ({ match, onClose }) => {
                     </p>
                     <div className="grid grid-cols-2 gap-4">
                         <Button variant="danger" className="h-12" onClick={() => handleForceWin(match.team1Id)} disabled={loading}>
-                            Win: {team1.name}
+                            Win: {t1Name}
                         </Button>
                         <Button variant="danger" className="h-12" onClick={() => handleForceWin(match.team2Id)} disabled={loading}>
-                            Win: {team2.name}
+                            Win: {t2Name}
                         </Button>
                     </div>
                 </div>

@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
 import { useTournament } from '../tournament/useTournament';
 import { MAP_POOL } from '../lib/constants';
-import { isTeamCaptain } from '../tournament/permissions';
-import { useSession } from '../auth/useSession'; // FIXED
+import { isTeamCaptain, isAdmin } from '../tournament/permissions';
+import { useSession } from '../auth/useSession'; 
+import { Check, Ban, AlertCircle } from 'lucide-react';
 
 const VetoPanel = ({ match }) => {
   const { submitVeto, teams } = useTournament();
-  const { session } = useSession(); // FIXED
+  const { session } = useSession(); 
   const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
   
   if (!match || !match.vetoState) return null;
 
@@ -15,109 +17,134 @@ const VetoPanel = ({ match }) => {
   const team2 = teams.find(t => t.id === match.team2Id);
   const { vetoState } = match;
 
+  // Determine current turn team
   const currentTeamId = vetoState.turn;
   const currentTeam = currentTeamId === match.team1Id ? team1 : team2;
   
-  // Use session instead of user
-  const canVeto = isTeamCaptain(session, currentTeamId);
+  // Authorization: Only current team captain or admin can act
+  const userIsCaptain = isTeamCaptain(session, currentTeamId);
+  const userIsAdmin = isAdmin(session);
+  const canVeto = (userIsCaptain || userIsAdmin) && match.status === 'live';
 
-  const handleVeto = async (mapId) => {
+  const handleVeto = async (mapId, actionType) => {
     if (!canVeto) {
-        setError("Only the Active Team Captain can veto.");
+        setError("Waiting for active team or match is not live.");
         return;
     }
     setError(null);
-
-    const newBanned = [...vetoState.bannedMaps, mapId];
-    const remainingMaps = MAP_POOL.filter(m => !newBanned.includes(m.id));
-    
-    let updates = {};
-    let actionDesc = `Banned ${MAP_POOL.find(m => m.id === mapId)?.name}`;
+    setLoading(true);
 
     try {
-        if (remainingMaps.length === 1) {
-          updates = {
-            'vetoState.bannedMaps': newBanned,
-            'vetoState.pickedMap': remainingMaps[0].id,
-            'vetoState.phase': 'complete',
-            'status': 'live'
-          };
-          actionDesc += ` (Auto-pick ${remainingMaps[0].name})`;
-        } else {
-          updates = {
-            'vetoState.bannedMaps': newBanned,
-            'vetoState.turn': currentTeamId === match.team1Id ? match.team2Id : match.team1Id
-          };
-        }
-    
-        await submitVeto(match.id, updates, actionDesc);
+        // Send STRUCTURED data to the hook -> backend
+        // actionType should be 'BAN' or 'PICK' (or 'SIDE' for future BO3/5)
+        await submitVeto(match.id, { action: actionType, mapId: mapId });
     } catch (err) {
-        setError("Veto failed. Refresh and try again.");
+        setError(err.message);
+    } finally {
+        setLoading(false);
     }
   };
 
+  // Helper to determine what action is expected next
+  // In Phase B, we default to BAN. In future, this comes from backend 'expected_action'
+  const nextAction = "BAN"; // This should ideally be dynamic based on format
+
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center bg-slate-900 p-3 rounded-lg border border-slate-700">
-        <div className={`text-lg font-bold flex items-center gap-2 ${vetoState.turn === match.team1Id ? 'text-yellow-400' : 'text-slate-500'}`}>
-          {vetoState.turn === match.team1Id && <span className="animate-pulse">▶</span>}
+      {/* Veto Status Header */}
+      <div className="flex justify-between items-center bg-[#0b0c0f] p-4 rounded-xl border border-zinc-800">
+        <div className={`text-lg font-bold flex items-center gap-3 ${vetoState.turn === match.team1Id ? 'text-yellow-400' : 'text-zinc-600'}`}>
+          {vetoState.turn === match.team1Id && <span className="relative flex h-3 w-3"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span><span className="relative inline-flex rounded-full h-3 w-3 bg-yellow-500"></span></span>}
           {team1?.name || 'Team 1'}
         </div>
-        <div className="text-slate-500 font-mono text-xs uppercase">Map Veto Phase</div>
-        <div className={`text-lg font-bold flex items-center gap-2 ${vetoState.turn === match.team2Id ? 'text-yellow-400' : 'text-slate-500'}`}>
+        
+        <div className="flex flex-col items-center">
+            <span className="text-zinc-500 font-mono text-[10px] uppercase tracking-widest">Current Phase</span>
+            <span className="text-white font-bold text-sm tracking-wide">
+                {vetoState.phase === 'complete' ? 'VETO COMPLETE' : `${nextAction} PHASE`}
+            </span>
+        </div>
+
+        <div className={`text-lg font-bold flex items-center gap-3 ${vetoState.turn === match.team2Id ? 'text-yellow-400' : 'text-zinc-600'}`}>
           {team2?.name || 'Team 2'}
-          {vetoState.turn === match.team2Id && <span className="animate-pulse">◀</span>}
+          {vetoState.turn === match.team2Id && <span className="relative flex h-3 w-3"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span><span className="relative inline-flex rounded-full h-3 w-3 bg-yellow-500"></span></span>}
         </div>
       </div>
 
+      {/* Result Display */}
       <div className="text-center mb-4">
         {vetoState.pickedMap ? (
-          <div className="p-4 bg-green-900/30 border border-green-500 rounded-lg">
-            <div className="text-green-400 font-bold text-xl uppercase tracking-widest">
-                Decider Map
+          <div className="p-4 bg-green-900/20 border border-green-500/50 rounded-xl relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-1 h-full bg-green-500"></div>
+            <div className="text-green-400 font-bold text-xs uppercase tracking-widest mb-1">
+                Decider Map Selected
             </div>
-            <div className="text-3xl font-black text-white mt-2">
-                {MAP_POOL.find(m => m.id === vetoState.pickedMap)?.name}
+            <div className="text-3xl font-black text-white uppercase italic tracking-tighter">
+                {MAP_POOL.find(m => m.id === vetoState.pickedMap)?.name || vetoState.pickedMap}
             </div>
           </div>
         ) : (
-          <div className="text-blue-300 bg-blue-900/20 py-2 rounded border border-blue-900/50">
-            Waiting for <span className="font-bold text-white">{currentTeam?.name}</span> to BAN a map
-          </div>
+           <div className="p-3 rounded-lg border border-dashed border-zinc-800 text-center">
+               <span className="text-zinc-500 text-xs">Waiting for {currentTeam?.name} to {nextAction}...</span>
+           </div>
         )}
       </div>
 
       {error && (
-        <div className="text-red-400 text-sm text-center bg-red-900/20 p-2 rounded animate-bounce">
-            ⚠️ {error}
+        <div className="bg-red-900/20 border border-red-500/50 text-red-200 p-3 rounded-lg flex items-center justify-center gap-2 text-xs font-bold animate-in fade-in slide-in-from-top-2">
+            <AlertCircle className="w-4 h-4" /> {error}
         </div>
       )}
 
+      {/* Maps Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
         {MAP_POOL.map(map => {
           const isBanned = vetoState.bannedMaps.includes(map.id);
           const isPicked = vetoState.pickedMap === map.id;
+          
+          // Interaction Logic
+          const isDisabled = isBanned || isPicked || !canVeto || vetoState.phase === 'complete' || loading;
 
           return (
             <button
               key={map.id}
-              disabled={isBanned || isPicked || !canVeto || vetoState.phase === 'complete'}
-              onClick={() => handleVeto(map.id)}
+              disabled={isDisabled}
+              onClick={() => handleVeto(map.id, nextAction)} // Defaulting to BAN for now, logic can expand
               className={`
-                relative h-24 rounded-lg overflow-hidden border-2 transition-all group
-                ${isBanned ? 'border-red-900/50 opacity-40 grayscale' : 'border-slate-600 hover:border-blue-500'}
-                ${isPicked ? 'border-green-500 ring-2 ring-green-500 opacity-100 scale-105 z-10' : ''}
-                ${!canVeto && !isBanned && !isPicked ? 'cursor-not-allowed opacity-75' : ''}
+                relative h-28 rounded-xl overflow-hidden border-2 transition-all duration-300 group
+                ${isBanned ? 'border-red-900/30 opacity-40 grayscale' : 'border-zinc-800 hover:border-zinc-500'}
+                ${isPicked ? 'border-green-500 ring-4 ring-green-500/20 opacity-100 scale-[1.02] z-10' : ''}
+                ${!isDisabled ? 'cursor-pointer hover:shadow-lg' : 'cursor-not-allowed'}
               `}
             >
-              <img src={map.image} alt={map.name} className="absolute inset-0 w-full h-full object-cover" />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent flex items-end justify-center pb-2">
-                <span className="font-bold text-white shadow-black drop-shadow-md">{map.name}</span>
+              <img src={map.image} alt={map.name} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent flex items-end justify-center pb-3">
+                <span className="font-bold text-white shadow-black drop-shadow-md text-sm tracking-wider uppercase">{map.name}</span>
               </div>
+              
+              {/* Overlays */}
               {isBanned && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-[1px]">
-                  <span className="text-red-500 font-bold border-2 border-red-500 px-2 py-1 rotate-12 uppercase text-xs">Banned</span>
+                <div className="absolute inset-0 flex items-center justify-center bg-black/70 backdrop-blur-[1px]">
+                  <div className="transform -rotate-12 border-2 border-red-500 text-red-500 px-3 py-1 font-black text-sm uppercase tracking-widest rounded">
+                    BANNED
+                  </div>
                 </div>
+              )}
+              
+              {isPicked && (
+                <div className="absolute inset-0 flex items-center justify-center bg-green-900/40 backdrop-blur-[1px]">
+                   <div className="flex flex-col items-center">
+                       <Check className="w-8 h-8 text-white drop-shadow-lg mb-1" />
+                       <span className="text-white font-bold text-xs uppercase tracking-widest drop-shadow-md">PICKED</span>
+                   </div>
+                </div>
+              )}
+              
+              {/* Hover Action Hint */}
+              {!isDisabled && (
+                  <div className="absolute inset-0 bg-fuchsia-600/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-sm">
+                      <span className="text-white font-bold tracking-widest uppercase">{nextAction}</span>
+                  </div>
               )}
             </button>
           );

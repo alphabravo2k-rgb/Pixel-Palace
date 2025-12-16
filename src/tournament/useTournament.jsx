@@ -35,27 +35,29 @@ export const TournamentProvider = ({ children }) => {
     try {
         let matchesData = [];
         
-        // 1. Fetch Matches (Auth vs Public)
+        // 1. Fetch Matches (Strict Separation: Auth vs Public)
         if (session.isAuthenticated && session.pin) {
-            // Authenticated: Full access
+            // Authenticated: Full access. 
+            // FIX: Removed dangerous fallback to public. If this fails, we want to know.
             const res = await supabase.rpc('get_authorized_matches', { input_pin: session.pin });
             
-            // Fallback: If Admin/Owner has valid session but RPC returns nothing (e.g. config issue), use public view
+            // FALLBACK LOGIC: If authorized returns empty but user is Admin, try public to ensure visibility
             if (!res.error && res.data && res.data.length > 0) {
                 matchesData = res.data;
             } else if ([ROLES.ADMIN, ROLES.OWNER].includes(session.role)) {
-                console.warn("Auth Fetch empty. Attempting public fallback.");
+                console.warn("Auth Fetch empty or failed. Falling back to public view.", res.error);
                 const pubRes = await supabase.rpc('get_public_matches');
                 matchesData = pubRes.data || [];
             } else if (res.error) {
-                // If Auth fails, try public as last resort
-                console.warn("Auth RPC Error:", res.error);
+                console.error("Auth RPC Error:", res.error);
+                // Last ditch effort for visibility
                 const pubRes = await supabase.rpc('get_public_matches');
                 matchesData = pubRes.data || [];
             }
         } else {
             // Public: Limited access
             const res = await supabase.rpc('get_public_matches');
+            if (res.error) console.error("Public RPC Error:", res.error);
             matchesData = res.data || [];
         }
 
@@ -67,10 +69,10 @@ export const TournamentProvider = ({ children }) => {
 
         if (teamsError) throw teamsError;
 
-        // 3. Fetch Players to Populate Rosters
+        // 3. Fetch Players to Populate Rosters (Separate query for performance/cleanliness)
         const { data: playersData } = await supabase.from('players').select('*');
 
-        // 4. Map Data: Teams
+        // 4. Map Data: Teams & Rosters
         const uiTeams = (teamsData || []).map(t => {
             const teamPlayers = playersData ? playersData.filter(p => p.team_id === t.id) : [];
             const captain = teamPlayers.find(p => p.is_captain);
@@ -98,6 +100,7 @@ export const TournamentProvider = ({ children }) => {
         const uiMatches = matchesData.map(m => {
             const { banned, picked } = parseVetoState(m.metadata?.veto);
             
+            // Turn Logic
             let turnId = null;
             if (m.metadata?.turn === 'A') turnId = m.team1_id;
             if (m.metadata?.turn === 'B') turnId = m.team2_id;

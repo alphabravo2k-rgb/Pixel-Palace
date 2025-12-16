@@ -162,7 +162,7 @@ const BracketMatch = ({ match, onClick, setRef, isFocus }) => {
   // TEAM/CAPTAIN LOCK: If not my match, dim it significantly to reduce noise
   const opacityClass = isFocus ? 'opacity-100' : 'opacity-20 grayscale cursor-not-allowed';
 
-  // RESOLVE NAMES FROM PROPS
+  // RESOLVE NAMES FROM PROPS (Correct V14 Data Mapping)
   const t1Name = match.team1Name || 'TBD';
   const t2Name = match.team2Name || 'TBD';
   const t1Logo = match.team1Logo;
@@ -259,7 +259,7 @@ const Bracket = ({ onMatchClick }) => {
   const svgRef = useRef(null);
   const matchRefs = useRef(new Map());
 
-  // 1. O(1) Team Lookup
+  // 1. O(1) Team Lookup (Not strictly needed for names if pre-populated, but useful for extra metadata)
   const teamMap = useMemo(() => {
     const map = new Map();
     teams.forEach(t => map.set(t.id, t));
@@ -308,11 +308,19 @@ const Bracket = ({ onMatchClick }) => {
           const elA2 = matchesA[idxA2] ? matchRefs.current.get(matchesA[idxA2].id) : null;
 
           if (elB && elA1 && elA2) {
-            const startX = elA1.getBoundingClientRect().right - parentRect.left;
-            const endX = elB.getBoundingClientRect().left - parentRect.left;
-            const yA1 = (elA1.getBoundingClientRect().top + elA1.offsetHeight / 2) - parentRect.top;
-            const yA2 = (elA2.getBoundingClientRect().top + elA2.offsetHeight / 2) - parentRect.top;
-            const yB = (elB.getBoundingClientRect().top + elB.offsetHeight / 2) - parentRect.top;
+            const rectB = elB.getBoundingClientRect();
+            const rectA1 = elA1.getBoundingClientRect();
+            const rectA2 = elA2.getBoundingClientRect();
+
+            // Calculate coordinates relative to the content wrapper.
+            // Using Element.getBoundingClientRect delta ensures we are scroll-independent relative to the wrapper.
+            const startX = rectA1.right - parentRect.left;
+            const endX = rectB.left - parentRect.left;
+            
+            const yA1 = (rectA1.top + rectA1.height / 2) - parentRect.top;
+            const yA2 = (rectA2.top + rectA2.height / 2) - parentRect.top;
+            const yB = (rectB.top + rectB.height / 2) - parentRect.top;
+
             const midX = startX + (endX - startX) / 2;
 
             // Create Path String
@@ -356,6 +364,7 @@ const Bracket = ({ onMatchClick }) => {
     };
   }, [bracketData]); 
 
+  // Loading State
   if (loading && (!matches || matches.length === 0)) {
       return (
           <div className="flex flex-col items-center justify-center h-[500px] text-zinc-500 gap-4">
@@ -397,15 +406,19 @@ const Bracket = ({ onMatchClick }) => {
               <div className="flex flex-col justify-around gap-8 h-full">
                 {bracketData[round].map((match) => {
                     // Logic: If Captain, is this MY match?
-                    // Captain sees all matches but non-relevant ones are dimmed
+                    // Captain sees all matches but non-relevant ones are dimmed (opacityClass logic inside BracketMatch)
+                    // Or strict lock mode: only clickable if my match
                     const isMyMatch = isCaptain ? (match.team1Id === myTeamId || match.team2Id === myTeamId) : true;
+                    
+                    // Admin or Spectator sees everything active
+                    // Captain sees everything but focus is on theirs
                     
                     return (
                       <BracketMatch 
                         key={match.id} 
                         match={match}
-                        team1={null} 
-                        team2={null}
+                        team1={getTeam(match.team1Id)} // Not strictly used for names, but useful context
+                        team2={getTeam(match.team2Id)}
                         isFocus={isMyMatch || !isCaptain} // Only dim if I am a captain AND it's not my match
                         onClick={() => onMatchClick(match)}
                         setRef={(el) => {

@@ -35,29 +35,23 @@ export const TournamentProvider = ({ children }) => {
     try {
         let matchesData = [];
         
-        // 1. Fetch Matches (Split Path: Auth vs Public)
+        // 1. Fetch Matches (Strict Separation: Auth vs Public)
         if (session.isAuthenticated && session.pin) {
-            // Authenticated: Full access (IPs, Logs, Admin fields)
+            // Authenticated: Full access. 
+            // FIX: Removed dangerous fallback to public. If this fails, we want to know (e.g. invalid PIN or RLS issue).
             const res = await supabase.rpc('get_authorized_matches', { input_pin: session.pin });
-            
-            // CRITICAL FIX: If Authorized returns empty but user is Admin, fallback to public matches
-            if (!res.error && res.data && res.data.length > 0) {
-                matchesData = res.data;
-            } else {
-                console.warn("Auth Fetch returned 0 matches. Falling back to public view.");
-                const pubRes = await supabase.rpc('get_public_matches');
-                matchesData = pubRes.data || [];
-            }
+            if (res.error) throw res.error;
+            matchesData = res.data || [];
         } else {
             // Public: Limited access
             const res = await supabase.rpc('get_public_matches');
+            if (res.error) throw res.error;
             matchesData = res.data || [];
         }
 
-        // 2. Fetch Teams (using new 'teams' table in V14, but RPC might return join data directly)
-        // We still fetch full team list for roster/admin pages
+        // 2. Fetch Teams (using new 'teams' table in V14)
         const { data: teamsData, error: teamsError } = await supabase
-            .from('teams') // CHANGED: V14 uses 'teams' table, not 'players' for team entities
+            .from('teams') 
             .select('*')
             .order('seed_number', { ascending: true });
 
@@ -66,7 +60,7 @@ export const TournamentProvider = ({ children }) => {
         // 3. Map Data
         const uiTeams = teamsData.map(t => ({
             id: t.id,
-            name: t.name, // V14 uses 'name'
+            name: t.name, 
             seed_number: t.seed_number,
             logo_url: t.logo_url,
             captainId: null,
@@ -76,30 +70,31 @@ export const TournamentProvider = ({ children }) => {
 
         const uiMatches = matchesData.map(m => {
             const { banned, picked } = parseVetoState(m.metadata?.veto);
-            let turnId = null;
-            // Note: backend metadata uses 'A'/'B' which map to team1/team2.
-            // V14 schema uses team1_id / team2_id
-            if (m.metadata?.turn === 'A') turnId = m.team1_id;
-            if (m.metadata?.turn === 'B') turnId = m.team2_id;
             
-            // Handle Names from RPC (V14 renamed these to teamX_name)
-            const p1Name = m.team1_name || m.player1_name; // Support V14 or fallback
-            const p2Name = m.team2_name || m.player2_name; 
+            // FIX: Removed frontend turn derivation. 
+            // Turn order is complex (BO1/BO3/BO5) and must be derived from veto step/format in UI or Backend, not guessed here.
+            
+            // Handle Names from RPC (Strictly V14)
+            const p1Name = m.team1_name; 
+            const p2Name = m.team2_name; 
             const adminName = m.assigned_admin_name;
 
             return {
                 id: m.id,
                 round: m.round,
-                matchIndex: m.slot || 0, 
-                // V14 ALIGNMENT: Map team1_id -> team1Id for UI
-                team1Id: m.team1_id || m.player1_id, 
-                team2Id: m.team2_id || m.player2_id,
+                matchIndex: m.slot, // FIX: Use 'slot' strictly. 'matchIndex' concept is deprecated in favor of explicit slots.
+                
+                // V14 ALIGNMENT: Strict Team IDs. No player fallback.
+                team1Id: m.team1_id, 
+                team2Id: m.team2_id,
                 winnerId: m.winner_id,
+                
                 state: m.state, 
                 status: m.state === 'open' ? 'live' : m.state === 'complete' ? 'completed' : 'scheduled',
+                
                 vetoState: {
                     phase: m.state === 'complete' ? 'complete' : 'ban',
-                    turn: turnId,
+                    turn: null, // FIX: Logic moved to VetoPanel/Engine
                     bannedMaps: banned,
                     pickedMap: picked
                 },
@@ -119,7 +114,7 @@ export const TournamentProvider = ({ children }) => {
         });
 
         setTeams(uiTeams);
-        setMatches(uiMatches); // Pass ALL matches (even pending/TBD ones)
+        setMatches(uiMatches); 
         setLoading(false);
 
     } catch (err) {

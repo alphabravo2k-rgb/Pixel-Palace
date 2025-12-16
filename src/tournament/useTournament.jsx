@@ -38,7 +38,7 @@ export const TournamentProvider = ({ children }) => {
         // 1. Fetch Matches (Strict Separation: Auth vs Public)
         if (session.isAuthenticated && session.pin) {
             // Authenticated: Full access. 
-            // FIX: Removed dangerous fallback to public. If this fails, we want to know (e.g. invalid PIN or RLS issue).
+            // FIX: Removed dangerous fallback to public. If this fails, we want to know.
             const res = await supabase.rpc('get_authorized_matches', { input_pin: session.pin });
             if (res.error) throw res.error;
             matchesData = res.data || [];
@@ -57,22 +57,38 @@ export const TournamentProvider = ({ children }) => {
 
         if (teamsError) throw teamsError;
 
-        // 3. Map Data
-        const uiTeams = teamsData.map(t => ({
-            id: t.id,
-            name: t.name, 
-            seed_number: t.seed_number,
-            logo_url: t.logo_url,
-            captainId: null,
-            players: [],
-            ...t
-        }));
+        // 3. Fetch Players to Populate Rosters
+        const { data: playersData, error: playersError } = await supabase
+            .from('players')
+            .select('*');
+        
+        if (playersError) throw playersError;
+
+        // 4. Map Data
+        const uiTeams = teamsData.map(t => {
+            // Link players to this team
+            const teamPlayers = playersData.filter(p => p.team_id === t.id);
+            const captain = teamPlayers.find(p => p.is_captain);
+
+            return {
+                id: t.id,
+                name: t.name, 
+                seed_number: t.seed_number,
+                logo_url: t.logo_url,
+                captainId: captain ? captain.id : null,
+                players: teamPlayers.map(p => ({
+                    uid: p.id,
+                    name: p.display_name,
+                    role: p.is_captain ? 'CAPTAIN' : p.is_substitute ? 'SUBSTITUTE' : 'PLAYER',
+                    rank: p.rank_level,
+                    faceit: p.faceit_url
+                })),
+                ...t
+            };
+        });
 
         const uiMatches = matchesData.map(m => {
             const { banned, picked } = parseVetoState(m.metadata?.veto);
-            
-            // FIX: Removed frontend turn derivation. 
-            // Turn order is complex (BO1/BO3/BO5) and must be derived from veto step/format in UI or Backend, not guessed here.
             
             // Handle Names from RPC (Strictly V14)
             const p1Name = m.team1_name; 
@@ -82,9 +98,9 @@ export const TournamentProvider = ({ children }) => {
             return {
                 id: m.id,
                 round: m.round,
-                matchIndex: m.slot, // FIX: Use 'slot' strictly. 'matchIndex' concept is deprecated in favor of explicit slots.
+                matchIndex: m.slot, // FIX: Use 'slot' strictly.
                 
-                // V14 ALIGNMENT: Strict Team IDs. No player fallback.
+                // V14 ALIGNMENT: Strict Team IDs.
                 team1Id: m.team1_id, 
                 team2Id: m.team2_id,
                 winnerId: m.winner_id,
@@ -94,7 +110,7 @@ export const TournamentProvider = ({ children }) => {
                 
                 vetoState: {
                     phase: m.state === 'complete' ? 'complete' : 'ban',
-                    turn: null, // FIX: Logic moved to VetoPanel/Engine
+                    turn: null, // Logic moved to VetoPanel/Engine
                     bannedMaps: banned,
                     pickedMap: picked
                 },
@@ -132,22 +148,34 @@ export const TournamentProvider = ({ children }) => {
 
   // --- RPC ACTIONS ---
 
-  const submitVeto = async (matchId, vetoData, actionDescription) => {
+  const submitVeto = async (matchId, payload, legacyDescription) => {
     if (!session.pin) throw new Error("Authorization Required");
     
-    const mapName = actionDescription.replace(/^(Banned|Picked)\s+/i, '').replace(/\s+\(.*\)$/, '').trim();
-    const isBan = actionDescription.toUpperCase().includes('BAN');
-    const isPick = actionDescription.toUpperCase().includes('PICK');
-    const action = isBan ? 'BAN' : isPick ? 'PICK' : 'SIDE';
-    
-    const mapObj = MAP_POOL.find(m => m.name.toLowerCase() === mapName.toLowerCase());
-    if (!mapObj) throw new Error("Invalid Map Name");
+    let action, mapId;
+
+    // Support both Legacy String and New Object formats
+    if (typeof payload === 'string' || legacyDescription) {
+         // Legacy Parsing (Fallback)
+         const desc = typeof payload === 'string' ? payload : legacyDescription;
+         const mapName = desc.replace(/^(Banned|Picked)\s+/i, '').replace(/\s+\(.*\)$/, '').trim();
+         const isBan = desc.toUpperCase().includes('BAN');
+         const isPick = desc.toUpperCase().includes('PICK');
+         action = isBan ? 'BAN' : isPick ? 'PICK' : 'SIDE';
+         
+         const mapObj = MAP_POOL.find(m => m.name.toLowerCase() === mapName.toLowerCase());
+         if (!mapObj) throw new Error("Invalid Map Name");
+         mapId = mapObj.id;
+    } else {
+         // New Structured Format: { action: 'BAN', mapId: 'de_ancient' }
+         action = payload.action;
+         mapId = payload.mapId;
+    }
 
     const { data, error } = await supabase.rpc('submit_veto', {
         match_id: matchId,
         input_pin: session.pin,
         action: action,
-        target_map_id: mapObj.id
+        target_map_id: mapId
     });
 
     if (error) throw new Error(error.message);
@@ -242,4 +270,4 @@ export const TournamentProvider = ({ children }) => {
   );
 };
 
-export const useTournament = () => useContext(TournamentContext);
+export const useTournament = () => useContext(TournamentContext);s

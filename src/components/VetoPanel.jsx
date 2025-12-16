@@ -17,11 +17,10 @@ const VetoPanel = ({ match }) => {
   const team2 = teams.find(t => t.id === match.team2Id);
   const { vetoState } = match;
 
-  // Determine current turn team
   const currentTeamId = vetoState.turn;
   const currentTeam = currentTeamId === match.team1Id ? team1 : team2;
   
-  // Authorization: Only current team captain or admin can act
+  // Authorization
   const userIsCaptain = isTeamCaptain(session, currentTeamId);
   const userIsAdmin = isAdmin(session);
   const canVeto = (userIsCaptain || userIsAdmin) && match.status === 'live';
@@ -35,8 +34,6 @@ const VetoPanel = ({ match }) => {
     setLoading(true);
 
     try {
-        // Send STRUCTURED data to the hook -> backend
-        // actionType should be 'BAN' or 'PICK' (or 'SIDE' for future BO3/5)
         await submitVeto(match.id, { action: actionType, mapId: mapId });
     } catch (err) {
         setError(err.message);
@@ -45,13 +42,10 @@ const VetoPanel = ({ match }) => {
     }
   };
 
-  // Helper to determine what action is expected next
-  // In Phase B, we default to BAN. In future, this comes from backend 'expected_action'
-  const nextAction = "BAN"; // This should ideally be dynamic based on format
+  const nextAction = "BAN"; // Ideally dynamic from backend
 
   return (
     <div className="space-y-4">
-      {/* Veto Status Header */}
       <div className="flex justify-between items-center bg-[#0b0c0f] p-4 rounded-xl border border-zinc-800">
         <div className={`text-lg font-bold flex items-center gap-3 ${vetoState.turn === match.team1Id ? 'text-yellow-400' : 'text-zinc-600'}`}>
           {vetoState.turn === match.team1Id && <span className="relative flex h-3 w-3"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span><span className="relative inline-flex rounded-full h-3 w-3 bg-yellow-500"></span></span>}
@@ -71,7 +65,6 @@ const VetoPanel = ({ match }) => {
         </div>
       </div>
 
-      {/* Result Display */}
       <div className="text-center mb-4">
         {vetoState.pickedMap ? (
           <div className="p-4 bg-green-900/20 border border-green-500/50 rounded-xl relative overflow-hidden">
@@ -96,20 +89,17 @@ const VetoPanel = ({ match }) => {
         </div>
       )}
 
-      {/* Maps Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
         {MAP_POOL.map(map => {
           const isBanned = vetoState.bannedMaps.includes(map.id);
           const isPicked = vetoState.pickedMap === map.id;
-          
-          // Interaction Logic
           const isDisabled = isBanned || isPicked || !canVeto || vetoState.phase === 'complete' || loading;
 
           return (
             <button
               key={map.id}
               disabled={isDisabled}
-              onClick={() => handleVeto(map.id, nextAction)} // Defaulting to BAN for now, logic can expand
+              onClick={() => handleVeto(map.id, nextAction)}
               className={`
                 relative h-28 rounded-xl overflow-hidden border-2 transition-all duration-300 group
                 ${isBanned ? 'border-red-900/30 opacity-40 grayscale' : 'border-zinc-800 hover:border-zinc-500'}
@@ -122,7 +112,6 @@ const VetoPanel = ({ match }) => {
                 <span className="font-bold text-white shadow-black drop-shadow-md text-sm tracking-wider uppercase">{map.name}</span>
               </div>
               
-              {/* Overlays */}
               {isBanned && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/70 backdrop-blur-[1px]">
                   <div className="transform -rotate-12 border-2 border-red-500 text-red-500 px-3 py-1 font-black text-sm uppercase tracking-widest rounded">
@@ -138,13 +127,6 @@ const VetoPanel = ({ match }) => {
                        <span className="text-white font-bold text-xs uppercase tracking-widest drop-shadow-md">PICKED</span>
                    </div>
                 </div>
-              )}
-              
-              {/* Hover Action Hint */}
-              {!isDisabled && (
-                  <div className="absolute inset-0 bg-fuchsia-600/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-sm">
-                      <span className="text-white font-bold tracking-widest uppercase">{nextAction}</span>
-                  </div>
               )}
             </button>
           );

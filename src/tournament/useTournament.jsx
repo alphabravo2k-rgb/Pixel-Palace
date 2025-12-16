@@ -36,11 +36,11 @@ export const TournamentProvider = ({ children }) => {
         let matchesData = [];
         
         // 1. Fetch Matches (Auth vs Public)
-        // Checks if session has a PIN (Admin/Captain) or defaults to Public
         if (session.isAuthenticated && session.pin) {
+            // Authenticated: Full access
             const res = await supabase.rpc('get_authorized_matches', { input_pin: session.pin });
             
-            // Fallback: If Admin/Owner has valid session but RPC returns nothing (e.g. fresh DB), try public
+            // Fallback: If Admin/Owner has valid session but RPC returns nothing (e.g. config issue), use public view
             if (!res.error && res.data && res.data.length > 0) {
                 matchesData = res.data;
             } else if ([ROLES.ADMIN, ROLES.OWNER].includes(session.role)) {
@@ -48,18 +48,18 @@ export const TournamentProvider = ({ children }) => {
                 const pubRes = await supabase.rpc('get_public_matches');
                 matchesData = pubRes.data || [];
             } else if (res.error) {
-                console.error("Auth RPC Error:", res.error);
-                // Last ditch effort for visibility
+                // If Auth fails, try public as last resort
+                console.warn("Auth RPC Error:", res.error);
                 const pubRes = await supabase.rpc('get_public_matches');
                 matchesData = pubRes.data || [];
             }
         } else {
+            // Public: Limited access
             const res = await supabase.rpc('get_public_matches');
-            if (res.error) console.error("Public RPC Error:", res.error);
             matchesData = res.data || [];
         }
 
-        // 2. Fetch Teams (New 'teams' table)
+        // 2. Fetch Teams (using 'teams' table)
         const { data: teamsData, error: teamsError } = await supabase
             .from('teams') 
             .select('*')
@@ -67,7 +67,7 @@ export const TournamentProvider = ({ children }) => {
 
         if (teamsError) throw teamsError;
 
-        // 3. Fetch Players (for Roster Details)
+        // 3. Fetch Players to Populate Rosters
         const { data: playersData } = await supabase.from('players').select('*');
 
         // 4. Map Data: Teams
@@ -87,30 +87,30 @@ export const TournamentProvider = ({ children }) => {
                     name: p.display_name,
                     role: p.is_captain ? 'CAPTAIN' : p.is_substitute ? 'SUBSTITUTE' : 'PLAYER',
                     rank: p.rank_level,
-                    faceit: p.faceit_url
-                }))
+                    faceit: p.faceit_url,
+                    steam: p.steam_url
+                })),
+                ...t
             };
         });
 
-        // 5. Map Data: Matches (Aligning with V14/Debug Fix RPC Columns)
+        // 5. Map Data: Matches
         const uiMatches = matchesData.map(m => {
             const { banned, picked } = parseVetoState(m.metadata?.veto);
             
-            // Turn Logic: Map 'A'/'B' to Team IDs
             let turnId = null;
             if (m.metadata?.turn === 'A') turnId = m.team1_id;
             if (m.metadata?.turn === 'B') turnId = m.team2_id;
             
-            // NAME MAPPING (Critical Fix for V14)
-            // RPC returns 'team1_name' now, NOT 'player1_name' (though fallback logic is good)
-            const p1Name = m.team1_name || m.player1_name || "TBD";
-            const p2Name = m.team2_name || m.player2_name || "TBD";
+            // Name Mapping (V14 Standard)
+            const p1Name = m.team1_name || "TBD";
+            const p2Name = m.team2_name || "TBD";
             const adminName = m.assigned_admin_name;
 
             return {
                 id: m.id,
                 round: m.round,
-                matchIndex: m.slot, // Using 'slot' as the definitive index
+                matchIndex: m.slot, // Correct V14 mapping
                 
                 // IDs
                 team1Id: m.team1_id, 
@@ -175,6 +175,7 @@ export const TournamentProvider = ({ children }) => {
     
     let action, mapId;
     if (typeof payload === 'string' || legacyDescription) {
+         // Fallback for legacy text calls
          const desc = typeof payload === 'string' ? payload : legacyDescription;
          const mapName = desc.replace(/^(Banned|Picked)\s+/i, '').replace(/\s+\(.*\)$/, '').trim();
          const isBan = desc.toUpperCase().includes('BAN');
@@ -185,6 +186,7 @@ export const TournamentProvider = ({ children }) => {
          if (!mapObj) throw new Error("Invalid Map Name");
          mapId = mapObj.id;
     } else {
+         // Structured Payload
          action = payload.action;
          mapId = payload.mapId;
     }
@@ -202,11 +204,8 @@ export const TournamentProvider = ({ children }) => {
 
   const adminUpdateMatch = async (matchId, updates) => {
     if (!session.pin) throw new Error("Authorization Required");
-    // Looser check here, strict check in SQL
-    if (![ROLES.ADMIN, ROLES.OWNER].includes(session.role)) {
-        // Allow captain if updating non-critical fields? No, admins only for now.
-    }
-
+    // Looser check: allow call, let backend enforce
+    
     const sqlUpdates = {};
     if (updates.status === 'completed') {
         sqlUpdates.state = 'complete';
@@ -263,7 +262,7 @@ export const TournamentProvider = ({ children }) => {
       return data;
   };
 
-  // Legacy Stubs
+  // Stubs
   const createTeam = async () => {};
   const joinTeam = async () => {};
   const createMatch = async () => {};

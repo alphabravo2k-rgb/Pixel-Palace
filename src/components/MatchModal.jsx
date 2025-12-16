@@ -27,10 +27,12 @@ const MatchModal = ({ match, onClose }) => {
         setGotvIp(match.gotv_ip || '');
         setManualScore(match.score || ''); 
         
-        // Fetch Timeline on open
-        fetchMatchTimeline(match.id).then(setTimeline);
+        // Fetch Timeline on open if tab is timeline, or pre-fetch
+        if (activeTab === 'timeline') {
+             fetchMatchTimeline(match.id).then(setTimeline);
+        }
     }
-  }, [match]);
+  }, [match, activeTab]);
 
   if (!match) return null;
 
@@ -56,8 +58,8 @@ const MatchModal = ({ match, onClose }) => {
       setLoading(true);
       try {
           await adminUpdateMatch(match.id, updates);
-          // Refresh timeline after action
-          setTimeout(() => fetchMatchTimeline(match.id).then(setTimeline), 1000);
+          // Refresh timeline
+          fetchMatchTimeline(match.id).then(setTimeline);
       } catch (e) {
           alert("Update Failed: " + e.message);
       } finally {
@@ -147,6 +149,14 @@ const MatchModal = ({ match, onClose }) => {
                 <div className="text-left">
                     <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight truncate">{team2.name}</h2>
                 </div>
+            </div>
+            {/* Identity Banner */}
+            <div className="bg-black/40 px-4 py-1 flex justify-center items-center border-t border-white/5">
+                <span className="text-[10px] uppercase tracking-widest text-zinc-500">
+                    Viewing as: <span className={userIsAdmin ? "text-red-400 font-bold" : "text-zinc-300"}>
+                        {session.isAuthenticated ? session.role : "SPECTATOR"}
+                    </span>
+                </span>
             </div>
         </div>
 

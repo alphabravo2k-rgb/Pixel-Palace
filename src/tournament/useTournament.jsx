@@ -29,28 +29,21 @@ export const TournamentProvider = ({ children }) => {
   };
 
   const fetchData = async () => {
+    setLoading(true);
+    setError(null);
+
     try {
-        // 1. Fetch Matches via Secure RPC (Flat Return)
-        // Note: The SQL function 'get_authorized_matches' now handles all joins internally.
-        // We do NOT chain .select() anymore to avoid PostgREST issues.
+        // 1. Fetch Matches via Secure RPC
+        // FIX: Removed guest fallback to prevent structure mismatch and RLS leaks.
+        // Matches are only fetched if a valid PIN is present.
         let matchesData = [];
-        let matchesError = null;
         
         if (session.isAuthenticated && session.pin) {
             const res = await supabase.rpc('get_authorized_matches', { input_pin: session.pin });
-            matchesData = res.data;
-            matchesError = res.error;
-        } else {
-            // Public/Guest Fallback: Basic fetch (might be empty if RLS is strict)
-             const res = await supabase
-                .from('matches')
-                .select(`*, player1:player1_id(display_name), player2:player2_id(display_name), winner:winner_id(display_name)`)
-                .order('round', { ascending: true });
-             matchesData = res.data; // Note: structure slightly different (nested vs flat)
-             matchesError = res.error;
-        }
-
-        if (matchesError) throw matchesError;
+            if (res.error) throw res.error;
+            matchesData = res.data || [];
+        } 
+        // Implicit else: matchesData remains [] for guests
 
         // 2. Fetch Teams
         const { data: teamsData, error: teamsError } = await supabase
@@ -69,14 +62,17 @@ export const TournamentProvider = ({ children }) => {
             ...t
         }));
 
-        const uiMatches = (matchesData || []).map(m => {
+        const uiMatches = matchesData.map(m => {
             const { banned, picked } = parseVetoState(m.metadata?.veto);
-            const turnId = m.metadata?.turn === 'B' ? m.player2_id : m.player1_id;
             
-            // Handle Flat RPC structure OR Nested Public structure
+            // FIX: Defensive Turn Logic. Do not default to Player 1 if metadata is missing/malformed.
+            let turnId = null;
+            if (m.metadata?.turn === 'A') turnId = m.player1_id;
+            if (m.metadata?.turn === 'B') turnId = m.player2_id;
+            
+            // Handle Flat RPC structure
             const p1Name = m.player1_name || m.player1?.display_name;
             const p2Name = m.player2_name || m.player2?.display_name;
-            const wName = m.winner_name || m.winner?.display_name;
             const adminName = m.assigned_admin_name || m.assigned_admin?.display_name;
 
             return {
@@ -103,14 +99,16 @@ export const TournamentProvider = ({ children }) => {
                 gotv_ip: m.gotv_ip,
                 stream_url: m.stream_url,
                 score: m.score,
-                // Add flat names for UI rendering if needed
                 team1Name: p1Name,
                 team2Name: p2Name
             };
         });
 
+        // FIX: Sanity Filter to prevent bracket corruption from bad backend data
+        const validMatches = uiMatches.filter(m => m.team1Id && m.team2Id);
+
         setTeams(uiTeams);
-        setMatches(uiMatches);
+        setMatches(validMatches);
         setLoading(false);
 
     } catch (err) {
@@ -124,18 +122,10 @@ export const TournamentProvider = ({ children }) => {
     fetchData();
 
     // POLLING STRATEGY (Production Safe)
-    // Realtime sockets often fail with custom RLS/RPC logic.
-    // Polling ensures consistency for Captains/Admins.
     const interval = setInterval(fetchData, 10000); // 10 seconds
-
-    // Optional: Keep basic realtime for public table changes just in case
-    const channel = supabase.channel('tournament_db_changes')
-       .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, () => fetchData())
-       .subscribe();
 
     return () => { 
         clearInterval(interval);
-        supabase.removeChannel(channel); 
     };
   }, [session.pin]); 
 
@@ -144,6 +134,7 @@ export const TournamentProvider = ({ children }) => {
   const submitVeto = async (matchId, vetoData, actionDescription) => {
     if (!session.pin) throw new Error("Authorization Required");
     
+    // Note: Parsing UI strings is temporary (Phase 4). Future update should pass explicit IDs.
     const mapName = actionDescription.replace(/^(Banned|Picked)\s+/i, '').replace(/\s+\(.*\)$/, '').trim();
     const isBan = actionDescription.toUpperCase().includes('BAN');
     const isPick = actionDescription.toUpperCase().includes('PICK');

@@ -162,7 +162,7 @@ const BracketMatch = ({ match, team1, team2, onClick, setRef, isFocus }) => {
     if (!match.isDummy && onClick) onClick(match);
   };
 
-  // CAPTAIN LOCK: If not my match, dim it significantly
+  // TEAM/CAPTAIN LOCK: If not my match, dim it significantly to reduce noise
   const opacityClass = isFocus ? 'opacity-100' : 'opacity-20 grayscale cursor-not-allowed';
 
   return (
@@ -274,8 +274,9 @@ const Bracket = ({ onMatchClick }) => {
       return buildBracketStructure(safeMatches);
   }, [matches]);
 
-  // CAPTAIN LOCK MODE LOGIC
-  const isCaptain = session.role === ROLES.CAPTAIN;
+  // TEAM/CAPTAIN LOCK MODE LOGIC
+  // If user has a team ID (Player or Captain), focus their matches
+  const hasTeamContext = !!session.teamId;
   const myTeamId = session.teamId;
 
   // 3. Declarative Line Drawing (Phase 4 Fix)
@@ -285,7 +286,6 @@ const Bracket = ({ onMatchClick }) => {
     let animationFrameId;
 
     const updateLines = () => {
-      // If component unmounted or hidden, skip
       if (!contentRef.current) return;
 
       const newConnections = [];
@@ -404,13 +404,10 @@ const Bracket = ({ onMatchClick }) => {
 
               <div className="flex flex-col justify-around gap-8 h-full">
                 {bracketData[round].map((match) => {
-                    // Logic: If Captain, is this MY match?
-                    // Captain sees all matches but non-relevant ones are dimmed (opacityClass logic inside BracketMatch)
-                    // Or strict lock mode: only clickable if my match
-                    const isMyMatch = isCaptain ? (match.team1Id === myTeamId || match.team2Id === myTeamId) : true;
-                    
-                    // Admin or Spectator sees everything active
-                    // Captain sees everything but focus is on theirs
+                    // Logic: If Captain/Player, is this MY match?
+                    // Anyone with a team context (Captain or Player) gets focused view.
+                    // Admins/Spectators (no teamId) see everything focused.
+                    const isMyMatch = hasTeamContext ? (match.team1Id === myTeamId || match.team2Id === myTeamId) : true;
                     
                     return (
                       <BracketMatch 
@@ -418,7 +415,7 @@ const Bracket = ({ onMatchClick }) => {
                         match={match}
                         team1={getTeam(match.team1Id)}
                         team2={getTeam(match.team2Id)}
-                        isFocus={isMyMatch || !isCaptain} // Only dim if I am a captain AND it's not my match
+                        isFocus={isMyMatch || !hasTeamContext} // Only dim if I am a team member AND it's not my match
                         onClick={() => onMatchClick(match)}
                         setRef={(el) => {
                           if (el) matchRefs.current.set(match.id, el);

@@ -33,9 +33,17 @@ export const TournamentProvider = ({ children }) => {
         setLoading(true);
         
         // 1. Fetch Matches
+        // Note: RLS on Supabase will automatically filter this based on the user's session/PIN permissions
+        // Captains might only receive their own matches if the policy is active.
         const { data: matchesData, error: matchesError } = await supabase
             .from('matches')
-            .select(`*, player1:player1_id(display_name), player2:player2_id(display_name), winner:winner_id(display_name)`)
+            .select(`
+                *, 
+                player1:player1_id(display_name), 
+                player2:player2_id(display_name), 
+                winner:winner_id(display_name),
+                assigned_admin:assigned_admin(display_name)
+            `)
             .order('round', { ascending: true });
 
         if (matchesError) throw matchesError;
@@ -52,7 +60,7 @@ export const TournamentProvider = ({ children }) => {
         const uiTeams = teamsData.map(t => ({
             id: t.id,
             name: t.display_name,
-            captainId: null, 
+            captainId: null, // Logic managed by access_pins table
             players: [],
             ...t
         }));
@@ -77,7 +85,12 @@ export const TournamentProvider = ({ children }) => {
                     bannedMaps: banned,
                     pickedMap: picked
                 },
-                metadata: m.metadata, // Keep raw metadata for logs/debug
+                metadata: {
+                    ...m.metadata,
+                    sos_triggered: m.sos_triggered,
+                    sos_by: m.sos_by,
+                    assigned_admin_name: m.assigned_admin?.display_name
+                },
                 server_ip: m.server_ip,
                 gotv_ip: m.gotv_ip,
                 stream_url: m.stream_url,
@@ -124,6 +137,7 @@ export const TournamentProvider = ({ children }) => {
     if (!mapObj) throw new Error("Invalid Map Name");
 
     // Call the Secure SQL RPC
+    // Note: The backend 'submit_veto' handles role validation, turn checking, and now 'played_maps' checking logic
     const { data, error } = await supabase.rpc('submit_veto', {
         match_id: matchId,
         input_pin: session.pin,
@@ -144,11 +158,11 @@ export const TournamentProvider = ({ children }) => {
     // Map UI updates to SQL column names
     const sqlUpdates = {};
     
+    // Logic for Force Win / Completion
     if (updates.status === 'completed') {
         sqlUpdates.state = 'complete';
-        sqlUpdates.is_locked = false; // Unlock if forcing end
+        sqlUpdates.is_locked = false; 
     } else if (updates.status) {
-        // Map other UI statuses back to SQL
         sqlUpdates.state = updates.status === 'live' ? 'open' : updates.status === 'scheduled' ? 'pending' : updates.status;
     }
 
@@ -157,20 +171,42 @@ export const TournamentProvider = ({ children }) => {
     if (updates.server_ip !== undefined) sqlUpdates.server_ip = updates.server_ip;
     if (updates.gotv_ip !== undefined) sqlUpdates.gotv_ip = updates.gotv_ip;
     if (updates.score !== undefined) sqlUpdates.score = updates.score;
+    
+    // Support for SOS clearing
+    if (updates.clear_sos) {
+        sqlUpdates.sos_triggered = false;
+        sqlUpdates.sos_by = null;
+    }
+
+    // Mandatory: Override Reason for sensitive edits (bracket changes after R32)
+    // The UI should prompt for this if changing teams or critical states
+    const reason = updates.override_reason || "Admin Update"; 
 
     const { data, error } = await supabase.rpc('admin_update_match', {
         match_id: matchId,
         input_pin: session.pin,
-        updates: sqlUpdates
+        updates: sqlUpdates,
+        override_reason: reason // Pass reason to backend for audit log
     });
 
     if (error) throw new Error(error.message);
     if (data && !data.success) throw new Error(data.error);
   };
 
+  const triggerSOS = async (matchId) => {
+      if (!session.pin) throw new Error("Authorization Required");
+      // Call dedicated RPC or generic update if allowed by Captain role
+      // For now, we assume a specific RPC for captain actions to be safe
+      const { data, error } = await supabase.rpc('trigger_sos', {
+          match_id: matchId,
+          input_pin: session.pin
+      });
+      if (error) throw new Error(error.message);
+  };
+
   const fetchMatchTimeline = async (matchId) => {
       const { data, error } = await supabase
-          .from('audit_logs') // or 'match_events' depending on your exact SQL setup choice
+          .from('audit_logs') 
           .select('*')
           .eq('match_id', matchId)
           .order('created_at', { ascending: false });
@@ -197,6 +233,7 @@ export const TournamentProvider = ({ children }) => {
       createMatch,
       submitVeto, 
       adminUpdateMatch,
+      triggerSOS,
       fetchMatchTimeline
     }}>
       {children}

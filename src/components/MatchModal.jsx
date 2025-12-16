@@ -27,7 +27,7 @@ const MatchModal = ({ match, onClose }) => {
         setGotvIp(match.gotv_ip || '');
         setManualScore(match.score || ''); 
         
-        // Fetch Timeline on open if tab is timeline, or pre-fetch
+        // Fetch Timeline on open if tab is timeline
         if (activeTab === 'timeline') {
              fetchMatchTimeline(match.id).then(setTimeline);
         }
@@ -36,8 +36,14 @@ const MatchModal = ({ match, onClose }) => {
 
   if (!match) return null;
 
-  const team1 = teams?.find(t => t.id === match.team1Id) || { name: 'Team 1' };
-  const team2 = teams?.find(t => t.id === match.team2Id) || { name: 'Team 2' };
+  // Use team names from match object (populated by useTournament)
+  // Fallback to searching teams list if match object is stale
+  const t1Name = match.team1Name || teams.find(t => t.id === match.team1Id)?.name || 'TBD';
+  const t2Name = match.team2Name || teams.find(t => t.id === match.team2Id)?.name || 'TBD';
+  
+  // Seeds
+  const t1Seed = teams.find(t => t.id === match.team1Id)?.seed_number || '?';
+  const t2Seed = teams.find(t => t.id === match.team2Id)?.seed_number || '?';
 
   // Permission & Role Checks
   const userIsAdmin = isAdmin(session);
@@ -58,7 +64,7 @@ const MatchModal = ({ match, onClose }) => {
       setLoading(true);
       try {
           await adminUpdateMatch(match.id, updates);
-          // Refresh timeline
+          // Refresh timeline after action
           fetchMatchTimeline(match.id).then(setTimeline);
       } catch (e) {
           alert("Update Failed: " + e.message);
@@ -134,7 +140,8 @@ const MatchModal = ({ match, onClose }) => {
             <div className="absolute inset-0 bg-gradient-to-b from-fuchsia-900/10 to-transparent pointer-events-none" />
             <div className="relative p-6 grid grid-cols-3 items-center">
                 <div className="text-right">
-                    <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight truncate">{team1.name}</h2>
+                    <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight truncate">{t1Name}</h2>
+                    <div className="text-xs font-mono text-zinc-500 mt-1 uppercase tracking-widest">Seed #{t1Seed}</div>
                 </div>
                 <div className="flex flex-col items-center justify-center space-y-2">
                     {match.score ? (
@@ -147,7 +154,8 @@ const MatchModal = ({ match, onClose }) => {
                     </Badge>
                 </div>
                 <div className="text-left">
-                    <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight truncate">{team2.name}</h2>
+                    <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight truncate">{t2Name}</h2>
+                    <div className="text-xs font-mono text-zinc-500 mt-1 uppercase tracking-widest">Seed #{t2Seed}</div>
                 </div>
             </div>
             {/* Identity Banner */}

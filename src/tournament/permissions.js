@@ -1,22 +1,25 @@
-// In a real app, 'isAdmin' should check Custom Claims in the ID Token or a 'roles' collection.
-// For this demo, we are checking if the user exists.
-export const isAdmin = (user) => {
-  return !!user; 
+import { ROLES } from '../lib/roles';
+
+export const hasRole = (session, requiredRole) => {
+    if (!session || !session.isAuthenticated) return false;
+    // Owner is superuser
+    if (session.role === ROLES.OWNER) return true; 
+    return session.role === requiredRole;
 };
 
-/**
- * Checks if the current user is the captain of the specific team.
- * This is crucial for Veto and Roster management.
- */
-export const isTeamCaptain = (user, team) => {
-  if (!user || !team) return false;
-  return team.captainId === user.uid;
+export const isAdmin = (session) => {
+    if (!session || !session.isAuthenticated) return false;
+    return session.role === ROLES.ADMIN || session.role === ROLES.OWNER;
 };
 
-/**
- * Checks if the current user is part of the team roster.
- */
-export const isTeamMember = (user, team) => {
-    if (!user || !team || !team.players) return false;
-    return team.players.some(p => p.uid === user.uid);
+export const isTeamCaptain = (session, teamId) => {
+    if (!session || !session.isAuthenticated) return false;
+    
+    // Admins/Owners effectively act as super-captains
+    if (session.role === ROLES.OWNER || session.role === ROLES.ADMIN) return true;
+    
+    // Strict captain check
+    if (session.role === ROLES.CAPTAIN && session.teamId === teamId) return true;
+    
+    return false;
 };

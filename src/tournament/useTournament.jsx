@@ -13,7 +13,7 @@ export const TournamentProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Helper: Parse Structured Veto State from DB (JSONB) -> UI Format
+  // Helper: Parse Structured Veto State from DB
   const parseVetoState = (vetoMeta) => {
       const banned = [];
       let picked = null; 
@@ -33,17 +33,20 @@ export const TournamentProvider = ({ children }) => {
     setError(null);
 
     try {
-        // 1. Fetch Matches via Secure RPC
-        // FIX: Removed guest fallback to prevent structure mismatch and RLS leaks.
-        // Matches are only fetched if a valid PIN is present.
         let matchesData = [];
         
+        // 1. Fetch Matches (Split Path: Auth vs Public)
         if (session.isAuthenticated && session.pin) {
+            // Authenticated: Full access (IPs, Logs, Admin fields)
             const res = await supabase.rpc('get_authorized_matches', { input_pin: session.pin });
             if (res.error) throw res.error;
             matchesData = res.data || [];
-        } 
-        // Implicit else: matchesData remains [] for guests
+        } else {
+            // Public: Limited access (Bracket visualization only)
+            const res = await supabase.rpc('get_public_matches');
+            if (res.error) throw res.error;
+            matchesData = res.data || [];
+        }
 
         // 2. Fetch Teams
         const { data: teamsData, error: teamsError } = await supabase
@@ -65,12 +68,12 @@ export const TournamentProvider = ({ children }) => {
         const uiMatches = matchesData.map(m => {
             const { banned, picked } = parseVetoState(m.metadata?.veto);
             
-            // FIX: Defensive Turn Logic. Do not default to Player 1 if metadata is missing/malformed.
+            // Defensive Turn Logic
             let turnId = null;
             if (m.metadata?.turn === 'A') turnId = m.player1_id;
             if (m.metadata?.turn === 'B') turnId = m.player2_id;
             
-            // Handle Flat RPC structure
+            // Handle Names (Safe fallback between Auth/Public RPC shapes)
             const p1Name = m.player1_name || m.player1?.display_name;
             const p2Name = m.player2_name || m.player2?.display_name;
             const adminName = m.assigned_admin_name || m.assigned_admin?.display_name;
@@ -82,6 +85,9 @@ export const TournamentProvider = ({ children }) => {
                 team1Id: m.player1_id,
                 team2Id: m.player2_id,
                 winnerId: m.winner_id,
+                // Direct mapping of backend state
+                state: m.state, 
+                // UI derived status (can be refined in components)
                 status: m.state === 'open' ? 'live' : m.state === 'complete' ? 'completed' : 'scheduled',
                 vetoState: {
                     phase: m.state === 'complete' ? 'complete' : 'ban',
@@ -95,20 +101,19 @@ export const TournamentProvider = ({ children }) => {
                     sos_by: m.sos_by,
                     assigned_admin_name: adminName
                 },
-                server_ip: m.server_ip,
-                gotv_ip: m.gotv_ip,
-                stream_url: m.stream_url,
+                // Sensitive fields might be undefined in public view, handle gracefully
+                server_ip: m.server_ip || null,
+                gotv_ip: m.gotv_ip || null,
+                stream_url: m.stream_url || null,
                 score: m.score,
                 team1Name: p1Name,
                 team2Name: p2Name
             };
         });
 
-        // FIX: Sanity Filter to prevent bracket corruption from bad backend data
-        const validMatches = uiMatches.filter(m => m.team1Id && m.team2Id);
-
+        // REMOVED FILTER: Passing all matches (even TBD ones) to UI
         setTeams(uiTeams);
-        setMatches(validMatches);
+        setMatches(uiMatches);
         setLoading(false);
 
     } catch (err) {
@@ -121,20 +126,20 @@ export const TournamentProvider = ({ children }) => {
   useEffect(() => {
     fetchData();
 
-    // POLLING STRATEGY (Production Safe)
-    const interval = setInterval(fetchData, 10000); // 10 seconds
+    // Polling Strategy (Every 10s)
+    const interval = setInterval(fetchData, 10000); 
 
     return () => { 
         clearInterval(interval);
     };
-  }, [session.pin]); 
+  }, [session.pin, session.isAuthenticated]); 
 
-  // --- RPC ACTIONS (Secure Backend Calls) ---
+  // --- RPC ACTIONS ---
 
   const submitVeto = async (matchId, vetoData, actionDescription) => {
     if (!session.pin) throw new Error("Authorization Required");
     
-    // Note: Parsing UI strings is temporary (Phase 4). Future update should pass explicit IDs.
+    // NOTE: This text parsing is temporary. Next phase will use explicit action/mapId.
     const mapName = actionDescription.replace(/^(Banned|Picked)\s+/i, '').replace(/\s+\(.*\)$/, '').trim();
     const isBan = actionDescription.toUpperCase().includes('BAN');
     const isPick = actionDescription.toUpperCase().includes('PICK');
@@ -152,7 +157,7 @@ export const TournamentProvider = ({ children }) => {
 
     if (error) throw new Error(error.message);
     if (data && !data.success) throw new Error(data.error);
-    fetchData(); // Immediate refresh
+    fetchData(); 
   };
 
   const adminUpdateMatch = async (matchId, updates) => {
@@ -162,6 +167,7 @@ export const TournamentProvider = ({ children }) => {
     }
 
     const sqlUpdates = {};
+    // Map UI status back to SQL state
     if (updates.status === 'completed') {
         sqlUpdates.state = 'complete';
         sqlUpdates.is_locked = false; 
@@ -191,7 +197,7 @@ export const TournamentProvider = ({ children }) => {
 
     if (error) throw new Error(error.message);
     if (data && !data.success) throw new Error(data.error);
-    fetchData(); // Immediate refresh
+    fetchData(); 
   };
 
   const triggerSOS = async (matchId) => {

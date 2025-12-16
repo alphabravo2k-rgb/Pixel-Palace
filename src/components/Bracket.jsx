@@ -1,5 +1,7 @@
 import React, { useMemo, useRef, useState, useLayoutEffect } from 'react';
 import { useTournament } from '../tournament/useTournament';
+import { useSession } from '../auth/useSession';
+import { ROLES } from '../lib/roles';
 import { Tv, Lock, Trophy, AlertTriangle, Map as MapIcon, Shield, AlertOctagon, Calendar, Loader2 } from 'lucide-react';
 
 // --- CONFIGURATION ---
@@ -149,7 +151,7 @@ const getMatchStatus = (match) => {
 
 // --- SUB-COMPONENTS ---
 
-const BracketMatch = ({ match, team1, team2, onClick, setRef }) => {
+const BracketMatch = ({ match, team1, team2, onClick, setRef, isFocus }) => {
   const [scoreA, scoreB] = parseScore(match.score);
   const scheduleText = formatSchedule(match);
   const { isLive, isCompleted, isVetoing, borderColor, shadow, statusStrip, Icon, label, textClass } = getMatchStatus(match);
@@ -160,14 +162,17 @@ const BracketMatch = ({ match, team1, team2, onClick, setRef }) => {
     if (!match.isDummy && onClick) onClick(match);
   };
 
+  // CAPTAIN LOCK: If not my match, dim it significantly
+  const opacityClass = isFocus ? 'opacity-100' : 'opacity-20 grayscale cursor-not-allowed';
+
   return (
     <div 
       ref={setRef}
-      onClick={handleClick}
+      onClick={isFocus ? handleClick : undefined}
       className={`
         w-full relative bg-[#15191f] border rounded-lg transition-all duration-300 group z-10
-        ${borderColor} ${shadow} 
-        ${match.isDummy ? 'opacity-30 cursor-default border-dashed' : 'cursor-pointer hover:border-zinc-600 hover:scale-[1.02]'}
+        ${borderColor} ${shadow} ${opacityClass}
+        ${match.isDummy ? 'opacity-30 cursor-default border-dashed' : isFocus ? 'cursor-pointer hover:border-zinc-600 hover:scale-[1.02]' : ''}
       `}
     >
       <div className={`h-0.5 w-full ${statusStrip}`}></div>
@@ -245,8 +250,10 @@ const BracketMatch = ({ match, team1, team2, onClick, setRef }) => {
 
 const Bracket = ({ onMatchClick }) => {
   const { matches, teams, loading } = useTournament();
+  const { session } = useSession(); // Access session for Role Logic
   const containerRef = useRef(null);
   const contentRef = useRef(null);
+  const svgRef = useRef(null);
   const matchRefs = useRef(new Map());
   const [connections, setConnections] = useState([]); // Store path data, not full SVG logic
 
@@ -266,6 +273,10 @@ const Bracket = ({ onMatchClick }) => {
       // Step B: Build the structure using safe data
       return buildBracketStructure(safeMatches);
   }, [matches]);
+
+  // CAPTAIN LOCK MODE LOGIC
+  const isCaptain = session.role === ROLES.CAPTAIN;
+  const myTeamId = session.teamId;
 
   // 3. Declarative Line Drawing (Phase 4 Fix)
   useLayoutEffect(() => {
@@ -346,7 +357,7 @@ const Bracket = ({ onMatchClick }) => {
   }, [bracketData]); 
 
   // Loading State
-  if (loading && matches.length === 0) {
+  if (loading && (!matches || matches.length === 0)) {
       return (
           <div className="flex flex-col items-center justify-center h-[500px] text-zinc-500 gap-4">
               <Loader2 className="w-10 h-10 animate-spin text-zinc-600" />
@@ -355,7 +366,7 @@ const Bracket = ({ onMatchClick }) => {
       );
   }
 
-  if (!loading && matches.length === 0) {
+  if (!loading && (!matches || matches.length === 0)) {
       return (
         <div className="flex flex-col items-center justify-center h-[500px] text-zinc-500 gap-4">
             <Trophy className="w-12 h-12 opacity-20" />
@@ -392,19 +403,30 @@ const Bracket = ({ onMatchClick }) => {
               </div>
 
               <div className="flex flex-col justify-around gap-8 h-full">
-                {bracketData[round].map((match) => (
-                  <BracketMatch 
-                    key={match.id} // Stable ID from buildBracketStructure
-                    match={match}
-                    team1={getTeam(match.team1Id)}
-                    team2={getTeam(match.team2Id)}
-                    onClick={() => onMatchClick(match)}
-                    setRef={(el) => {
-                      if (el) matchRefs.current.set(match.id, el);
-                      else matchRefs.current.delete(match.id);
-                    }}
-                  />
-                ))}
+                {bracketData[round].map((match) => {
+                    // Logic: If Captain, is this MY match?
+                    // Captain sees all matches but non-relevant ones are dimmed (opacityClass logic inside BracketMatch)
+                    // Or strict lock mode: only clickable if my match
+                    const isMyMatch = isCaptain ? (match.team1Id === myTeamId || match.team2Id === myTeamId) : true;
+                    
+                    // Admin or Spectator sees everything active
+                    // Captain sees everything but focus is on theirs
+                    
+                    return (
+                      <BracketMatch 
+                        key={match.id} 
+                        match={match}
+                        team1={getTeam(match.team1Id)}
+                        team2={getTeam(match.team2Id)}
+                        isFocus={isMyMatch || !isCaptain} // Only dim if I am a captain AND it's not my match
+                        onClick={() => onMatchClick(match)}
+                        setRef={(el) => {
+                          if (el) matchRefs.current.set(match.id, el);
+                          else matchRefs.current.delete(match.id);
+                        }}
+                      />
+                    );
+                })}
               </div>
             </div>
           ))}

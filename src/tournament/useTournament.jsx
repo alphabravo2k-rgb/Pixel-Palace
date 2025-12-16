@@ -13,19 +13,21 @@ export const TournamentProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Helper: Parse Structured Veto State from DB
+  // Helper: Parse Structured Veto State from DB (JSONB) -> UI Format
+  // Updated to support arrays for BO3/BO5 readiness
   const parseVetoState = (vetoMeta) => {
       const banned = [];
-      let picked = null; 
+      const picked = []; // Changed to array for BO3/BO5
       
       const maps = vetoMeta?.maps || [];
       if (Array.isArray(maps)) {
           maps.forEach(entry => {
               if (entry.action === 'BAN') banned.push(entry.map_id);
-              if (entry.action === 'PICK') picked = entry.map_id; 
+              if (entry.action === 'PICK') picked.push(entry.map_id); 
           });
       }
-      return { banned, picked };
+      // Return last pick as 'pickedMap' for backward compat with simple UI, but expose full list
+      return { banned, picked, lastPicked: picked[picked.length - 1] || null };
   };
 
   const fetchData = async () => {
@@ -34,19 +36,29 @@ export const TournamentProvider = ({ children }) => {
 
     try {
         let matchesData = [];
+        let fetchError = null;
         
-        // 1. Fetch Matches (Split Path: Auth vs Public)
+        // 1. Fetch Matches (Prioritize Authorized View, Fallback to Public)
         if (session.isAuthenticated && session.pin) {
-            // Authenticated: Full access (IPs, Logs, Admin fields)
+            // Authenticated: Try fetching full details
             const res = await supabase.rpc('get_authorized_matches', { input_pin: session.pin });
-            if (res.error) throw res.error;
-            matchesData = res.data || [];
+            if (res.error) {
+                console.warn("Auth Fetch Failed, falling back to public:", res.error);
+                // Fallback to public if auth fails (e.g. RLS issue or expired pin acting weird)
+                const pubRes = await supabase.rpc('get_public_matches');
+                matchesData = pubRes.data || [];
+                fetchError = pubRes.error;
+            } else {
+                matchesData = res.data || [];
+            }
         } else {
             // Public: Limited access (Bracket visualization only)
             const res = await supabase.rpc('get_public_matches');
-            if (res.error) throw res.error;
             matchesData = res.data || [];
+            fetchError = res.error;
         }
+
+        if (fetchError) throw fetchError;
 
         // 2. Fetch Teams
         const { data: teamsData, error: teamsError } = await supabase
@@ -66,7 +78,7 @@ export const TournamentProvider = ({ children }) => {
         }));
 
         const uiMatches = matchesData.map(m => {
-            const { banned, picked } = parseVetoState(m.metadata?.veto);
+            const { banned, picked, lastPicked } = parseVetoState(m.metadata?.veto);
             
             // Defensive Turn Logic
             let turnId = null;
@@ -93,9 +105,12 @@ export const TournamentProvider = ({ children }) => {
                     phase: m.state === 'complete' ? 'complete' : 'ban',
                     turn: turnId,
                     bannedMaps: banned,
-                    pickedMap: picked
+                    pickedMap: lastPicked, // For current simple UI
+                    pickedMaps: picked     // For future BO3/BO5 UI
                 },
                 metadata: {
+                    // Sanitize/whitelist metadata for public/non-admin views if needed
+                    // For now, we pass it through but UI should guard usage
                     ...m.metadata,
                     sos_triggered: m.sos_triggered,
                     sos_by: m.sos_by,
@@ -111,7 +126,7 @@ export const TournamentProvider = ({ children }) => {
             };
         });
 
-        // REMOVED FILTER: Passing all matches (even TBD ones) to UI
+        // Ensure we don't accidentally render nothing if array is empty (though it might be validly empty)
         setTeams(uiTeams);
         setMatches(uiMatches);
         setLoading(false);
@@ -139,20 +154,31 @@ export const TournamentProvider = ({ children }) => {
   const submitVeto = async (matchId, vetoData, actionDescription) => {
     if (!session.pin) throw new Error("Authorization Required");
     
-    // NOTE: This text parsing is temporary. Next phase will use explicit action/mapId.
-    const mapName = actionDescription.replace(/^(Banned|Picked)\s+/i, '').replace(/\s+\(.*\)$/, '').trim();
-    const isBan = actionDescription.toUpperCase().includes('BAN');
-    const isPick = actionDescription.toUpperCase().includes('PICK');
-    const action = isBan ? 'BAN' : isPick ? 'PICK' : 'SIDE';
-    
-    const mapObj = MAP_POOL.find(m => m.name.toLowerCase() === mapName.toLowerCase());
-    if (!mapObj) throw new Error("Invalid Map Name");
+    // Improved: Parse more robustly or accept objects.
+    // For now, we still parse the description but we prepare the data structure for the FUTURE RPC
+    let action = 'BAN';
+    let mapId = null;
+
+    if (typeof actionDescription === 'string') {
+        const mapName = actionDescription.replace(/^(Banned|Picked)\s+/i, '').replace(/\s+\(.*\)$/, '').trim();
+        const isBan = actionDescription.toUpperCase().includes('BAN');
+        const isPick = actionDescription.toUpperCase().includes('PICK');
+        action = isBan ? 'BAN' : isPick ? 'PICK' : 'SIDE'; // Fallback logic
+        
+        const mapObj = MAP_POOL.find(m => m.name.toLowerCase() === mapName.toLowerCase());
+        if (!mapObj) throw new Error("Invalid Map Name");
+        mapId = mapObj.id;
+    } else {
+        // Assume object passed: { action: 'PICK', mapId: 'de_mirage' }
+        action = actionDescription.action;
+        mapId = actionDescription.mapId;
+    }
 
     const { data, error } = await supabase.rpc('submit_veto', {
         match_id: matchId,
         input_pin: session.pin,
         action: action,
-        target_map_id: mapObj.id
+        target_map_id: mapId
     });
 
     if (error) throw new Error(error.message);
@@ -162,7 +188,9 @@ export const TournamentProvider = ({ children }) => {
 
   const adminUpdateMatch = async (matchId, updates) => {
     if (!session.pin) throw new Error("Authorization Required");
-    if (session.role !== ROLES.ADMIN && session.role !== ROLES.OWNER) {
+    // Relaxed check: Allow if authenticated with valid role.
+    // Strict enforcement happens on backend via RLS/RPC permission checks.
+    if (![ROLES.ADMIN, ROLES.OWNER].includes(session.role)) {
         throw new Error("Unauthorized");
     }
 

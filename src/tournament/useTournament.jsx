@@ -32,19 +32,37 @@ export const TournamentProvider = ({ children }) => {
     try {
         setLoading(true);
         
-        // 1. Fetch Matches
-        // Note: RLS on Supabase will automatically filter this based on the user's session/PIN permissions
-        // Captains might only receive their own matches if the policy is active.
-        const { data: matchesData, error: matchesError } = await supabase
-            .from('matches')
-            .select(`
-                *, 
-                player1:player1_id(display_name), 
-                player2:player2_id(display_name), 
-                winner:winner_id(display_name),
-                assigned_admin:assigned_admin(display_name)
-            `)
-            .order('round', { ascending: true });
+        // 1. Fetch Matches via Secure RPC
+        // This solves the RLS issue by passing the PIN for validation server-side
+        let matchesQuery;
+        
+        if (session.isAuthenticated && session.pin) {
+            // Authenticated: Use RPC to get filtered matches
+            matchesQuery = supabase
+                .rpc('get_authorized_matches', { input_pin: session.pin })
+                .select(`
+                    *, 
+                    player1:player1_id(display_name), 
+                    player2:player2_id(display_name), 
+                    winner:winner_id(display_name),
+                    assigned_admin:assigned_admin(display_name)
+                `)
+                .order('round', { ascending: true });
+        } else {
+            // Public/Guest: Try fetching public matches (or empty if RLS blocks)
+            matchesQuery = supabase
+                .from('matches')
+                .select(`
+                    *, 
+                    player1:player1_id(display_name), 
+                    player2:player2_id(display_name), 
+                    winner:winner_id(display_name),
+                    assigned_admin:assigned_admin(display_name)
+                `)
+                .order('round', { ascending: true });
+        }
+
+        const { data: matchesData, error: matchesError } = await matchesQuery;
 
         if (matchesError) throw matchesError;
 
@@ -65,7 +83,7 @@ export const TournamentProvider = ({ children }) => {
             ...t
         }));
 
-        const uiMatches = matchesData.map(m => {
+        const uiMatches = (matchesData || []).map(m => {
             const { banned, picked } = parseVetoState(m.metadata?.veto);
             
             // Derive turn from metadata (calculated by SQL backend now)
@@ -113,13 +131,16 @@ export const TournamentProvider = ({ children }) => {
     fetchData();
 
     // Realtime: Listen for DB changes
+    // Note: Realtime subscriptions use the standard RLS policies. 
+    // If RLS is blocking read, realtime might not trigger updates for hidden rows.
+    // For specific role-based realtime, we rely on the channel connection.
     const channel = supabase.channel('tournament_db_changes')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, () => fetchData())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, () => fetchData())
         .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, []);
+  }, [session.pin]); // Refetch if PIN changes (login)
 
   // --- RPC ACTIONS (Secure Backend Calls) ---
 

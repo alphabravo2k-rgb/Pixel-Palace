@@ -30,39 +30,25 @@ export const TournamentProvider = ({ children }) => {
 
   const fetchData = async () => {
     try {
-        setLoading(true);
-        
-        // 1. Fetch Matches via Secure RPC
-        // This solves the RLS issue by passing the PIN for validation server-side
-        let matchesQuery;
+        // 1. Fetch Matches via Secure RPC (Flat Return)
+        // Note: The SQL function 'get_authorized_matches' now handles all joins internally.
+        // We do NOT chain .select() anymore to avoid PostgREST issues.
+        let matchesData = [];
+        let matchesError = null;
         
         if (session.isAuthenticated && session.pin) {
-            // Authenticated: Use RPC to get filtered matches
-            matchesQuery = supabase
-                .rpc('get_authorized_matches', { input_pin: session.pin })
-                .select(`
-                    *, 
-                    player1:player1_id(display_name), 
-                    player2:player2_id(display_name), 
-                    winner:winner_id(display_name),
-                    assigned_admin:assigned_admin(display_name)
-                `)
-                .order('round', { ascending: true });
+            const res = await supabase.rpc('get_authorized_matches', { input_pin: session.pin });
+            matchesData = res.data;
+            matchesError = res.error;
         } else {
-            // Public/Guest: Try fetching public matches (or empty if RLS blocks)
-            matchesQuery = supabase
+            // Public/Guest Fallback: Basic fetch (might be empty if RLS is strict)
+             const res = await supabase
                 .from('matches')
-                .select(`
-                    *, 
-                    player1:player1_id(display_name), 
-                    player2:player2_id(display_name), 
-                    winner:winner_id(display_name),
-                    assigned_admin:assigned_admin(display_name)
-                `)
+                .select(`*, player1:player1_id(display_name), player2:player2_id(display_name), winner:winner_id(display_name)`)
                 .order('round', { ascending: true });
+             matchesData = res.data; // Note: structure slightly different (nested vs flat)
+             matchesError = res.error;
         }
-
-        const { data: matchesData, error: matchesError } = await matchesQuery;
 
         if (matchesError) throw matchesError;
 
@@ -78,21 +64,25 @@ export const TournamentProvider = ({ children }) => {
         const uiTeams = teamsData.map(t => ({
             id: t.id,
             name: t.display_name,
-            captainId: null, // Logic managed by access_pins table
+            captainId: null,
             players: [],
             ...t
         }));
 
         const uiMatches = (matchesData || []).map(m => {
             const { banned, picked } = parseVetoState(m.metadata?.veto);
-            
-            // Derive turn from metadata (calculated by SQL backend now)
             const turnId = m.metadata?.turn === 'B' ? m.player2_id : m.player1_id;
+            
+            // Handle Flat RPC structure OR Nested Public structure
+            const p1Name = m.player1_name || m.player1?.display_name;
+            const p2Name = m.player2_name || m.player2?.display_name;
+            const wName = m.winner_name || m.winner?.display_name;
+            const adminName = m.assigned_admin_name || m.assigned_admin?.display_name;
 
             return {
                 id: m.id,
                 round: m.round,
-                matchIndex: 0, // SQL sort order handles visual placement
+                matchIndex: 0, 
                 team1Id: m.player1_id,
                 team2Id: m.player2_id,
                 winnerId: m.winner_id,
@@ -107,12 +97,15 @@ export const TournamentProvider = ({ children }) => {
                     ...m.metadata,
                     sos_triggered: m.sos_triggered,
                     sos_by: m.sos_by,
-                    assigned_admin_name: m.assigned_admin?.display_name
+                    assigned_admin_name: adminName
                 },
                 server_ip: m.server_ip,
                 gotv_ip: m.gotv_ip,
                 stream_url: m.stream_url,
-                score: m.score
+                score: m.score,
+                // Add flat names for UI rendering if needed
+                team1Name: p1Name,
+                team2Name: p2Name
             };
         });
 
@@ -130,35 +123,35 @@ export const TournamentProvider = ({ children }) => {
   useEffect(() => {
     fetchData();
 
-    // Realtime: Listen for DB changes
-    // Note: Realtime subscriptions use the standard RLS policies. 
-    // If RLS is blocking read, realtime might not trigger updates for hidden rows.
-    // For specific role-based realtime, we rely on the channel connection.
-    const channel = supabase.channel('tournament_db_changes')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, () => fetchData())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, () => fetchData())
-        .subscribe();
+    // POLLING STRATEGY (Production Safe)
+    // Realtime sockets often fail with custom RLS/RPC logic.
+    // Polling ensures consistency for Captains/Admins.
+    const interval = setInterval(fetchData, 10000); // 10 seconds
 
-    return () => { supabase.removeChannel(channel); };
-  }, [session.pin]); // Refetch if PIN changes (login)
+    // Optional: Keep basic realtime for public table changes just in case
+    const channel = supabase.channel('tournament_db_changes')
+       .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, () => fetchData())
+       .subscribe();
+
+    return () => { 
+        clearInterval(interval);
+        supabase.removeChannel(channel); 
+    };
+  }, [session.pin]); 
 
   // --- RPC ACTIONS (Secure Backend Calls) ---
 
   const submitVeto = async (matchId, vetoData, actionDescription) => {
     if (!session.pin) throw new Error("Authorization Required");
     
-    // Parse the UI action string ("Banned Ancient") to get parameters for the SQL RPC
+    const mapName = actionDescription.replace(/^(Banned|Picked)\s+/i, '').replace(/\s+\(.*\)$/, '').trim();
     const isBan = actionDescription.toUpperCase().includes('BAN');
     const isPick = actionDescription.toUpperCase().includes('PICK');
     const action = isBan ? 'BAN' : isPick ? 'PICK' : 'SIDE';
     
-    const mapName = actionDescription.replace(/^(Banned|Picked)\s+/i, '').replace(/\s+\(.*\)$/, '').trim();
-    
     const mapObj = MAP_POOL.find(m => m.name.toLowerCase() === mapName.toLowerCase());
     if (!mapObj) throw new Error("Invalid Map Name");
 
-    // Call the Secure SQL RPC
-    // Note: The backend 'submit_veto' handles role validation, turn checking, and now 'played_maps' checking logic
     const { data, error } = await supabase.rpc('submit_veto', {
         match_id: matchId,
         input_pin: session.pin,
@@ -168,6 +161,7 @@ export const TournamentProvider = ({ children }) => {
 
     if (error) throw new Error(error.message);
     if (data && !data.success) throw new Error(data.error);
+    fetchData(); // Immediate refresh
   };
 
   const adminUpdateMatch = async (matchId, updates) => {
@@ -176,10 +170,7 @@ export const TournamentProvider = ({ children }) => {
         throw new Error("Unauthorized");
     }
 
-    // Map UI updates to SQL column names
     const sqlUpdates = {};
-    
-    // Logic for Force Win / Completion
     if (updates.status === 'completed') {
         sqlUpdates.state = 'complete';
         sqlUpdates.is_locked = false; 
@@ -193,36 +184,33 @@ export const TournamentProvider = ({ children }) => {
     if (updates.gotv_ip !== undefined) sqlUpdates.gotv_ip = updates.gotv_ip;
     if (updates.score !== undefined) sqlUpdates.score = updates.score;
     
-    // Support for SOS clearing
     if (updates.clear_sos) {
         sqlUpdates.sos_triggered = false;
         sqlUpdates.sos_by = null;
     }
 
-    // Mandatory: Override Reason for sensitive edits (bracket changes after R32)
-    // The UI should prompt for this if changing teams or critical states
     const reason = updates.override_reason || "Admin Update"; 
 
     const { data, error } = await supabase.rpc('admin_update_match', {
         match_id: matchId,
         input_pin: session.pin,
         updates: sqlUpdates,
-        override_reason: reason // Pass reason to backend for audit log
+        override_reason: reason
     });
 
     if (error) throw new Error(error.message);
     if (data && !data.success) throw new Error(data.error);
+    fetchData(); // Immediate refresh
   };
 
   const triggerSOS = async (matchId) => {
       if (!session.pin) throw new Error("Authorization Required");
-      // Call dedicated RPC or generic update if allowed by Captain role
-      // For now, we assume a specific RPC for captain actions to be safe
       const { data, error } = await supabase.rpc('trigger_sos', {
           match_id: matchId,
           input_pin: session.pin
       });
       if (error) throw new Error(error.message);
+      fetchData();
   };
 
   const fetchMatchTimeline = async (matchId) => {

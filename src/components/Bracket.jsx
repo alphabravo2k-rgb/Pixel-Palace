@@ -40,32 +40,6 @@ const formatSchedule = (match) => {
   }
 };
 
-// Data Normalizer: Assigns matchIndex if missing to prevent dropped matches
-const normalizeMatches = (matches) => {
-  const counters = {};
-
-  return matches.map(match => {
-    const roundLabel = ROUND_MAP[match.round];
-    
-    // If round is unknown, we can't place it, so return as is (will be dropped later)
-    if (!roundLabel) return match;
-
-    // If matchIndex is missing or invalid, assign the next available slot for this round
-    if (match.matchIndex == null) {
-      counters[roundLabel] = (counters[roundLabel] || 0);
-      const newIndex = counters[roundLabel]++;
-      return {
-        ...match,
-        matchIndex: newIndex
-      };
-    }
-
-    // If matchIndex exists, respect it but track count to avoid collisions if mixed data
-    counters[roundLabel] = Math.max((counters[roundLabel] || 0), match.matchIndex + 1);
-    return match;
-  });
-};
-
 // Bracket Engine: Deterministic Slot Filling with Guards
 const buildBracketStructure = (matches) => {
   const groups = {};
@@ -100,7 +74,7 @@ const buildBracketStructure = (matches) => {
         isDummy: false
       };
     } else {
-        console.warn('Invalid match placement detected:', match);
+        // Optional: log warning if match doesn't fit bracket structure
     }
   });
 
@@ -112,7 +86,7 @@ const getMatchStatus = (match) => {
   const isLive = match.status === 'live';
   const isCompleted = match.status === 'completed';
   const hasDispute = match.metadata?.dispute;
-  const needsAdmin = match.metadata?.needs_admin;
+  const needsAdmin = match.metadata?.sos_triggered;
   const isVetoing = isLive && match.vetoState?.phase !== 'complete';
 
   let borderColor = 'border-zinc-800';
@@ -255,7 +229,6 @@ const Bracket = ({ onMatchClick }) => {
   const contentRef = useRef(null);
   const svgRef = useRef(null);
   const matchRefs = useRef(new Map());
-  const [connections, setConnections] = useState([]); // Store path data, not full SVG logic
 
   // 1. O(1) Team Lookup
   const teamMap = useMemo(() => {
@@ -266,29 +239,25 @@ const Bracket = ({ onMatchClick }) => {
 
   const getTeam = (teamId) => teamMap.get(teamId) || { name: 'TBD', logo_url: null };
 
-  // 2. Compute Bracket Structure (Memoized with Normalization)
+  // 2. Compute Bracket Structure (Memoized)
   const bracketData = useMemo(() => {
-      // Step A: Normalize matches to ensure every match has a valid index
-      const safeMatches = normalizeMatches(matches || []);
-      // Step B: Build the structure using safe data
-      return buildBracketStructure(safeMatches);
+      return buildBracketStructure(matches || []);
   }, [matches]);
 
   // TEAM/CAPTAIN LOCK MODE LOGIC
-  // If user has a team ID (Player or Captain), focus their matches
   const hasTeamContext = !!session.teamId;
   const myTeamId = session.teamId;
 
-  // 3. Declarative Line Drawing (Phase 4 Fix)
+  // 3. Declarative Line Drawing
   useLayoutEffect(() => {
-    if (!contentRef.current || !containerRef.current) return;
+    if (!contentRef.current || !containerRef.current || !svgRef.current) return;
 
     let animationFrameId;
 
     const updateLines = () => {
       if (!contentRef.current) return;
 
-      const newConnections = [];
+      let paths = '';
       const parentRect = contentRef.current.getBoundingClientRect();
       
       for (let i = 0; i < BRACKET_ORDER.length - 1; i++) {
@@ -309,28 +278,29 @@ const Bracket = ({ onMatchClick }) => {
           const elA2 = matchesA[idxA2] ? matchRefs.current.get(matchesA[idxA2].id) : null;
 
           if (elB && elA1 && elA2) {
-            const rectB = elB.getBoundingClientRect();
-            const rectA1 = elA1.getBoundingClientRect();
-            const rectA2 = elA2.getBoundingClientRect();
-
-            // Calculate coordinates relative to the content wrapper.
-            // Using Element.getBoundingClientRect delta ensures we are scroll-independent relative to the wrapper.
-            const startX = rectA1.right - parentRect.left;
-            const endX = rectB.left - parentRect.left;
-            
-            const yA1 = (rectA1.top + rectA1.height / 2) - parentRect.top;
-            const yA2 = (rectA2.top + rectA2.height / 2) - parentRect.top;
-            const yB = (rectB.top + rectB.height / 2) - parentRect.top;
-
+            const startX = elA1.getBoundingClientRect().right - parentRect.left;
+            const endX = elB.getBoundingClientRect().left - parentRect.left;
+            const yA1 = (elA1.getBoundingClientRect().top + elA1.offsetHeight / 2) - parentRect.top;
+            const yA2 = (elA2.getBoundingClientRect().top + elA2.offsetHeight / 2) - parentRect.top;
+            const yB = (elB.getBoundingClientRect().top + elB.offsetHeight / 2) - parentRect.top;
             const midX = startX + (endX - startX) / 2;
 
             // Create Path String
-            const d = `M ${startX} ${yA1} H ${midX} V ${yA2} H ${startX} M ${midX} ${yB} H ${endX}`;
-            newConnections.push({ key: `${roundA}-${idxB}`, d });
+            paths += `
+              <path 
+                d="M ${startX} ${yA1} H ${midX} V ${yA2} H ${startX} M ${midX} ${yB} H ${endX}" 
+                stroke="#52525b" 
+                stroke-width="1.5" 
+                fill="none" 
+              />
+            `;
           }
         });
       }
-      setConnections(newConnections);
+      // Direct DOM update - No React render cycle needed for geometry updates
+      if (svgRef.current) {
+          svgRef.current.innerHTML = paths;
+      }
     };
 
     // Throttled Update Loop
@@ -370,7 +340,7 @@ const Bracket = ({ onMatchClick }) => {
       return (
         <div className="flex flex-col items-center justify-center h-[500px] text-zinc-500 gap-4">
             <Trophy className="w-12 h-12 opacity-20" />
-            <p className="text-sm tracking-widest uppercase font-bold">No matches found</p>
+            <p className="text-sm font-bold tracking-widest">NO MATCHES FOUND</p>
         </div>
       );
   }
@@ -380,18 +350,11 @@ const Bracket = ({ onMatchClick }) => {
       {/* Content Wrapper scales with content */}
       <div className="relative min-w-max" ref={contentRef}>
         
-        {/* Declarative SVG Layer */}
-        <svg className="absolute inset-0 w-full h-full pointer-events-none z-0">
-          {connections.map(conn => (
-            <path 
-                key={conn.key} 
-                d={conn.d} 
-                stroke="#52525b" 
-                strokeWidth="1.5" 
-                fill="none" 
-            />
-          ))}
-        </svg>
+        {/* SVG Layer - Direct DOM Manipulation */}
+        <svg 
+            ref={svgRef} 
+            className="absolute inset-0 w-full h-full pointer-events-none z-0" 
+        />
 
         <div className="flex gap-20 relative z-10 pb-20">
           {BRACKET_ORDER.map((round) => (
@@ -404,11 +367,7 @@ const Bracket = ({ onMatchClick }) => {
 
               <div className="flex flex-col justify-around gap-8 h-full">
                 {bracketData[round].map((match) => {
-                    // Logic: If Captain/Player, is this MY match?
-                    // Anyone with a team context (Captain or Player) gets focused view.
-                    // Admins/Spectators (no teamId) see everything focused.
                     const isMyMatch = hasTeamContext ? (match.team1Id === myTeamId || match.team2Id === myTeamId) : true;
-                    
                     return (
                       <BracketMatch 
                         key={match.id} 

@@ -48,7 +48,7 @@ export const SessionProvider = ({ children }) => {
     try {
         const cleanPin = inputPin.trim();
         
-        // 2. Call the updated 'verify_pin' RPC
+        // 2. Call the updated 'verify_pin' RPC (V14 Compatible)
         // Now expects the backend to return { valid, role, team_id, display_name }
         const { data, error } = await supabase.rpc('verify_pin', { input_pin: cleanPin });
 
@@ -60,7 +60,6 @@ export const SessionProvider = ({ children }) => {
         if (data && data.valid) {
             // 3. Identity Resolution
             // Uses the specific 'display_name' from the DB (e.g., "AdmKancha")
-            // Falls back to Role + Team ID if name is missing
             let identityLabel = data.display_name;
             
             if (!identityLabel) {
@@ -96,7 +95,7 @@ export const SessionProvider = ({ children }) => {
   const logout = () => {
     const emptySession = {
         isAuthenticated: false,
-        role: ROLES.SPECTATOR,
+        role: ROLES.SPECTATOR,a
         teamId: null,
         identity: 'Anonymous',
         pin: null,

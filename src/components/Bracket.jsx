@@ -252,7 +252,7 @@ const BracketMatch = ({ match, onClick, setRef, isFocus }) => {
 // --- MAIN COMPONENT ---
 
 const Bracket = ({ onMatchClick }) => {
-  const { matches, teams, loading } = useTournament();
+  const { matches, teams, loading, error } = useTournament(); // Get Error from hook
   const { session } = useSession(); // Access session for Role Logic
   const containerRef = useRef(null);
   const contentRef = useRef(null);
@@ -266,6 +266,8 @@ const Bracket = ({ onMatchClick }) => {
     return map;
   }, [teams]);
 
+  const getTeam = (teamId) => teamMap.get(teamId) || { name: 'TBD', logo_url: null };
+
   // 2. Compute Bracket Structure (Memoized with Normalization)
   const bracketData = useMemo(() => {
       // Step A: Normalize matches to ensure every match has a valid index
@@ -278,7 +280,7 @@ const Bracket = ({ onMatchClick }) => {
   const isCaptain = session.role === ROLES.CAPTAIN;
   const myTeamId = session.teamId;
 
-  // 3. Declarative Line Drawing (Phase 4 Fix)
+  // 3. Declarative Line Drawing
   useLayoutEffect(() => {
     if (!contentRef.current || !containerRef.current || !svgRef.current) return;
 
@@ -355,6 +357,19 @@ const Bracket = ({ onMatchClick }) => {
     };
   }, [bracketData]); 
 
+  // --- ERROR DISPLAY: This is critical for debugging ---
+  if (error) {
+      return (
+          <div className="flex flex-col items-center justify-center h-[500px] text-red-500 gap-4">
+              <AlertTriangle className="w-12 h-12" />
+              <div className="text-center">
+                  <p className="text-sm font-bold tracking-widest uppercase">DATA SYNC FAILED</p>
+                  <p className="text-xs font-mono mt-2 bg-red-900/20 p-2 rounded">{typeof error === 'object' ? error.message : error}</p>
+              </div>
+          </div>
+      );
+  }
+
   // Loading State
   if (loading && (!matches || matches.length === 0)) {
       return (
@@ -365,6 +380,7 @@ const Bracket = ({ onMatchClick }) => {
       );
   }
 
+  // Empty State (Only if truly empty and no error)
   if (!loading && (!matches || matches.length === 0)) {
       return (
         <div className="flex flex-col items-center justify-center h-[500px] text-zinc-500 gap-4">
@@ -405,8 +421,8 @@ const Bracket = ({ onMatchClick }) => {
                       <BracketMatch 
                         key={match.id} 
                         match={match}
-                        team1={null} 
-                        team2={null}
+                        team1={getTeam(match.team1Id)} // Not strictly used for names, but useful context
+                        team2={getTeam(match.team2Id)}
                         isFocus={isMyMatch || !isCaptain} // Only dim if I am a captain AND it's not my match
                         onClick={() => onMatchClick(match)}
                         setRef={(el) => {

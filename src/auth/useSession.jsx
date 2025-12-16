@@ -10,13 +10,13 @@ export const SessionProvider = ({ children }) => {
     role: ROLES.SPECTATOR,
     teamId: null,
     identity: 'Anonymous',
-    pin: null, // Required to authorize RPC calls
+    pin: null, // Required to sign RPC requests
     loading: false
   });
 
   const [isPinModalOpen, setIsPinModalOpen] = useState(true);
 
-  // Attempt to restore session from browser storage on load
+  // Restore session from session storage on load
   useEffect(() => {
     const stored = sessionStorage.getItem('pp_user_session');
     if (stored) {
@@ -31,7 +31,7 @@ export const SessionProvider = ({ children }) => {
   }, []);
 
   const verifyPin = async (inputPin) => {
-    // 1. Dev Backdoor (Only works in localhost)
+    // 1. Dev Backdoor (Only works in localhost for testing)
     if (import.meta.env.DEV && inputPin === '0000') {
         const devSession = {
             isAuthenticated: true,
@@ -46,9 +46,10 @@ export const SessionProvider = ({ children }) => {
     }
 
     try {
-        // 2. Call Supabase RPC: verify_pin
-        // This executes the logic inside your PostgreSQL database
         const cleanPin = inputPin.trim();
+        
+        // 2. Call the updated 'verify_pin' RPC
+        // Now expects the backend to return { valid, role, team_id, display_name }
         const { data, error } = await supabase.rpc('verify_pin', { input_pin: cleanPin });
 
         if (error) {
@@ -56,13 +57,21 @@ export const SessionProvider = ({ children }) => {
             return false;
         }
 
-        // 3. Handle SQL Response
         if (data && data.valid) {
+            // 3. Identity Resolution
+            // Uses the specific 'display_name' from the DB (e.g., "AdmKancha")
+            // Falls back to Role + Team ID if name is missing
+            let identityLabel = data.display_name;
+            
+            if (!identityLabel) {
+                 identityLabel = `${data.role} ${data.team_id ? `(${data.team_id.slice(0,4)})` : ''}`;
+            }
+
             const newSession = {
                 isAuthenticated: true,
                 role: data.role,
                 teamId: data.team_id || null,
-                identity: `${data.role} ${data.team_id ? `(${data.team_id.slice(0,4)})` : ''}`,
+                identity: identityLabel,
                 pin: cleanPin, // Store PIN for future RPC calls
                 loading: false
             };

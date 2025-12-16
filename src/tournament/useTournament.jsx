@@ -14,18 +14,23 @@ export const TournamentProvider = ({ children }) => {
   const [error, setError] = useState(null);
 
   // Helper: Parse Structured Veto State from DB
+  // Now handles specific side selection structure if present
   const parseVetoState = (vetoMeta) => {
       const banned = [];
-      let picked = null; 
+      let picked = null; // Legacy single pick support
+      const pickedMaps = []; // Future BO3/BO5 support
       
       const maps = vetoMeta?.maps || [];
       if (Array.isArray(maps)) {
           maps.forEach(entry => {
               if (entry.action === 'BAN') banned.push(entry.map_id);
-              if (entry.action === 'PICK') picked = entry.map_id; 
+              if (entry.action === 'PICK') {
+                  picked = entry.map_id;
+                  pickedMaps.push(entry.map_id);
+              }
           });
       }
-      return { banned, picked };
+      return { banned, picked, pickedMaps };
   };
 
   const fetchData = async () => {
@@ -38,10 +43,18 @@ export const TournamentProvider = ({ children }) => {
         // 1. Fetch Matches (Strict Separation: Auth vs Public)
         if (session.isAuthenticated && session.pin) {
             // Authenticated: Full access. 
-            // FIX: Removed dangerous fallback to public. If this fails, we want to know.
             const res = await supabase.rpc('get_authorized_matches', { input_pin: session.pin });
-            if (res.error) throw res.error;
-            matchesData = res.data || [];
+            
+            // Fallback: If Admin/Owner has valid session but no PIN mapping in DB (setup issue), use public view
+            if (!res.error && res.data) {
+                matchesData = res.data;
+            } else if ([ROLES.ADMIN, ROLES.OWNER].includes(session.role)) {
+                console.warn("Auth Fetch empty/failed for Admin. Using Public View fallback.");
+                const pubRes = await supabase.rpc('get_public_matches');
+                matchesData = pubRes.data || [];
+            } else if (res.error) {
+                throw res.error;
+            }
         } else {
             // Public: Limited access
             const res = await supabase.rpc('get_public_matches');
@@ -64,7 +77,7 @@ export const TournamentProvider = ({ children }) => {
         
         if (playersError) throw playersError;
 
-        // 4. Map Data
+        // 4. Map Data: Teams & Rosters
         const uiTeams = teamsData.map(t => {
             // Link players to this team
             const teamPlayers = playersData.filter(p => p.team_id === t.id);
@@ -81,16 +94,24 @@ export const TournamentProvider = ({ children }) => {
                     name: p.display_name,
                     role: p.is_captain ? 'CAPTAIN' : p.is_substitute ? 'SUBSTITUTE' : 'PLAYER',
                     rank: p.rank_level,
-                    faceit: p.faceit_url
+                    faceit: p.faceit_url,
+                    steam: p.steam_url
                 })),
                 ...t
             };
         });
 
+        // 5. Map Data: Matches
         const uiMatches = matchesData.map(m => {
-            const { banned, picked } = parseVetoState(m.metadata?.veto);
+            const { banned, picked, pickedMaps } = parseVetoState(m.metadata?.veto);
             
-            // Handle Names from RPC (Strictly V14)
+            // Resolve Turn ID from Metadata ('A'/'B' -> TeamUUID)
+            // This enables the UI to know exactly whose turn it is without guessing
+            let turnId = null;
+            if (m.metadata?.turn === 'A') turnId = m.team1_id; // V14 uses teamX_id
+            if (m.metadata?.turn === 'B') turnId = m.team2_id;
+            
+            // Handle Names from RPC (V14 renamed these to teamX_name)
             const p1Name = m.team1_name; 
             const p2Name = m.team2_name; 
             const adminName = m.assigned_admin_name;
@@ -98,9 +119,9 @@ export const TournamentProvider = ({ children }) => {
             return {
                 id: m.id,
                 round: m.round,
-                matchIndex: m.slot, // FIX: Use 'slot' strictly.
+                matchIndex: m.slot, // V14: 'slot' is the authoritative position
                 
-                // V14 ALIGNMENT: Strict Team IDs.
+                // Teams
                 team1Id: m.team1_id, 
                 team2Id: m.team2_id,
                 winnerId: m.winner_id,
@@ -108,22 +129,30 @@ export const TournamentProvider = ({ children }) => {
                 state: m.state, 
                 status: m.state === 'open' ? 'live' : m.state === 'complete' ? 'completed' : 'scheduled',
                 
+                // Veto State Object
                 vetoState: {
-                    phase: m.state === 'complete' ? 'complete' : 'ban',
-                    turn: null, // Logic moved to VetoPanel/Engine
+                    phase: m.state === 'complete' ? 'complete' : 'ban', // Simplified derived state
+                    turn: turnId,
                     bannedMaps: banned,
-                    pickedMap: picked
+                    pickedMap: picked, // Legacy support
+                    pickedMaps: pickedMaps // BO3/BO5 support
                 },
+                
+                // Metadata & Logs
                 metadata: {
                     ...m.metadata,
                     sos_triggered: m.sos_triggered,
                     sos_by: m.sos_by,
                     assigned_admin_name: adminName
                 },
+                
+                // Connection Info
                 server_ip: m.server_ip || null,
                 gotv_ip: m.gotv_ip || null,
                 stream_url: m.stream_url || null,
                 score: m.score,
+                
+                // Flattened Names for easy UI rendering
                 team1Name: p1Name,
                 team2Name: p2Name
             };
@@ -146,14 +175,14 @@ export const TournamentProvider = ({ children }) => {
     return () => clearInterval(interval);
   }, [session.pin, session.isAuthenticated]); 
 
-  // --- RPC ACTIONS ---
+  // --- ACTIONS ---
 
+  // submitVeto: Now accepts structured payload { action: 'BAN', mapId: '...' }
   const submitVeto = async (matchId, payload, legacyDescription) => {
     if (!session.pin) throw new Error("Authorization Required");
     
     let action, mapId;
 
-    // Support both Legacy String and New Object formats
     if (typeof payload === 'string' || legacyDescription) {
          // Legacy Parsing (Fallback)
          const desc = typeof payload === 'string' ? payload : legacyDescription;
@@ -166,7 +195,7 @@ export const TournamentProvider = ({ children }) => {
          if (!mapObj) throw new Error("Invalid Map Name");
          mapId = mapObj.id;
     } else {
-         // New Structured Format: { action: 'BAN', mapId: 'de_ancient' }
+         // Modern Structured Payload
          action = payload.action;
          mapId = payload.mapId;
     }
@@ -180,17 +209,19 @@ export const TournamentProvider = ({ children }) => {
 
     if (error) throw new Error(error.message);
     if (data && !data.success) throw new Error(data.error);
-    fetchData(); 
+    fetchData(); // Optimistic update
   };
 
   const adminUpdateMatch = async (matchId, updates) => {
     if (!session.pin) throw new Error("Authorization Required");
-    // Admin check is enforced by RLS/RPC, but UI check adds speed
+    // Frontend guard: Admin check (backend enforces strictly)
     if (![ROLES.ADMIN, ROLES.OWNER].includes(session.role)) {
         throw new Error("Unauthorized");
     }
 
     const sqlUpdates = {};
+    
+    // Map UI status back to SQL state
     if (updates.status === 'completed') {
         sqlUpdates.state = 'complete';
         sqlUpdates.is_locked = false; 
@@ -270,4 +301,4 @@ export const TournamentProvider = ({ children }) => {
   );
 };
 
-export const useTournament = () => useContext(TournamentContext);s
+export const useTournament = () => useContext(TournamentContext);

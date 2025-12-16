@@ -15,3 +15,30 @@ export const RANKS = [
   'Distinguished Master Guardian', 'Legendary Eagle', 'Legendary Eagle Master',
   'Supreme Master First Class', 'Global Elite'
 ];
+
+// CANONICAL VETO FLOWS (V8 Standard)
+export const VETO_FLOW = { 
+  "BO1": [
+    "A:BAN", "B:BAN", 
+    "A:BAN", "B:BAN", 
+    "A:BAN", "B:BAN" 
+    // Last map is auto-picked
+  ],
+  "BO3": [
+    "A:BAN", "B:BAN", 
+    "A:PICK", // Team A picks Map 1
+    "B:SIDE", // Team B picks Side for Map 1
+    "B:PICK", // Team B picks Map 2
+    "A:SIDE", // Team A picks Side for Map 2
+    "A:BAN", "B:BAN" 
+    // Last map is Decider
+  ],
+  "BO5": [
+    "A:BAN", "B:BAN",
+    "A:PICK", "B:SIDE",
+    "B:PICK", "A:SIDE",
+    "A:PICK", "B:SIDE",
+    "B:PICK", "A:SIDE"
+    // Last map is Decider
+  ]
+};

@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import React, { useState, useCallback, createContext, useContext } from 'react';
 
 /**
  * @typedef {Object} Participant
@@ -18,13 +18,14 @@ import { useState, useCallback } from 'react';
  * @property {string} status - 'pending' | 'ready' | 'completed'
  */
 
+// 1. Create the Context
+const TournamentContext = createContext(null);
+
 /**
- * useTournament Hook
- * * Manages state and logic for a tournament bracket system.
- * Handles bracket generation, advancing winners, and determining the champion.
- * * @returns {Object} Tournament control object
+ * Internal logic hook that manages state.
+ * This is used by the Provider, not directly by components.
  */
-export const useTournament = () => {
+const useTournamentLogic = () => {
   const [rounds, setRounds] = useState([]);
   const [champion, setChampion] = useState(null);
   const [isTournamentActive, setIsTournamentActive] = useState(false);
@@ -49,7 +50,6 @@ export const useTournament = () => {
 
   /**
    * Internal helper to move a winner to the next bracket slot.
-   * Defined before usage to ensure scope availability.
    */
   const propagateWinner = (bracketStructure, roundIdx, matchIdx, winner) => {
     const nextRoundIdx = roundIdx + 1;
@@ -138,10 +138,8 @@ export const useTournament = () => {
     }
 
     // --- Process Initial Byes Synchronously ---
-    // We do this BEFORE setting state to avoid "flicker" or double-renders
     const r1 = newRounds[0];
     r1.forEach(match => {
-      // If one player is a BYE, the other wins immediately
       if (!match.winner) {
         let winner = null;
         if (match.player1?.isBye && match.player2 && !match.player2.isBye) {
@@ -153,7 +151,6 @@ export const useTournament = () => {
         if (winner) {
           match.winner = winner;
           match.status = 'completed';
-          // Advance the winner immediately
           propagateWinner(newRounds, 0, match.matchIndex, winner);
         }
       }
@@ -167,7 +164,6 @@ export const useTournament = () => {
    */
   const setMatchWinner = useCallback((roundIndex, matchIndex, winner) => {
     setRounds(prevRounds => {
-      // Deep copy to ensure immutability
       const newRounds = JSON.parse(JSON.stringify(prevRounds));
       const currentMatch = newRounds[roundIndex][matchIndex];
 
@@ -198,6 +194,28 @@ export const useTournament = () => {
     setMatchWinner,
     resetTournament
   };
+};
+
+// 2. Export the Provider
+export const TournamentProvider = ({ children }) => {
+  const tournamentUtils = useTournamentLogic();
+
+  return (
+    <TournamentContext.Provider value={tournamentUtils}>
+      {children}
+    </TournamentContext.Provider>
+  );
+};
+
+// 3. Export the Consumer Hook
+export const useTournament = () => {
+  const context = useContext(TournamentContext);
+  if (!context) {
+    // Return a safe fallback or throw, but here we'll assume it's wrapped or return null structure
+    // Throwing ensures developers know they forgot the provider
+    throw new Error('useTournament must be used within a TournamentProvider');
+  }
+  return context;
 };
 
 export default useTournament;

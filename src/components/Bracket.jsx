@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useTournament } from '../tournament/useTournament';
-import { Swords, Tv, Shield, AlertTriangle, ChevronRight, Map, Crosshair, Zap } from 'lucide-react';
+import { Swords, Tv, Shield, AlertTriangle, ChevronRight, Map, Zap, X, Info, Target } from 'lucide-react';
 
 // --- TACTICAL STATUS THEMES ---
 
@@ -40,10 +40,91 @@ const getStatusStyles = (status) => {
 
 // --- SUB-COMPONENTS ---
 
+/**
+ * IntelModal: Functional tactical readout.
+ * Triggered only when a match is actionable.
+ */
+const IntelModal = ({ match, onClose }) => {
+  if (!match) return null;
+  const theme = getStatusStyles(match.status);
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-8 bg-black/90 backdrop-blur-md animate-in fade-in duration-300">
+      <div 
+        className="relative w-full max-w-2xl bg-[#0b0c0f] border border-zinc-800 shadow-2xl overflow-hidden"
+        style={{ clipPath: 'polygon(0 0, 100% 0, 100% 95%, 95% 100%, 0 100%)' }}
+      >
+        <div className="p-6 border-b border-zinc-800 flex items-center justify-between bg-[#15191f]/50">
+          <div className="flex items-center gap-4">
+            <Activity className={`w-5 h-5 ${theme.color}`} />
+            <div>
+              <h3 className="text-xl font-black text-white italic tracking-tighter uppercase">TACTICAL_INTEL // {match.id.split('-')[0]}</h3>
+              <p className={`text-[10px] font-mono uppercase tracking-widest ${theme.color}`}>{theme.label}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-full transition-colors text-zinc-500 hover:text-white">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="p-8 space-y-8">
+          <div className="flex items-center justify-between gap-8">
+            <div className="flex-1 text-center space-y-4">
+               <div className="w-24 h-24 mx-auto bg-zinc-900 border border-zinc-800 flex items-center justify-center rounded-sm shadow-inner relative group">
+                 {match.team1Logo ? <img src={match.team1Logo} className="w-16 h-16 object-contain" /> : <Shield className="w-10 h-10 text-zinc-800" />}
+                 <div className="absolute inset-0 bg-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+               </div>
+               <p className="text-sm font-black text-white uppercase tracking-widest">{match.team1Name}</p>
+            </div>
+
+            <div className="flex flex-col items-center gap-4">
+               <span className="text-5xl font-mono font-black text-[#ff5500] italic tracking-tighter drop-shadow-[0_0_15px_rgba(255,85,0,0.2)]">
+                 {match.score || '0 - 0'}
+               </span>
+               <div className="px-4 py-1 rounded-full bg-zinc-900 border border-zinc-800 text-[10px] font-mono text-zinc-500 uppercase tracking-widest">VS_ENGAGEMENT</div>
+            </div>
+
+            <div className="flex-1 text-center space-y-4">
+               <div className="w-24 h-24 mx-auto bg-zinc-900 border border-zinc-800 flex items-center justify-center rounded-sm shadow-inner relative group">
+                 {match.team2Logo ? <img src={match.team2Logo} className="w-16 h-16 object-contain" /> : <Shield className="w-10 h-10 text-zinc-800" />}
+                 <div className="absolute inset-0 bg-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+               </div>
+               <p className="text-sm font-black text-white uppercase tracking-widest">{match.team2Name}</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+             <div className="bg-[#15191f] p-4 border border-zinc-800 rounded-sm group hover:border-[#ff5500]/50 transition-colors">
+                <p className="text-[9px] font-mono text-zinc-500 uppercase mb-2 tracking-[0.2em]">Operational Field</p>
+                <div className="flex items-center gap-3 text-white">
+                   <Map className="w-4 h-4 text-[#ff5500]" />
+                   <span className="text-xs font-bold uppercase tracking-tight">{match.vetoState?.pickedMap || 'Awaiting Veto Protocol'}</span>
+                </div>
+             </div>
+             <div className="bg-[#15191f] p-4 border border-zinc-800 rounded-sm group hover:border-blue-500/50 transition-colors">
+                <p className="text-[9px] font-mono text-zinc-500 uppercase mb-2 tracking-[0.2em]">Data Transmission</p>
+                <div className="flex items-center gap-3 text-white">
+                   <Tv className="w-4 h-4 text-blue-400" />
+                   <span className="text-xs font-bold uppercase tracking-tight">{match.stream_url ? 'COMM_LINK_ACTIVE' : 'SIGNAL_LOST'}</span>
+                </div>
+             </div>
+          </div>
+        </div>
+
+        <div className="p-4 bg-zinc-900/30 border-t border-zinc-800 flex justify-end">
+           <button onClick={onClose} className="px-8 py-2 bg-zinc-800 hover:bg-zinc-700 text-white text-[10px] font-black uppercase tracking-[0.3em] transition-all border border-zinc-700 hover:border-zinc-500">
+             TERMINATE_LINK
+           </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const TeamSlot = ({ name, logo, score, isWinner, isTBD }) => (
-  <div className={`flex items-center justify-between px-3 py-2.5 transition-all duration-300 ${isWinner ? 'bg-white/[0.03]' : ''}`}>
+  <div className={`flex items-center justify-between px-3 py-2.5 transition-all duration-300 ${isWinner ? 'bg-white/[0.04]' : ''}`}>
     <div className="flex items-center gap-3 min-w-0">
-      <div className={`w-7 h-7 rounded-sm bg-zinc-900 flex-shrink-0 flex items-center justify-center overflow-hidden border ${isWinner ? 'border-[#ff5500]/50 shadow-[0_0_10px_rgba(255,85,0,0.1)]' : 'border-zinc-800'}`}>
+      <div className={`w-7 h-7 rounded-sm bg-zinc-900 flex-shrink-0 flex items-center justify-center overflow-hidden border ${isWinner ? 'border-[#ff5500]/50' : 'border-zinc-800'}`}>
         {logo ? (
           <img src={logo} alt="" className="w-full h-full object-contain" />
         ) : (
@@ -66,25 +147,22 @@ const MatchCard = ({ match, onOpenIntel }) => {
   const isActionable = !!(match.team1Id && match.team2Id);
 
   return (
-    <div className={`relative group w-64 bg-[#0b0c0f] border ${theme.border} transition-all duration-500 ${theme.glow} flex flex-col overflow-hidden`}
+    <div className={`relative group w-64 bg-[#0b0c0f] border ${theme.border} transition-all duration-500 ${theme.glow} flex flex-col overflow-hidden shadow-2xl`}
          style={{ clipPath: 'polygon(0 0, 100% 0, 100% 88%, 94% 100%, 0 100%)' }}>
       
-      {/* Tactical Grid Overlay */}
       <div className="absolute inset-0 opacity-[0.03] pointer-events-none" 
            style={{ backgroundImage: 'radial-gradient(circle, #ffffff 1px, transparent 1px)', backgroundSize: '12px 12px' }} />
 
-      {/* Header Info */}
       <div className={`px-3 py-1.5 border-b flex items-center justify-between relative z-10 bg-[#15191f]/80 backdrop-blur-sm ${theme.border}`}>
         <div className="flex items-center gap-2">
-          {match.status === 'live' && <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />}
+          {match.status === 'live' && <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_#10b981]" />}
           <span className={`text-[9px] font-black uppercase tracking-widest ${theme.color}`}>
             {theme.label}
           </span>
         </div>
-        <span className="text-[9px] font-mono text-zinc-600">MOD_{match.id?.split('-')[0].toUpperCase()}</span>
+        <span className="text-[9px] font-mono text-zinc-600 uppercase tracking-tighter">MOD_{match.id?.split('-')[0].toUpperCase()}</span>
       </div>
 
-      {/* Teams Container */}
       <div className="flex flex-col divide-y divide-zinc-800/30 relative z-10">
         <TeamSlot 
           name={match.team1Name} 
@@ -102,7 +180,6 @@ const MatchCard = ({ match, onOpenIntel }) => {
         />
       </div>
 
-      {/* Action Footer */}
       <div className="mt-auto px-3 py-2 bg-black/40 border-t border-zinc-800/50 flex items-center justify-between relative z-10">
         <div className="flex items-center gap-3">
           {match.stream_url ? (
@@ -110,29 +187,23 @@ const MatchCard = ({ match, onOpenIntel }) => {
               <Tv className="w-3.5 h-3.5" />
             </a>
           ) : (
-            <Tv className="w-3.5 h-3.5 text-zinc-800" title="No POV Link" />
-          )}
-          {match.vetoState?.pickedMap && (
-            <div className="flex items-center gap-1 text-zinc-500" title={`Field: ${match.vetoState.pickedMap}`}>
-              <Map className="w-3.5 h-3.5" />
-              <span className="text-[9px] font-mono uppercase truncate max-w-[60px]">{match.vetoState.pickedMap}</span>
-            </div>
+            <Tv className="w-3.5 h-3.5 text-zinc-800" title="Link Offline" />
           )}
         </div>
 
         <button 
-          onClick={() => isActionable && onOpenIntel(match.id)}
+          onClick={() => isActionable && onOpenIntel(match)}
+          disabled={!isActionable}
           className={`group/btn flex items-center gap-1.5 px-3 py-1 rounded-sm text-[9px] font-black tracking-tighter uppercase transition-all
             ${isActionable 
               ? 'bg-zinc-800 text-zinc-300 hover:bg-[#ff5500]/20 hover:text-[#ff5500] cursor-pointer' 
-              : 'bg-zinc-900/50 text-zinc-700 cursor-not-allowed opacity-50'}`}
+              : 'bg-zinc-900/50 text-zinc-700 cursor-not-allowed grayscale'}`}
         >
           {isActionable ? 'ACCESS_INTEL' : 'LOCKED'}
           <ChevronRight className={`w-2.5 h-2.5 transition-transform ${isActionable ? 'group-hover/btn:translate-x-0.5' : ''}`} />
         </button>
       </div>
 
-      {/* Side Status Glow */}
       <div className={`absolute left-0 top-0 h-full w-[2px] opacity-0 group-hover:opacity-100 transition-opacity ${theme.accent}`} />
     </div>
   );
@@ -142,76 +213,82 @@ const MatchCard = ({ match, onOpenIntel }) => {
 
 const Brackets = () => {
   const { rounds, loading, error } = useTournament();
-  const [selectedMatch, setSelectedMatch] = useState(null);
+  const [activeIntel, setActiveIntel] = useState(null);
 
   if (loading) return (
     <div className="h-96 flex flex-col items-center justify-center text-zinc-500 font-mono text-xs uppercase animate-pulse tracking-[0.5em]">
-      Building Tactical Grid...
+      Deploying Tactical Grid...
     </div>
   );
 
   if (error) return (
-    <div className="p-12 text-center text-red-500 font-mono text-xs uppercase flex flex-col items-center gap-3">
+    <div className="p-12 text-center text-red-500 font-mono text-xs uppercase flex flex-col items-center gap-3 border border-dashed border-red-900/50 rounded-sm">
       <AlertTriangle className="w-8 h-8" />
-      <span>System Error: {error}</span>
+      <span className="tracking-widest font-black uppercase">Encryption_Error: {error}</span>
     </div>
   );
 
   const sortedRounds = Object.entries(rounds || {}).sort(([a], [b]) => Number(a) - Number(b));
 
   return (
-    <div className="space-y-12 p-4 md:p-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
-      {/* Header Intel */}
-      <div className="flex flex-col md:flex-row justify-between items-end gap-6 border-b border-zinc-800 pb-8">
+    <div className="space-y-12 p-4 md:p-10 animate-in fade-in slide-in-from-bottom-4 duration-1000">
+      {/* Page Header */}
+      <div className="flex flex-col md:flex-row justify-between items-end gap-6 border-b border-zinc-800 pb-8 relative">
           <div className="space-y-2">
               <h2 className="text-4xl font-black text-white italic tracking-tighter uppercase leading-none">
                 TACTICAL <span className="text-[#ff5500]">BRACKETS</span>
               </h2>
-              <p className="text-zinc-500 text-[10px] font-mono uppercase tracking-[0.3em] flex items-center gap-2">
-                <Zap className="w-3 h-3 text-[#ff5500]" /> 
-                {sortedRounds.length || 0} Phase Operations Identified
-              </p>
+              <div className="flex items-center gap-3 text-zinc-500 text-[10px] font-mono uppercase tracking-[0.3em]">
+                <Target className="w-3.5 h-3.5 text-[#ff5500]" /> 
+                Deployment Status: {sortedRounds.length || 0} Phase Sectors Active
+              </div>
           </div>
           
-          <div className="flex gap-4">
-            <div className="px-4 py-2 bg-zinc-900/50 border border-zinc-800 rounded-sm flex items-center gap-3">
-              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_#10b981]" />
-              <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Global Status: Live</span>
-            </div>
+          <div className="px-4 py-2 bg-zinc-900/40 border border-zinc-800 rounded-sm flex items-center gap-3 backdrop-blur-sm group hover:border-[#ff5500]/30 transition-colors">
+            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_10px_#10b981]" />
+            <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest group-hover:text-white transition-colors">Satellite Link: Online</span>
           </div>
       </div>
 
-      {/* Main Bracket Tree */}
-      <div className="relative flex gap-16 overflow-x-auto pb-16 no-scrollbar select-none">
+      {/* Bracket Tree */}
+      <div className="relative flex gap-24 overflow-x-auto pb-20 no-scrollbar select-none">
         {sortedRounds.map(([roundNum, roundMatches], roundIdx) => (
-          <div key={roundNum} className="flex flex-col gap-10 min-w-max">
-            {/* Round Marker */}
-            <div className="relative flex flex-col gap-1 pl-4">
-              <div className="absolute left-0 top-0 h-full w-0.5 bg-gradient-to-b from-[#ff5500] to-transparent" />
-              <span className="text-[10px] font-mono text-[#ff5500] uppercase tracking-[0.3em] font-black">PHASE_{roundNum}</span>
-              <span className="text-sm font-black text-white uppercase italic tracking-tighter">
-                {Number(roundNum) === sortedRounds.length ? 'Final Conflict' : `Elimination Phase`}
+          <div key={roundNum} className="flex flex-col gap-12 min-w-max">
+            {/* Round Metadata */}
+            <div className="relative flex flex-col gap-1 pl-4 border-l-2 border-[#ff5500]/50">
+              <span className="text-[10px] font-mono text-[#ff5500] uppercase tracking-[0.4em] font-black">PHASE_{roundNum.padStart(2, '0')}</span>
+              <span className="text-sm font-black text-white uppercase italic tracking-tighter opacity-80">
+                {Number(roundNum) === sortedRounds.length ? 'Final Engagement' : `Elimination Tier`}
               </span>
             </div>
 
-            {/* Match Grid */}
-            <div className="flex flex-col justify-around flex-grow gap-12 relative">
+            {/* Matches in Round */}
+            <div className="flex flex-col justify-around flex-grow gap-16 relative">
               {roundMatches.map((match, mIdx) => (
                 <div key={match.id} className="relative flex items-center group">
                   <MatchCard 
                     match={match} 
-                    onOpenIntel={(id) => console.log(`Accessing match intel: ${id}`)} 
+                    onOpenIntel={(m) => setActiveIntel(m)} 
                   />
                   
-                  {/* Tactical Connector Lines */}
+                  {/* Tactical Bridges (Logical Connectors) */}
                   {roundIdx < sortedRounds.length - 1 && (
-                    <div className="absolute left-full top-1/2 w-16 flex items-center pointer-events-none">
-                      <div className="h-px bg-zinc-800 w-full relative">
-                        {/* The connector "node" */}
-                        <div className="absolute right-0 top-1/2 -translate-y-1/2 w-1.5 h-1.5 bg-zinc-900 border border-zinc-700 rounded-full" />
-                        {/* Glow effect on hover */}
-                        <div className="absolute inset-0 bg-[#ff5500] opacity-0 group-hover:opacity-20 transition-opacity blur-sm" />
+                    <div className="absolute left-full top-1/2 w-24 flex items-center pointer-events-none">
+                      {/* Horizontal exit */}
+                      <div className="h-px bg-zinc-800 w-1/2 relative">
+                        <div className="absolute inset-0 bg-[#ff5500] opacity-0 group-hover:opacity-30 transition-opacity blur-md" />
                       </div>
+                      {/* Vertical Path Bridge */}
+                      <div 
+                        className="absolute left-1/2 w-px bg-zinc-800 transition-all duration-500 group-hover:bg-[#ff5500]/40 group-hover:shadow-[0_0_10px_rgba(255,85,0,0.1)]"
+                        style={{ 
+                          height: 'calc(100% + 64px)', 
+                          top: mIdx % 2 === 0 ? '50%' : 'auto',
+                          bottom: mIdx % 2 === 0 ? 'auto' : '50%'
+                        }}
+                      />
+                      {/* Connector Endcap */}
+                      <div className="absolute right-0 top-1/2 -translate-y-1/2 w-1.5 h-1.5 bg-zinc-900 border border-zinc-700 rounded-full" />
                     </div>
                   )}
                 </div>
@@ -221,27 +298,36 @@ const Brackets = () => {
         ))}
 
         {sortedRounds.length === 0 && (
-          <div className="w-full py-32 flex flex-col items-center justify-center border border-dashed border-zinc-800 rounded-sm bg-zinc-900/10">
-             <Crosshair className="w-12 h-12 text-zinc-800 mb-4 animate-spin-slow" />
-             <p className="text-[10px] font-mono text-zinc-600 uppercase tracking-[0.5em]">Awaiting Combat Data...</p>
+          <div className="w-full py-32 flex flex-col items-center justify-center border border-dashed border-zinc-800 bg-zinc-900/5 rounded-sm">
+             <Activity className="w-12 h-12 text-zinc-800 mb-4 animate-pulse" />
+             <p className="text-[10px] font-mono text-zinc-600 uppercase tracking-[0.5em]">Awaiting Combat Initiation...</p>
           </div>
         )}
       </div>
 
-      {/* Legend / Footer */}
-      <div className="flex flex-wrap gap-8 border-t border-zinc-800 pt-8 opacity-40 grayscale hover:grayscale-0 transition-all duration-500">
+      {/* Footer Intel */}
+      <div className="flex flex-wrap gap-10 border-t border-zinc-800 pt-10 opacity-50 hover:opacity-100 transition-opacity duration-500">
         <div className="flex items-center gap-3">
-           <div className="w-3 h-3 bg-[#ff5500] shadow-[0_0_8px_#ff5500]" style={{ clipPath: 'polygon(0 0, 100% 0, 80% 100%, 0 100%)' }} />
-           <span className="text-[10px] font-mono text-white uppercase tracking-widest">Active Frontline</span>
+           <div className="w-3.5 h-3.5 bg-[#ff5500] shadow-[0_0_10px_rgba(255,85,0,0.4)]" style={{ clipPath: 'polygon(0 0, 100% 0, 80% 100%, 0 100%)' }} />
+           <span className="text-[10px] font-mono text-white uppercase tracking-widest font-black">Active Zone</span>
         </div>
         <div className="flex items-center gap-3">
-           <div className="w-3 h-3 bg-blue-500 shadow-[0_0_8px_#3b82f6]" style={{ clipPath: 'polygon(0 0, 100% 0, 80% 100%, 0 100%)' }} />
-           <span className="text-[10px] font-mono text-white uppercase tracking-widest">Reserve Support</span>
+           <div className="w-3.5 h-3.5 bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.4)]" style={{ clipPath: 'polygon(0 0, 100% 0, 80% 100%, 0 100%)' }} />
+           <span className="text-[10px] font-mono text-white uppercase tracking-widest font-black">Strategic Reserve</span>
         </div>
-        <div className="ml-auto text-[9px] font-mono text-zinc-500 uppercase tracking-widest">
-           System_Version: 2.5.0-Tactical
+        <div className="ml-auto flex items-center gap-2 text-[9px] font-mono text-zinc-600 uppercase tracking-[0.3em]">
+           <Info className="w-3 h-3" />
+           Build_Alpha_v2.5.2 // Tactical_Environment
         </div>
       </div>
+
+      {/* Functional Modal Integration */}
+      {activeIntel && (
+        <IntelModal 
+          match={activeIntel} 
+          onClose={() => setActiveIntel(null)} 
+        />
+      )}
     </div>
   );
 };

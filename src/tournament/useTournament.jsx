@@ -6,9 +6,7 @@ import { MAP_POOL } from '../lib/constants';
 
 const TournamentContext = createContext();
 
-// --- DATA NORMALIZATION HELPERS ---
-// Centralizing "Intel" logic here to keep the UI clean and prevent runtime crashes.
-
+// --- HELPERS ---
 const COUNTRY_MAP = {
   'PAK': 'pk', 'PK': 'pk', 'PAKISTAN': 'pk',
   'IND': 'in', 'IN': 'in', 'INDIA': 'in',
@@ -21,10 +19,6 @@ const COUNTRY_MAP = {
   'NPL': 'np', 'NP': 'np'
 };
 
-/**
- * Robust Faceit Nickname Extractor.
- * Extracts the nickname from a URL once during data ingestion.
- */
 const extractFaceitNickname = (url) => {
   if (!url || typeof url !== 'string') return null;
   try {
@@ -33,9 +27,7 @@ const extractFaceitNickname = (url) => {
     const segments = u.pathname.split('/').filter(Boolean);
     const idx = segments.indexOf('players');
     return idx !== -1 && segments[idx + 1] ? segments[idx + 1] : null;
-  } catch (e) {
-    return null;
-  }
+  } catch (e) { return null; }
 };
 
 export const TournamentProvider = ({ children }) => {
@@ -45,9 +37,6 @@ export const TournamentProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  /**
-   * Helper: Parse Structured Veto State from DB metadata.
-   */
   const parseVetoState = (vetoMeta) => {
     const banned = [];
     let picked = null;
@@ -61,68 +50,48 @@ export const TournamentProvider = ({ children }) => {
     return { banned, picked };
   };
 
-  /**
-   * CENTRALIZED DATA FETCH & NORMALIZATION
-   * Maps raw database fields into the "Canonical Player Model".
-   * UI components will consume this normalized structure.
-   */
   const fetchData = useCallback(async () => {
     try {
-      const [teamsRes, playersRes] = await Promise.all([
-        supabase.from('teams').select('*').order('seed_number', { ascending: true }),
-        supabase.from('players').select('*')
+      const [teamsRes, matchesRes] = await Promise.all([
+        supabase.from('teams').select('*, players(*)').order('seed_number', { ascending: true }),
+        supabase.rpc('get_public_matches') // Or get_authorized_matches if you implemented the switch
       ]);
 
       if (teamsRes.error) throw teamsRes.error;
-      if (playersRes.error) throw playersRes.error;
+      // Note: We prioritize the RPC for matches, but you can swap logic if needed
+      
+      const rawMatches = matchesRes.data || [];
 
-      // Normalize Teams and Players immediately
+      // 1. Normalize Teams
       const uiTeams = (teamsRes.data || []).map((t) => {
-        const teamPlayers = playersRes.data ? playersRes.data.filter((p) => p.team_id === t.id) : [];
-        
-        // Resolve Team Flag once here (mapping regional strings to ISO-2 codes)
         const regionCode = t.region ? (COUNTRY_MAP[t.region.toUpperCase().trim()] || 'un') : 'un';
+        // Ensure players is an array
+        const teamPlayers = Array.isArray(t.players) ? t.players : [];
 
         return {
           ...t,
-          region_iso2: regionCode, 
-          players: teamPlayers.map((p) => {
-            const nickname = extractFaceitNickname(p.faceit_url);
-            return {
-              id: p.id,
-              name: p.display_name,
-              nickname: nickname, // Pre-extracted nickname for the UI
-              role: p.is_captain ? 'CAPTAIN' : p.is_substitute ? 'SUBSTITUTE' : 'PLAYER',
-              avatar: p.faceit_avatar_url || null,
-              elo: p.faceit_elo ?? null,
-              country: p.country_code || 'un',
-              socials: {
-                faceit: p.faceit_url || null,
-                steam: p.steam_url || null,
-                discord: p.discord_url || (p.discord_handle ? `https://discord.com/users/${p.discord_handle}` : null)
-              }
-            };
-          })
+          region_iso2: regionCode,
+          players: teamPlayers.map((p) => ({
+            id: p.id,
+            name: p.display_name,
+            nickname: extractFaceitNickname(p.faceit_url),
+            role: p.is_captain ? 'CAPTAIN' : p.is_substitute ? 'SUBSTITUTE' : 'PLAYER',
+            is_captain: p.is_captain, // Legacy compat
+            avatar: p.faceit_avatar_url || null,
+            elo: p.faceit_elo ?? null,
+            country: p.country_code || 'un',
+            socials: {
+              faceit: p.faceit_url || null,
+              steam: p.steam_url || null,
+              discord: p.discord_url || (p.discord_handle ? `https://discord.com/users/${p.discord_handle}` : null)
+            }
+          }))
         };
       });
 
-      // Match Logic with Access Control
-      let matchesData = [];
-      if (session.isAuthenticated && session.pin) {
-        // RPC handles filtered access to sensitive IP data for admins
-        const res = await supabase.rpc('get_authorized_matches', { input_pin: session.pin });
-        matchesData = res.data || [];
-      } else {
-        const res = await supabase.rpc('get_public_matches');
-        matchesData = res.data || [];
-      }
-
-      const uiMatches = matchesData.map((m) => {
+      // 2. Normalize Matches
+      const uiMatches = rawMatches.map((m) => {
         const { banned, picked } = parseVetoState(m.metadata?.veto);
-        let turnId = null;
-        if (m.metadata?.turn === 'A') turnId = m.team1_id;
-        if (m.metadata?.turn === 'B') turnId = m.team2_id;
-
         let displayStatus = 'scheduled';
         if (m.state === 'complete') displayStatus = 'completed';
         else if (m.state === 'open') {
@@ -132,33 +101,24 @@ export const TournamentProvider = ({ children }) => {
         }
 
         return {
-          id: m.id,
-          round: m.round,
-          matchIndex: m.slot,
+          ...m,
+          // Rename keys for UI consistency
+          team1Name: m.team1_name || "TBD",
+          team2Name: m.team2_name || "TBD",
+          team1Logo: m.team1_logo,
+          team2Logo: m.team2_logo,
           team1Id: m.team1_id,
           team2Id: m.team2_id,
           winnerId: m.winner_id,
-          state: m.state,
+          score: m.score || '0-0',
           status: displayStatus,
           vetoState: { 
             phase: m.state === 'complete' ? 'complete' : 'ban', 
-            turn: turnId, 
+            // Fallbacks for veto
             bannedMaps: banned, 
             pickedMap: picked 
           },
-          metadata: { 
-            ...m.metadata, 
-            sos_triggered: m.sos_triggered, 
-            sos_by: m.sos_by 
-          },
-          server_ip: m.server_ip || null,
-          gotv_ip: m.gotv_ip || null,
-          stream_url: m.stream_url || null,
-          score: m.score,
-          team1Name: m.team1_name || "TBD",
-          team1Logo: m.team1_logo,
-          team2Name: m.team2_name || "TBD",
-          team2Logo: m.team2_logo
+          metadata: { ...m.metadata, sos_triggered: m.sos_triggered, sos_by: m.sos_by }
         };
       });
 
@@ -166,29 +126,22 @@ export const TournamentProvider = ({ children }) => {
       setMatches(uiMatches);
       setError(null);
     } catch (err) {
-      console.error("Tournament Data Sync Error:", err);
+      console.error("Tournament Sync Error:", err);
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, [session.pin, session.isAuthenticated]);
+  }, [session.pin, session.isAuthenticated]); // Add dependencies if logic changes
 
-  /**
-   * ADAPTIVE POLLING
-   * Admins (Authenticated) poll every 10s.
-   * Public viewers poll every 30s to reduce server load.
-   */
   useEffect(() => {
     fetchData();
     const isAdmin = [ROLES.ADMIN, ROLES.OWNER].includes(session.role);
     const pollRate = session.isAuthenticated && isAdmin ? 10000 : 30000;
-    
     const interval = setInterval(fetchData, pollRate);
     return () => clearInterval(interval);
   }, [fetchData, session.isAuthenticated, session.role]);
 
-  // --- MUTATION ACTIONS ---
-
+  // --- ACTIONS ---
   const submitVeto = async (matchId, payload) => {
     if (!session.pin) throw new Error("Unauthorized");
     const { error } = await supabase.rpc('submit_veto', {
@@ -198,7 +151,7 @@ export const TournamentProvider = ({ children }) => {
       target_map_id: payload.mapId
     });
     if (error) throw error;
-    fetchData(); // Immediate refresh after action
+    fetchData();
   };
 
   const adminUpdateMatch = async (matchId, updates) => {
@@ -222,11 +175,23 @@ export const TournamentProvider = ({ children }) => {
     fetchData();
   };
 
+  const fetchMatchTimeline = async (matchId) => {
+    const { data, error } = await supabase
+        .from('audit_logs') 
+        .select('*')
+        .eq('match_id', matchId)
+        .order('created_at', { ascending: false });
+    if (error) return [];
+    return data;
+  };
+
   // Group matches by round for bracket rendering
   const rounds = useMemo(() => {
+    if (!matches.length) return {};
     return matches.reduce((acc, m) => {
-      if (!acc[m.round]) acc[m.round] = [];
-      acc[m.round].push(m);
+      const r = m.round || 1;
+      if (!acc[r]) acc[r] = [];
+      acc[r].push(m);
       return acc;
     }, {});
   }, [matches]);
@@ -241,6 +206,7 @@ export const TournamentProvider = ({ children }) => {
       submitVeto,
       adminUpdateMatch,
       triggerSOS,
+      fetchMatchTimeline,
       refreshMatches: fetchData
     }}>
       {children}

@@ -6,6 +6,38 @@ import { MAP_POOL } from '../lib/constants';
 
 const TournamentContext = createContext();
 
+// --- DATA NORMALIZATION HELPERS ---
+// Centralizing "Intel" logic here to keep the UI clean and prevent runtime crashes.
+
+const COUNTRY_MAP = {
+  'PAK': 'pk', 'PK': 'pk', 'PAKISTAN': 'pk',
+  'IND': 'in', 'IN': 'in', 'INDIA': 'in',
+  'IRN': 'ir', 'IR': 'ir', 'IRAN': 'ir',
+  'UAE': 'ae', 'AE': 'ae',
+  'SAU': 'sa', 'SA': 'sa',
+  'BAN': 'bd', 'BD': 'bd',
+  'AFG': 'af', 'AF': 'af',
+  'LKA': 'lk', 'LK': 'lk',
+  'NPL': 'np', 'NP': 'np'
+};
+
+/**
+ * Robust Faceit Nickname Extractor.
+ * Extracts the nickname from a URL once during data ingestion.
+ */
+const extractFaceitNickname = (url) => {
+  if (!url || typeof url !== 'string') return null;
+  try {
+    const fullUrl = url.startsWith('http') ? url : `https://${url}`;
+    const u = new URL(fullUrl);
+    const segments = u.pathname.split('/').filter(Boolean);
+    const idx = segments.indexOf('players');
+    return idx !== -1 && segments[idx + 1] ? segments[idx + 1] : null;
+  } catch (e) {
+    return null;
+  }
+};
+
 export const TournamentProvider = ({ children }) => {
   const { session } = useSession();
   const [teams, setTeams] = useState([]);
@@ -13,11 +45,12 @@ export const TournamentProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Helper: Parse Structured Veto State from DB metadata
+  /**
+   * Helper: Parse Structured Veto State from DB metadata.
+   */
   const parseVetoState = (vetoMeta) => {
     const banned = [];
     let picked = null;
-
     const maps = vetoMeta?.maps || [];
     if (Array.isArray(maps)) {
       maps.forEach((entry) => {
@@ -28,61 +61,57 @@ export const TournamentProvider = ({ children }) => {
     return { banned, picked };
   };
 
-  // Unified Sync Function: Teams, Players, and Matches
+  /**
+   * CENTRALIZED DATA FETCH & NORMALIZATION
+   * Maps raw database fields into the "Canonical Player Model".
+   * UI components will consume this normalized structure.
+   */
   const fetchData = useCallback(async () => {
     try {
-      // --- 1. FETCH TEAMS ---
-      const { data: teamsData, error: teamsError } = await supabase
-        .from('teams')
-        .select('*')
-        .order('seed_number', { ascending: true });
+      const [teamsRes, playersRes] = await Promise.all([
+        supabase.from('teams').select('*').order('seed_number', { ascending: true }),
+        supabase.from('players').select('*')
+      ]);
 
-      if (teamsError) throw teamsError;
+      if (teamsRes.error) throw teamsRes.error;
+      if (playersRes.error) throw playersRes.error;
 
-      const { data: playersData } = await supabase.from('players').select('*');
-
-      const uiTeams = (teamsData || []).map((t) => {
-        const teamPlayers = playersData ? playersData.filter((p) => p.team_id === t.id) : [];
-        const captain = teamPlayers.find((p) => p.is_captain);
+      // Normalize Teams and Players immediately
+      const uiTeams = (teamsRes.data || []).map((t) => {
+        const teamPlayers = playersRes.data ? playersRes.data.filter((p) => p.team_id === t.id) : [];
+        
+        // Resolve Team Flag once here (mapping regional strings to ISO-2 codes)
+        const regionCode = t.region ? (COUNTRY_MAP[t.region.toUpperCase().trim()] || 'un') : 'un';
 
         return {
-          ...t, // Base team properties (id, name, logo_url, region, seed_number)
-          captainId: captain ? captain.id : null,
-
-          // CANONICAL PLAYER MODEL: Enforcing the contract for the UI
-          players: teamPlayers.map((p) => ({
-            id: p.id,
-            name: p.display_name,
-            role: p.is_captain ? 'CAPTAIN' : p.is_substitute ? 'SUBSTITUTE' : 'PLAYER',
-            
-            // Stats & Visuals
-            avatar: p.faceit_avatar_url || null,
-            elo: p.faceit_elo ?? null,
-            country: p.country_code || 'un',
-
-            // Strict Socials Object
-            socials: {
-              faceit: p.faceit_url || null,
-              steam: p.steam_url || null,
-              discord: p.discord_url || (p.discord_handle ? `https://discord.com/users/${p.discord_handle}` : null)
-            }
-          }))
+          ...t,
+          region_iso2: regionCode, 
+          players: teamPlayers.map((p) => {
+            const nickname = extractFaceitNickname(p.faceit_url);
+            return {
+              id: p.id,
+              name: p.display_name,
+              nickname: nickname, // Pre-extracted nickname for the UI
+              role: p.is_captain ? 'CAPTAIN' : p.is_substitute ? 'SUBSTITUTE' : 'PLAYER',
+              avatar: p.faceit_avatar_url || null,
+              elo: p.faceit_elo ?? null,
+              country: p.country_code || 'un',
+              socials: {
+                faceit: p.faceit_url || null,
+                steam: p.steam_url || null,
+                discord: p.discord_url || (p.discord_handle ? `https://discord.com/users/${p.discord_handle}` : null)
+              }
+            };
+          })
         };
       });
-      setTeams(uiTeams);
 
-      // --- 2. FETCH MATCHES ---
+      // Match Logic with Access Control
       let matchesData = [];
       if (session.isAuthenticated && session.pin) {
-        // Authenticated users get authorized match data (includes IPs/sensitive info if Admin)
+        // RPC handles filtered access to sensitive IP data for admins
         const res = await supabase.rpc('get_authorized_matches', { input_pin: session.pin });
-        if (!res.error && res.data) {
-          matchesData = res.data;
-        } else {
-          // Fallback to public if RPC fails
-          const pubRes = await supabase.rpc('get_public_matches');
-          matchesData = pubRes.data || [];
-        }
+        matchesData = res.data || [];
       } else {
         const res = await supabase.rpc('get_public_matches');
         matchesData = res.data || [];
@@ -111,17 +140,16 @@ export const TournamentProvider = ({ children }) => {
           winnerId: m.winner_id,
           state: m.state,
           status: displayStatus,
-          vetoState: {
-            phase: m.state === 'complete' ? 'complete' : 'ban',
-            turn: turnId,
-            bannedMaps: banned,
-            pickedMap: picked
+          vetoState: { 
+            phase: m.state === 'complete' ? 'complete' : 'ban', 
+            turn: turnId, 
+            bannedMaps: banned, 
+            pickedMap: picked 
           },
-          metadata: {
-            ...m.metadata,
-            sos_triggered: m.sos_triggered,
-            sos_by: m.sos_by,
-            assigned_admin_name: m.assigned_admin_name
+          metadata: { 
+            ...m.metadata, 
+            sos_triggered: m.sos_triggered, 
+            sos_by: m.sos_by 
           },
           server_ip: m.server_ip || null,
           gotv_ip: m.gotv_ip || null,
@@ -134,30 +162,32 @@ export const TournamentProvider = ({ children }) => {
         };
       });
 
+      setTeams(uiTeams);
       setMatches(uiMatches);
       setError(null);
-      setLoading(false);
     } catch (err) {
       console.error("Tournament Data Sync Error:", err);
       setError(err.message);
+    } finally {
       setLoading(false);
     }
   }, [session.pin, session.isAuthenticated]);
 
-  // Handle Initial Load and Adaptive Polling
+  /**
+   * ADAPTIVE POLLING
+   * Admins (Authenticated) poll every 10s.
+   * Public viewers poll every 30s to reduce server load.
+   */
   useEffect(() => {
     fetchData();
+    const isAdmin = [ROLES.ADMIN, ROLES.OWNER].includes(session.role);
+    const pollRate = session.isAuthenticated && isAdmin ? 10000 : 30000;
     
-    // Resource Management: Admins get 10s updates, public viewers get 30s
-    const pollRate = session.isAuthenticated && [ROLES.ADMIN, ROLES.OWNER].includes(session.role) 
-      ? 10000 
-      : 30000;
-
     const interval = setInterval(fetchData, pollRate);
     return () => clearInterval(interval);
   }, [fetchData, session.isAuthenticated, session.role]);
 
-  // --- ACTIONS ---
+  // --- MUTATION ACTIONS ---
 
   const submitVeto = async (matchId, payload) => {
     if (!session.pin) throw new Error("Unauthorized");
@@ -168,7 +198,7 @@ export const TournamentProvider = ({ children }) => {
       target_map_id: payload.mapId
     });
     if (error) throw error;
-    fetchData();
+    fetchData(); // Immediate refresh after action
   };
 
   const adminUpdateMatch = async (matchId, updates) => {

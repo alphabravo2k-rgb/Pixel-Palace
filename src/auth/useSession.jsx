@@ -76,7 +76,7 @@ export const SessionProvider = ({ children }) => {
     };
     restoreSession();
   }, [updateSession]);
-
+ 
   // 3. Verification Logic - The Gatekeeper
   const verifyPin = useCallback(async (inputPin) => {
     const now = Date.now();

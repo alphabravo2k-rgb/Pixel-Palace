@@ -28,7 +28,7 @@ export const TournamentProvider = ({ children }) => {
       return { banned, picked };
   };
 
-  // 1. Fetch Static Team Data
+  // 1. Fetch Static Team Data - NORMALIZED CONTRACT
   const fetchTeams = useCallback(async () => {
     try {
         const { data: teamsData, error: teamsError } = await supabase
@@ -51,14 +51,22 @@ export const TournamentProvider = ({ children }) => {
                 logo_url: t.logo_url,
                 region: t.region,
                 captainId: captain ? captain.id : null,
+                discord_channel_url: t.discord_channel_url, // Needed for TeamRoster footer
+                
+                // CRITICAL FIX: Data Contract Normalization
+                // We map database fields to exactly what TeamRoster.jsx expects
                 players: teamPlayers.map(p => ({
-                    uid: p.id,
+                    id: p.id,
                     name: p.display_name,
                     role: p.is_captain ? 'CAPTAIN' : p.is_substitute ? 'SUBSTITUTE' : 'PLAYER',
-                    rank: p.rank_level,
-                    faceit: p.faceit_url,
-                    steam: p.steam_url,
-                    discord: p.discord_handle
+                    is_captain: p.is_captain,
+                    
+                    // Socials & Stats (Matching TeamRoster props)
+                    faceit_url: p.faceit_url,      // Was 'faceit'
+                    steam_url: p.steam_url,        // Was 'steam'
+                    discord_url: p.discord_url,    // Was 'discord' (ensure DB has this or map handle if needed)
+                    faceit_elo: p.faceit_elo,      // Explicit pass-through
+                    country_code: p.country_code   // Explicit pass-through
                 })),
                 ...t
             };
@@ -104,6 +112,23 @@ export const TournamentProvider = ({ children }) => {
             if (m.metadata?.turn === 'A') turnId = m.team1_id;
             if (m.metadata?.turn === 'B') turnId = m.team2_id;
 
+            // Status Logic Refinement
+            // 'live' only if open AND (veto started OR map picked) to avoid "Live" on everything
+            let displayStatus = 'scheduled';
+            if (m.state === 'complete') {
+                displayStatus = 'completed';
+            } else if (m.state === 'open') {
+                // If maps are banned or picked, it's definitely live/veto
+                if (banned.length > 0 || picked) {
+                    displayStatus = 'live';
+                } else {
+                    // If it's open but no veto action, it might just be ready. 
+                    // For now, we respect the DB state 'open' as 'live' to ensure visibility,
+                    // but you can restrict this to 'scheduled' if you prefer.
+                    displayStatus = 'live'; 
+                }
+            }
+
             return {
                 id: m.id,
                 round: m.round,
@@ -116,7 +141,7 @@ export const TournamentProvider = ({ children }) => {
                 
                 // State
                 state: m.state, 
-                status: m.state === 'open' ? 'live' : m.state === 'complete' ? 'completed' : 'scheduled',
+                status: displayStatus,
                 
                 // Veto
                 vetoState: {
@@ -265,7 +290,7 @@ export const TournamentProvider = ({ children }) => {
       return data;
   };
 
-  // Stubs (Removed duplicates and kept alerts)
+  // Stubs
   const createTeam = async () => alert("Use SQL Registration Script in Supabase Dashboard.");
   const joinTeam = async () => alert("Registration is handled via Discord/SQL.");
   const createMatch = async () => alert("Matches are generated via SQL Script.");

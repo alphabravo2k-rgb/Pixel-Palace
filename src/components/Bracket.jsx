@@ -6,12 +6,11 @@ import {
 import { createClient } from '@supabase/supabase-js';
 
 // --- CONFIGURATION ---
-// Initializing Supabase inside the file to ensure it's self-contained
 const supabaseUrl = import.meta.env?.VITE_SUPABASE_URL || 'https://your-project.supabase.co';
 const supabaseAnonKey = import.meta.env?.VITE_SUPABASE_ANON_KEY || 'your-anon-key';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// --- LOGIC LAYER (Inlined to fix Resolution Error) ---
+// --- LOGIC LAYER ---
 
 const TournamentContext = createContext();
 
@@ -29,17 +28,17 @@ export const TournamentProvider = ({ children }) => {
       ]);
 
       if (teamsRes.error) throw teamsRes.error;
-      if (matchesRes.error) throw matchesRes.error;
-
-      setTeams(teamsRes.data || []);
       
-      const enrichedMatches = (matchesRes.data || []).map(m => ({
+      // Enforce data integrity for matches
+      const rawMatches = matchesRes.data || [];
+      const enrichedMatches = rawMatches.map(m => ({
         ...m,
         team1Name: m.team1_name || "TBD",
         team2Name: m.team2_name || "TBD",
         status: m.status || 'scheduled'
       }));
 
+      setTeams(teamsRes.data || []);
       setMatches(enrichedMatches);
       setError(null);
     } catch (err) {
@@ -57,14 +56,20 @@ export const TournamentProvider = ({ children }) => {
   }, [fetchData]);
 
   const rounds = useMemo(() => {
-    if (!matches.length) return {};
-    return matches.reduce((acc, m) => {
+    if (!matches || matches.length === 0) return {};
+    const grouped = matches.reduce((acc, m) => {
       const r = m.round || 1;
       if (!acc[r]) acc[r] = [];
       acc[r].push(m);
-      acc[r].sort((a, b) => (a.slot || 0) - (b.slot || 0));
       return acc;
     }, {});
+
+    // Sort slots once per round to stabilize connectors
+    Object.keys(grouped).forEach(r => {
+      grouped[r].sort((a, b) => (a.slot || 0) - (b.slot || 0));
+    });
+
+    return grouped;
   }, [matches]);
 
   return (
@@ -125,6 +130,7 @@ const getStatusStyles = (status) => {
 const IntelModal = ({ match, onClose }) => {
   if (!match) return null;
   const theme = getStatusStyles(match.status);
+  const matchIdShort = match.id?.toString().split('-')?.[0] || 'N/A';
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-300">
@@ -136,7 +142,7 @@ const IntelModal = ({ match, onClose }) => {
           <div className="flex items-center gap-4">
             <Activity className={`w-5 h-5 ${theme.color}`} />
             <div>
-              <h3 className="text-xl font-black text-white italic tracking-tighter uppercase">TACTICAL_INTEL // {match.id?.split('-')[0]}</h3>
+              <h3 className="text-xl font-black text-white italic tracking-tighter uppercase">TACTICAL_INTEL // {matchIdShort}</h3>
               <p className={`text-[10px] font-mono uppercase tracking-widest ${theme.color}`}>{theme.label}</p>
             </div>
           </div>
@@ -176,14 +182,14 @@ const IntelModal = ({ match, onClose }) => {
                 <p className="text-[9px] font-mono text-zinc-500 uppercase mb-2 tracking-[0.2em]">Operational Field</p>
                 <div className="flex items-center gap-3 text-white">
                    <Map className="w-4 h-4 text-[#ff5500]" />
-                   <span className="text-xs font-bold uppercase tracking-tight">{match.vetoState?.pickedMap || 'Awaiting Veto Protocol'}</span>
+                   <span className="text-xs font-bold uppercase tracking-tight">{match.vetoState?.pickedMap || 'Awaiting Protocol'}</span>
                 </div>
              </div>
              <div className="bg-[#15191f] p-4 border border-zinc-800 rounded-sm group hover:border-blue-500/50 transition-colors">
                 <p className="text-[9px] font-mono text-zinc-500 uppercase mb-2 tracking-[0.2em]">Data Transmission</p>
                 <div className="flex items-center gap-3 text-white">
                    <Tv className="w-4 h-4 text-blue-400" />
-                   <span className="text-xs font-bold uppercase tracking-tight">{match.stream_url ? 'COMM_LINK_ACTIVE' : 'SIGNAL_LOST'}</span>
+                   <span className="text-xs font-bold uppercase tracking-tight">{match.stream_url ? 'LINK_ACTIVE' : 'SIGNAL_LOST'}</span>
                 </div>
              </div>
           </div>
@@ -223,6 +229,10 @@ const TeamSlot = ({ name, logo, score, isWinner, isTBD }) => (
 const MatchCard = ({ match, onOpenIntel, setRef }) => {
   const theme = getStatusStyles(match.status);
   const isActionable = !!(match.team1Id && match.team2Id);
+  const matchIdShort = match.id?.toString().split('-')?.[0] || 'ERR';
+  
+  // Safe score split
+  const scoreParts = match.score?.split('-') || [null, null];
 
   return (
     <div 
@@ -239,21 +249,21 @@ const MatchCard = ({ match, onOpenIntel, setRef }) => {
             {theme.label}
           </span>
         </div>
-        <span className="text-[9px] font-mono text-zinc-600 uppercase tracking-tighter">MOD_{match.id?.split('-')[0].toUpperCase() || 'ERR'}</span>
+        <span className="text-[9px] font-mono text-zinc-600 uppercase tracking-tighter">MOD_{matchIdShort.toUpperCase()}</span>
       </div>
 
       <div className="flex flex-col divide-y divide-zinc-800/30 relative z-10">
         <TeamSlot 
           name={match.team1Name} 
           logo={match.team1Logo} 
-          score={match.score?.split('-')[0]} 
+          score={scoreParts[0]} 
           isWinner={match.winnerId === match.team1Id && match.status === 'completed'}
           isTBD={!match.team1Id}
         />
         <TeamSlot 
           name={match.team2Name} 
           logo={match.team2Logo} 
-          score={match.score?.split('-')[1]} 
+          score={scoreParts[1]} 
           isWinner={match.winnerId === match.team2Id && match.status === 'completed'}
           isTBD={!match.team2Id}
         />
@@ -300,9 +310,11 @@ const BracketsContent = () => {
 
   // --- DYNAMIC LINE CALCULATION (Using "Yesterday" Math) ---
   useEffect(() => {
-    if (loading || !contentRef.current || !svgRef.current) return;
+    if (loading || !contentRef.current || !svgRef.current || !matches) return;
 
     const updateLines = () => {
+      if (!contentRef.current || !svgRef.current) return;
+      
       const parentRect = contentRef.current.getBoundingClientRect();
       let paths = "";
 
@@ -352,7 +364,7 @@ const BracketsContent = () => {
 
   if (loading && (!matches || matches.length === 0)) {
     return (
-      <div className="flex flex-col items-center justify-center h-[500px] text-zinc-500 gap-4">
+      <div className="flex flex-col items-center justify-center h-[500px] text-zinc-500 gap-4 bg-[#0b0c0f]">
         <Loader2 className="w-10 h-10 animate-spin text-zinc-600" />
         <p className="text-xs uppercase tracking-[0.5em] font-bold">Syncing Tournament Data...</p>
       </div>
@@ -361,7 +373,7 @@ const BracketsContent = () => {
 
   if (error) {
     return (
-      <div className="p-12 text-center text-red-500 font-mono text-xs uppercase flex flex-col items-center gap-3">
+      <div className="p-12 text-center text-red-500 font-mono text-xs uppercase flex flex-col items-center gap-3 bg-[#0b0c0f]">
         <AlertTriangle className="w-8 h-8" />
         <span>Encryption_Error: {error}</span>
       </div>
@@ -370,7 +382,7 @@ const BracketsContent = () => {
 
   if (!loading && (!matches || matches.length === 0)) {
     return (
-      <div className="flex flex-col items-center justify-center h-[500px] text-zinc-500 gap-4">
+      <div className="flex flex-col items-center justify-center h-[500px] text-zinc-500 gap-4 bg-[#0b0c0f]">
         <Trophy className="w-12 h-12 opacity-20" />
         <p className="text-sm font-bold tracking-widest">NO MATCHES FOUND</p>
       </div>
@@ -401,11 +413,11 @@ const BracketsContent = () => {
 
       {/* Bracket Tree Wrapper */}
       <div className="relative min-w-max" ref={contentRef}>
-        {/* Dynamic SVG Layer (Direct DOM Manipulation for Performance) */}
+        {/* Dynamic SVG Layer */}
         <svg ref={svgRef} className="absolute inset-0 w-full h-full pointer-events-none z-0" />
 
         <div className="relative z-10 flex gap-24 pb-20 no-scrollbar select-none">
-          {sortedRounds.map(([roundNum, roundMatches], roundIdx) => (
+          {sortedRounds.map(([roundNum, roundMatches]) => (
             <div key={roundNum} className="flex flex-col gap-12 min-w-max">
               {/* Round Metadata */}
               <div className="relative flex flex-col gap-1 pl-4 border-l-2 border-[#ff5500]/50">
@@ -423,8 +435,8 @@ const BracketsContent = () => {
                     match={match} 
                     onOpenIntel={(m) => setActiveIntel(m)} 
                     setRef={(el) => {
-                      if (el) matchRefs.current.set(match.id, el);
-                      else matchRefs.current.delete(match.id);
+                      if (el && match.id) matchRefs.current.set(match.id, el);
+                      else if (match.id) matchRefs.current.delete(match.id);
                     }}
                   />
                 ))}
@@ -446,7 +458,7 @@ const BracketsContent = () => {
         </div>
         <div className="ml-auto flex items-center gap-2 text-[9px] font-mono text-zinc-600 uppercase tracking-[0.3em]">
            <Info className="w-3 h-3" />
-           Build_Alpha_v2.5.3 // Tactical_Environment
+           Build_Alpha_v2.5.4 // Tactical_Environment
         </div>
       </div>
 

@@ -5,17 +5,17 @@ import {
 } from 'lucide-react';
 
 /**
- * ENVIRONMENT FIX: Using Skypack CDN for Supabase to resolve resolution errors 
- * and avoid "import.meta" ES2015 target issues.
+ * ENVIRONMENT STABILITY FIX: 
+ * Using Skypack CDN for Supabase to resolve resolution errors.
+ * Using hardcoded strings instead of import.meta to avoid ES2015 target crashes.
  */
 import { createClient } from 'https://cdn.skypack.dev/@supabase/supabase-js';
 
-// --- CONFIGURATION ---
 const supabaseUrl = 'https://your-project.supabase.co';
 const supabaseAnonKey = 'your-anon-key';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// --- LOGIC LAYER (Integrated Provider) ---
+// --- LOGIC LAYER (Consolidated Provider) ---
 
 const TournamentContext = createContext();
 
@@ -130,11 +130,14 @@ const getStatusStyles = (status) => {
 
 // --- SUB-COMPONENTS ---
 
+/**
+ * IntelModal: Robust tactical readout.
+ * Uses defensive optional chaining to prevent the "blank screen" crash.
+ */
 const IntelModal = ({ match, onClose }) => {
   if (!match) return null;
   const theme = getStatusStyles(match.status);
-  // Defensively handle missing IDs to prevent crash
-  const matchIdShort = match.id?.toString().split('-')?.[0] || 'MOD_00';
+  const matchIdShort = (match.id || '').toString().split('-')[0] || '00';
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-300">
@@ -164,7 +167,7 @@ const IntelModal = ({ match, onClose }) => {
                <p className="text-sm font-black text-white uppercase">{match.team1Name || 'PENDING'}</p>
             </div>
             <div className="flex flex-col items-center gap-4">
-               <span className="text-5xl font-mono font-black text-[#ff5500] italic drop-shadow-[0_0_10px_rgba(255,85,0,0.3)]">{match.score || '0 - 0'}</span>
+               <span className="text-5xl font-mono font-black text-[#ff5500] italic">{match.score || '0 - 0'}</span>
                <div className="px-4 py-1 rounded-full bg-zinc-900 border border-zinc-800 text-[10px] font-mono text-zinc-500 uppercase tracking-widest">VS_ENGAGEMENT</div>
             </div>
             <div className="flex-1 space-y-4">
@@ -173,6 +176,23 @@ const IntelModal = ({ match, onClose }) => {
                </div>
                <p className="text-sm font-black text-white uppercase">{match.team2Name || 'PENDING'}</p>
             </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+             <div className="bg-[#15191f] p-4 border border-zinc-800 rounded-sm">
+                <p className="text-[9px] font-mono text-zinc-500 uppercase mb-2">FIELD_LOG</p>
+                <div className="flex items-center gap-3 text-white">
+                   <Map className="w-4 h-4 text-[#ff5500]" />
+                   <span className="text-xs font-bold uppercase">{match.vetoState?.pickedMap || 'PROTOCOL_PENDING'}</span>
+                </div>
+             </div>
+             <div className="bg-[#15191f] p-4 border border-zinc-800 rounded-sm">
+                <p className="text-[9px] font-mono text-zinc-500 uppercase mb-2">COMM_LINK</p>
+                <div className="flex items-center gap-3 text-white">
+                   <Tv className="w-4 h-4 text-blue-400" />
+                   <span className="text-xs font-bold uppercase">{match.stream_url ? 'LINK_ACTIVE' : 'SIGNAL_LOST'}</span>
+                </div>
+             </div>
           </div>
         </div>
 
@@ -205,8 +225,8 @@ const TeamSlot = ({ name, logo, score, isWinner, isTBD }) => (
 const MatchCard = ({ match, onOpenIntel, setRef }) => {
   const theme = getStatusStyles(match.status);
   const isActionable = !!(match.team1Id && match.team2Id);
-  const matchIdShort = match.id?.toString().split('-')?.[0] || 'ERR';
-  const scoreParts = match.score?.toString().split('-') || [null, null];
+  const matchIdShort = (match.id || '').toString().split('-')[0] || 'ERR';
+  const scoreParts = (match.score || '').toString().split('-') || [null, null];
 
   return (
     <div 
@@ -253,8 +273,9 @@ const BracketsContent = () => {
   const matchRefs = useRef(new Map());
 
   /**
-   * CONNECTOR ENGINE: Restored from "Yesterday" code.
+   * CONNECTOR ENGINE: 
    * Dynamically draws SVG paths between matches based on DOM positions.
+   * This is the robust math that prevents "broken lines".
    */
   useEffect(() => {
     if (loading || !contentRef.current || !svgRef.current || !matches) return;
@@ -305,7 +326,7 @@ const BracketsContent = () => {
     return (
       <div className="flex flex-col items-center justify-center h-[500px] text-zinc-500 gap-4 bg-[#0b0c0f]">
         <Loader2 className="w-10 h-10 animate-spin text-zinc-600" />
-        <p className="text-xs font-bold uppercase tracking-[0.5em]">Syncing Tournament Data...</p>
+        <p className="text-xs font-bold uppercase tracking-[0.5em]">Syncing Tactical Grid...</p>
       </div>
     );
   }
@@ -333,7 +354,6 @@ const BracketsContent = () => {
       </div>
 
       <div className="relative min-w-max" ref={contentRef}>
-        {/* Dynamic SVG Layer */}
         <svg ref={svgRef} className="absolute inset-0 w-full h-full pointer-events-none z-0" />
         
         <div className="relative z-10 flex gap-24 pb-20 select-none no-scrollbar">
@@ -359,12 +379,6 @@ const BracketsContent = () => {
             </div>
           ))}
         </div>
-      </div>
-
-      <div className="flex flex-wrap gap-10 border-t border-zinc-800 pt-10 opacity-50 relative z-10">
-        <div className="flex items-center gap-3"><div className="w-3.5 h-3.5 bg-[#ff5500] shadow-[0_0_10px_rgba(255,85,0,0.3)]" style={{ clipPath: 'polygon(0 0, 100% 0, 80% 100%, 0 100%)' }} /><span className="text-[10px] font-mono text-white uppercase tracking-widest font-black">Active Zone</span></div>
-        <div className="flex items-center gap-3"><div className="w-3.5 h-3.5 bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.3)]" style={{ clipPath: 'polygon(0 0, 100% 0, 80% 100%, 0 100%)' }} /><span className="text-[10px] font-mono text-white uppercase tracking-widest font-black">Reserve Support</span></div>
-        <div className="ml-auto flex items-center gap-2 text-[9px] font-mono text-zinc-600 uppercase tracking-[0.3em]"><Info className="w-3 h-3" /> Build_Alpha_v2.5.6 // Tactical_Environment</div>
       </div>
 
       {activeIntel && <IntelModal match={activeIntel} onClose={() => setActiveIntel(null)} />}

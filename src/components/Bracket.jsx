@@ -1,286 +1,244 @@
-import React, { useMemo, useRef, useState, useLayoutEffect } from 'react';
+import React, { useRef } from 'react';
 import { useTournament } from '../tournament/useTournament';
-import { useSession } from '../auth/useSession';
-import { ROLES } from '../lib/roles';
-import { Tv, Lock, Trophy, AlertTriangle, Map as MapIcon, Shield, AlertOctagon, Calendar, Loader2 } from 'lucide-react';
-
-// --- CONFIGURATION ---
-const BRACKET_ORDER = ['R32', 'R16', 'QF', 'SF', 'GF'];
-const ROUND_MAP = { 1: 'R32', 2: 'R16', 3: 'QF', 4: 'SF', 5: 'GF' };
-const ROUND_STRUCTURE = { 'R32': 16, 'R16': 8, 'QF': 4, 'SF': 2, 'GF': 1 };
+import { Swords, Tv, Shield, Activity, Lock, AlertTriangle, ChevronRight, Map } from 'lucide-react';
 
 // --- HELPERS ---
-const parseScore = (score) => {
-  if (!score || typeof score !== 'string' || score.includes('Decision')) return ['-', '-'];
-  const parts = score.match(/\d+/g) || []; 
-  return [(parts[0] || '-'), (parts[1] || '-')];
-};
 
-const formatSchedule = (match) => {
-  const timeStr = match.start_time || match.metadata?.start_time;
-  if (!timeStr) return "TBD"; 
-  const date = new Date(timeStr);
-  if (isNaN(date.getTime())) return "TBD";
-  const now = new Date();
-  const diffMs = date - now;
-  const diffHrs = diffMs / (1000 * 60 * 60);
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-  const timeString = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  if (diffHrs > 0 && diffHrs < 24 && date.getDate() === now.getDate()) return `Today ${timeString}`;
-  if (diffDays === 1) return `Tmrw ${timeString}`;
-  return `${date.toLocaleDateString([], { month: 'short', day: 'numeric' })} ${timeString}`;
-};
-
-const normalizeMatches = (matches) => {
-  const counters = {};
-  return matches.map(match => {
-    const roundLabel = ROUND_MAP[match.round];
-    if (!roundLabel) return match;
-    if (match.matchIndex == null) {
-      counters[roundLabel] = (counters[roundLabel] || 0);
-      const newIndex = counters[roundLabel]++;
-      return { ...match, matchIndex: newIndex };
-    }
-    counters[roundLabel] = Math.max((counters[roundLabel] || 0), match.matchIndex + 1);
-    return match;
-  });
-};
-
-const buildBracketStructure = (matches) => {
-  const groups = {};
-  BRACKET_ORDER.forEach(round => {
-    const totalSlots = ROUND_STRUCTURE[round];
-    groups[round] = Array(totalSlots).fill(null).map((_, index) => ({
-      id: `slot-${round}-${index}`,
-      round,
-      matchIndex: index,
-      isDummy: true,
-      status: 'scheduled',
-      display_id: `M${index + 1}`
-    }));
-  });
-
-  matches.forEach(match => {
-    const roundLabel = ROUND_MAP[match.round];
-    if (groups[roundLabel] && match.matchIndex != null && match.matchIndex >= 0 && match.matchIndex < groups[roundLabel].length) {
-      groups[roundLabel][match.matchIndex] = { ...match, isDummy: false };
-    }
-  });
-  return groups;
-};
-
-const getMatchStatus = (match) => {
-  const isLive = match.status === 'live';
-  const isCompleted = match.status === 'completed';
-  const hasDispute = match.metadata?.dispute;
-  const needsAdmin = match.metadata?.sos_triggered;
-  const isVetoing = isLive && match.vetoState?.phase !== 'complete';
-
-  let borderColor = 'border-zinc-800';
-  let shadow = '';
-  let statusStrip = 'bg-zinc-800';
-  let Icon = null;
-  let label = null;
-  let textClass = 'text-zinc-600';
-
-  if (needsAdmin) {
-      borderColor = 'border-red-500';
-      shadow = 'shadow-[0_0_15px_rgba(239,68,68,0.2)]';
-      statusStrip = 'bg-red-500 animate-pulse';
-      Icon = AlertOctagon;
-      label = 'SOS';
-      textClass = 'text-red-500 animate-pulse';
-  } else if (hasDispute) {
-      borderColor = 'border-yellow-500';
-      shadow = 'shadow-[0_0_15px_rgba(234,179,8,0.2)]';
-      statusStrip = 'bg-yellow-500 animate-pulse';
-      Icon = AlertTriangle;
-      label = 'DISPUTE';
-      textClass = 'text-yellow-500 animate-pulse';
-  } else if (isLive) {
-      borderColor = 'border-green-500';
-      shadow = 'shadow-[0_0_15px_rgba(34,197,94,0.15)]';
-      statusStrip = 'bg-green-500 animate-pulse';
-  } else if (isCompleted) {
-      borderColor = 'border-zinc-700';
-      statusStrip = 'bg-zinc-700';
+const getStatusStyles = (status) => {
+  switch (status) {
+    case 'live':
+      return {
+        label: 'LIVE NOW',
+        color: 'text-emerald-400',
+        bg: 'bg-emerald-500/10',
+        border: 'border-emerald-500/30',
+        glow: 'shadow-[0_0_15px_rgba(52,211,153,0.15)]'
+      };
+    case 'veto':
+      return {
+        label: 'VETO PHASE',
+        color: 'text-orange-400',
+        bg: 'bg-orange-500/10',
+        border: 'border-orange-500/30',
+        glow: 'shadow-[0_0_15px_rgba(251,146,60,0.15)]'
+      };
+    case 'completed':
+      return {
+        label: 'FINALIZED',
+        color: 'text-zinc-500',
+        bg: 'bg-zinc-800/20',
+        border: 'border-zinc-800',
+        glow: ''
+      };
+    default:
+      return {
+        label: 'SCHEDULED',
+        color: 'text-blue-400',
+        bg: 'bg-blue-500/5',
+        border: 'border-blue-500/20',
+        glow: ''
+      };
   }
-
-  return { isLive, isCompleted, isVetoing, borderColor, shadow, statusStrip, Icon, label, textClass };
 };
 
-// --- BRACKET MATCH COMPONENT ---
-const BracketMatch = ({ match, onClick, setRef, isFocus }) => {
-  const [scoreA, scoreB] = parseScore(match.score);
-  const scheduleText = formatSchedule(match);
-  const { isLive, isCompleted, isVetoing, borderColor, shadow, statusStrip, Icon, label, textClass } = getMatchStatus(match);
-  const winnerId = match.winnerId;
+// --- SUB-COMPONENTS ---
 
-  const handleClick = () => { if (!match.isDummy && onClick) onClick(match); };
-  const opacityClass = isFocus ? 'opacity-100' : 'opacity-20 grayscale cursor-not-allowed';
+const TeamSlot = ({ name, logo, score, isWinner, isTBD, isLive }) => (
+  <div className={`flex items-center justify-between px-3 py-2.5 transition-colors ${isWinner ? 'bg-white/[0.02]' : ''}`}>
+    <div className="flex items-center gap-3 min-w-0">
+      <div className={`w-7 h-7 rounded bg-zinc-800 flex-shrink-0 flex items-center justify-center overflow-hidden border ${isWinner ? 'border-zinc-600' : 'border-zinc-800'}`}>
+        {logo ? (
+          <img src={logo} alt="" className="w-full h-full object-contain" />
+        ) : (
+          <Shield className={`w-3.5 h-3.5 ${isTBD ? 'text-zinc-700' : 'text-zinc-500'}`} />
+        )}
+      </div>
+      <span className={`text-xs font-medium uppercase tracking-tight truncate ${isTBD ? 'text-zinc-600 italic' : isWinner ? 'text-white' : 'text-zinc-400'}`}>
+        {name || 'TBD'}
+      </span>
+    </div>
+    
+    <div className={`font-mono font-bold text-sm px-2 py-0.5 rounded ${isWinner ? 'text-[#ff5500] bg-[#ff5500]/10' : isTBD ? 'text-zinc-800' : 'text-zinc-500'}`}>
+      {score ?? '—'}
+    </div>
+  </div>
+);
 
-  // SAFETY: Ensure names exist to prevent crashes
-  const t1Name = match.team1Name || 'TBD';
-  const t2Name = match.team2Name || 'TBD';
-  const t1Logo = match.team1Logo;
-  const t2Logo = match.team2Logo;
+const MatchCard = ({ match }) => {
+  const status = getStatusStyles(match.status);
+  const isLive = match.status === 'live' || match.status === 'veto';
 
   return (
-    <div ref={setRef} onClick={isFocus ? handleClick : undefined}
-      className={`w-full relative bg-[#15191f] border rounded-lg transition-all duration-300 group z-10 ${borderColor} ${shadow} ${opacityClass} ${match.isDummy ? 'opacity-30 cursor-default border-dashed' : isFocus ? 'cursor-pointer hover:border-zinc-600 hover:scale-[1.02]' : ''}`}>
-      <div className={`h-0.5 w-full ${statusStrip}`}></div>
-      <div className="p-3 flex items-center justify-between gap-4">
-        <div className={`flex items-center gap-2 flex-1 min-w-0 overflow-hidden ${isCompleted && winnerId === match.team1Id ? 'text-green-400 font-bold' : isCompleted ? 'text-zinc-500 opacity-50' : 'text-zinc-300'}`}>
-            {t1Logo && <img src={t1Logo} className="w-5 h-5 object-contain rounded-sm bg-black/40 flex-shrink-0" alt=""/>}
-            <span className="truncate text-xs">{t1Name}</span>
-            {isCompleted && winnerId === match.team1Id && <span className="text-[10px] text-zinc-500 ml-1 font-mono">{scoreA}</span>}
+    <div className={`relative group w-64 bg-[#0b0c0f] border ${isLive ? status.border : 'border-zinc-800'} transition-all duration-300 ${status.glow} flex flex-col overflow-hidden`}
+         style={{ clipPath: 'polygon(0 0, 100% 0, 100% 88%, 94% 100%, 0 100%)' }}>
+      
+      {/* Tactical Background Grid */}
+      <div className="absolute inset-0 opacity-[0.03] pointer-events-none" 
+           style={{ backgroundImage: 'radial-gradient(circle, #ffffff 1px, transparent 1px)', backgroundSize: '12px 12px' }} />
+
+      {/* Header Info */}
+      <div className={`px-3 py-1.5 border-b flex items-center justify-between relative z-10 ${isLive ? 'border-emerald-500/20 bg-emerald-500/5' : 'border-zinc-800 bg-[#15191f]'}`}>
+        <div className="flex items-center gap-2">
+          {isLive && <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />}
+          <span className={`text-[9px] font-black uppercase tracking-widest ${status.color}`}>
+            {status.label}
+          </span>
         </div>
-        <div className="text-[10px] text-zinc-600 font-bold px-1">VS</div>
-        <div className={`flex items-center gap-2 flex-1 min-w-0 overflow-hidden justify-end ${isCompleted && winnerId === match.team2Id ? 'text-green-400 font-bold' : isCompleted ? 'text-zinc-500 opacity-50' : 'text-zinc-300'}`}>
-            {isCompleted && winnerId === match.team2Id && <span className="text-[10px] text-zinc-500 mr-1 font-mono">{scoreB}</span>}
-            <span className="truncate text-xs text-right">{t2Name}</span>
-            {t2Logo && <img src={t2Logo} className="w-5 h-5 object-contain rounded-sm bg-black/40 flex-shrink-0" alt=""/>}
+        <span className="text-[9px] font-mono text-zinc-600 uppercase">ID: {match.id.split('-')[0]}</span>
+      </div>
+
+      {/* Teams Container */}
+      <div className="flex flex-col divide-y divide-zinc-800/50 relative z-10">
+        <TeamSlot 
+          name={match.team1Name} 
+          logo={match.team1Logo} 
+          score={match.score?.split('-')[0]} 
+          isWinner={match.winnerId === match.team1Id && match.status === 'completed'}
+          isTBD={!match.team1Id}
+          isLive={isLive}
+        />
+        <TeamSlot 
+          name={match.team2Name} 
+          logo={match.team2Logo} 
+          score={match.score?.split('-')[1]} 
+          isWinner={match.winnerId === match.team2Id && match.status === 'completed'}
+          isTBD={!match.team2Id}
+          isLive={isLive}
+        />
+      </div>
+
+      {/* Match Actions / Footer */}
+      <div className="mt-auto px-3 py-2 bg-black/40 border-t border-zinc-800/50 relative z-10">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {match.stream_url ? (
+              <a href={match.stream_url} target="_blank" rel="noreferrer" className="text-zinc-500 hover:text-white transition-colors">
+                <Tv className="w-3.5 h-3.5" />
+              </a>
+            ) : (
+              <Tv className="w-3.5 h-3.5 text-zinc-800" />
+            )}
+            {match.vetoState?.pickedMap && (
+              <div className="flex items-center gap-1 text-zinc-600" title={`Map: ${match.vetoState.pickedMap}`}>
+                <Map className="w-3.5 h-3.5" />
+                <span className="text-[9px] font-mono uppercase truncate max-w-[60px]">{match.vetoState.pickedMap}</span>
+              </div>
+            )}
+          </div>
+
+          <button className={`flex items-center gap-1.5 px-2 py-0.5 rounded text-[9px] font-black tracking-tighter uppercase transition-all
+            ${isLive ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30' : 'bg-zinc-800 text-zinc-500 hover:text-zinc-300'}`}>
+            Intel
+            <ChevronRight className="w-2.5 h-2.5" />
+          </button>
         </div>
       </div>
-      {!match.isDummy && (
-        <div className={`px-3 py-1.5 flex justify-between items-center border-t ${label ? 'border-zinc-800/50 bg-black/20' : 'border-zinc-800/50 bg-[#0b0c0f]/50'} rounded-b-lg`}>
-          <div className="flex items-center gap-1.5">
-              {match.status === 'scheduled' ? (
-                  <>
-                    <Calendar className="w-3 h-3 text-zinc-500" />
-                    <span className={`text-[9px] font-bold tracking-wide ${scheduleText === 'TBD' ? 'text-zinc-600' : 'text-zinc-400'}`}>{scheduleText}</span>
-                  </>
-              ) : (
-                  <span className="text-[9px] text-zinc-600 font-mono tracking-wider">{match.display_id || `M${match.matchIndex+1}`}</span>
-              )}
-          </div>
-          <div className="flex gap-2 items-center">
-            {Icon && <div className={`flex items-center gap-1 ${textClass}`}><Icon className="w-3 h-3" /><span className="text-[9px] font-bold tracking-wider">{label}</span></div>}
-            {isVetoing && <div className="flex items-center gap-1 text-blue-400"><MapIcon className="w-3 h-3" /><span className="text-[9px] font-bold tracking-wider">VETO</span></div>}
-            {isLive && <div className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-ping"></span><span className="text-[9px] font-bold text-green-500 tracking-wider">LIVE</span></div>}
-            {match.status === 'scheduled' && !Icon && <Lock className="w-3 h-3 text-zinc-600" />}
-            {match.stream_url && <Tv className="w-3 h-3 text-purple-500" />}
-          </div>
-        </div>
-      )}
+
+      {/* Side Accent Line */}
+      <div className={`absolute left-0 top-0 h-full w-[2px] opacity-0 group-hover:opacity-100 transition-opacity ${isLive ? 'bg-emerald-400' : 'bg-[#ff5500]'}`} />
     </div>
   );
 };
 
-// --- MAIN COMPONENT ---
-const Bracket = ({ onMatchClick }) => {
-  const { matches, teams, loading, error } = useTournament(); 
-  const { session } = useSession(); 
+// --- MAIN BRACKET LAYOUT ---
+
+const Brackets = () => {
+  const { rounds, loading, error } = useTournament();
   const containerRef = useRef(null);
-  const contentRef = useRef(null);
-  const svgRef = useRef(null);
-  const matchRefs = useRef(new Map());
-  
-  const bracketData = useMemo(() => {
-      const safeMatches = normalizeMatches(matches || []);
-      return buildBracketStructure(safeMatches);
-  }, [matches]);
 
-  const hasTeamContext = !!session.teamId;
-  const myTeamId = session.teamId;
+  if (loading) return (
+    <div className="h-96 flex flex-col items-center justify-center text-zinc-500 gap-4 font-mono text-xs uppercase animate-pulse tracking-[0.5em]">
+      Deploying Grid...
+    </div>
+  );
 
-  useLayoutEffect(() => {
-    if (!contentRef.current || !containerRef.current || !svgRef.current) return;
-    let animationFrameId;
-    const updateLines = () => {
-      if (!contentRef.current) return;
-      let paths = '';
-      const parentRect = contentRef.current.getBoundingClientRect();
-      for (let i = 0; i < BRACKET_ORDER.length - 1; i++) {
-        const roundA = BRACKET_ORDER[i];
-        const roundB = BRACKET_ORDER[i+1];
-        const matchesA = bracketData[roundA];
-        const matchesB = bracketData[roundB];
-        matchesB.forEach((matchB, idxB) => {
-          const idxA1 = idxB * 2;
-          const idxA2 = idxB * 2 + 1;
-          const elB = matchRefs.current.get(matchB.id);
-          const elA1 = matchesA[idxA1] ? matchRefs.current.get(matchesA[idxA1].id) : null;
-          const elA2 = matchesA[idxA2] ? matchRefs.current.get(matchesA[idxA2].id) : null;
-          if (elB && elA1 && elA2) {
-            const startX = elA1.getBoundingClientRect().right - parentRect.left;
-            const endX = elB.getBoundingClientRect().left - parentRect.left;
-            const yA1 = (elA1.getBoundingClientRect().top + elA1.offsetHeight / 2) - parentRect.top;
-            const yA2 = (elA2.getBoundingClientRect().top + elA2.offsetHeight / 2) - parentRect.top;
-            const yB = (elB.getBoundingClientRect().top + elB.offsetHeight / 2) - parentRect.top;
-            const midX = startX + (endX - startX) / 2;
-            paths += `<path d="M ${startX} ${yA1} H ${midX} V ${yA2} H ${startX} M ${midX} ${yB} H ${endX}" stroke="#52525b" stroke-width="1.5" fill="none" />`;
-          }
-        });
-      }
-      if (svgRef.current) svgRef.current.innerHTML = paths;
-    };
-    const handleResize = () => {
-      if (animationFrameId) cancelAnimationFrame(animationFrameId);
-      animationFrameId = requestAnimationFrame(updateLines);
-    };
-    handleResize();
-    const resizeObserver = new ResizeObserver(handleResize);
-    resizeObserver.observe(contentRef.current);
-    if (containerRef.current) resizeObserver.observe(containerRef.current);
-    return () => {
-      if (animationFrameId) cancelAnimationFrame(animationFrameId);
-      resizeObserver.disconnect();
-    };
-  }, [bracketData]); 
+  if (error) return (
+    <div className="p-12 text-center text-red-500 font-mono text-xs uppercase flex flex-col items-center gap-3">
+      <AlertTriangle className="w-8 h-8" />
+      <span>Encryption Error: {error}</span>
+    </div>
+  );
 
-  // --- CRITICAL ERROR DISPLAY ---
-  // If useTournament returned an error (e.g. 401, RLS violation), show it here.
-  if (error) {
-      return (
-          <div className="flex flex-col items-center justify-center h-[500px] text-red-500 gap-4">
-              <AlertTriangle className="w-12 h-12" />
-              <div className="text-center">
-                  <p className="text-sm font-bold tracking-widest uppercase">BRACKET SYNC ERROR</p>
-                  <p className="text-xs font-mono mt-2 bg-red-900/20 p-2 rounded max-w-md">{typeof error === 'object' ? (error.message || JSON.stringify(error)) : error}</p>
-              </div>
-          </div>
-      );
-  }
-
-  if (loading && (!matches || matches.length === 0)) return <div className="flex flex-col items-center justify-center h-[500px] text-zinc-500 gap-4"><Loader2 className="w-10 h-10 animate-spin" /><p className="text-xs font-bold tracking-widest">LOADING BRACKET...</p></div>;
-  if (!loading && (!matches || matches.length === 0)) return <div className="flex flex-col items-center justify-center h-[500px] text-zinc-500 gap-4"><Trophy className="w-12 h-12 opacity-20" /><p className="text-sm font-bold tracking-widest">NO MATCHES FOUND</p></div>;
+  // Convert rounds object to array and sort by round key
+  const sortedRounds = Object.entries(rounds)
+    .sort(([a], [b]) => Number(a) - Number(b));
 
   return (
-    <div className="w-full h-full overflow-auto bg-[#0b0c0f] p-8" ref={containerRef}>
-      <div className="relative min-w-max" ref={contentRef}>
-        <svg ref={svgRef} className="absolute inset-0 w-full h-full pointer-events-none z-0" />
-        <div className="flex gap-20 relative z-10 pb-20">
-          {BRACKET_ORDER.map((round) => (
-            <div key={round} className="w-64 shrink-0 flex flex-col justify-around">
-              <div className="text-center mb-8">
-                <span className="bg-[#1c222b] px-3 py-1 rounded text-[10px] font-bold text-zinc-400 border border-zinc-800 tracking-widest uppercase shadow-sm">{round}</span>
-              </div>
-              <div className="flex flex-col justify-around gap-8 h-full">
-                {bracketData[round].map((match) => {
-                    const isMyMatch = hasTeamContext ? (match.team1Id === myTeamId || match.team2Id === myTeamId) : true;
-                    return (
-                      <BracketMatch 
-                        key={match.id} 
-                        match={match}
-                        team1={null} 
-                        team2={null}
-                        isFocus={isMyMatch || !hasTeamContext} 
-                        onClick={() => onMatchClick(match)}
-                        setRef={(el) => {
-                          if (el) matchRefs.current.set(match.id, el);
-                          else matchRefs.current.delete(match.id);
-                        }}
-                      />
-                    );
-                })}
-              </div>
+    <div className="space-y-8 p-4 md:p-8 animate-in fade-in duration-700">
+      {/* Page Header */}
+      <div className="flex flex-col md:flex-row justify-between items-end gap-4 border-b border-zinc-800 pb-6">
+          <div className="space-y-1">
+              <h2 className="text-3xl font-black text-white italic tracking-tighter uppercase leading-none">
+                TACTICAL <span className="text-[#ff5500]">BRACKETS</span>
+              </h2>
+              <p className="text-zinc-500 text-[10px] font-mono uppercase tracking-[0.2em]">
+                Conflict Map: {sortedRounds.length} Phases Identified
+              </p>
+          </div>
+          <div className="flex gap-4">
+            <div className="flex items-center gap-2 px-3 py-1 rounded bg-emerald-500/5 border border-emerald-500/20">
+              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest">Active Operations</span>
             </div>
-          ))}
+          </div>
+      </div>
+
+      {/* Bracket Container with Horizontal Scroll */}
+      <div 
+        ref={containerRef}
+        className="relative flex gap-12 overflow-x-auto pb-12 pt-4 scrollbar-hide select-none no-scrollbar"
+      >
+        {sortedRounds.map(([roundNum, roundMatches], roundIdx) => (
+          <div key={roundNum} className="flex flex-col gap-8 min-w-max">
+            {/* Round Title */}
+            <div className="flex flex-col gap-1 border-l-2 border-[#ff5500] pl-4 mb-4">
+              <span className="text-[10px] font-mono text-[#ff5500] uppercase tracking-[0.3em] font-black">
+                Phase {roundNum}
+              </span>
+              <span className="text-sm font-black text-white uppercase italic">
+                {Number(roundNum) === sortedRounds.length ? 'Grand Final' : `Elimination R${roundNum}`}
+              </span>
+            </div>
+
+            {/* Matches in Round */}
+            <div className="flex flex-col justify-around flex-grow gap-8 relative">
+              {roundMatches.map((match, mIdx) => (
+                <div key={match.id} className="relative flex items-center">
+                  <MatchCard match={match} />
+                  
+                  {/* Connector Lines (Tactical Visual Style) */}
+                  {roundIdx < sortedRounds.length - 1 && (
+                    <div className="absolute left-full top-1/2 w-12 h-px bg-zinc-800 group-hover:bg-zinc-600 transition-colors">
+                       <div className="absolute right-0 top-1/2 -translate-y-1/2 w-1.5 h-1.5 bg-zinc-800 rounded-full border border-zinc-900" />
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+
+        {sortedRounds.length === 0 && (
+          <div className="w-full py-20 flex flex-col items-center justify-center border border-dashed border-zinc-800 rounded-xl">
+             <Swords className="w-12 h-12 text-zinc-800 mb-4" />
+             <p className="text-xs font-mono text-zinc-600 uppercase tracking-[0.3em]">No Engagements Logged</p>
+          </div>
+        )}
+      </div>
+
+      {/* Layout Legend */}
+      <div className="flex gap-8 border-t border-zinc-800 pt-6 opacity-30">
+        <div className="flex items-center gap-2">
+           <div className="w-3 h-3 bg-[#ff5500] shadow-[0_0_8px_#ff5500]" style={{ clipPath: 'polygon(0 0, 100% 0, 80% 100%, 0 100%)' }} />
+           <span className="text-[9px] font-mono text-white uppercase tracking-widest">Offensive Unit</span>
+        </div>
+        <div className="flex items-center gap-2">
+           <div className="w-3 h-3 bg-blue-500 shadow-[0_0_8px_#3b82f6]" style={{ clipPath: 'polygon(0 0, 100% 0, 80% 100%, 0 100%)' }} />
+           <span className="text-[9px] font-mono text-white uppercase tracking-widest">Strategic Support</span>
         </div>
       </div>
     </div>
   );
 };
 
-export default Bracket;
+export default Brackets;

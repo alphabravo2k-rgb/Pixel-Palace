@@ -9,8 +9,7 @@ const BRACKET_ORDER = ['R32', 'R16', 'QF', 'SF', 'GF'];
 const ROUND_MAP = { 1: 'R32', 2: 'R16', 3: 'QF', 4: 'SF', 5: 'GF' };
 const ROUND_STRUCTURE = { 'R32': 16, 'R16': 8, 'QF': 4, 'SF': 2, 'GF': 1 };
 
-// --- PURE LOGIC HELPERS ---
-
+// --- HELPERS ---
 const parseScore = (score) => {
   if (!score || typeof score !== 'string' || score.includes('Decision')) return ['-', '-'];
   const parts = score.match(/\d+/g) || []; 
@@ -20,61 +19,39 @@ const parseScore = (score) => {
 const formatSchedule = (match) => {
   const timeStr = match.start_time || match.metadata?.start_time;
   if (!timeStr) return "TBD"; 
-
   const date = new Date(timeStr);
   if (isNaN(date.getTime())) return "TBD";
-
   const now = new Date();
   const diffMs = date - now;
   const diffHrs = diffMs / (1000 * 60 * 60);
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
   const timeString = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-  if (diffHrs > 0 && diffHrs < 24 && date.getDate() === now.getDate()) {
-      return `Today ${timeString}`;
-  } else if (diffDays === 1) {
-      return `Tmrw ${timeString}`;
-  } else {
-      return `${date.toLocaleDateString([], { month: 'short', day: 'numeric' })} ${timeString}`;
-  }
+  if (diffHrs > 0 && diffHrs < 24 && date.getDate() === now.getDate()) return `Today ${timeString}`;
+  if (diffDays === 1) return `Tmrw ${timeString}`;
+  return `${date.toLocaleDateString([], { month: 'short', day: 'numeric' })} ${timeString}`;
 };
 
-// Data Normalizer: Assigns matchIndex if missing to prevent dropped matches
 const normalizeMatches = (matches) => {
   const counters = {};
-
   return matches.map(match => {
     const roundLabel = ROUND_MAP[match.round];
-    
-    // If round is unknown, we can't place it
     if (!roundLabel) return match;
-
-    // If matchIndex is missing or invalid, assign the next available slot for this round
     if (match.matchIndex == null) {
       counters[roundLabel] = (counters[roundLabel] || 0);
       const newIndex = counters[roundLabel]++;
-      return {
-        ...match,
-        matchIndex: newIndex
-      };
+      return { ...match, matchIndex: newIndex };
     }
-
-    // If matchIndex exists, respect it but track count
     counters[roundLabel] = Math.max((counters[roundLabel] || 0), match.matchIndex + 1);
     return match;
   });
 };
 
-// Bracket Engine: Deterministic Slot Filling with Guards
 const buildBracketStructure = (matches) => {
   const groups = {};
-  
-  // Initialize rounds with empty slots based on structure
   BRACKET_ORDER.forEach(round => {
     const totalSlots = ROUND_STRUCTURE[round];
     groups[round] = Array(totalSlots).fill(null).map((_, index) => ({
-      id: `slot-${round}-${index}`, // Stable ID for React keys
+      id: `slot-${round}-${index}`,
       round,
       matchIndex: index,
       isDummy: true,
@@ -83,29 +60,15 @@ const buildBracketStructure = (matches) => {
     }));
   });
 
-  // Hydrate with real matches safely
   matches.forEach(match => {
     const roundLabel = ROUND_MAP[match.round];
-    
-    // Safety Guard: Check if round exists and index is valid
-    if (
-        groups[roundLabel] && 
-        match.matchIndex != null && 
-        match.matchIndex >= 0 && 
-        match.matchIndex < groups[roundLabel].length
-    ) {
-      // Replace dummy with real match
-      groups[roundLabel][match.matchIndex] = {
-        ...match,
-        isDummy: false
-      };
+    if (groups[roundLabel] && match.matchIndex != null && match.matchIndex >= 0 && match.matchIndex < groups[roundLabel].length) {
+      groups[roundLabel][match.matchIndex] = { ...match, isDummy: false };
     }
   });
-
   return groups;
 };
 
-// Domain Logic: Derive Status Flags
 const getMatchStatus = (match) => {
   const isLive = match.status === 'live';
   const isCompleted = match.status === 'completed';
@@ -146,101 +109,56 @@ const getMatchStatus = (match) => {
   return { isLive, isCompleted, isVetoing, borderColor, shadow, statusStrip, Icon, label, textClass };
 };
 
-// --- SUB-COMPONENTS ---
-
+// --- BRACKET MATCH COMPONENT ---
 const BracketMatch = ({ match, onClick, setRef, isFocus }) => {
   const [scoreA, scoreB] = parseScore(match.score);
   const scheduleText = formatSchedule(match);
   const { isLive, isCompleted, isVetoing, borderColor, shadow, statusStrip, Icon, label, textClass } = getMatchStatus(match);
   const winnerId = match.winnerId;
 
-  // Safe Click Handler
-  const handleClick = () => {
-    if (!match.isDummy && onClick) onClick(match);
-  };
-
-  // TEAM/CAPTAIN LOCK: If not my match, dim it significantly to reduce noise
+  const handleClick = () => { if (!match.isDummy && onClick) onClick(match); };
   const opacityClass = isFocus ? 'opacity-100' : 'opacity-20 grayscale cursor-not-allowed';
 
-  // RESOLVE NAMES FROM PROPS (Correct V14 Data Mapping)
+  // SAFETY: Ensure names exist to prevent crashes
   const t1Name = match.team1Name || 'TBD';
   const t2Name = match.team2Name || 'TBD';
   const t1Logo = match.team1Logo;
   const t2Logo = match.team2Logo;
 
   return (
-    <div 
-      ref={setRef}
-      onClick={isFocus ? handleClick : undefined}
-      className={`
-        w-full relative bg-[#15191f] border rounded-lg transition-all duration-300 group z-10
-        ${borderColor} ${shadow} ${opacityClass}
-        ${match.isDummy ? 'opacity-30 cursor-default border-dashed' : isFocus ? 'cursor-pointer hover:border-zinc-600 hover:scale-[1.02]' : ''}
-      `}
-    >
+    <div ref={setRef} onClick={isFocus ? handleClick : undefined}
+      className={`w-full relative bg-[#15191f] border rounded-lg transition-all duration-300 group z-10 ${borderColor} ${shadow} ${opacityClass} ${match.isDummy ? 'opacity-30 cursor-default border-dashed' : isFocus ? 'cursor-pointer hover:border-zinc-600 hover:scale-[1.02]' : ''}`}>
       <div className={`h-0.5 w-full ${statusStrip}`}></div>
-
       <div className="p-3 flex items-center justify-between gap-4">
-        {/* Team 1 Block */}
         <div className={`flex items-center gap-2 flex-1 min-w-0 overflow-hidden ${isCompleted && winnerId === match.team1Id ? 'text-green-400 font-bold' : isCompleted ? 'text-zinc-500 opacity-50' : 'text-zinc-300'}`}>
             {t1Logo && <img src={t1Logo} className="w-5 h-5 object-contain rounded-sm bg-black/40 flex-shrink-0" alt=""/>}
             <span className="truncate text-xs">{t1Name}</span>
             {isCompleted && winnerId === match.team1Id && <span className="text-[10px] text-zinc-500 ml-1 font-mono">{scoreA}</span>}
         </div>
-
         <div className="text-[10px] text-zinc-600 font-bold px-1">VS</div>
-
-        {/* Team 2 Block */}
         <div className={`flex items-center gap-2 flex-1 min-w-0 overflow-hidden justify-end ${isCompleted && winnerId === match.team2Id ? 'text-green-400 font-bold' : isCompleted ? 'text-zinc-500 opacity-50' : 'text-zinc-300'}`}>
             {isCompleted && winnerId === match.team2Id && <span className="text-[10px] text-zinc-500 mr-1 font-mono">{scoreB}</span>}
             <span className="truncate text-xs text-right">{t2Name}</span>
             {t2Logo && <img src={t2Logo} className="w-5 h-5 object-contain rounded-sm bg-black/40 flex-shrink-0" alt=""/>}
         </div>
       </div>
-
       {!match.isDummy && (
         <div className={`px-3 py-1.5 flex justify-between items-center border-t ${label ? 'border-zinc-800/50 bg-black/20' : 'border-zinc-800/50 bg-[#0b0c0f]/50'} rounded-b-lg`}>
           <div className="flex items-center gap-1.5">
               {match.status === 'scheduled' ? (
                   <>
                     <Calendar className="w-3 h-3 text-zinc-500" />
-                    <span className={`text-[9px] font-bold tracking-wide ${scheduleText === 'TBD' ? 'text-zinc-600' : 'text-zinc-400'}`}>
-                        {scheduleText}
-                    </span>
+                    <span className={`text-[9px] font-bold tracking-wide ${scheduleText === 'TBD' ? 'text-zinc-600' : 'text-zinc-400'}`}>{scheduleText}</span>
                   </>
               ) : (
-                  <span className="text-[9px] text-zinc-600 font-mono tracking-wider">
-                      {match.display_id || `M${match.matchIndex+1}`}
-                  </span>
+                  <span className="text-[9px] text-zinc-600 font-mono tracking-wider">{match.display_id || `M${match.matchIndex+1}`}</span>
               )}
           </div>
-          
           <div className="flex gap-2 items-center">
-            {Icon && (
-                <div className={`flex items-center gap-1 ${textClass}`}>
-                    <Icon className="w-3 h-3" />
-                    <span className="text-[9px] font-bold tracking-wider">{label}</span>
-                </div>
-            )}
-            
-            {isVetoing && (
-                <div className="flex items-center gap-1 text-blue-400">
-                    <MapIcon className="w-3 h-3" />
-                    <span className="text-[9px] font-bold tracking-wider">VETO</span>
-                </div>
-            )}
-
-            {isLive && (
-                <div className="flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-ping"></span>
-                    <span className="text-[9px] font-bold text-green-500 tracking-wider">LIVE</span>
-                </div>
-            )}
-
-            {match.status === 'scheduled' && !Icon && (
-                <Lock className="w-3 h-3 text-zinc-600" />
-            )}
-
+            {Icon && <div className={`flex items-center gap-1 ${textClass}`}><Icon className="w-3 h-3" /><span className="text-[9px] font-bold tracking-wider">{label}</span></div>}
+            {isVetoing && <div className="flex items-center gap-1 text-blue-400"><MapIcon className="w-3 h-3" /><span className="text-[9px] font-bold tracking-wider">VETO</span></div>}
+            {isLive && <div className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-ping"></span><span className="text-[9px] font-bold text-green-500 tracking-wider">LIVE</span></div>}
+            {match.status === 'scheduled' && !Icon && <Lock className="w-3 h-3 text-zinc-600" />}
             {match.stream_url && <Tv className="w-3 h-3 text-purple-500" />}
           </div>
         </div>
@@ -250,180 +168,104 @@ const BracketMatch = ({ match, onClick, setRef, isFocus }) => {
 };
 
 // --- MAIN COMPONENT ---
-
 const Bracket = ({ onMatchClick }) => {
-  const { matches, teams, loading, error } = useTournament(); // Get Error from hook
-  const { session } = useSession(); // Access session for Role Logic
+  const { matches, teams, loading, error } = useTournament(); 
+  const { session } = useSession(); 
   const containerRef = useRef(null);
   const contentRef = useRef(null);
   const svgRef = useRef(null);
   const matchRefs = useRef(new Map());
-
-  // 1. O(1) Team Lookup
-  const teamMap = useMemo(() => {
-    const map = new Map();
-    teams.forEach(t => map.set(t.id, t));
-    return map;
-  }, [teams]);
-
-  const getTeam = (teamId) => teamMap.get(teamId) || { name: 'TBD', logo_url: null };
-
-  // 2. Compute Bracket Structure (Memoized with Normalization)
+  
   const bracketData = useMemo(() => {
-      // Step A: Normalize matches to ensure every match has a valid index
       const safeMatches = normalizeMatches(matches || []);
-      // Step B: Build the structure using safe data
       return buildBracketStructure(safeMatches);
   }, [matches]);
 
-  // CAPTAIN LOCK MODE LOGIC
-  const isCaptain = session.role === ROLES.CAPTAIN;
+  const hasTeamContext = !!session.teamId;
   const myTeamId = session.teamId;
 
-  // 3. Declarative Line Drawing
   useLayoutEffect(() => {
     if (!contentRef.current || !containerRef.current || !svgRef.current) return;
-
     let animationFrameId;
-
     const updateLines = () => {
       if (!contentRef.current) return;
-
       let paths = '';
       const parentRect = contentRef.current.getBoundingClientRect();
-      
       for (let i = 0; i < BRACKET_ORDER.length - 1; i++) {
         const roundA = BRACKET_ORDER[i];
         const roundB = BRACKET_ORDER[i+1];
-        
         const matchesA = bracketData[roundA];
         const matchesB = bracketData[roundB];
-
         matchesB.forEach((matchB, idxB) => {
-          // Logic: Match B connects to Match A1 (2*idx) and Match A2 (2*idx + 1)
           const idxA1 = idxB * 2;
           const idxA2 = idxB * 2 + 1;
-
-          // Retrieve elements from Ref Map
           const elB = matchRefs.current.get(matchB.id);
           const elA1 = matchesA[idxA1] ? matchRefs.current.get(matchesA[idxA1].id) : null;
           const elA2 = matchesA[idxA2] ? matchRefs.current.get(matchesA[idxA2].id) : null;
-
           if (elB && elA1 && elA2) {
             const startX = elA1.getBoundingClientRect().right - parentRect.left;
             const endX = elB.getBoundingClientRect().left - parentRect.left;
             const yA1 = (elA1.getBoundingClientRect().top + elA1.offsetHeight / 2) - parentRect.top;
             const yA2 = (elA2.getBoundingClientRect().top + elA2.offsetHeight / 2) - parentRect.top;
             const yB = (elB.getBoundingClientRect().top + elB.offsetHeight / 2) - parentRect.top;
-
-            // Create Path String
-            paths += `
-              <path 
-                d="M ${startX} ${yA1} H ${startX + (endX - startX) / 2} V ${yA2} H ${startX} M ${startX + (endX - startX) / 2} ${yB} H ${endX}" 
-                stroke="#52525b" 
-                stroke-width="1.5" 
-                fill="none" 
-              />
-            `;
+            const midX = startX + (endX - startX) / 2;
+            paths += `<path d="M ${startX} ${yA1} H ${midX} V ${yA2} H ${startX} M ${midX} ${yB} H ${endX}" stroke="#52525b" stroke-width="1.5" fill="none" />`;
           }
         });
       }
-      // Direct DOM update - No React render cycle needed for geometry updates
-      if (svgRef.current) {
-          svgRef.current.innerHTML = paths;
-      }
+      if (svgRef.current) svgRef.current.innerHTML = paths;
     };
-
-    // Throttled Update Loop
     const handleResize = () => {
       if (animationFrameId) cancelAnimationFrame(animationFrameId);
       animationFrameId = requestAnimationFrame(updateLines);
     };
-
-    // Initial calculation
     handleResize();
-
     const resizeObserver = new ResizeObserver(handleResize);
     resizeObserver.observe(contentRef.current);
-    
-    // We also observe the container just in case resizing the window changes layout
-    if (containerRef.current) {
-        resizeObserver.observe(containerRef.current);
-    }
-
+    if (containerRef.current) resizeObserver.observe(containerRef.current);
     return () => {
       if (animationFrameId) cancelAnimationFrame(animationFrameId);
       resizeObserver.disconnect();
     };
   }, [bracketData]); 
 
-  // --- ERROR DISPLAY: This is critical for debugging ---
+  // --- CRITICAL ERROR DISPLAY ---
+  // If useTournament returned an error (e.g. 401, RLS violation), show it here.
   if (error) {
       return (
           <div className="flex flex-col items-center justify-center h-[500px] text-red-500 gap-4">
               <AlertTriangle className="w-12 h-12" />
               <div className="text-center">
-                  <p className="text-sm font-bold tracking-widest uppercase">DATA SYNC FAILED</p>
-                  <p className="text-xs font-mono mt-2 bg-red-900/20 p-2 rounded">{typeof error === 'object' ? error.message : error}</p>
+                  <p className="text-sm font-bold tracking-widest uppercase">BRACKET SYNC ERROR</p>
+                  <p className="text-xs font-mono mt-2 bg-red-900/20 p-2 rounded max-w-md">{typeof error === 'object' ? (error.message || JSON.stringify(error)) : error}</p>
               </div>
           </div>
       );
   }
 
-  // Loading State
-  if (loading && (!matches || matches.length === 0)) {
-      return (
-          <div className="flex flex-col items-center justify-center h-[500px] text-zinc-500 gap-4">
-              <Loader2 className="w-10 h-10 animate-spin text-zinc-600" />
-              <p className="text-xs uppercase tracking-widest font-bold">Syncing Tournament Data...</p>
-          </div>
-      );
-  }
-
-  // Empty State (Only if truly empty and no error)
-  if (!loading && (!matches || matches.length === 0)) {
-      return (
-        <div className="flex flex-col items-center justify-center h-[500px] text-zinc-500 gap-4">
-            <Trophy className="w-12 h-12 opacity-20" />
-            <p className="text-sm font-bold tracking-widest">NO MATCHES FOUND</p>
-        </div>
-      );
-  }
+  if (loading && (!matches || matches.length === 0)) return <div className="flex flex-col items-center justify-center h-[500px] text-zinc-500 gap-4"><Loader2 className="w-10 h-10 animate-spin" /><p className="text-xs font-bold tracking-widest">LOADING BRACKET...</p></div>;
+  if (!loading && (!matches || matches.length === 0)) return <div className="flex flex-col items-center justify-center h-[500px] text-zinc-500 gap-4"><Trophy className="w-12 h-12 opacity-20" /><p className="text-sm font-bold tracking-widest">NO MATCHES FOUND</p></div>;
 
   return (
     <div className="w-full h-full overflow-auto bg-[#0b0c0f] p-8" ref={containerRef}>
-      {/* Content Wrapper scales with content */}
       <div className="relative min-w-max" ref={contentRef}>
-        
-        {/* SVG Layer - Direct DOM Manipulation */}
-        <svg 
-            ref={svgRef} 
-            className="absolute inset-0 w-full h-full pointer-events-none z-0" 
-        />
-
+        <svg ref={svgRef} className="absolute inset-0 w-full h-full pointer-events-none z-0" />
         <div className="flex gap-20 relative z-10 pb-20">
           {BRACKET_ORDER.map((round) => (
             <div key={round} className="w-64 shrink-0 flex flex-col justify-around">
               <div className="text-center mb-8">
-                <span className="bg-[#1c222b] px-3 py-1 rounded text-[10px] font-bold text-zinc-400 border border-zinc-800 tracking-widest uppercase shadow-sm">
-                  {round}
-                </span>
+                <span className="bg-[#1c222b] px-3 py-1 rounded text-[10px] font-bold text-zinc-400 border border-zinc-800 tracking-widest uppercase shadow-sm">{round}</span>
               </div>
-
               <div className="flex flex-col justify-around gap-8 h-full">
                 {bracketData[round].map((match) => {
-                    // Logic: If Captain, is this MY match?
-                    // Captain sees all matches but non-relevant ones are dimmed (opacityClass logic inside BracketMatch)
-                    // Or strict lock mode: only clickable if my match
-                    const isMyMatch = isCaptain ? (match.team1Id === myTeamId || match.team2Id === myTeamId) : true;
-                    
+                    const isMyMatch = hasTeamContext ? (match.team1Id === myTeamId || match.team2Id === myTeamId) : true;
                     return (
                       <BracketMatch 
                         key={match.id} 
                         match={match}
-                        team1={getTeam(match.team1Id)} // Not strictly used for names, but useful context
-                        team2={getTeam(match.team2Id)}
-                        isFocus={isMyMatch || !isCaptain} // Only dim if I am a captain AND it's not my match
+                        team1={null} 
+                        team2={null}
+                        isFocus={isMyMatch || !hasTeamContext} 
                         onClick={() => onMatchClick(match)}
                         setRef={(el) => {
                           if (el) matchRefs.current.set(match.id, el);

@@ -28,7 +28,7 @@ export const TournamentProvider = ({ children }) => {
       return { banned, picked };
   };
 
-  // Unified Fetch Function (Restoring the robust "fetch everything" pattern)
+  // Unified Fetch Function
   const fetchData = useCallback(async () => {
     try {
         // --- 1. FETCH TEAMS ---
@@ -46,7 +46,7 @@ export const TournamentProvider = ({ children }) => {
             const captain = teamPlayers.find(p => p.is_captain);
 
             return {
-                // SPREAD FIRST (Prevents overwriting normalized data)
+                // SPREAD RAW DATA FIRST (Prevents overwriting normalized players)
                 ...t,
 
                 id: t.id,
@@ -57,7 +57,7 @@ export const TournamentProvider = ({ children }) => {
                 captainId: captain ? captain.id : null,
                 discord_channel_url: t.discord_channel_url,
                 
-                // ROBUST PLAYER MAPPING (Supports both New and Legacy contracts)
+                // Mapped Players with Legacy + New Fields
                 players: teamPlayers.map(p => ({
                     // New Standard (TeamRoster.jsx)
                     id: p.id,
@@ -85,36 +85,29 @@ export const TournamentProvider = ({ children }) => {
         let matchesData = [];
         if (session.isAuthenticated && session.pin) {
             const res = await supabase.rpc('get_authorized_matches', { input_pin: session.pin });
-            
             if (!res.error && res.data && res.data.length > 0) {
                 matchesData = res.data;
             } else if ([ROLES.ADMIN, ROLES.OWNER].includes(session.role)) {
-                // Admin Fallback
                 const pubRes = await supabase.rpc('get_public_matches');
                 matchesData = pubRes.data || [];
             } else if (res.error) {
-                // Error Fallback
-                console.error("Auth RPC Error:", res.error);
                 const pubRes = await supabase.rpc('get_public_matches');
                 matchesData = pubRes.data || [];
             }
         } else {
-            // Public Access
             const res = await supabase.rpc('get_public_matches');
             matchesData = res.data || [];
         }
 
         const uiMatches = matchesData.map(m => {
             const { banned, picked } = parseVetoState(m.metadata?.veto);
-            
             let turnId = null;
             if (m.metadata?.turn === 'A') turnId = m.team1_id;
             if (m.metadata?.turn === 'B') turnId = m.team2_id;
 
             let displayStatus = 'scheduled';
-            if (m.state === 'complete') {
-                displayStatus = 'completed';
-            } else if (m.state === 'open') {
+            if (m.state === 'complete') displayStatus = 'completed';
+            else if (m.state === 'open') {
                 if (m.server_ip) displayStatus = 'live';
                 else if (banned.length > 0 || picked) displayStatus = 'veto';
                 else displayStatus = 'ready'; 
@@ -163,16 +156,12 @@ export const TournamentProvider = ({ children }) => {
     }
   }, [session.pin, session.isAuthenticated, session.role]);
 
-  // Initial Load
+  // Initial Load & Polling
   useEffect(() => {
     fetchData();
-  }, [fetchData]);
-
-  // Polling (Fetches BOTH Teams and Matches to ensure consistency)
-  useEffect(() => {
     const interval = setInterval(fetchData, 10000); 
     return () => clearInterval(interval);
-  }, [fetchData]); 
+  }, [fetchData]);
 
   // --- RPC ACTIONS ---
 
@@ -208,7 +197,6 @@ export const TournamentProvider = ({ children }) => {
 
   const adminUpdateMatch = async (matchId, updates) => {
     if (!session.pin) throw new Error("Authorization Required");
-
     const sqlUpdates = {};
     if (updates.status === 'completed') {
         sqlUpdates.state = 'complete';
@@ -216,27 +204,22 @@ export const TournamentProvider = ({ children }) => {
     } else if (updates.status) {
         sqlUpdates.state = updates.status === 'live' ? 'open' : updates.status === 'scheduled' ? 'pending' : updates.status;
     }
-
     if (updates.winnerId) sqlUpdates.winner_id = updates.winnerId;
     if (updates.stream_url !== undefined) sqlUpdates.stream_url = updates.stream_url;
     if (updates.server_ip !== undefined) sqlUpdates.server_ip = updates.server_ip;
     if (updates.gotv_ip !== undefined) sqlUpdates.gotv_ip = updates.gotv_ip;
     if (updates.score !== undefined) sqlUpdates.score = updates.score;
-
     if (updates.clear_sos) {
         sqlUpdates.sos_triggered = false;
         sqlUpdates.sos_by = null;
     }
-
     const reason = updates.override_reason || "Admin Update"; 
-
     const { error } = await supabase.rpc('admin_update_match', {
         match_id: matchId,
         input_pin: session.pin,
         updates: sqlUpdates,
         override_reason: reason
     });
-
     if (error) throw new Error(error.message);
     fetchData(); 
   };
@@ -257,15 +240,10 @@ export const TournamentProvider = ({ children }) => {
           .select('*')
           .eq('match_id', matchId)
           .order('created_at', { ascending: false });
-
-      if (error) {
-          console.error("Timeline Fetch Error:", error);
-          return [];
-      }
+      if (error) return [];
       return data;
   };
 
-  // Group Matches by Round
   const rounds = useMemo(() => {
     return matches.reduce((acc, m) => {
       if (!acc[m.round]) acc[m.round] = [];
@@ -274,7 +252,6 @@ export const TournamentProvider = ({ children }) => {
     }, {});
   }, [matches]);
 
-  // Stubs
   const createTeam = async () => alert("Use SQL Registration Script in Supabase Dashboard.");
   const joinTeam = async () => alert("Registration is handled via Discord/SQL.");
   const createMatch = async () => alert("Matches are generated via SQL Script.");
@@ -302,8 +279,6 @@ export const TournamentProvider = ({ children }) => {
 
 export const useTournament = () => {
     const context = useContext(TournamentContext);
-    if (!context) {
-        throw new Error("useTournament must be used within a TournamentProvider");
-    }
+    if (!context) throw new Error("useTournament must be used within a TournamentProvider");
     return context;
 };

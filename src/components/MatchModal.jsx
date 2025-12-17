@@ -4,7 +4,7 @@ import VetoPanel from './VetoPanel';
 import { useTournament } from '../tournament/useTournament';
 import { isAdmin, isTeamCaptain } from '../tournament/permissions';
 import { useSession } from '../auth/useSession';
-import { MonitorPlay, Server, Tv, Shield, Copy, AlertTriangle, Play, Pause, RotateCcw, Edit3, History, User, AlertOctagon, Lock } from 'lucide-react';
+import { MonitorPlay, Server, Tv, Shield, Copy, AlertTriangle, Play, Pause, RotateCcw, Edit3, History, User, Lock, Activity, Map, X } from 'lucide-react';
 
 const MatchModal = ({ match, onClose }) => {
   const { adminUpdateMatch, fetchMatchTimeline, teams } = useTournament();
@@ -27,29 +27,24 @@ const MatchModal = ({ match, onClose }) => {
         setGotvIp(match.gotv_ip || '');
         setManualScore(match.score || ''); 
         
-        // Fetch Timeline on open if tab is timeline
         if (activeTab === 'timeline') {
-             fetchMatchTimeline(match.id).then(setTimeline);
+            fetchMatchTimeline(match.id).then(setTimeline);
         }
     }
   }, [match, activeTab]);
 
   if (!match) return null;
 
-  // Use team names from match object (provided by useTournament)
+  // Use team names/logos from normalized match object
   const t1Name = match.team1Name || 'TBD';
   const t2Name = match.team2Name || 'TBD';
-  
-  // Try to find seed info
-  const t1Seed = teams.find(t => t.id === match.team1Id)?.seed_number || '?';
-  const t2Seed = teams.find(t => t.id === match.team2Id)?.seed_number || '?';
+  const t1Logo = match.team1Logo;
+  const t2Logo = match.team2Logo;
+  const matchIdShort = (match.id || '').toString().split('-')[0].toUpperCase();
 
-  // Permission & Role Checks
+  // Permission Checks
   const userIsAdmin = isAdmin(session);
-  const userIsCaptain1 = isTeamCaptain(session, match.team1Id);
-  const userIsCaptain2 = isTeamCaptain(session, match.team2Id);
-  const userIsCaptain = userIsCaptain1 || userIsCaptain2;
-  
+  const userIsCaptain = isTeamCaptain(session, match.team1Id) || isTeamCaptain(session, match.team2Id);
   const isMatchLive = match.status === 'live';
   const canSeeServerIp = userIsAdmin || (isMatchLive && userIsCaptain);
 
@@ -60,310 +55,127 @@ const MatchModal = ({ match, onClose }) => {
   };
 
   const handleUpdate = async (updates) => {
-      setLoading(true);
-      try {
-          await adminUpdateMatch(match.id, updates);
-          // Refresh timeline after action
-          fetchMatchTimeline(match.id).then(setTimeline);
-      } catch (e) {
-          alert("Update Failed: " + e.message);
-      } finally {
-          setLoading(false);
-      }
+     setLoading(true);
+     try {
+         await adminUpdateMatch(match.id, updates);
+         fetchMatchTimeline(match.id).then(setTimeline);
+     } catch (e) {
+         alert("Update Failed: " + e.message);
+     } finally {
+         setLoading(false);
+     }
   };
 
-  const saveSettings = () => handleUpdate({ 
-      stream_url: streamUrl, 
-      server_ip: serverIp, 
-      gotv_ip: gotvIp,
-      score: manualScore
-  });
-
-  const setMatchState = (newState) => {
-      if (newState === 'live' && !serverIp && !confirm("Server IP is empty. Start match anyway?")) return;
-      handleUpdate({ status: newState });
-  };
-
+  const saveSettings = () => handleUpdate({ stream_url: streamUrl, server_ip: serverIp, gotv_ip: gotvIp, score: manualScore });
+  const setMatchState = (newState) => handleUpdate({ status: newState });
   const handleForceWin = async (winnerId) => {
     if (!confirm("Are you sure? This ends the match immediately.")) return;
-    handleUpdate({ 
-        winnerId, 
-        status: 'completed',
-        'vetoState.phase': 'completed'
-    });
+    handleUpdate({ winnerId, status: 'completed', 'vetoState.phase': 'completed' });
     onClose();
   };
 
-  // Timeline Renderer
-  const renderTimeline = () => (
-      <div className="space-y-4">
-          <h4 className="text-xs font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-2">
-              <History className="w-4 h-4" /> Audit Log (Immutable)
-          </h4>
-          <div className="bg-[#0b0c0f] border border-zinc-800 rounded-xl p-4 max-h-[300px] overflow-y-auto space-y-3">
-              {timeline.length === 0 ? (
-                  <p className="text-zinc-600 text-xs italic">No events recorded yet.</p>
-              ) : (
-                  timeline.map((event) => (
-                      <div key={event.id} className="flex gap-3 text-sm border-b border-zinc-800/50 pb-2 last:border-0 last:pb-0">
-                          <div className="flex-col min-w-[60px]">
-                              <span className="text-zinc-500 text-[10px] font-mono block">
-                                  {new Date(event.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                              </span>
-                          </div>
-                          <div>
-                              <div className="text-zinc-300 font-medium">
-                                  {event.action_type.replace(/_/g, ' ')}
-                              </div>
-                              <div className="text-zinc-500 text-xs flex items-center gap-1">
-                                  <User className="w-3 h-3" /> 
-                                  <span className="text-fuchsia-400 font-bold">
-                                      {event.performed_by || 'System'}
-                                  </span>
-                                  {event.actor_role && <span className="bg-zinc-800 px-1 rounded text-[9px]">{event.actor_role}</span>}
-                              </div>
-                          </div>
-                      </div>
-                  ))
-              )}
-          </div>
-      </div>
-  );
-
   return (
-    <Modal isOpen={!!match} onClose={onClose} title="Match Room" maxWidth="max-w-5xl">
-      <div className="space-y-6">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/95 backdrop-blur-xl animate-in fade-in duration-300">
+      <div className="w-full max-w-4xl bg-[#0b0c0f] border border-zinc-800 shadow-2xl overflow-hidden relative flex flex-col max-h-[90vh]" style={{ clipPath: 'polygon(0 0, 100% 0, 100% 95%, 98% 100%, 0 100%)' }}>
         
         {/* HEADER */}
-        <div className="bg-[#0b0c0f] rounded-xl border border-zinc-800 overflow-hidden relative shadow-lg">
-            <div className="absolute inset-0 bg-gradient-to-b from-fuchsia-900/10 to-transparent pointer-events-none" />
-            <div className="relative p-6 grid grid-cols-3 items-center">
-                <div className="text-right">
-                    <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight truncate">{t1Name}</h2>
-                    <div className="text-xs font-mono text-zinc-500 mt-1 uppercase tracking-widest">Seed #{t1Seed}</div>
-                </div>
-                <div className="flex flex-col items-center justify-center space-y-2">
-                    {match.score ? (
-                        <div className="text-4xl font-mono font-bold text-white tracking-widest">{match.score}</div>
-                    ) : (
-                        <div className="text-zinc-700 font-black text-4xl italic tracking-tighter opacity-50 select-none">VS</div>
-                    )}
-                    <Badge color={match.status === 'live' ? 'green' : match.status === 'completed' ? 'gray' : 'yellow'}>
-                        {match.status === 'live' ? 'LIVE NOW' : match.status.toUpperCase()}
-                    </Badge>
-                </div>
-                <div className="text-left">
-                    <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight truncate">{t2Name}</h2>
-                    <div className="text-xs font-mono text-zinc-500 mt-1 uppercase tracking-widest">Seed #{t2Seed}</div>
-                </div>
-            </div>
-            {/* Identity Banner */}
-            <div className="bg-black/40 px-4 py-1 flex justify-center items-center border-t border-white/5">
-                <span className="text-[10px] uppercase tracking-widest text-zinc-500">
-                    Viewing as: <span className={userIsAdmin ? "text-red-400 font-bold" : "text-zinc-300"}>
-                        {session.isAuthenticated ? session.role : "SPECTATOR"}
-                    </span>
-                </span>
-            </div>
+        <div className="p-6 border-b border-zinc-800 flex items-center justify-between bg-[#15191f]/80">
+          <div className="flex items-center gap-4">
+             <Activity className="w-5 h-5 text-[#ff5500]" />
+             <div>
+                <h3 className="text-xl font-black text-white italic tracking-tighter uppercase">TACTICAL_INTEL // {matchIdShort}</h3>
+                <p className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">{match.status}</p>
+             </div>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-full text-zinc-500 hover:text-white transition-colors"><X /></button>
         </div>
 
-        {/* NAVIGATION - Role Aware */}
-        <div className="flex flex-wrap gap-2 border-b border-zinc-800 pb-2">
-            <button 
-                onClick={() => setActiveTab('overview')}
-                className={`px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-colors ${activeTab === 'overview' ? 'bg-zinc-800 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
-            >
-                Match & Veto
-            </button>
-            <button 
-                onClick={() => setActiveTab('timeline')}
-                className={`px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-colors ${activeTab === 'timeline' ? 'bg-zinc-800 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
-            >
-                History & Logs
-            </button>
-            
-            {/* Admin Only Tabs */}
-            {userIsAdmin && (
-                <>
-                    <button 
-                        onClick={() => setActiveTab('settings')}
-                        className={`px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-colors ${activeTab === 'settings' ? 'bg-zinc-800 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
-                    >
-                        Settings
-                    </button>
-                    <button 
-                        onClick={() => setActiveTab('admin')}
-                        className={`px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-colors ${activeTab === 'admin' ? 'bg-red-900/20 text-red-400' : 'text-zinc-500 hover:text-red-400'}`}
-                    >
-                        Danger Zone
-                    </button>
-                </>
+        {/* CONTENT SCROLL */}
+        <div className="flex-1 overflow-y-auto p-8 space-y-8">
+            {/* SCOREBOARD */}
+            <div className="flex items-center justify-between gap-8 py-4 bg-black/20 rounded-xl border border-zinc-800/50 p-6">
+                <div className="flex-1 text-center space-y-3">
+                    <div className="w-20 h-20 mx-auto bg-zinc-900 border border-zinc-800 flex items-center justify-center rounded-sm">
+                        {t1Logo ? <img src={t1Logo} className="w-12 h-12 object-contain" /> : <Shield className="w-8 h-8 text-zinc-800" />}
+                    </div>
+                    <p className="text-sm font-black text-white uppercase tracking-widest">{t1Name}</p>
+                </div>
+                <div className="flex flex-col items-center">
+                    <span className="text-5xl font-mono font-black text-white italic drop-shadow-[0_0_15px_rgba(255,255,255,0.1)]">{match.score || '0-0'}</span>
+                    <div className="px-4 py-1 rounded-full bg-zinc-900 border border-zinc-800 text-[10px] font-mono text-zinc-500 uppercase tracking-widest mt-2">VS</div>
+                </div>
+                <div className="flex-1 text-center space-y-3">
+                    <div className="w-20 h-20 mx-auto bg-zinc-900 border border-zinc-800 flex items-center justify-center rounded-sm">
+                        {t2Logo ? <img src={t2Logo} className="w-12 h-12 object-contain" /> : <Shield className="w-8 h-8 text-zinc-800" />}
+                    </div>
+                    <p className="text-sm font-black text-white uppercase tracking-widest">{t2Name}</p>
+                </div>
+            </div>
+
+            {/* TABS */}
+            <div className="flex border-b border-zinc-800">
+                <button onClick={() => setActiveTab('overview')} className={`px-6 py-3 text-xs font-bold uppercase tracking-widest border-b-2 transition-colors ${activeTab === 'overview' ? 'border-[#ff5500] text-white' : 'border-transparent text-zinc-600 hover:text-zinc-400'}`}>Overview</button>
+                <button onClick={() => setActiveTab('timeline')} className={`px-6 py-3 text-xs font-bold uppercase tracking-widest border-b-2 transition-colors ${activeTab === 'timeline' ? 'border-[#ff5500] text-white' : 'border-transparent text-zinc-600 hover:text-zinc-400'}`}>Timeline</button>
+                {userIsAdmin && <button onClick={() => setActiveTab('admin')} className={`px-6 py-3 text-xs font-bold uppercase tracking-widest border-b-2 transition-colors ${activeTab === 'admin' ? 'border-red-500 text-red-500' : 'border-transparent text-zinc-600 hover:text-red-400'}`}>Admin</button>}
+            </div>
+
+            {/* OVERVIEW CONTENT */}
+            {activeTab === 'overview' && (
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {canSeeServerIp ? (
+                            <div onClick={() => handleCopy(serverIp, 'server')} className="bg-[#15191f] p-4 border border-green-900/30 rounded-sm cursor-pointer group hover:bg-green-900/10 transition-colors">
+                                <p className="text-[9px] font-mono text-green-500 uppercase mb-2 tracking-[0.2em] flex items-center gap-2"><Server className="w-3 h-3" /> Game Server</p>
+                                <code className="text-xs text-green-100 font-mono block bg-black/40 p-2 rounded border border-green-500/20">{serverIp || 'IP_PENDING'}</code>
+                                {copyFeedback['server'] && <span className="text-[10px] text-green-400 font-bold block mt-1">COPIED</span>}
+                            </div>
+                        ) : (
+                            <div className="bg-[#15191f] p-4 border border-zinc-800 rounded-sm opacity-50 flex items-center justify-center gap-2 text-zinc-500 font-mono text-xs uppercase">
+                                <Lock className="w-4 h-4" /> Secure Server Info
+                            </div>
+                        )}
+                        <div className="bg-[#15191f] p-4 border border-zinc-800 rounded-sm">
+                             <p className="text-[9px] font-mono text-zinc-500 uppercase mb-2 tracking-[0.2em] flex items-center gap-2"><Tv className="w-3 h-3" /> Broadcast</p>
+                             <span className="text-xs font-bold text-white uppercase tracking-widest">{streamUrl ? 'LINK_ACTIVE' : 'OFFLINE'}</span>
+                        </div>
+                    </div>
+                    <VetoPanel match={match} />
+                </div>
+            )}
+
+            {/* TIMELINE CONTENT */}
+            {activeTab === 'timeline' && (
+                <div className="bg-[#0b0c0f] border border-zinc-800 rounded-lg p-4 max-h-[300px] overflow-y-auto space-y-3 font-mono text-xs">
+                    {timeline.length === 0 ? <p className="text-zinc-600 italic">No events recorded.</p> : timeline.map(e => (
+                        <div key={e.id} className="flex gap-4 border-b border-zinc-800/50 pb-2">
+                            <span className="text-zinc-500">{new Date(e.created_at).toLocaleTimeString()}</span>
+                            <span className="text-zinc-300">{e.action_type}</span>
+                            <span className="text-[#ff5500]">{e.performed_by}</span>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {/* ADMIN CONTENT */}
+            {activeTab === 'admin' && userIsAdmin && (
+                <div className="space-y-4 bg-red-950/10 p-6 rounded-xl border border-red-900/30">
+                    <h4 className="text-xs font-bold text-red-500 uppercase tracking-widest mb-4">Danger Zone</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                        <input className="bg-[#0b0c0f] border border-zinc-700 p-2 text-white text-xs font-mono" value={manualScore} onChange={e => setManualScore(e.target.value)} placeholder="Score (13-0)" />
+                        <input className="bg-[#0b0c0f] border border-zinc-700 p-2 text-white text-xs font-mono" value={serverIp} onChange={e => setServerIp(e.target.value)} placeholder="Server IP" />
+                        <Button variant="primary" onClick={saveSettings} disabled={loading}>Update Match Data</Button>
+                        <Button variant="danger" onClick={() => handleForceWin(match.team1Id)}>Force Win T1</Button>
+                    </div>
+                </div>
             )}
         </div>
 
-        {/* --- VIEW: OVERVIEW --- */}
-        {activeTab === 'overview' && (
-            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                {/* SERVER INFO - Strict Logic */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Server IP: Only shown to Admins or Captains WHEN LIVE */}
-                    {canSeeServerIp ? (
-                        match.server_ip && match.server_ip !== 'HIDDEN' ? (
-                            <div 
-                                onClick={() => handleCopy(match.server_ip, 'server')}
-                                className="bg-green-900/10 border border-green-500/30 p-4 rounded-xl cursor-pointer group hover:bg-green-900/20 transition-all relative overflow-hidden"
-                            >
-                                <div className="absolute top-0 left-0 w-1 h-full bg-green-500" />
-                                <div className="flex justify-between items-start mb-2">
-                                    <div className="text-xs font-bold text-green-400 uppercase flex items-center gap-2">
-                                        <Server className="w-4 h-4" /> Game Server
-                                    </div>
-                                    <Copy className="w-4 h-4 text-green-500 opacity-50 group-hover:opacity-100" />
-                                </div>
-                                <code className="text-sm text-green-100 font-mono block bg-black/40 p-2 rounded border border-green-500/20">
-                                    connect {match.server_ip}
-                                </code>
-                                {copyFeedback['server'] && (
-                                    <div className="absolute inset-0 bg-green-900/90 flex items-center justify-center text-green-400 font-bold text-sm backdrop-blur-sm">COPIED!</div>
-                                )}
-                            </div>
-                        ) : (
-                            <div className="bg-zinc-900/50 border border-zinc-800 p-4 rounded-xl opacity-75 flex flex-col items-center justify-center text-center">
-                                <Shield className="w-6 h-6 text-zinc-600 mb-2" />
-                                <span className="text-xs font-bold text-zinc-500 uppercase">IP Pending</span>
-                            </div>
-                        )
-                    ) : userIsCaptain ? (
-                        // Locked State for Captains
-                        <div className="bg-yellow-900/10 border border-yellow-500/20 p-4 rounded-xl flex flex-col items-center justify-center text-center gap-2">
-                            <Lock className="w-6 h-6 text-yellow-500 opacity-50" />
-                            <span className="text-xs font-bold text-yellow-500 uppercase">IP Locked</span>
-                            <p className="text-[10px] text-zinc-500">Visible when match is LIVE</p>
-                        </div>
-                    ) : (
-                        // Hidden for Spectators
-                        <div className="bg-zinc-900/30 border border-zinc-800 p-4 rounded-xl flex items-center justify-center">
-                            <span className="text-xs font-bold text-zinc-600 uppercase">Server Hidden</span>
-                        </div>
-                    )}
-
-                    {/* GOTV - Public */}
-                    {match.gotv_ip && match.gotv_ip !== 'HIDDEN' && (
-                        <div 
-                            onClick={() => handleCopy(match.gotv_ip, 'gotv')}
-                            className="bg-purple-900/10 border border-purple-500/30 p-4 rounded-xl cursor-pointer group hover:bg-purple-900/20 transition-all relative overflow-hidden"
-                        >
-                            <div className="absolute top-0 left-0 w-1 h-full bg-purple-500" />
-                            <div className="flex justify-between items-start mb-2">
-                                <div className="text-xs font-bold text-purple-400 uppercase flex items-center gap-2">
-                                    <MonitorPlay className="w-4 h-4" /> GOTV
-                                </div>
-                                <Copy className="w-4 h-4 text-purple-500 opacity-50 group-hover:opacity-100" />
-                            </div>
-                            <code className="text-sm text-purple-100 font-mono block bg-black/40 p-2 rounded border border-purple-500/20">
-                                connect {match.gotv_ip}
-                            </code>
-                            {copyFeedback['gotv'] && (
-                                <div className="absolute inset-0 bg-purple-900/90 flex items-center justify-center text-purple-400 font-bold text-sm backdrop-blur-sm">COPIED!</div>
-                            )}
-                        </div>
-                    )}
-                </div>
-
-                <VetoPanel match={match} />
-            </div>
-        )}
-
-        {/* --- TAB: TIMELINE (Trust Center) --- */}
-        {activeTab === 'timeline' && renderTimeline()}
-
-        {/* --- ADMIN TABS (Hidden from Captains) --- */}
-        {activeTab === 'settings' && userIsAdmin && (
-            <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                <div className="bg-zinc-900/50 p-4 rounded-xl border border-zinc-800 mb-4">
-                    <h4 className="text-xs font-bold text-zinc-500 uppercase mb-3">Match Lifecycle</h4>
-                    <div className="flex gap-3">
-                        <Button 
-                            onClick={() => setMatchState('live')}
-                            className={`flex-1 flex items-center justify-center gap-2 ${match.status === 'live' ? 'bg-green-600' : 'bg-zinc-800'}`}
-                            disabled={match.status === 'live' || loading}
-                        >
-                            <Play className="w-4 h-4" /> Start Match (Reveal IP)
-                        </Button>
-                        <Button 
-                            onClick={() => setMatchState('paused')}
-                            className="bg-yellow-900/30 text-yellow-500 border border-yellow-900/50 hover:bg-yellow-900/50"
-                            disabled={loading}
-                        >
-                            <Pause className="w-4 h-4" /> Pause
-                        </Button>
-                        <Button 
-                            onClick={() => setMatchState('scheduled')}
-                            variant="ghost"
-                            className="text-zinc-500 hover:text-white"
-                            disabled={loading}
-                        >
-                            <RotateCcw className="w-4 h-4" /> Reset
-                        </Button>
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Server IP (Secret)</label>
-                        <input className="w-full bg-[#0b0c0f] border border-zinc-700 rounded p-3 text-white focus:border-blue-500 outline-none font-mono text-sm"
-                            value={serverIp} onChange={(e) => setServerIp(e.target.value)} placeholder="127.0.0.1:27015" />
-                    </div>
-                    <div>
-                        <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">GOTV IP (Public)</label>
-                        <input className="w-full bg-[#0b0c0f] border border-zinc-700 rounded p-3 text-white focus:border-purple-500 outline-none font-mono text-sm"
-                            value={gotvIp} onChange={(e) => setGotvIp(e.target.value)} placeholder="127.0.0.1:27020" />
-                    </div>
-                    <div className="md:col-span-2">
-                        <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Manual Score</label>
-                        <div className="relative">
-                            <Edit3 className="absolute left-3 top-3 w-4 h-4 text-zinc-500" />
-                            <input className="w-full bg-[#0b0c0f] border border-zinc-700 rounded p-3 pl-10 text-white focus:border-green-500 outline-none font-mono"
-                                value={manualScore} onChange={(e) => setManualScore(e.target.value)} placeholder="e.g. 13 - 9" />
-                        </div>
-                    </div>
-                    <div className="md:col-span-2">
-                        <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Stream URL</label>
-                        <div className="relative">
-                            <Tv className="absolute left-3 top-3 w-4 h-4 text-zinc-500" />
-                            <input className="w-full bg-[#0b0c0f] border border-zinc-700 rounded p-3 pl-10 text-white focus:border-purple-500 outline-none"
-                                value={streamUrl} onChange={(e) => setStreamUrl(e.target.value)} placeholder="https://twitch.tv/..." />
-                        </div>
-                    </div>
-                </div>
-                <div className="flex justify-end pt-2">
-                    <Button onClick={saveSettings} disabled={loading}>Save Changes</Button>
-                </div>
-            </div>
-        )}
-
-        {activeTab === 'admin' && userIsAdmin && (
-            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                <div className="bg-red-950/10 border border-red-900/30 p-6 rounded-xl">
-                    <h4 className="text-red-400 font-bold text-sm uppercase flex items-center gap-2 mb-4">
-                        <AlertTriangle className="w-4 h-4" /> Force Result
-                    </h4>
-                    <p className="text-zinc-500 text-xs mb-6 max-w-md">
-                        Manually ending the match will lock the veto and advance the bracket. This is logged in the Timeline.
-                    </p>
-                    <div className="grid grid-cols-2 gap-4">
-                        <Button variant="danger" className="h-12" onClick={() => handleForceWin(match.team1Id)} disabled={loading}>
-                            Win: {t1Name}
-                        </Button>
-                        <Button variant="danger" className="h-12" onClick={() => handleForceWin(match.team2Id)} disabled={loading}>
-                            Win: {t2Name}
-                        </Button>
-                    </div>
-                </div>
-            </div>
-        )}
+        {/* FOOTER */}
+        <div className="p-4 bg-zinc-900/30 border-t border-zinc-800 flex justify-end">
+           <button onClick={onClose} className="px-8 py-2 bg-zinc-800 hover:bg-zinc-700 text-white text-[10px] font-black uppercase tracking-[0.3em] border border-zinc-700 transition-all">CLOSE_PANEL</button>
+        </div>
       </div>
-    </Modal>
+    </div>
   );
 };
 

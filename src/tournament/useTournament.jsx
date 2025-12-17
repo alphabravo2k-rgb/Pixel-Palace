@@ -1,4 +1,4 @@
-import React, { useState, useCallback, createContext, useContext } from 'react';
+import React, { useState, useCallback, createContext, useContext, useEffect } from 'react';
 
 /**
  * @typedef {Object} Participant
@@ -26,10 +26,42 @@ const TournamentContext = createContext(null);
  * This is used by the TournamentProvider to create the state object.
  */
 const useTournamentSource = () => {
-  const [rounds, setRounds] = useState([]);
-  const [champion, setChampion] = useState(null);
-  const [isTournamentActive, setIsTournamentActive] = useState(false);
+  // Initialize state from localStorage to prevent "NO MATCHES FOUND" on refresh
+  const [rounds, setRounds] = useState(() => {
+    try {
+      const saved = localStorage.getItem('palace_tournament_rounds');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      console.error("Failed to load tournament rounds:", e);
+      return [];
+    }
+  });
+
+  const [champion, setChampion] = useState(() => {
+    try {
+      const saved = localStorage.getItem('palace_tournament_champion');
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+      return null;
+    }
+  });
+
+  const [isTournamentActive, setIsTournamentActive] = useState(() => {
+    try {
+      return localStorage.getItem('palace_tournament_active') === 'true';
+    } catch (e) {
+      return false;
+    }
+  });
+
   const [error, setError] = useState(null);
+
+  // Persistence Effect: Save state whenever it changes
+  useEffect(() => {
+    localStorage.setItem('palace_tournament_rounds', JSON.stringify(rounds));
+    localStorage.setItem('palace_tournament_champion', JSON.stringify(champion));
+    localStorage.setItem('palace_tournament_active', String(isTournamentActive));
+  }, [rounds, champion, isTournamentActive]);
 
   /**
    * Helper to pad participants to the nearest power of 2
@@ -185,6 +217,10 @@ const useTournamentSource = () => {
     setChampion(null);
     setIsTournamentActive(false);
     setError(null);
+    // Clear persistence
+    localStorage.removeItem('palace_tournament_rounds');
+    localStorage.removeItem('palace_tournament_champion');
+    localStorage.setItem('palace_tournament_active', 'false');
   }, []);
 
   return {

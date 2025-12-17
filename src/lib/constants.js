@@ -18,11 +18,8 @@ export const MAP_POOL = [
 // --- UTILITIES: MAPS ---
 export const ACTIVE_MAPS = MAP_POOL.filter(m => m.active);
 export const LEGACY_MAPS = MAP_POOL.filter(m => !m.active);
-
 export const getActiveMaps = () => ACTIVE_MAPS;
 export const getMapById = (id) => MAP_POOL.find(m => m.id === id) || null;
-
-// Search Helpers
 export const getActiveMapBySlug = (slug) => ACTIVE_MAPS.find(m => m.slug === slug) || null;
 export const getLegacyMapBySlug = (slug) => LEGACY_MAPS.find(m => m.slug === slug) || null;
 export const getMapBySlug = (slug) => MAP_POOL.find(m => m.slug === slug) || null;
@@ -69,8 +66,8 @@ export const compareRanks = (rankA, rankB) => getRankIndex(rankA) - getRankIndex
 export const isRankHigher = (rankA, rankB) => compareRanks(rankA, rankB) > 0;
 export const isRankLower = (rankA, rankB) => compareRanks(rankA, rankB) < 0;
 
-
 // --- VETO PROTOCOLS (Standard V8) ---
+// Now using structured objects for easier parsing
 export const VETO_FLOW = { 
   "BO1": [
     { team: "A", action: "BAN" }, { team: "B", action: "BAN" },

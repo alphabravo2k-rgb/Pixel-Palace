@@ -45,6 +45,9 @@ export const TournamentProvider = ({ children }) => {
             const captain = teamPlayers.find(p => p.is_captain);
 
             return {
+                // CRITICAL FIX: Spread raw data FIRST so it doesn't overwrite our normalizations
+                ...t,
+
                 id: t.id,
                 name: t.name, 
                 seed_number: t.seed_number,
@@ -53,7 +56,7 @@ export const TournamentProvider = ({ children }) => {
                 captainId: captain ? captain.id : null,
                 discord_channel_url: t.discord_channel_url, // Needed for TeamRoster footer
                 
-                // CRITICAL FIX: Data Contract Normalization
+                // DATA CONTRACT NORMALIZATION
                 // We map database fields to exactly what TeamRoster.jsx expects
                 players: teamPlayers.map(p => ({
                     id: p.id,
@@ -64,11 +67,11 @@ export const TournamentProvider = ({ children }) => {
                     // Socials & Stats (Matching TeamRoster props)
                     faceit_url: p.faceit_url,      // Was 'faceit'
                     steam_url: p.steam_url,        // Was 'steam'
-                    discord_url: p.discord_url,    // Was 'discord' (ensure DB has this or map handle if needed)
+                    // Safety Fallback: Use URL if exists, else build from handle
+                    discord_url: p.discord_url || (p.discord_handle ? `https://discord.com/users/${p.discord_handle}` : null),
                     faceit_elo: p.faceit_elo,      // Explicit pass-through
                     country_code: p.country_code   // Explicit pass-through
-                })),
-                ...t
+                }))
             };
         });
         setTeams(uiTeams);
@@ -112,7 +115,7 @@ export const TournamentProvider = ({ children }) => {
             if (m.metadata?.turn === 'A') turnId = m.team1_id;
             if (m.metadata?.turn === 'B') turnId = m.team2_id;
 
-            // Status Logic Refinement - Based on Critique
+            // Status Logic Refinement
             let displayStatus = 'scheduled';
             if (m.state === 'complete') {
                 displayStatus = 'completed';
@@ -290,7 +293,7 @@ export const TournamentProvider = ({ children }) => {
       return data;
   };
 
-  // Group Matches by Round (Critique Requirement 3)
+  // Group Matches by Round
   const rounds = useMemo(() => {
     return matches.reduce((acc, m) => {
       if (!acc[m.round]) acc[m.round] = [];
@@ -308,7 +311,7 @@ export const TournamentProvider = ({ children }) => {
     <TournamentContext.Provider value={{ 
       teams, 
       matches, 
-      rounds, // Exposing explicit round grouping
+      rounds, 
       loading, 
       error,
       createTeam, 

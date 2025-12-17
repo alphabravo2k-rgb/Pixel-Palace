@@ -23,15 +23,25 @@ const extractFaceitNickname = (url) => {
 
 const parseVetoState = (vetoMeta) => {
   const banned = [];
-  let picked = null;
+  const pickedMaps = [];
+  let picked = null; // Legacy support
   const maps = vetoMeta?.maps || [];
+  
   if (Array.isArray(maps)) {
     maps.forEach((entry) => {
-      if (entry.action === 'BAN') banned.push(entry.map_id);
-      if (entry.action === 'PICK') picked = entry.map_id;
+      // Safety check for malformed entries
+      if (!entry?.map_id) return;
+
+      if (entry.action === 'BAN') {
+        banned.push(entry.map_id);
+      }
+      if (entry.action === 'PICK') {
+        pickedMaps.push(entry.map_id);
+        picked = entry.map_id; 
+      }
     });
   }
-  return { banned, picked };
+  return { banned, picked, pickedMaps };
 };
 
 export const TournamentProvider = ({ children }) => {
@@ -49,9 +59,14 @@ export const TournamentProvider = ({ children }) => {
   const hasLoadedTeams = useRef(false);
   const hasLoadedMatches = useRef(false);
   const isFetchingMatches = useRef(false);
+  const isFetchingTeams = useRef(false);
 
   // --- 1. FETCH TEAMS (Static Data) ---
   const fetchTeams = useCallback(async () => {
+    // Prevent concurrent fetches
+    if (isFetchingTeams.current) return;
+    isFetchingTeams.current = true;
+
     try {
       const [teamsRes, playersRes] = await Promise.all([
         supabase.from('teams').select('*').order('seed_number', { ascending: true }),
@@ -97,12 +112,14 @@ export const TournamentProvider = ({ children }) => {
     } catch (err) {
       console.error("Team Sync Error:", err);
       if (!hasLoadedTeams.current) setError("Failed to load team roster."); 
+    } finally {
+      isFetchingTeams.current = false;
     }
   }, []); 
 
   // --- 2. FETCH MATCHES (Live Data) ---
   const fetchMatches = useCallback(async () => {
-    // Prevent concurrent fetches
+    // Prevent concurrent fetches or overlap with polling
     if (isFetchingMatches.current) return;
     isFetchingMatches.current = true;
 
@@ -118,7 +135,7 @@ export const TournamentProvider = ({ children }) => {
       }
 
       const uiMatches = matchesData.map((m) => {
-        const { banned, picked } = parseVetoState(m.metadata?.veto);
+        const { banned, picked, pickedMaps } = parseVetoState(m.metadata?.veto);
         
         let displayStatus = 'scheduled';
         if (m.state === 'complete') displayStatus = 'completed';
@@ -135,6 +152,7 @@ export const TournamentProvider = ({ children }) => {
           team1Id: m.team1_id,
           team2Id: m.team2_id,
           winnerId: m.winner_id,
+          
           team1Name: m.team1_name || "TBD",
           team2Name: m.team2_name || "TBD",
           team1Logo: m.team1_logo,
@@ -146,7 +164,8 @@ export const TournamentProvider = ({ children }) => {
             phase: m.state === 'complete' ? 'complete' : 'ban', 
             turn: m.metadata?.turn === 'A' ? m.team1_id : m.metadata?.turn === 'B' ? m.team2_id : null,
             bannedMaps: banned, 
-            pickedMap: picked 
+            pickedMap: picked,
+            pickedMaps: pickedMaps
           },
           metadata: { ...m.metadata, sos_triggered: m.sos_triggered, sos_by: m.sos_by, assigned_admin_name: m.assigned_admin_name },
           server_ip: m.server_ip || null,
@@ -159,7 +178,7 @@ export const TournamentProvider = ({ children }) => {
       setLastUpdated(new Date());
       hasLoadedMatches.current = true;
       
-      // Explicitly clear error if successful
+      // Clear error if we have successful data to prevent flickering
       if (matchesData.length > 0) {
         setError(prev => prev ? null : prev);
       }
@@ -169,10 +188,9 @@ export const TournamentProvider = ({ children }) => {
       if (!hasLoadedMatches.current) setError(err.message);
     } finally {
       isFetchingMatches.current = false;
-      // Only disable global loading if this was part of the initial batch
-      setLoading(prev => prev ? false : prev);
+      // Note: We do not set global loading false here to avoid thrashing on poll
     }
-  }, [session.pin, session.isAuthenticated]);
+  }, [session.pin, session.isAuthenticated]); // Removed 'error' and 'matches.length' dependencies
 
   // --- 3. LIFECYCLE MANAGEMENT ---
 
@@ -201,22 +219,23 @@ export const TournamentProvider = ({ children }) => {
     return () => clearInterval(interval);
   }, [fetchMatches, session.isAuthenticated, session.role]);
 
-  // Force Sync
+  // Force Sync (Admin Action)
+  // Uses setIsRefreshing to avoid unmounting UI components
   const refreshAll = useCallback(async () => {
-    setLoading(true);
-    await Promise.all([fetchTeams(), fetchMatches()]);
-    setLoading(false);
+    setIsRefreshing(true);
+    await Promise.allSettled([fetchTeams(), fetchMatches()]);
+    setIsRefreshing(false);
   }, [fetchTeams, fetchMatches]);
 
   // --- 4. MUTATION ACTIONS ---
 
   const submitVeto = async (matchId, payload) => {
     if (!session.pin) throw new Error("Unauthorized");
-    const { error } = await supabase.rpc('submit_veto', {
-      match_id: matchId,
-      input_pin: session.pin,
-      action: payload.action,
-      target_map_id: payload.mapId
+    const { error } = await supabase.rpc('submit_veto', { 
+      match_id: matchId, 
+      input_pin: session.pin, 
+      action: payload.action, 
+      target_map_id: payload.mapId 
     });
     if (error) throw error;
     fetchMatches();
@@ -224,10 +243,10 @@ export const TournamentProvider = ({ children }) => {
 
   const adminUpdateMatch = async (matchId, updates) => {
     if (!session.pin) throw new Error("Unauthorized");
-    const { error } = await supabase.rpc('admin_update_match', {
-      match_id: matchId,
-      input_pin: session.pin,
-      updates: updates
+    const { error } = await supabase.rpc('admin_update_match', { 
+      match_id: matchId, 
+      input_pin: session.pin, 
+      updates: updates 
     });
     if (error) throw error;
     fetchMatches();
@@ -235,9 +254,9 @@ export const TournamentProvider = ({ children }) => {
 
   const triggerSOS = async (matchId) => {
     if (!session.pin) throw new Error("Unauthorized");
-    const { error } = await supabase.rpc('trigger_sos', {
-      match_id: matchId,
-      input_pin: session.pin
+    const { error } = await supabase.rpc('trigger_sos', { 
+      match_id: matchId, 
+      input_pin: session.pin 
     });
     if (error) throw error;
     fetchMatches();

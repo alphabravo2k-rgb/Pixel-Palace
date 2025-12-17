@@ -6,12 +6,11 @@ import {
 
 /**
  * ENVIRONMENT FIX: Using Skypack CDN for Supabase to resolve resolution errors 
- * in the preview environment.
+ * and avoid "import.meta" ES2015 target issues.
  */
 import { createClient } from 'https://cdn.skypack.dev/@supabase/supabase-js';
 
 // --- CONFIGURATION ---
-// Safe hardcoded defaults to prevent "import.meta" es2015 warnings
 const supabaseUrl = 'https://your-project.supabase.co';
 const supabaseAnonKey = 'your-anon-key';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
@@ -47,7 +46,7 @@ export const TournamentProvider = ({ children }) => {
       setMatches(enrichedMatches);
       setError(null);
     } catch (err) {
-      console.error("Tactical Sync Error:", err);
+      console.error("Sync Error:", err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -97,7 +96,7 @@ const getStatusStyles = (status) => {
       label: 'OPERATIONAL',
       color: 'text-emerald-400',
       border: 'border-emerald-500/40',
-      glow: 'shadow-[0_0_15px_rgba(52,211,153,0.1)]',
+      glow: 'shadow-[0_0_15px_rgba(52,211,153,0.15)]',
       accent: 'bg-emerald-500',
       line: '#10b981'
     },
@@ -105,7 +104,7 @@ const getStatusStyles = (status) => {
       label: 'VETO_SEQUENCE',
       color: 'text-orange-400',
       border: 'border-orange-500/40',
-      glow: 'shadow-[0_0_15px_rgba(251,146,60,0.1)]',
+      glow: 'shadow-[0_0_15px_rgba(251,146,60,0.15)]',
       accent: 'bg-orange-500',
       line: '#f97316'
     },
@@ -134,7 +133,8 @@ const getStatusStyles = (status) => {
 const IntelModal = ({ match, onClose }) => {
   if (!match) return null;
   const theme = getStatusStyles(match.status);
-  const matchIdShort = match.id?.toString().split('-')?.[0] || 'N/A';
+  // Defensively handle missing IDs to prevent crash
+  const matchIdShort = match.id?.toString().split('-')?.[0] || 'MOD_00';
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-300">
@@ -164,8 +164,8 @@ const IntelModal = ({ match, onClose }) => {
                <p className="text-sm font-black text-white uppercase">{match.team1Name || 'PENDING'}</p>
             </div>
             <div className="flex flex-col items-center gap-4">
-               <span className="text-5xl font-mono font-black text-[#ff5500] italic">{match.score || '0 - 0'}</span>
-               <div className="px-4 py-1 rounded-full bg-zinc-900 border border-zinc-800 text-[10px] font-mono text-zinc-500 uppercase">VS</div>
+               <span className="text-5xl font-mono font-black text-[#ff5500] italic drop-shadow-[0_0_10px_rgba(255,85,0,0.3)]">{match.score || '0 - 0'}</span>
+               <div className="px-4 py-1 rounded-full bg-zinc-900 border border-zinc-800 text-[10px] font-mono text-zinc-500 uppercase tracking-widest">VS_ENGAGEMENT</div>
             </div>
             <div className="flex-1 space-y-4">
                <div className="w-24 h-24 mx-auto bg-zinc-900 border border-zinc-800 flex items-center justify-center rounded-sm">
@@ -177,7 +177,7 @@ const IntelModal = ({ match, onClose }) => {
         </div>
 
         <div className="p-4 bg-zinc-900/30 border-t border-zinc-800 flex justify-end">
-           <button onClick={onClose} className="px-8 py-2 bg-zinc-800 hover:bg-zinc-700 text-white text-[10px] font-black uppercase tracking-[0.3em]">
+           <button onClick={onClose} className="px-8 py-2 bg-zinc-800 hover:bg-zinc-700 text-white text-[10px] font-black uppercase tracking-[0.3em] border border-zinc-700">
              TERMINATE_LINK
            </button>
         </div>
@@ -232,10 +232,10 @@ const MatchCard = ({ match, onOpenIntel, setRef }) => {
           onClick={() => isActionable && onOpenIntel(match)}
           disabled={!isActionable}
           className={`group/btn flex items-center gap-1.5 px-3 py-1 rounded-sm text-[9px] font-black tracking-tighter uppercase transition-all
-            ${isActionable ? 'bg-zinc-800 text-zinc-300 hover:bg-[#ff5500]/20 hover:text-[#ff5500] cursor-pointer' : 'bg-zinc-900/50 text-zinc-700 cursor-not-allowed'}`}
+            ${isActionable ? 'bg-zinc-800 text-zinc-300 hover:bg-[#ff5500]/20 hover:text-[#ff5500] cursor-pointer' : 'bg-zinc-900/50 text-zinc-700 cursor-not-allowed opacity-50'}`}
         >
           {isActionable ? 'ACCESS_INTEL' : 'LOCKED'}
-          <ChevronRight className="w-2.5 h-2.5" />
+          <ChevronRight className={`w-2.5 h-2.5 transition-transform ${isActionable ? 'group-hover/btn:translate-x-0.5' : ''}`} />
         </button>
       </div>
       <div className={`absolute left-0 top-0 h-full w-[2px] opacity-0 group-hover:opacity-100 transition-opacity ${theme.accent}`} />
@@ -253,8 +253,8 @@ const BracketsContent = () => {
   const matchRefs = useRef(new Map());
 
   /**
-   * CONNECTOR ENGINE: Re-implemented from "Yesterday" logic.
-   * Calculates paths dynamically to ensure lines never break during resize.
+   * CONNECTOR ENGINE: Restored from "Yesterday" code.
+   * Dynamically draws SVG paths between matches based on DOM positions.
    */
   useEffect(() => {
     if (loading || !contentRef.current || !svgRef.current || !matches) return;
@@ -304,8 +304,17 @@ const BracketsContent = () => {
   if (loading && (!matches || matches.length === 0)) {
     return (
       <div className="flex flex-col items-center justify-center h-[500px] text-zinc-500 gap-4 bg-[#0b0c0f]">
-        <Loader2 className="w-10 h-10 animate-spin" />
-        <p className="text-xs font-bold uppercase tracking-[0.5em]">Syncing Tactical Grid...</p>
+        <Loader2 className="w-10 h-10 animate-spin text-zinc-600" />
+        <p className="text-xs font-bold uppercase tracking-[0.5em]">Syncing Tournament Data...</p>
+      </div>
+    );
+  }
+
+  if (!loading && (!matches || matches.length === 0)) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[500px] text-zinc-500 gap-4 bg-[#0b0c0f]">
+        <Trophy className="w-12 h-12 opacity-20" />
+        <p className="text-sm font-bold tracking-widest uppercase tracking-[0.2em]">No Operations Found</p>
       </div>
     );
   }
@@ -313,19 +322,21 @@ const BracketsContent = () => {
   const sortedRounds = Object.entries(rounds || {}).sort(([a], [b]) => Number(a) - Number(b));
 
   return (
-    <div className="space-y-12 p-4 md:p-10 bg-[#0b0c0f]">
-      <div className="flex flex-col md:flex-row justify-between items-end gap-6 border-b border-zinc-800 pb-8">
+    <div className="space-y-12 p-4 md:p-10 bg-[#0b0c0f] animate-in fade-in duration-700">
+      <div className="flex flex-col md:flex-row justify-between items-end gap-6 border-b border-zinc-800 pb-8 relative z-10">
           <div className="space-y-2">
               <h2 className="text-4xl font-black text-white italic tracking-tighter uppercase leading-none">TACTICAL <span className="text-[#ff5500]">BRACKETS</span></h2>
               <div className="flex items-center gap-3 text-zinc-500 text-[10px] font-mono uppercase tracking-[0.3em]">
-                <Target className="w-3.5 h-3.5 text-[#ff5500]" /> {sortedRounds.length} Sector Identified
+                <Target className="w-3.5 h-3.5 text-[#ff5500]" /> {sortedRounds.length} Deployment Sectors Identified
               </div>
           </div>
       </div>
 
       <div className="relative min-w-max" ref={contentRef}>
+        {/* Dynamic SVG Layer */}
         <svg ref={svgRef} className="absolute inset-0 w-full h-full pointer-events-none z-0" />
-        <div className="relative z-10 flex gap-24 pb-20 select-none">
+        
+        <div className="relative z-10 flex gap-24 pb-20 select-none no-scrollbar">
           {sortedRounds.map(([roundNum, roundMatches]) => (
             <div key={roundNum} className="flex flex-col gap-12 min-w-max">
               <div className="relative flex flex-col gap-1 pl-4 border-l-2 border-[#ff5500]/50">
@@ -348,6 +359,12 @@ const BracketsContent = () => {
             </div>
           ))}
         </div>
+      </div>
+
+      <div className="flex flex-wrap gap-10 border-t border-zinc-800 pt-10 opacity-50 relative z-10">
+        <div className="flex items-center gap-3"><div className="w-3.5 h-3.5 bg-[#ff5500] shadow-[0_0_10px_rgba(255,85,0,0.3)]" style={{ clipPath: 'polygon(0 0, 100% 0, 80% 100%, 0 100%)' }} /><span className="text-[10px] font-mono text-white uppercase tracking-widest font-black">Active Zone</span></div>
+        <div className="flex items-center gap-3"><div className="w-3.5 h-3.5 bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.3)]" style={{ clipPath: 'polygon(0 0, 100% 0, 80% 100%, 0 100%)' }} /><span className="text-[10px] font-mono text-white uppercase tracking-widest font-black">Reserve Support</span></div>
+        <div className="ml-auto flex items-center gap-2 text-[9px] font-mono text-zinc-600 uppercase tracking-[0.3em]"><Info className="w-3 h-3" /> Build_Alpha_v2.5.6 // Tactical_Environment</div>
       </div>
 
       {activeIntel && <IntelModal match={activeIntel} onClose={() => setActiveIntel(null)} />}

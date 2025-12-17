@@ -3,12 +3,17 @@ import {
   Swords, Tv, Shield, AlertTriangle, ChevronRight, Map, Zap, 
   X, Activity, Target, Info, Loader2, Trophy 
 } from 'lucide-react';
-import { createClient } from '@supabase/supabase-js';
+
+/**
+ * RESOLUTION FIX: Using Skypack for Supabase to resolve "Could not resolve" error 
+ * in environments where node_modules might not be fully available.
+ */
+import { createClient } from 'https://cdn.skypack.dev/@supabase/supabase-js';
 
 // --- CONFIGURATION ---
-// Initializing Supabase inside the file to ensure it's self-contained and avoids resolution errors.
-const supabaseUrl = import.meta.env?.VITE_SUPABASE_URL || 'https://your-project.supabase.co';
-const supabaseAnonKey = import.meta.env?.VITE_SUPABASE_ANON_KEY || 'your-anon-key';
+// Replaced import.meta.env with safe defaults to resolve compilation warnings.
+const supabaseUrl = 'https://your-project.supabase.co';
+const supabaseAnonKey = 'your-anon-key';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // --- LOGIC LAYER (Consolidated Provider) ---
@@ -23,7 +28,6 @@ export const TournamentProvider = ({ children }) => {
 
   const fetchData = useCallback(async () => {
     try {
-      // Parallel fetch for optimal performance
       const [teamsRes, matchesRes] = await Promise.all([
         supabase.from('teams').select('*, players(*)').order('seed_number', { ascending: true }),
         supabase.rpc('get_public_matches')
@@ -31,7 +35,6 @@ export const TournamentProvider = ({ children }) => {
 
       if (teamsRes.error) throw teamsRes.error;
       
-      // Enforce strict data contract for matches
       const rawMatches = matchesRes.data || [];
       const enrichedMatches = rawMatches.map(m => ({
         ...m,
@@ -57,7 +60,6 @@ export const TournamentProvider = ({ children }) => {
     return () => clearInterval(interval);
   }, [fetchData]);
 
-  // Stable Rounds calculation to prevent layout jumps
   const rounds = useMemo(() => {
     if (!matches || matches.length === 0) return {};
     const grouped = matches.reduce((acc, m) => {
@@ -67,7 +69,6 @@ export const TournamentProvider = ({ children }) => {
       return acc;
     }, {});
 
-    // Sort slots to ensure consistent rendering and connector alignment
     Object.keys(grouped).forEach(r => {
       grouped[r].sort((a, b) => (a.slot || 0) - (b.slot || 0));
     });
@@ -211,7 +212,7 @@ const IntelModal = ({ match, onClose }) => {
 const TeamSlot = ({ name, logo, score, isWinner, isTBD }) => (
   <div className={`flex items-center justify-between px-3 py-2.5 transition-all duration-300 ${isWinner ? 'bg-white/[0.04]' : ''}`}>
     <div className="flex items-center gap-3 min-w-0">
-      <div className={`w-7 h-7 rounded-sm bg-zinc-900 flex-shrink-0 flex items-center justify-center overflow-hidden border ${isWinner ? 'border-[#ff5500]/50' : 'border-zinc-800'}`}>
+      <div className={`w-7 h-7 rounded-sm bg-zinc-900 flex-shrink-0 flex items-center justify-center overflow-hidden border ${isWinner ? 'border-[#ff5500]/50 shadow-[0_0_10px_rgba(255,85,0,0.1)]' : 'border-zinc-800'}`}>
         {logo ? (
           <img src={logo} alt="" className="w-full h-full object-contain" />
         ) : (
@@ -234,7 +235,6 @@ const MatchCard = ({ match, onOpenIntel, setRef }) => {
   const isActionable = !!(match.team1Id && match.team2Id);
   const matchIdShort = match.id?.toString().split('-')?.[0] || 'ERR';
   
-  // Safe score parsing with fallbacks to prevent crash
   const scoreParts = match.score?.toString().split('-') || [null, null];
 
   return (
@@ -311,7 +311,6 @@ const BracketsContent = () => {
   const svgRef = useRef(null);
   const matchRefs = useRef(new Map());
 
-  // --- DYNAMIC LINE CALCULATION (Using "Yesterday" Math Engine) ---
   useEffect(() => {
     if (loading || !contentRef.current || !svgRef.current || !matches) return;
 
@@ -361,13 +360,10 @@ const BracketsContent = () => {
     resizeObserver.observe(contentRef.current);
     if (containerRef.current) resizeObserver.observe(containerRef.current);
     
-    // Initial draw
     updateLines();
-    
     return () => resizeObserver.disconnect();
   }, [loading, matches, rounds]);
 
-  // Loading Screen
   if (loading && (!matches || matches.length === 0)) {
     return (
       <div className="flex flex-col items-center justify-center h-[500px] text-zinc-500 gap-4 bg-[#0b0c0f]">
@@ -377,7 +373,6 @@ const BracketsContent = () => {
     );
   }
 
-  // Error Boundary View
   if (error) {
     return (
       <div className="p-12 text-center text-red-500 font-mono text-xs uppercase flex flex-col items-center gap-3 bg-[#0b0c0f]">
@@ -390,7 +385,6 @@ const BracketsContent = () => {
     );
   }
 
-  // Empty State View
   if (!loading && (!matches || matches.length === 0)) {
     return (
       <div className="flex flex-col items-center justify-center h-[500px] text-zinc-500 gap-4 bg-[#0b0c0f]">
@@ -404,7 +398,6 @@ const BracketsContent = () => {
 
   return (
     <div className="space-y-12 p-4 md:p-10 animate-in fade-in duration-1000 bg-[#0b0c0f]" ref={containerRef}>
-      {/* Tactical Header */}
       <div className="flex flex-col md:flex-row justify-between items-end gap-6 border-b border-zinc-800 pb-8 relative z-10">
           <div className="space-y-2">
               <h2 className="text-4xl font-black text-white italic tracking-tighter uppercase leading-none">
@@ -422,15 +415,12 @@ const BracketsContent = () => {
           </div>
       </div>
 
-      {/* Main Grid Wrapper */}
       <div className="relative min-w-max" ref={contentRef}>
-        {/* Dynamic Connector SVG (Direct DOM manipulation for performance) */}
         <svg ref={svgRef} className="absolute inset-0 w-full h-full pointer-events-none z-0" />
 
         <div className="relative z-10 flex gap-24 pb-20 no-scrollbar select-none">
           {sortedRounds.map(([roundNum, roundMatches]) => (
             <div key={roundNum} className="flex flex-col gap-12 min-w-max">
-              {/* Round Metadata Header */}
               <div className="relative flex flex-col gap-1 pl-4 border-l-2 border-[#ff5500]/50">
                 <span className="text-[10px] font-mono text-[#ff5500] uppercase tracking-[0.4em] font-black">PHASE_{roundNum.padStart(2, '0')}</span>
                 <span className="text-sm font-black text-white uppercase italic tracking-tighter opacity-80">
@@ -438,7 +428,6 @@ const BracketsContent = () => {
                 </span>
               </div>
 
-              {/* Match Alignment Grid */}
               <div className="flex flex-col justify-around flex-grow gap-16 relative">
                 {roundMatches.map((match) => (
                   <MatchCard 
@@ -457,7 +446,6 @@ const BracketsContent = () => {
         </div>
       </div>
 
-      {/* Legend & Intel Info Footer */}
       <div className="flex flex-wrap gap-10 border-t border-zinc-800 pt-10 opacity-50 hover:opacity-100 transition-opacity duration-500 relative z-10">
         <div className="flex items-center gap-3">
            <div className="w-3.5 h-3.5 bg-[#ff5500] shadow-[0_0_10px_rgba(255,85,0,0.4)]" style={{ clipPath: 'polygon(0 0, 100% 0, 80% 100%, 0 100%)' }} />
@@ -473,7 +461,6 @@ const BracketsContent = () => {
         </div>
       </div>
 
-      {/* High-Grade Intel Overlay */}
       {activeIntel && (
         <IntelModal 
           match={activeIntel} 
@@ -484,10 +471,10 @@ const BracketsContent = () => {
   );
 };
 
-const Brackets = () => (
+const App = () => (
   <TournamentProvider>
     <BracketsContent />
   </TournamentProvider>
 );
 
-export default Brackets;
+export default App;

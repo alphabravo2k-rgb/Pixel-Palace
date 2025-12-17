@@ -1,4 +1,5 @@
 import React from 'react';
+import { X } from 'lucide-react';
 
 export const Button = ({ children, onClick, variant = 'primary', className = '', disabled = false, ...props }) => {
   const baseStyle = "px-4 py-2 rounded font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900";
@@ -12,10 +13,10 @@ export const Button = ({ children, onClick, variant = 'primary', className = '',
 
   return (
     <button 
-      onClick={onClick}
-      disabled={disabled}
-      className={`${baseStyle} ${variants[variant]} ${disabled ? 'opacity-50 cursor-not-allowed' : ''} ${className}`}
-      {...props}
+     onClick={onClick}
+     disabled={disabled}
+     className={`${baseStyle} ${variants[variant]} ${disabled ? 'opacity-50 cursor-not-allowed' : ''} ${className}`}
+     {...props}
     >
       {children}
     </button>
@@ -47,7 +48,7 @@ export const Modal = ({ isOpen, onClose, title, children, maxWidth = 'max-w-md' 
         <div className="flex justify-between items-center p-4 border-b border-slate-700 sticky top-0 bg-slate-800">
           <h3 className="text-lg font-bold text-white">{title}</h3>
           <button onClick={onClose} className="text-slate-400 hover:text-white">
-            ✕
+            <X size={20} />
           </button>
         </div>
         <div className="p-4">

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTournament } from '../tournament/useTournament';
-import { Users, Shield, Crown, Globe, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { Users, Shield, Crown, Globe, AlertCircle, ChevronDown, ChevronUp, Gamepad2, MessageSquare, ExternalLink } from 'lucide-react';
 
 const ROLE_LABELS = {
   CAPTAIN: 'Captain',
@@ -19,6 +19,31 @@ const TeamCard = ({ team }) => {
     const mainRoster = players.filter(p => p.role !== 'SUBSTITUTE');
     const substitutes = players.filter(p => p.role === 'SUBSTITUTE');
     const [showSubs, setShowSubs] = useState(false);
+    
+    // Get Flag (Basic mapping or default)
+    // You can expand REGION_FLAGS in a constants file if needed
+    const flag = team.region || '🏳️'; 
+
+    const SocialButton = ({ type, url }) => {
+        if (!url || url === 'NA' || url === '#') return null;
+        let Icon = ExternalLink;
+        let color = "hover:text-white";
+        let link = url;
+
+        if (type === 'faceit') { Icon = Shield; color = "hover:text-orange-500"; }
+        if (type === 'steam') { Icon = Gamepad2; color = "hover:text-blue-500"; }
+        if (type === 'discord') { 
+            Icon = MessageSquare; 
+            color = "hover:text-indigo-400"; 
+            if (!url.startsWith('http')) link = `https://discord.com/users/${url}`; 
+        }
+
+        return (
+            <a href={link} target="_blank" rel="noopener noreferrer" className={`text-zinc-500 transition-colors ${color} p-1`} onClick={(e) => e.stopPropagation()}>
+                <Icon className="w-3.5 h-3.5" />
+            </a>
+        );
+    };
 
     return (
         <div className="bg-[#15191f] border border-zinc-800 rounded-xl p-5 hover:border-zinc-600 transition-all group relative overflow-hidden">
@@ -61,18 +86,37 @@ const TeamCard = ({ team }) => {
                 {/* Main Roster - Always Visible */}
                 {mainRoster.length > 0 || substitutes.length > 0 ? (
                     mainRoster.map(p => (
-                        <div key={`${team.id}-${p.uid}`} className="flex items-center justify-between text-xs bg-[#0b0c0f]/50 p-2 rounded border border-white/5 hover:border-white/10 transition-colors">
-                        <div className="flex items-center gap-2 text-zinc-300">
-                            {p.role === 'CAPTAIN' && <Crown className="w-3 h-3 text-yellow-500" />}
+                        <div key={`${team.id}-${p.uid}`} className="relative group/player flex items-center justify-between text-xs bg-[#0b0c0f]/50 p-2 rounded border border-white/5 hover:border-white/10 transition-colors overflow-hidden">
+                        
+                        <div className="flex items-center gap-2 text-zinc-300 z-10 min-w-0">
+                            {p.role === 'CAPTAIN' && <Crown className="w-3 h-3 text-yellow-500 flex-shrink-0" />}
                             
                             {/* 3. IDENTITY: Support future 'display_name' format */}
-                            <span className={p.role === 'CAPTAIN' ? 'font-bold text-white' : ''}>
+                            <span className={`${p.role === 'CAPTAIN' ? 'font-bold text-white' : ''} truncate`}>
                                 {p.display_name || p.name}
                             </span>
                         </div>
-                        <div className="flex items-center gap-2">
-                            {/* Mobile Optimization: Hide Rank on Small Screens */}
-                            {p.rank && <span className="text-zinc-600 font-mono text-[9px] uppercase hidden sm:inline-block">LVL {p.rank}</span>}
+
+                        {/* Right Side: Elo or Socials (Slide Effect) */}
+                        <div className="relative h-4 w-24 flex-shrink-0">
+                            {/* Default: Rank/Elo */}
+                            <div className="absolute right-0 top-0 transition-transform duration-300 group-hover/player:-translate-x-32 group-hover/player:opacity-0 flex items-center justify-end w-full">
+                                {p.rank ? (
+                                    <span className="text-zinc-500 font-mono text-[9px] uppercase">
+                                        {/* Display 'Elo' if high number, else 'Lvl' */}
+                                        {isNaN(p.rank) || parseInt(p.rank) < 20 ? `LVL ${p.rank}` : `${p.rank} ELO`}
+                                    </span>
+                                ) : (
+                                    <span className="text-zinc-700 text-[9px]">-</span>
+                                )}
+                            </div>
+
+                            {/* Hover: Social Buttons */}
+                            <div className="absolute right-0 top-[-2px] flex gap-1 translate-x-32 opacity-0 group-hover/player:translate-x-0 group-hover/player:opacity-100 transition-all duration-300 justify-end w-full">
+                                <SocialButton type="steam" url={p.steam} />
+                                <SocialButton type="faceit" url={p.faceit} />
+                                {/* Discord usually just a handle, but if mapped to URL via bot later */}
+                            </div>
                         </div>
                         </div>
                     ))
@@ -101,12 +145,14 @@ const TeamCard = ({ team }) => {
                         {/* Substitutes List (Visible on Desktop OR when toggled on Mobile) */}
                         <div className={`${showSubs ? 'block' : 'hidden'} sm:block space-y-1 mt-2 border-t border-white/5 pt-2`}>
                             {substitutes.map(p => (
-                                <div key={`${team.id}-${p.uid}`} className="flex items-center justify-between text-xs text-zinc-500 px-2 py-1">
+                                <div key={`${team.id}-${p.uid}`} className="flex items-center justify-between text-xs text-zinc-500 px-2 py-1 hover:bg-[#0b0c0f]/30 rounded transition-colors">
                                     <div className="flex items-center gap-2">
                                         <span className="text-[9px] bg-zinc-800 px-1 rounded text-zinc-400">SUB</span>
                                         <span>{p.display_name || p.name}</span>
                                     </div>
-                                    {p.rank && <span className="text-zinc-700 font-mono text-[9px] uppercase hidden sm:inline-block">LVL {p.rank}</span>}
+                                    <div className="flex items-center gap-2 opacity-50 hover:opacity-100 transition-opacity">
+                                         <SocialButton type="faceit" url={p.faceit} />
+                                    </div>
                                 </div>
                             ))}
                         </div>
@@ -118,7 +164,7 @@ const TeamCard = ({ team }) => {
 };
 
 const TeamRoster = () => {
-  const { teams, loading } = useTournament();
+  const { teams, loading, error } = useTournament(); 
   const [searchTerm, setSearchTerm] = useState('');
 
   // Normalize search input to prevent crashes
@@ -126,6 +172,19 @@ const TeamRoster = () => {
   const filteredTeams = teams.filter(t => 
     t.name && t.name.toLowerCase().includes(safeSearchTerm.toLowerCase())
   );
+
+  // DEBUGGING: Show Error State
+  if (error) {
+      return (
+        <div className="flex flex-col items-center justify-center h-64 text-red-500 gap-4 border border-red-900/50 bg-red-900/10 rounded-xl">
+            <AlertCircle className="w-12 h-12" />
+            <div className="text-center">
+                <p className="text-sm font-bold tracking-widest uppercase">ROSTER LOAD FAILED</p>
+                <p className="text-xs font-mono mt-2 text-red-300">{typeof error === 'object' ? error.message : error}</p>
+            </div>
+        </div>
+      );
+  }
 
   if (loading) {
     return (

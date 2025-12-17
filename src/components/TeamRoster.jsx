@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { useTournament } from '../tournament/useTournament';
-import { MessageCircle, Globe, Shield, Users, Crown, Search } from 'lucide-react';
+import { MessageCircle, Globe, Shield, Users, Crown, Search, Gamepad2, Swords, User } from 'lucide-react';
 
 // --- HELPERS (Pure & Safe) ---
 
-// Safely extracts a clean name from a Faceit URL (e.g., .../players/Nickname -> Nickname)
+// Safely extracts a clean name from a Faceit URL
 const extractFaceitName = (url) => {
   if (!url || typeof url !== 'string') return null;
   try {
@@ -15,9 +15,9 @@ const extractFaceitName = (url) => {
   }
 };
 
-// Renders a country flag using flagcdn, defaults to Globe icon if code is missing
+// Renders country flag or fallback globe
 const CountryFlag = ({ code }) => {
-  if (!code) return <Globe className="w-4 h-4 text-zinc-600" />;
+  if (!code || code === 'un') return <Globe className="w-4 h-4 text-zinc-600" />;
   return (
     <img 
       src={`https://flagcdn.com/w20/${code.toLowerCase()}.png`}
@@ -28,24 +28,38 @@ const CountryFlag = ({ code }) => {
   );
 };
 
-// Renders social buttons with correct styling and hover effects
-const SocialButton = ({ href, type, iconPath }) => {
-  if (!href || !iconPath) return null;
-  const label = type === 'faceit' ? 'Faceit' : type === 'steam' ? 'Steam' : 'Discord';
+// Social Button Component
+const SocialButton = ({ href, type }) => {
+  if (!href) return null;
   
-  // Specific colors for each platform
-  const bgColor = type === 'faceit' ? 'hover:bg-[#ff5500]' : type === 'steam' ? 'hover:bg-[#171a21]' : 'hover:bg-[#5865F2]';
+  let Icon = Globe;
+  let label = 'Link';
+  let colorClass = 'hover:bg-zinc-600 text-zinc-400 hover:text-white';
+
+  if (type === 'faceit') {
+    Icon = Swords; 
+    label = 'Faceit';
+    colorClass = 'hover:bg-[#ff5500] text-zinc-400 hover:text-white';
+  } else if (type === 'steam') {
+    Icon = Gamepad2;
+    label = 'Steam';
+    colorClass = 'hover:bg-[#171a21] text-zinc-400 hover:text-white';
+  } else if (type === 'discord') {
+    Icon = MessageCircle;
+    label = 'Discord';
+    colorClass = 'hover:bg-[#5865F2] text-zinc-400 hover:text-white';
+  }
 
   return (
     <a 
       href={href} 
       target="_blank" 
       rel="noreferrer"
-      className={`p-1.5 rounded bg-zinc-700/50 text-white transition-colors duration-200 ${bgColor} group/btn`}
+      className={`p-1.5 rounded bg-zinc-700/50 transition-all duration-200 ${colorClass} group/btn`}
       title={label}
-      onClick={(e) => e.stopPropagation()} // Prevent clicking the row from triggering other events
+      onClick={(e) => e.stopPropagation()}
     >
-      <img src={iconPath} alt={label} className="w-4 h-4 object-contain" />
+      <Icon className="w-3.5 h-3.5" />
     </a>
   );
 };
@@ -53,49 +67,77 @@ const SocialButton = ({ href, type, iconPath }) => {
 // --- SUB-COMPONENTS (The Card Design) ---
 
 const PlayerRow = ({ player }) => {
-  // Safe Fallbacks using the data fields guaranteed by your useTournament provider
-  // extractFaceitName acts as a display name prettifier
-  const displayName = extractFaceitName(player.faceit_url) || player.name || 'Unknown';
-  const elo = player.faceit_elo || null;
-  const country = player.country_code;
-
+  // Uses the strict data contract from Provider
+  const displayName = extractFaceitName(player.socials?.faceit) || player.name || 'Unknown';
+  const elo = player.elo;
+  const country = player.country;
+  
   return (
-    <div className="relative group w-full h-10 bg-[#15191f] border-b border-zinc-800/50 last:border-0 overflow-hidden">
+    <div className={`relative group w-full h-12 bg-[#15191f] border-b border-zinc-800/50 last:border-0 overflow-hidden flex items-center ${player.role === 'SUBSTITUTE' ? 'opacity-70 hover:opacity-100' : ''}`}>
       
-      {/* LAYER 1: Default View (Visible when NOT hovering) */}
+      {/* Default View */}
       <div className="absolute inset-0 flex items-center justify-between px-3 z-10 transition-opacity duration-300 group-hover:opacity-0">
         <div className="flex items-center gap-3">
-          <CountryFlag code={country} />
-          <div className="flex items-center gap-2">
-            {player.role === 'CAPTAIN' && <Crown className="w-3 h-3 text-yellow-500" />}
-            <span className={`text-sm font-medium truncate max-w-[100px] ${player.role === 'CAPTAIN' ? 'text-white' : 'text-zinc-300'}`}>
-                {displayName}
-            </span>
+          
+          {/* Avatar Area */}
+          <div className="relative">
+             {player.avatar ? (
+               <img src={player.avatar} alt="" className="w-8 h-8 rounded-full object-cover border border-zinc-700" />
+             ) : (
+               <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center border border-zinc-700 text-zinc-500">
+                 <User className="w-4 h-4" />
+               </div>
+             )}
+             <div className="absolute -bottom-1 -right-1">
+               <CountryFlag code={country} />
+             </div>
+          </div>
+
+          <div className="flex flex-col justify-center">
+            <div className="flex items-center gap-1.5">
+                {player.role === 'CAPTAIN' && <Crown className="w-3 h-3 text-yellow-500 fill-yellow-500/20" />}
+                <span className={`text-sm font-bold truncate max-w-[100px] ${player.role === 'CAPTAIN' ? 'text-white' : 'text-zinc-300'}`}>
+                    {displayName}
+                </span>
+                {player.role === 'SUBSTITUTE' && (
+                    <span className="text-[9px] bg-yellow-500/20 text-yellow-500 px-1.5 py-px rounded uppercase tracking-wider font-bold">SUB</span>
+                )}
+            </div>
+            
+            {/* Status Dots */}
+            <div className="flex gap-1 mt-0.5">
+                <div className={`w-1.5 h-1.5 rounded-full ${player.socials?.faceit ? 'bg-emerald-500' : 'bg-yellow-600'}`} title="Faceit Linked"></div>
+                <div className={`w-1.5 h-1.5 rounded-full ${player.socials?.steam ? 'bg-emerald-500' : 'bg-red-600'}`} title="Steam Linked"></div>
+            </div>
           </div>
         </div>
-        
-        {/* ELO / Rank Display */}
-        <div className="flex items-center gap-1.5">
+
+        {/* ELO Display */}
+        <div className="flex flex-col items-end">
           {typeof elo === 'number' ? (
-            <span className="text-xs font-mono font-bold text-[#ff5500]">{elo}</span>
+            <>
+                <span className="text-xs font-mono font-bold text-[#ff5500]">{elo}</span>
+                <span className="text-[9px] text-zinc-600 font-mono uppercase">ELO</span>
+            </>
           ) : (
-            <span className="text-xs text-zinc-600 font-mono">—</span>
+            <span className="text-xs text-zinc-700 font-mono">—</span>
           )}
         </div>
       </div>
 
-      {/* LAYER 2: Hover Actions (Slides in on hover) */}
-      <div className="absolute inset-0 z-20 flex items-center px-3 gap-2 bg-[#15191f]
+      {/* Hover Actions */}
+      <div className="absolute inset-0 z-20 flex items-center justify-between px-3 bg-[#15191f]
                       transform -translate-x-full group-hover:translate-x-0 
                       transition-transform duration-300 ease-out will-change-transform">
+        
         <div className="flex items-center gap-2">
-            {/* These use the _url fields your provider builds */}
-            <SocialButton href={player.faceit_url} type="faceit" iconPath="/icons/faceit.svg" />
-            <SocialButton href={player.steam_url} type="steam" iconPath="/icons/steam.svg" />
-            <SocialButton href={player.discord_url} type="discord" iconPath="/icons/discord.svg" />
+            <SocialButton href={player.socials?.faceit} type="faceit" />
+            <SocialButton href={player.socials?.steam} type="steam" />
+            <SocialButton href={player.socials?.discord} type="discord" />
         </div>
-        <span className="ml-auto text-xs text-zinc-500 font-mono truncate opacity-0 group-hover:opacity-100 transition-opacity delay-100">
-            {displayName}
+
+        <span className="text-xs text-zinc-500 font-mono">
+            {player.role === 'CAPTAIN' ? 'CAPTAIN' : player.role === 'SUBSTITUTE' ? 'SUBSTITUTE' : 'PLAYER'}
         </span>
       </div>
     </div>
@@ -103,29 +145,32 @@ const PlayerRow = ({ player }) => {
 };
 
 const TeamCard = ({ team }) => {
-  // Ensure players is an array (defensive coding)
   const players = Array.isArray(team.players) ? team.players : [];
   
+  // Sort: Captain -> Players -> Subs
+  const sortedPlayers = [...players].sort((a, b) => {
+      const roleOrder = { 'CAPTAIN': 0, 'PLAYER': 1, 'SUBSTITUTE': 2 };
+      return (roleOrder[a.role] || 1) - (roleOrder[b.role] || 1);
+  });
+
   return (
-    <div className="bg-[#0b0c0f] border border-zinc-800 rounded-lg overflow-hidden shadow-xl hover:border-zinc-600 transition-all duration-300">
-      
-      {/* Team Header */}
+    <div className="bg-[#0b0c0f] border border-zinc-800 rounded-lg overflow-hidden shadow-xl hover:border-zinc-600 transition-all duration-300 flex flex-col h-full">
       <div className="p-4 bg-gradient-to-r from-[#15191f] to-[#0b0c0f] border-b border-zinc-800 flex items-center gap-3">
         {team.logo_url ? (
-            <img src={team.logo_url} alt="" className="w-10 h-10 rounded bg-black/50 object-contain" />
+            <img src={team.logo_url} alt="" className="w-12 h-12 rounded bg-black/50 object-contain shadow-lg" />
         ) : (
-            <div className="w-10 h-10 rounded bg-zinc-800 flex items-center justify-center">
-                <Shield className="w-5 h-5 text-zinc-600" />
+            <div className="w-12 h-12 rounded bg-zinc-800 flex items-center justify-center shadow-lg">
+                <Shield className="w-6 h-6 text-zinc-600" />
             </div>
         )}
         <div className="flex flex-col min-w-0">
-            <h3 className="text-zinc-100 font-bold text-base truncate">{team.name || 'Unknown Team'}</h3>
-            <div className="flex items-center gap-2">
-                <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold">
+            <h3 className="text-zinc-100 font-black text-lg truncate leading-tight">{team.name || 'Unknown Team'}</h3>
+            <div className="flex items-center gap-2 mt-1">
+                <span className="text-[10px] text-zinc-500 bg-black/40 px-1.5 py-0.5 rounded uppercase tracking-widest font-bold">
                     Seed #{team.seed_number}
                 </span>
                 {team.region && (
-                     <span className="text-[10px] text-zinc-600 flex items-center gap-1 uppercase">
+                     <span className="text-[10px] text-zinc-500 bg-black/40 px-1.5 py-0.5 rounded flex items-center gap-1 uppercase font-bold">
                         <Globe className="w-3 h-3" /> {team.region}
                      </span>
                 )}
@@ -133,22 +178,21 @@ const TeamCard = ({ team }) => {
         </div>
       </div>
 
-      {/* Players List */}
-      <div className="flex flex-col">
-        {players.length > 0 ? (
-            players.map((player, idx) => (
+      <div className="flex flex-col flex-grow">
+        {sortedPlayers.length > 0 ? (
+            sortedPlayers.map((player, idx) => (
                 <PlayerRow key={player.id || idx} player={player} />
             ))
         ) : (
-            <div className="p-6 text-center text-zinc-600 text-xs italic">
-                No players registered.
+            <div className="p-8 text-center text-zinc-600 text-xs italic flex flex-col items-center gap-2">
+                <Users className="w-6 h-6 opacity-20" />
+                <span>No players registered.</span>
             </div>
         )}
       </div>
 
-      {/* Footer: Team Private Discord */}
       {team.discord_channel_url && (
-        <div className="p-2 bg-[#15191f] border-t border-zinc-800">
+        <div className="p-2 bg-[#15191f] border-t border-zinc-800 mt-auto">
           <a 
             href={team.discord_channel_url}
             target="_blank"
@@ -166,18 +210,16 @@ const TeamCard = ({ team }) => {
   );
 };
 
-// --- MAIN COMPONENT (The Page Logic) ---
+// --- MAIN COMPONENT ---
 
 const TeamRoster = () => {
-  const { teams, loading } = useTournament(); // Consuming the Context from your provider
+  const { teams, loading } = useTournament(); 
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Filtering Logic
   const filteredTeams = teams.filter(t => 
     t.name && t.name.toLowerCase().includes((searchTerm || '').toLowerCase())
   );
 
-  // Loading State
   if (loading) {
     return (
         <div className="flex flex-col items-center justify-center h-64 text-zinc-500 gap-4">
@@ -187,7 +229,6 @@ const TeamRoster = () => {
     );
   }
 
-  // Empty State
   if (!teams || teams.length === 0) {
     return (
         <div className="flex flex-col items-center justify-center h-64 text-zinc-500 gap-4 border border-dashed border-zinc-800 rounded-xl m-8">
@@ -199,7 +240,6 @@ const TeamRoster = () => {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 p-8">
-        {/* Page Header */}
         <div className="flex flex-col md:flex-row justify-between items-end gap-4 border-b border-zinc-800 pb-6">
             <div>
                 <h2 className="text-3xl font-brand font-black text-white tracking-wide">
@@ -221,15 +261,15 @@ const TeamRoster = () => {
             </div>
         </div>
 
-        {/* Teams Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredTeams.length > 0 ? (
                 filteredTeams.map(team => (
                     <TeamCard key={team.id} team={team} />
                 ))
             ) : (
-                <div className="col-span-full py-20 text-center text-zinc-500">
-                    No teams match your search.
+                <div className="col-span-full py-20 text-center text-zinc-500 flex flex-col items-center gap-2">
+                    <Search className="w-8 h-8 opacity-20" />
+                    <span>No teams match your search.</span>
                 </div>
             )}
         </div>

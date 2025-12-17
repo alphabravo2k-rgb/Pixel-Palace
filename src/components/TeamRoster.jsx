@@ -2,14 +2,14 @@ import React, { useState } from 'react';
 import { useTournament } from '../tournament/useTournament';
 import { Search, Users, Crown, AlertTriangle, MessageCircle, Shield, Pin } from 'lucide-react';
 
-// --- CONFIGURATION & HELPERS ---
+// --- HELPERS ---
 
 const getFlagUrl = (isoCode) => {
   if (!isoCode || isoCode === 'un') return null;
   return `https://flagcdn.com/w40/${isoCode.toLowerCase()}.png`;
 };
 
-// --- BRANDED ICONS ---
+// --- BRANDED ICONS & SOCIALS ---
 
 const Icons = {
   Faceit: ({ className }) => (
@@ -31,10 +31,30 @@ const Icons = {
 
 const SocialButton = ({ href, type }) => {
   const Icon = Icons[type === 'faceit' ? 'Faceit' : type === 'steam' ? 'Steam' : 'Discord'];
-  if (!href) return <div className="p-1 opacity-20"><Icon className="w-3.5 h-3.5" /></div>;
+  const label = type.charAt(0).toUpperCase() + type.slice(1);
+  
+  if (!href) {
+    return (
+      <div 
+        className="p-1.5 opacity-20 cursor-not-allowed group/social" 
+        title={`${label} not provided`}
+      >
+        <Icon className="w-3.5 h-3.5 grayscale" />
+      </div>
+    );
+  }
+
   const colors = type === 'faceit' ? 'hover:text-[#ff5500]' : type === 'steam' ? 'hover:text-blue-400' : 'hover:text-[#5865F2]';
+
   return (
-    <a href={href} target="_blank" rel="noreferrer" className={`p-1 text-zinc-500 transition-colors duration-200 ${colors}`} onClick={(e) => e.stopPropagation()}>
+    <a 
+      href={href} 
+      target="_blank" 
+      rel="noreferrer" 
+      className={`p-1 text-zinc-500 transition-all duration-200 ${colors} hover:scale-110 active:scale-95`}
+      title={`Open ${label} Profile`}
+      onClick={(e) => e.stopPropagation()}
+    >
       <Icon className="w-3.5 h-3.5" />
     </a>
   );
@@ -43,71 +63,96 @@ const SocialButton = ({ href, type }) => {
 // --- SUB-COMPONENTS ---
 
 const PlayerRow = ({ player }) => {
+  // Consumer of the Canonical Model: uses initials calculated by Provider
   const displayName = player.nickname || player.name || 'Unknown';
   const isSub = player.role === 'SUBSTITUTE';
   const isCap = player.role === 'CAPTAIN';
 
   const tag = isCap ? 'CPT' : isSub ? 'SUB' : 'PLY';
-  const tagColor = isCap ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : isSub ? 'bg-yellow-500/20 text-yellow-500 border border-yellow-500/30' : 'bg-zinc-800 text-zinc-500 border border-zinc-700/50';
+  const tagColor = isCap 
+    ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30 shadow-[0_0_10px_rgba(59,130,246,0.1)]' 
+    : isSub 
+      ? 'bg-yellow-500/20 text-yellow-500 border border-yellow-500/30' 
+      : 'bg-zinc-800 text-zinc-500 border border-zinc-700/50';
 
   return (
     <div className={`relative group w-full h-12 border-b border-zinc-800/50 last:border-0 flex items-center overflow-hidden will-change-transform ${isSub ? 'bg-zinc-900/20' : 'bg-[#15191f]'}`}>
-      {/* Stripe pattern for Subs */}
-      {isSub && <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 10px, #ffffff 10px, #ffffff 20px)' }} />}
+      {/* Visual Identity: Stripe pattern for Subs */}
+      {isSub && (
+        <div 
+          className="absolute inset-0 opacity-[0.03] pointer-events-none" 
+          style={{ backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 10px, #ffffff 10px, #ffffff 20px)' }} 
+        />
+      )}
       
-      {/* Default View */}
+      {/* DEFAULT LAYER */}
       <div className="absolute inset-0 flex items-center justify-between px-4 z-10 transition-transform duration-300 group-hover:-translate-y-full">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded bg-zinc-800 border border-zinc-700 flex items-center justify-center overflow-hidden">
-             {player.avatar ? <img src={player.avatar} alt="" className="w-full h-full object-cover" /> : <span className="text-[10px] font-bold opacity-30">{displayName.substring(0,2).toUpperCase()}</span>}
+          <div className="w-8 h-8 rounded bg-zinc-800 border border-zinc-700 flex items-center justify-center overflow-hidden relative">
+             {player.avatar ? (
+               <img src={player.avatar} alt="" className="w-full h-full object-cover" />
+             ) : (
+               <span className="text-[10px] font-bold opacity-30 tracking-tighter">
+                 {player.initials || '??'}
+               </span>
+             )}
           </div>
           <div className="flex items-center gap-2">
-            {/* Tactical Pins for CPT and SUB */}
-            {(isCap || isSub) && <Pin className={`w-2.5 h-2.5 rotate-45 ${isCap ? 'text-blue-400' : 'text-yellow-500'}`} />}
-            <span className={`text-sm font-medium truncate max-w-[110px] ${isCap ? 'text-white' : 'text-zinc-300'}`}>{displayName}</span>
+            {/* Tactical Pins before Leadership/Support names */}
+            {(isCap || isSub) && (
+              <Pin className={`w-2.5 h-2.5 rotate-45 ${isCap ? 'text-blue-400 fill-blue-400/20' : 'text-yellow-500'}`} />
+            )}
+            <span className={`text-sm font-medium truncate max-w-[110px] ${isCap ? 'text-white' : 'text-zinc-300'}`}>
+              {displayName}
+            </span>
             {isCap && <Crown className="w-3 h-3 text-yellow-500" />}
             {isSub && <span className="text-[8px] bg-yellow-900/30 text-yellow-500 px-1.5 py-0.5 rounded font-mono font-bold tracking-widest uppercase">SUB</span>}
           </div>
         </div>
-        <span className="text-xs font-mono font-bold text-[#ff5500]">{typeof player.elo === 'number' ? `${player.elo} ELO` : '—'}</span>
+        <span className="text-xs font-mono font-bold text-[#ff5500] tabular-nums">
+          {typeof player.elo === 'number' ? `${player.elo} ELO` : '—'}
+        </span>
       </div>
 
-      {/* Hover View: Symmetrical Layout (Socials Left, Name Center, Tag Right) */}
+      {/* HOVER LAYER: Socials Left, Identity Middle, Tag Right */}
       <div className="absolute inset-0 z-20 flex items-center justify-between px-4 bg-[#15191f] transform translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out">
-        {/* Socials - Extreme Left */}
+        {/* Extreme Left: Functional Socials */}
         <div className="flex items-center gap-1.5">
             <SocialButton href={player.socials?.faceit} type="faceit" />
             <SocialButton href={player.socials?.steam} type="steam" />
             <SocialButton href={player.socials?.discord} type="discord" />
         </div>
 
-        {/* Identity - Middle (Clean Name) */}
-        <span className="text-[10px] font-medium text-zinc-100 uppercase tracking-tighter truncate max-w-[100px] border-x border-zinc-800 px-4">
+        {/* Middle: Clean Identity (Reduced weight for visibility) */}
+        <span className="text-[10px] font-medium text-zinc-100 uppercase tracking-tighter truncate max-w-[120px] px-4">
             {displayName}
         </span>
 
-        {/* Role Tag - Extreme Right */}
-        <span className={`text-[8px] px-1.5 py-px rounded font-mono font-black ${tagColor}`}>
+        {/* Extreme Right: Role Tag */}
+        <span className={`text-[8px] px-2 py-0.5 rounded-sm font-mono font-black tracking-tighter ${tagColor}`}>
             {tag}
         </span>
       </div>
       
-      {/* Neon Glow Line */}
-      <div className="absolute left-0 top-0 h-full w-[2px] bg-[#ff5500] opacity-0 group-hover:opacity-100 transition-opacity" />
+      {/* Left Neon Accents */}
+      <div className={`absolute left-0 top-0 h-full w-[2px] opacity-0 group-hover:opacity-100 transition-opacity ${isCap ? 'bg-blue-400 shadow-[0_0_8px_#3b82f6]' : 'bg-[#ff5500] shadow-[0_0_8px_#ff5500]'}`} />
     </div>
   );
 };
 
 /**
- * GhostRow: Placeholder for empty slots to maintain 6-row symmetry
+ * GhostRow: Tactical filler to ensure all cards are 6 rows high.
+ * Fixes the "empty spot" symmetry issue.
  */
 const GhostRow = () => (
   <div className="relative w-full h-12 border-b border-zinc-800/50 last:border-0 flex items-center bg-zinc-900/10 overflow-hidden">
-    {/* Hazard Stripes to fill empty space aesthetically */}
-    <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 10px, #ffffff 10px, #ffffff 20px)' }} />
-    <div className="px-4 flex items-center gap-3 opacity-10">
+    <div 
+      className="absolute inset-0 opacity-[0.03] pointer-events-none" 
+      style={{ backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 10px, #ffffff 10px, #ffffff 20px)' }} 
+    />
+    <div className="px-4 flex items-center gap-3 opacity-10 grayscale">
       <div className="w-8 h-8 rounded bg-zinc-800/50 border border-zinc-700/50" />
-      <span className="text-[9px] font-mono uppercase tracking-[0.3em]">Tactical Reserve</span>
+      <span className="text-[9px] font-mono uppercase tracking-[0.4em] italic">Tactical Reserve</span>
     </div>
   </div>
 );
@@ -120,7 +165,9 @@ const TeamCard = ({ team }) => {
   });
   
   const flagUrl = getFlagUrl(team.region_iso2);
-  const slotsNeeded = 6; // Standardizes all cards to 6 rows (5 main + 1 reserve)
+  
+  // Symmetry Logic: Always fill to 6 slots
+  const slotsNeeded = 6; 
   const currentSlots = sortedPlayers.length;
   const emptySlots = Math.max(0, slotsNeeded - currentSlots);
 
@@ -134,35 +181,60 @@ const TeamCard = ({ team }) => {
 
       <div className="p-4 bg-gradient-to-r from-[#15191f] to-[#0b0c0f] border-b border-zinc-800 flex items-center justify-between relative z-10">
         <div className="flex items-center gap-3">
-            {team.logo_url ? <img src={team.logo_url} alt="" className="w-10 h-10 object-contain" /> : <div className="w-10 h-10 rounded bg-zinc-800 flex items-center justify-center"><Shield className="w-5 h-5 text-zinc-600" /></div>}
+            <div className="w-10 h-10 rounded bg-zinc-800 flex items-center justify-center overflow-hidden border border-zinc-700/50 shadow-inner">
+                {team.logo_url ? (
+                  <img src={team.logo_url} alt="" className="w-full h-full object-contain" />
+                ) : (
+                  <Shield className="w-5 h-5 text-zinc-600" />
+                )}
+            </div>
             <div className="flex flex-col">
-                <h3 className="text-zinc-100 font-black text-base truncate max-w-[140px] uppercase italic tracking-tighter">{team.name}</h3>
-                <span className="text-[10px] text-zinc-500 font-mono uppercase tracking-widest">SEED #{team.seed_number}</span>
+                <h3 className="text-zinc-100 font-black text-base truncate max-w-[140px] uppercase italic tracking-tighter">
+                  {team.name}
+                </h3>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-zinc-500 font-mono tracking-widest">SEED #{team.seed_number}</span>
+                  {team.is_synced && <div className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" title="Live Faceit Data" />}
+                </div>
             </div>
         </div>
-        {flagUrl && <img src={flagUrl} alt={team.region} title={team.region} className="w-8 h-5 rounded shadow-sm opacity-60 hover:opacity-100 transition-opacity border border-white/5" />}
+        {flagUrl && (
+          <img 
+            src={flagUrl} 
+            alt={team.region} 
+            title={team.region} 
+            className="w-8 h-5 rounded-sm shadow-sm opacity-60 hover:opacity-100 transition-opacity border border-white/5" 
+          />
+        )}
       </div>
 
       <div className="flex flex-col flex-grow bg-[#0b0c0f]/50 relative z-10">
-        {/* Render Players */}
+        {/* Active Unit Roster */}
         {sortedPlayers.map((p, idx) => (
           <PlayerRow key={p.id || idx} player={p} />
         ))}
         
-        {/* Render Ghost Slots to reach row symmetry */}
+        {/* Ghost Roster to maintain symmetrical height (Symmetry Fix) */}
         {[...Array(emptySlots)].map((_, i) => (
           <GhostRow key={`ghost-${i}`} />
         ))}
       </div>
 
       {team.discord_channel_url && (
-        <a href={team.discord_channel_url} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 w-full py-3 mt-auto bg-[#15191f] hover:bg-[#5865F2]/10 text-zinc-500 hover:text-[#5865F2] transition-colors text-[10px] font-bold uppercase tracking-widest border-t border-zinc-800 relative z-10">
-          <MessageCircle className="w-3.5 h-3.5" /> Team Comms
+        <a 
+          href={team.discord_channel_url} 
+          target="_blank" 
+          rel="noreferrer" 
+          className="flex items-center justify-center gap-2 w-full py-3 mt-auto bg-[#15191f] hover:bg-[#5865F2]/10 text-zinc-500 hover:text-[#5865F2] transition-all text-[10px] font-bold uppercase tracking-[0.2em] border-t border-zinc-800 relative z-10"
+        >
+          <MessageCircle className="w-3.5 h-3.5" /> COMMS UNIT
         </a>
       )}
     </div>
   );
 };
+
+// --- MAIN PAGE ---
 
 const TeamRoster = () => {
   const { teams, loading, error } = useTournament(); 
@@ -172,7 +244,7 @@ const TeamRoster = () => {
     t.name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  if (loading) return <div className="h-64 flex flex-col items-center justify-center text-zinc-500 gap-4 font-mono text-xs uppercase animate-pulse">Syncing Intel...</div>;
+  if (loading) return <div className="h-64 flex flex-col items-center justify-center text-zinc-500 gap-4 font-mono text-xs uppercase animate-pulse tracking-[0.5em]">Syncing Intel...</div>;
   if (error) return <div className="p-12 text-center text-red-500 font-mono text-xs uppercase flex flex-col items-center gap-3"><AlertTriangle className="w-8 h-8" /><span>Sync Failure: {error}</span></div>;
 
   return (
@@ -184,7 +256,13 @@ const TeamRoster = () => {
             </div>
             <div className="w-full md:w-auto relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-                <input type="text" placeholder="FIND SQUAD //" className="bg-[#0b0c0f] border border-zinc-800 text-white pl-10 pr-4 py-2 rounded w-full md:w-64 focus:border-[#ff5500] outline-none text-xs font-mono uppercase transition-all" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                <input 
+                  type="text" 
+                  placeholder="FIND SQUAD //" 
+                  className="bg-[#0b0c0f] border border-zinc-700 text-white pl-10 pr-4 py-2 rounded w-full md:w-64 focus:border-[#ff5500] outline-none text-xs font-mono uppercase transition-all" 
+                  value={searchTerm} 
+                  onChange={(e) => setSearchTerm(e.target.value)} 
+                />
             </div>
         </div>
 

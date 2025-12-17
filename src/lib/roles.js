@@ -30,7 +30,7 @@ export const MATCH_STATES = {
   CANCELLED: 'CANCELLED',         // Admin-aborted matches
   DISPUTED: 'DISPUTED'
 };
-
+ 
 /**
  * Visual themes for badges and UI elements based on role.
  */

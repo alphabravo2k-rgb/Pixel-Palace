@@ -28,9 +28,50 @@ export const TournamentProvider = ({ children }) => {
       return { banned, picked };
   };
 
-  // Separate function to fetch static team data (run once or on manual refresh)
-  const fetchTeams = async () => {
+  // Helper: Extract Faceit Name from URL
+  const extractFaceitName = (url) => {
+      if (!url) return null;
+      try {
+          // Handles https://www.faceit.com/en/players/-BRAVO-
+          const parts = url.split('/');
+          const playersIndex = parts.indexOf('players');
+          if (playersIndex !== -1 && parts[playersIndex + 1]) {
+              return parts[playersIndex + 1];
+          }
+          return null;
+      } catch (e) {
+          return null;
+      }
+  };
+
+  const fetchData = async () => {
+    setLoading(true);
+    setError(null);
+
     try {
+        let matchesData = [];
+        
+        // 1. Fetch Matches (Auth vs Public)
+        if (session.isAuthenticated && session.pin) {
+            // Authenticated: Full access
+            const res = await supabase.rpc('get_authorized_matches', { input_pin: session.pin });
+            
+            if (!res.error && res.data && res.data.length > 0) {
+                matchesData = res.data;
+            } else if ([ROLES.ADMIN, ROLES.OWNER].includes(session.role)) {
+                // Silent fallback for admins if auth fetch empty
+                const pubRes = await supabase.rpc('get_public_matches');
+                matchesData = pubRes.data || [];
+            } else if (res.error) {
+                 console.warn("Auth Fetch Error:", res.error);
+                 const pubRes = await supabase.rpc('get_public_matches');
+                 matchesData = pubRes.data || [];
+            }
+        } else {
+            const res = await supabase.rpc('get_public_matches');
+            matchesData = res.data || [];
+        }
+
         // 2. Fetch Teams (using 'teams' table)
         const { data: teamsData, error: teamsError } = await supabase
             .from('teams') 
@@ -54,49 +95,30 @@ export const TournamentProvider = ({ children }) => {
                 logo_url: t.logo_url,
                 region: t.region,
                 captainId: captain ? captain.id : null,
-                players: teamPlayers.map(p => ({
-                    uid: p.id,
-                    name: p.display_name,
-                    role: p.is_captain ? 'CAPTAIN' : p.is_substitute ? 'SUBSTITUTE' : 'PLAYER',
-                    rank: p.rank_level,
-                    faceit: p.faceit_url,
-                    steam: p.steam_url,
-                    discord: p.discord_handle
-                })),
+                players: teamPlayers.map(p => {
+                    // Use extracted Faceit name if available, otherwise DB display name
+                    const faceitName = extractFaceitName(p.faceit_url);
+                    const displayName = faceitName || p.display_name;
+
+                    return {
+                        uid: p.id,
+                        name: displayName,
+                        role: p.is_captain ? 'CAPTAIN' : p.is_substitute ? 'SUBSTITUTE' : 'PLAYER',
+                        rank: p.rank_level,
+                        faceit: p.faceit_url,
+                        steam: p.steam_url,
+                        discord: p.discord_handle,
+                        // Attempt to construct a profile pic URL from Faceit if we parsed the name
+                        // Note: This is an estimation; real avatars need API
+                        avatar: faceitName ? `https://faceit-archive.com/faceit/avatar/${faceitName}` : null
+                    };
+                }),
                 ...t
             };
         });
         setTeams(uiTeams);
-    } catch (err) {
-        console.error("Team Fetch Error:", err);
-    }
-  };
-
-  // Function to fetch volatile match data (polled)
-  const fetchMatches = async () => {
-    try {
-        let matchesData = [];
         
-        if (session.isAuthenticated && session.pin) {
-            const res = await supabase.rpc('get_authorized_matches', { input_pin: session.pin });
-            
-            if (!res.error && res.data && res.data.length > 0) {
-                matchesData = res.data;
-            } else if ([ROLES.ADMIN, ROLES.OWNER].includes(session.role)) {
-                // Silent fallback for admins if auth fetch empty
-                const pubRes = await supabase.rpc('get_public_matches');
-                matchesData = pubRes.data || [];
-            } else if (res.error) {
-                // If specific error, log it
-                 console.warn("Auth Fetch Error:", res.error);
-                 const pubRes = await supabase.rpc('get_public_matches');
-                 matchesData = pubRes.data || [];
-            }
-        } else {
-            const res = await supabase.rpc('get_public_matches');
-            matchesData = res.data || [];
-        }
-
+        // 5. Map Data: Matches
         const uiMatches = matchesData.map(m => {
             const { banned, picked } = parseVetoState(m.metadata?.veto);
             let turnId = null;
@@ -142,24 +164,19 @@ export const TournamentProvider = ({ children }) => {
         setMatches(uiMatches);
         setError(null);
     } catch (err) {
-        console.error("Match Sync Error:", err);
+        console.error("Sync Error:", err);
         setError(err.message);
     }
   };
 
   // Initial Load
   useEffect(() => {
-    const init = async () => {
-        setLoading(true);
-        await Promise.all([fetchTeams(), fetchMatches()]);
-        setLoading(false);
-    };
-    init();
+    fetchData();
   }, [session.pin, session.isAuthenticated]);
 
-  // Polling for Matches ONLY (Every 10s) - Teams don't need frequent polling
+  // Polling for Matches ONLY (Every 10s)
   useEffect(() => {
-    const interval = setInterval(fetchMatches, 10000); 
+    const interval = setInterval(fetchData, 10000); 
     return () => clearInterval(interval);
   }, [session.pin, session.isAuthenticated]); 
 
@@ -192,7 +209,7 @@ export const TournamentProvider = ({ children }) => {
     });
 
     if (error) throw new Error(error.message);
-    fetchMatches(); 
+    fetchData(); 
   };
 
   const adminUpdateMatch = async (matchId, updates) => {
@@ -227,7 +244,7 @@ export const TournamentProvider = ({ children }) => {
     });
 
     if (error) throw new Error(error.message);
-    fetchMatches(); 
+    fetchData(); 
   };
 
   const triggerSOS = async (matchId) => {
@@ -237,7 +254,7 @@ export const TournamentProvider = ({ children }) => {
           input_pin: session.pin
       });
       if (error) throw new Error(error.message);
-      fetchMatches();
+      fetchData();
   };
 
   const fetchMatchTimeline = async (matchId) => {
@@ -254,9 +271,10 @@ export const TournamentProvider = ({ children }) => {
       return data;
   };
 
-  const createTeam = async () => alert("Use SQL Registration Script in Supabase Dashboard.");
-  const joinTeam = async () => alert("Registration is handled via Discord/SQL.");
-  const createMatch = async () => alert("Matches are generated via SQL Script.");
+  // Stubs
+  const createTeam = async () => {};
+  const joinTeam = async () => {};
+  const createMatch = async () => {};
 
   return (
     <TournamentContext.Provider value={{ 
@@ -277,4 +295,4 @@ export const TournamentProvider = ({ children }) => {
   );
 };
 
-export const useTournament = () => useContext(TournamentContext);
+export const useTournament = () => useContext(TournamentContext);s

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import { supabase } from '../supabase/client';
 import { useSession } from '../auth/useSession';
 import { ROLES } from '../lib/roles';
@@ -112,20 +112,20 @@ export const TournamentProvider = ({ children }) => {
             if (m.metadata?.turn === 'A') turnId = m.team1_id;
             if (m.metadata?.turn === 'B') turnId = m.team2_id;
 
-            // Status Logic Refinement
-            // 'live' only if open AND (veto started OR map picked) to avoid "Live" on everything
+            // Status Logic Refinement - Based on Critique
             let displayStatus = 'scheduled';
             if (m.state === 'complete') {
                 displayStatus = 'completed';
             } else if (m.state === 'open') {
-                // If maps are banned or picked, it's definitely live/veto
-                if (banned.length > 0 || picked) {
+                if (m.server_ip) {
+                    // Server is allocated, match is in progress
                     displayStatus = 'live';
+                } else if (banned.length > 0 || picked) {
+                    // Veto has started but server might not be ready
+                    displayStatus = 'veto';
                 } else {
-                    // If it's open but no veto action, it might just be ready. 
-                    // For now, we respect the DB state 'open' as 'live' to ensure visibility,
-                    // but you can restrict this to 'scheduled' if you prefer.
-                    displayStatus = 'live'; 
+                    // Open but no action yet
+                    displayStatus = 'ready'; 
                 }
             }
 
@@ -290,6 +290,15 @@ export const TournamentProvider = ({ children }) => {
       return data;
   };
 
+  // Group Matches by Round (Critique Requirement 3)
+  const rounds = useMemo(() => {
+    return matches.reduce((acc, m) => {
+      if (!acc[m.round]) acc[m.round] = [];
+      acc[m.round].push(m);
+      return acc;
+    }, {});
+  }, [matches]);
+
   // Stubs
   const createTeam = async () => alert("Use SQL Registration Script in Supabase Dashboard.");
   const joinTeam = async () => alert("Registration is handled via Discord/SQL.");
@@ -299,6 +308,7 @@ export const TournamentProvider = ({ children }) => {
     <TournamentContext.Provider value={{ 
       teams, 
       matches, 
+      rounds, // Exposing explicit round grouping
       loading, 
       error,
       createTeam, 

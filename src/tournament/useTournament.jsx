@@ -23,9 +23,9 @@ const TournamentContext = createContext(null);
 
 /**
  * Internal logic hook that manages state.
- * This is used by the Provider, not directly by components.
+ * This is used by the TournamentProvider to create the state object.
  */
-const useTournamentLogic = () => {
+const useTournamentSource = () => {
   const [rounds, setRounds] = useState([]);
   const [champion, setChampion] = useState(null);
   const [isTournamentActive, setIsTournamentActive] = useState(false);
@@ -138,23 +138,25 @@ const useTournamentLogic = () => {
     }
 
     // --- Process Initial Byes Synchronously ---
-    const r1 = newRounds[0];
-    r1.forEach(match => {
-      if (!match.winner) {
-        let winner = null;
-        if (match.player1?.isBye && match.player2 && !match.player2.isBye) {
-          winner = match.player2;
-        } else if (match.player2?.isBye && match.player1 && !match.player1.isBye) {
-          winner = match.player1;
-        }
+    if (newRounds.length > 0) {
+        const r1 = newRounds[0];
+        r1.forEach(match => {
+        if (!match.winner) {
+            let winner = null;
+            if (match.player1?.isBye && match.player2 && !match.player2.isBye) {
+            winner = match.player2;
+            } else if (match.player2?.isBye && match.player1 && !match.player1.isBye) {
+            winner = match.player1;
+            }
 
-        if (winner) {
-          match.winner = winner;
-          match.status = 'completed';
-          propagateWinner(newRounds, 0, match.matchIndex, winner);
+            if (winner) {
+            match.winner = winner;
+            match.status = 'completed';
+            propagateWinner(newRounds, 0, match.matchIndex, winner);
+            }
         }
-      }
-    });
+        });
+    }
 
     setRounds(newRounds);
   }, []);
@@ -198,7 +200,7 @@ const useTournamentLogic = () => {
 
 // 2. Export the Provider
 export const TournamentProvider = ({ children }) => {
-  const tournamentUtils = useTournamentLogic();
+  const tournamentUtils = useTournamentSource();
 
   return (
     <TournamentContext.Provider value={tournamentUtils}>
@@ -210,10 +212,20 @@ export const TournamentProvider = ({ children }) => {
 // 3. Export the Consumer Hook
 export const useTournament = () => {
   const context = useContext(TournamentContext);
+  
   if (!context) {
-    // Return a safe fallback or throw, but here we'll assume it's wrapped or return null structure
-    // Throwing ensures developers know they forgot the provider
-    throw new Error('useTournament must be used within a TournamentProvider');
+    // Prevent crash if used outside Provider. 
+    // Logs error for debugging, but returns safe empty state to allow UI to render.
+    console.error('useTournament must be used within a TournamentProvider. Returning empty state.');
+    return {
+        rounds: [],
+        champion: null,
+        isTournamentActive: false,
+        error: 'Tournament Context Missing',
+        createTournament: () => console.warn('Context missing'),
+        setMatchWinner: () => console.warn('Context missing'),
+        resetTournament: () => console.warn('Context missing')
+    };
   }
   return context;
 };

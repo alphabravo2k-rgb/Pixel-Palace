@@ -46,9 +46,10 @@ export const TournamentProvider = ({ children }) => {
             const captain = teamPlayers.find(p => p.is_captain);
 
             return {
-                // SPREAD RAW DATA FIRST (Prevents overwriting normalized players)
+                // 1. Spread Raw Team Data FIRST
                 ...t,
 
+                // 2. Explicit Team Fields (Overrides raw data if needed)
                 id: t.id,
                 name: t.name, 
                 seed_number: t.seed_number,
@@ -57,25 +58,26 @@ export const TournamentProvider = ({ children }) => {
                 captainId: captain ? captain.id : null,
                 discord_channel_url: t.discord_channel_url,
                 
-                // Mapped Players with Legacy + New Fields
+                // 3. CANONICAL PLAYER MODEL (The Strict Contract)
+                // This matches exactly what TeamRoster.jsx expects. No legacy junk.
                 players: teamPlayers.map(p => ({
-                    // New Standard (TeamRoster.jsx)
                     id: p.id,
                     name: p.display_name,
+                    
+                    // Unified Role Logic
                     role: p.is_captain ? 'CAPTAIN' : p.is_substitute ? 'SUBSTITUTE' : 'PLAYER',
-                    is_captain: p.is_captain,
-                    faceit_url: p.faceit_url,
-                    steam_url: p.steam_url,
-                    discord_url: p.discord_url || (p.discord_handle ? `https://discord.com/users/${p.discord_handle}` : null),
-                    faceit_elo: p.faceit_elo,
-                    country_code: p.country_code,
+                    
+                    // Visual Data
+                    avatar: p.faceit_avatar_url || null,
+                    elo: p.faceit_elo ?? null,
+                    country: p.country_code || 'un', // 'un' = Unknown/Global
 
-                    // Legacy Support (Safety net for older components)
-                    uid: p.id,
-                    faceit: p.faceit_url,
-                    steam: p.steam_url,
-                    discord: p.discord_handle,
-                    rank: p.rank_level
+                    // Nested Socials Object (Critical for UI)
+                    socials: {
+                        faceit: p.faceit_url || null,
+                        steam: p.steam_url || null,
+                        discord: p.discord_url || (p.discord_handle ? `https://discord.com/users/${p.discord_handle}` : null)
+                    }
                 }))
             };
         });
@@ -91,6 +93,7 @@ export const TournamentProvider = ({ children }) => {
                 const pubRes = await supabase.rpc('get_public_matches');
                 matchesData = pubRes.data || [];
             } else if (res.error) {
+                console.error("Auth RPC Error:", res.error);
                 const pubRes = await supabase.rpc('get_public_matches');
                 matchesData = pubRes.data || [];
             }

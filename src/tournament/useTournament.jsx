@@ -1,298 +1,250 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { supabase } from '../supabase/client';
-import { useSession } from '../auth/useSession';
-import { ROLES } from '../lib/roles';
-import { MAP_POOL } from '../lib/constants';
+import { useState, useCallback } from 'react';
 
-const TournamentContext = createContext();
+/**
+ * @typedef {Object} Participant
+ * @property {string|number} id - Unique identifier
+ * @property {string} name - Display name
+ * @property {string} [avatar] - Optional avatar URL
+ */
 
-export const TournamentProvider = ({ children }) => {
-  const { session } = useSession();
-  const [teams, setTeams] = useState([]);
-  const [matches, setMatches] = useState([]);
-  const [loading, setLoading] = useState(true);
+/**
+ * @typedef {Object} Match
+ * @property {string} id - Unique match ID
+ * @property {Participant | null} player1 - First competitor (null if waiting)
+ * @property {Participant | null} player2 - Second competitor (null if waiting)
+ * @property {Participant | null} winner - The winner of the match
+ * @property {number} roundIndex - The round this match belongs to
+ * @property {number} matchIndex - The index of the match within the round
+ * @property {string} status - 'pending' | 'ready' | 'completed'
+ */
+
+/**
+ * useTournament Hook
+ * * Manages state and logic for a tournament bracket system.
+ * Handles bracket generation, advancing winners, and determining the champion.
+ * * @returns {Object} Tournament control object
+ */
+export const useTournament = () => {
+  const [rounds, setRounds] = useState([]);
+  const [currentRoundIndex, setCurrentRoundIndex] = useState(0);
+  const [champion, setChampion] = useState(null);
+  const [isTournamentActive, setIsTournamentActive] = useState(false);
   const [error, setError] = useState(null);
 
-  // Helper: Parse Structured Veto State from DB
-  const parseVetoState = (vetoMeta) => {
-      const banned = [];
-      let picked = null; 
-      
-      const maps = vetoMeta?.maps || [];
-      if (Array.isArray(maps)) {
-          maps.forEach(entry => {
-              if (entry.action === 'BAN') banned.push(entry.map_id);
-              if (entry.action === 'PICK') picked = entry.map_id; 
-          });
-      }
-      return { banned, picked };
+  /**
+   * Helper to pad participants to the nearest power of 2
+   * This ensures a balanced binary tree for the bracket.
+   * @param {Participant[]} participants 
+   */
+  const padParticipants = (participants) => {
+    const count = participants.length;
+    if (count === 0) return [];
+    
+    const nextPowerOf2 = Math.pow(2, Math.ceil(Math.log2(count)));
+    const byesNeeded = nextPowerOf2 - count;
+    
+    // Create "Bye" participants. 
+    // In a real UI, these are auto-resolved, but for structure we keep them.
+    const padded = [...participants];
+    for (let i = 0; i < byesNeeded; i++) {
+      padded.push({ id: `bye-${i}`, name: 'BYE', isBye: true });
+    }
+    return padded;
   };
 
-  // Helper: Extract Faceit Name from URL
-  const extractFaceitName = (url) => {
-      if (!url) return null;
-      try {
-          // Handles https://www.faceit.com/en/players/-BRAVO-
-          const parts = url.split('/');
-          const playersIndex = parts.indexOf('players');
-          if (playersIndex !== -1 && parts[playersIndex + 1]) {
-              return parts[playersIndex + 1];
-          }
-          return null;
-      } catch (e) {
-          return null;
-      }
-  };
+  /**
+   * Generates the initial bracket structure based on participants.
+   * @param {Participant[]} participants - Array of player objects
+   * @param {boolean} shuffle - Whether to randomize seeds
+   */
+  const createTournament = useCallback((participants, shuffle = false) => {
+    if (!participants || participants.length < 2) {
+      setError('Tournament requires at least 2 participants.');
+      return;
+    }
 
-  const fetchData = async () => {
-    setLoading(true);
     setError(null);
+    setChampion(null);
+    setCurrentRoundIndex(0);
 
-    try {
-        let matchesData = [];
-        
-        // 1. Fetch Matches (Auth vs Public)
-        if (session.isAuthenticated && session.pin) {
-            // Authenticated: Full access
-            const res = await supabase.rpc('get_authorized_matches', { input_pin: session.pin });
-            
-            if (!res.error && res.data && res.data.length > 0) {
-                matchesData = res.data;
-            } else if ([ROLES.ADMIN, ROLES.OWNER].includes(session.role)) {
-                // Silent fallback for admins if auth fetch empty
-                const pubRes = await supabase.rpc('get_public_matches');
-                matchesData = pubRes.data || [];
-            } else if (res.error) {
-                 console.warn("Auth Fetch Error:", res.error);
-                 const pubRes = await supabase.rpc('get_public_matches');
-                 matchesData = pubRes.data || [];
-            }
-        } else {
-            const res = await supabase.rpc('get_public_matches');
-            matchesData = res.data || [];
-        }
+    let currentParticipants = [...participants];
 
-        // 2. Fetch Teams (using 'teams' table)
-        const { data: teamsData, error: teamsError } = await supabase
-            .from('teams') 
-            .select('*')
-            .order('seed_number', { ascending: true });
-
-        if (teamsError) throw teamsError;
-
-        // 3. Fetch Players to Populate Rosters
-        const { data: playersData } = await supabase.from('players').select('*');
-
-        // 4. Map Data: Teams
-        const uiTeams = (teamsData || []).map(t => {
-            const teamPlayers = playersData ? playersData.filter(p => p.team_id === t.id) : [];
-            const captain = teamPlayers.find(p => p.is_captain);
-
-            return {
-                id: t.id,
-                name: t.name, 
-                seed_number: t.seed_number,
-                logo_url: t.logo_url,
-                region: t.region,
-                captainId: captain ? captain.id : null,
-                players: teamPlayers.map(p => {
-                    // Use extracted Faceit name if available, otherwise DB display name
-                    const faceitName = extractFaceitName(p.faceit_url);
-                    const displayName = faceitName || p.display_name;
-
-                    return {
-                        uid: p.id,
-                        name: displayName,
-                        role: p.is_captain ? 'CAPTAIN' : p.is_substitute ? 'SUBSTITUTE' : 'PLAYER',
-                        rank: p.rank_level,
-                        faceit: p.faceit_url,
-                        steam: p.steam_url,
-                        discord: p.discord_handle,
-                        // Attempt to construct a profile pic URL from Faceit if we parsed the name
-                        // Note: This is an estimation; real avatars need API
-                        avatar: faceitName ? `https://faceit-archive.com/faceit/avatar/${faceitName}` : null
-                    };
-                }),
-                ...t
-            };
-        });
-        setTeams(uiTeams);
-        
-        // 5. Map Data: Matches
-        const uiMatches = matchesData.map(m => {
-            const { banned, picked } = parseVetoState(m.metadata?.veto);
-            let turnId = null;
-            if (m.metadata?.turn === 'A') turnId = m.team1_id;
-            if (m.metadata?.turn === 'B') turnId = m.team2_id;
-            
-            const p1Name = m.team1_name || "TBD";
-            const p2Name = m.team2_name || "TBD";
-            const adminName = m.assigned_admin_name;
-
-            return {
-                id: m.id,
-                round: m.round,
-                matchIndex: m.slot, 
-                team1Id: m.team1_id, 
-                team2Id: m.team2_id,
-                winnerId: m.winner_id,
-                state: m.state, 
-                status: m.state === 'open' ? 'live' : m.state === 'complete' ? 'completed' : 'scheduled',
-                vetoState: {
-                    phase: m.state === 'complete' ? 'complete' : 'ban',
-                    turn: turnId,
-                    bannedMaps: banned,
-                    pickedMap: picked
-                },
-                metadata: {
-                    ...m.metadata,
-                    sos_triggered: m.sos_triggered,
-                    sos_by: m.sos_by,
-                    assigned_admin_name: adminName
-                },
-                server_ip: m.server_ip || null,
-                gotv_ip: m.gotv_ip || null,
-                stream_url: m.stream_url || null,
-                score: m.score,
-                team1Name: p1Name,
-                team2Name: p2Name,
-                team1Logo: m.team1_logo,
-                team2Logo: m.team2_logo
-            };
-        });
-
-        setMatches(uiMatches);
-        setError(null);
-    } catch (err) {
-        console.error("Sync Error:", err);
-        setError(err.message);
-    }
-  };
-
-  // Initial Load
-  useEffect(() => {
-    fetchData();
-  }, [session.pin, session.isAuthenticated]);
-
-  // Polling for Matches ONLY (Every 10s)
-  useEffect(() => {
-    const interval = setInterval(fetchData, 10000); 
-    return () => clearInterval(interval);
-  }, [session.pin, session.isAuthenticated]); 
-
-  // --- RPC ACTIONS ---
-
-  const submitVeto = async (matchId, payload, legacyDescription) => {
-    if (!session.pin) throw new Error("Authorization Required");
-    
-    let action, mapId;
-    if (typeof payload === 'string' || legacyDescription) {
-         const desc = typeof payload === 'string' ? payload : legacyDescription;
-         const mapName = desc.replace(/^(Banned|Picked)\s+/i, '').replace(/\s+\(.*\)$/, '').trim();
-         const isBan = desc.toUpperCase().includes('BAN');
-         const isPick = desc.toUpperCase().includes('PICK');
-         action = isBan ? 'BAN' : isPick ? 'PICK' : 'SIDE';
-         
-         const mapObj = MAP_POOL.find(m => m.name.toLowerCase() === mapName.toLowerCase());
-         if (!mapObj) throw new Error("Invalid Map Name");
-         mapId = mapObj.id;
-    } else {
-         action = payload.action;
-         mapId = payload.mapId;
+    if (shuffle) {
+      currentParticipants.sort(() => Math.random() - 0.5);
     }
 
-    const { data, error } = await supabase.rpc('submit_veto', {
-        match_id: matchId,
-        input_pin: session.pin,
-        action: action,
-        target_map_id: mapId
-    });
+    // Pad with Byes for balanced bracket
+    const paddedParticipants = padParticipants(currentParticipants);
+    const totalRounds = Math.log2(paddedParticipants.length);
+    const newRounds = [];
 
-    if (error) throw new Error(error.message);
-    fetchData(); 
-  };
+    // --- Generate Round 1 ---
+    const round1 = [];
+    for (let i = 0; i < paddedParticipants.length; i += 2) {
+      const p1 = paddedParticipants[i];
+      const p2 = paddedParticipants[i + 1];
 
-  const adminUpdateMatch = async (matchId, updates) => {
-    if (!session.pin) throw new Error("Authorization Required");
-    
-    const sqlUpdates = {};
-    if (updates.status === 'completed') {
-        sqlUpdates.state = 'complete';
-        sqlUpdates.is_locked = false; 
-    } else if (updates.status) {
-        sqlUpdates.state = updates.status === 'live' ? 'open' : updates.status === 'scheduled' ? 'pending' : updates.status;
-    }
-
-    if (updates.winnerId) sqlUpdates.winner_id = updates.winnerId;
-    if (updates.stream_url !== undefined) sqlUpdates.stream_url = updates.stream_url;
-    if (updates.server_ip !== undefined) sqlUpdates.server_ip = updates.server_ip;
-    if (updates.gotv_ip !== undefined) sqlUpdates.gotv_ip = updates.gotv_ip;
-    if (updates.score !== undefined) sqlUpdates.score = updates.score;
-    
-    if (updates.clear_sos) {
-        sqlUpdates.sos_triggered = false;
-        sqlUpdates.sos_by = null;
-    }
-
-    const reason = updates.override_reason || "Admin Update"; 
-
-    const { data, error } = await supabase.rpc('admin_update_match', {
-        match_id: matchId,
-        input_pin: session.pin,
-        updates: sqlUpdates,
-        override_reason: reason
-    });
-
-    if (error) throw new Error(error.message);
-    fetchData(); 
-  };
-
-  const triggerSOS = async (matchId) => {
-      if (!session.pin) throw new Error("Authorization Required");
-      const { data, error } = await supabase.rpc('trigger_sos', {
-          match_id: matchId,
-          input_pin: session.pin
+      round1.push({
+        id: `r0-m${i / 2}`,
+        roundIndex: 0,
+        matchIndex: i / 2,
+        player1: p1,
+        player2: p2,
+        winner: null,
+        status: (p1.isBye || p2.isBye) ? 'completed' : 'ready' 
+        // Note: Auto-resolving byes happens in a separate step or effect usually,
+        // but for simplicity, we mark them ready. Logic below handles bye advancement.
       });
-      if (error) throw new Error(error.message);
-      fetchData();
-  };
+    }
+    newRounds.push(round1);
 
-  const fetchMatchTimeline = async (matchId) => {
-      const { data, error } = await supabase
-          .from('audit_logs') 
-          .select('*')
-          .eq('match_id', matchId)
-          .order('created_at', { ascending: false });
-      
-      if (error) {
-          console.error("Timeline Fetch Error:", error);
-          return [];
+    // --- Generate Placeholder Rounds (2 to N) ---
+    // Each subsequent round has half the matches of the previous
+    let matchCount = paddedParticipants.length / 4; // Start at Round 2 (matches = half of R1 matches)
+    
+    for (let r = 1; r < totalRounds; r++) {
+      const roundMatches = [];
+      for (let m = 0; m < matchCount; m++) {
+        roundMatches.push({
+          id: `r${r}-m${m}`,
+          roundIndex: r,
+          matchIndex: m,
+          player1: null, // Waiting for previous round
+          player2: null,
+          winner: null,
+          status: 'pending'
+        });
       }
-      return data;
+      newRounds.push(roundMatches);
+      matchCount /= 2;
+    }
+
+    setRounds(newRounds);
+    setIsTournamentActive(true);
+
+    // Initial check to auto-advance any Byes in Round 1
+    // We wrap this in a timeout to ensure state is settled or call a helper immediately.
+    // For this purely logic hook, we'll return the structure and let the UI trigger 'autoResolve' if needed,
+    // or simply process the byes here:
+    processInitialByes(newRounds);
+
+  }, []);
+
+  /**
+   * Internal helper to immediately advance players matched against 'BYE'
+   */
+  const processInitialByes = (currentRounds) => {
+    const r1 = currentRounds[0];
+    let updatesNeeded = false;
+    const nextRounds = JSON.parse(JSON.stringify(currentRounds)); // Deep copy for safety
+
+    r1.forEach(match => {
+      if (!match.winner) {
+        if (match.player1?.isBye && match.player2 && !match.player2.isBye) {
+           // P2 wins automatically
+           match.winner = match.player2;
+           match.status = 'completed';
+           propagateWinner(nextRounds, 0, match.matchIndex, match.player2);
+           updatesNeeded = true;
+        } else if (match.player2?.isBye && match.player1 && !match.player1.isBye) {
+           // P1 wins automatically
+           match.winner = match.player1;
+           match.status = 'completed';
+           propagateWinner(nextRounds, 0, match.matchIndex, match.player1);
+           updatesNeeded = true;
+        }
+      }
+    });
+
+    if (updatesNeeded) {
+      setRounds(nextRounds);
+    }
   };
 
-  // Stubs
-  const createTeam = async () => {};
-  const joinTeam = async () => {};
-  const createMatch = async () => {};
+  /**
+   * Internal helper to move a winner to the next bracket slot.
+   * @param {Array} bracketStructure - The full rounds array
+   * @param {number} roundIdx - Current round index
+   * @param {number} matchIdx - Current match index
+   * @param {Participant} winner - The winning player
+   */
+  const propagateWinner = (bracketStructure, roundIdx, matchIdx, winner) => {
+    const nextRoundIdx = roundIdx + 1;
+    
+    // If this was the final round, we have a champion
+    if (nextRoundIdx >= bracketStructure.length) {
+      setChampion(winner);
+      setIsTournamentActive(false);
+      return;
+    }
 
-  return (
-    <TournamentContext.Provider value={{ 
-      teams, 
-      matches, 
-      loading, 
-      error,
-      createTeam, 
-      joinTeam, 
-      createMatch,
-      submitVeto, 
-      adminUpdateMatch,
-      triggerSOS,
-      fetchMatchTimeline
-    }}>
-      {children}
-    </TournamentContext.Provider>
-  );
+    const nextRound = bracketStructure[nextRoundIdx];
+    // Calculate which match in the next round this feeds into
+    // Matches 0 and 1 in R1 feed into Match 0 in R2. Matches 2 and 3 feed into Match 1.
+    const nextMatchIdx = Math.floor(matchIdx / 2);
+    const targetMatch = nextRound[nextMatchIdx];
+
+    // Determine if this winner goes to slot 1 or slot 2
+    // Even index matches go to player1, Odd index matches go to player2
+    if (matchIdx % 2 === 0) {
+      targetMatch.player1 = winner;
+    } else {
+      targetMatch.player2 = winner;
+    }
+
+    // Update status of next match
+    if (targetMatch.player1 && targetMatch.player2) {
+      targetMatch.status = 'ready';
+    }
+  };
+
+  /**
+   * Advances a winner for a specific match.
+   * @param {number} roundIndex 
+   * @param {number} matchIndex 
+   * @param {Participant} winner 
+   */
+  const setMatchWinner = useCallback((roundIndex, matchIndex, winner) => {
+    setRounds(prevRounds => {
+      const newRounds = JSON.parse(JSON.stringify(prevRounds)); // Deep clone
+      const currentMatch = newRounds[roundIndex][matchIndex];
+
+      // Validation
+      if (!currentMatch) return prevRounds;
+      if (currentMatch.status === 'pending') return prevRounds; // Can't decide pending matches
+      if (currentMatch.winner) return prevRounds; // Already decided
+
+      // Update current match
+      currentMatch.winner = winner;
+      currentMatch.status = 'completed';
+
+      // Move winner to next spot
+      propagateWinner(newRounds, roundIndex, matchIndex, winner);
+
+      return newRounds;
+    });
+  }, []);
+
+  /**
+   * Resets the tournament to initial state
+   */
+  const resetTournament = useCallback(() => {
+    setRounds([]);
+    setChampion(null);
+    setCurrentRoundIndex(0);
+    setIsTournamentActive(false);
+    setError(null);
+  }, []);
+
+  return {
+    rounds,
+    champion,
+    isTournamentActive,
+    error,
+    createTournament,
+    setMatchWinner,
+    resetTournament
+  };
 };
 
-export const useTournament = () => useContext(TournamentContext);s
+export default useTournament;

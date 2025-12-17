@@ -6,11 +6,12 @@ import {
 import { createClient } from '@supabase/supabase-js';
 
 // --- CONFIGURATION ---
+// Initializing Supabase inside the file to ensure it's self-contained and avoids resolution errors.
 const supabaseUrl = import.meta.env?.VITE_SUPABASE_URL || 'https://your-project.supabase.co';
 const supabaseAnonKey = import.meta.env?.VITE_SUPABASE_ANON_KEY || 'your-anon-key';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// --- LOGIC LAYER ---
+// --- LOGIC LAYER (Consolidated Provider) ---
 
 const TournamentContext = createContext();
 
@@ -22,6 +23,7 @@ export const TournamentProvider = ({ children }) => {
 
   const fetchData = useCallback(async () => {
     try {
+      // Parallel fetch for optimal performance
       const [teamsRes, matchesRes] = await Promise.all([
         supabase.from('teams').select('*, players(*)').order('seed_number', { ascending: true }),
         supabase.rpc('get_public_matches')
@@ -29,7 +31,7 @@ export const TournamentProvider = ({ children }) => {
 
       if (teamsRes.error) throw teamsRes.error;
       
-      // Enforce data integrity for matches
+      // Enforce strict data contract for matches
       const rawMatches = matchesRes.data || [];
       const enrichedMatches = rawMatches.map(m => ({
         ...m,
@@ -55,6 +57,7 @@ export const TournamentProvider = ({ children }) => {
     return () => clearInterval(interval);
   }, [fetchData]);
 
+  // Stable Rounds calculation to prevent layout jumps
   const rounds = useMemo(() => {
     if (!matches || matches.length === 0) return {};
     const grouped = matches.reduce((acc, m) => {
@@ -64,7 +67,7 @@ export const TournamentProvider = ({ children }) => {
       return acc;
     }, {});
 
-    // Sort slots once per round to stabilize connectors
+    // Sort slots to ensure consistent rendering and connector alignment
     Object.keys(grouped).forEach(r => {
       grouped[r].sort((a, b) => (a.slot || 0) - (b.slot || 0));
     });
@@ -189,7 +192,7 @@ const IntelModal = ({ match, onClose }) => {
                 <p className="text-[9px] font-mono text-zinc-500 uppercase mb-2 tracking-[0.2em]">Data Transmission</p>
                 <div className="flex items-center gap-3 text-white">
                    <Tv className="w-4 h-4 text-blue-400" />
-                   <span className="text-xs font-bold uppercase tracking-tight">{match.stream_url ? 'LINK_ACTIVE' : 'SIGNAL_LOST'}</span>
+                   <span className="text-xs font-bold uppercase tracking-tight">{match.stream_url ? 'COMM_LINK_ACTIVE' : 'SIGNAL_LOST'}</span>
                 </div>
              </div>
           </div>
@@ -231,8 +234,8 @@ const MatchCard = ({ match, onOpenIntel, setRef }) => {
   const isActionable = !!(match.team1Id && match.team2Id);
   const matchIdShort = match.id?.toString().split('-')?.[0] || 'ERR';
   
-  // Safe score split
-  const scoreParts = match.score?.split('-') || [null, null];
+  // Safe score parsing with fallbacks to prevent crash
+  const scoreParts = match.score?.toString().split('-') || [null, null];
 
   return (
     <div 
@@ -308,7 +311,7 @@ const BracketsContent = () => {
   const svgRef = useRef(null);
   const matchRefs = useRef(new Map());
 
-  // --- DYNAMIC LINE CALCULATION (Using "Yesterday" Math) ---
+  // --- DYNAMIC LINE CALCULATION (Using "Yesterday" Math Engine) ---
   useEffect(() => {
     if (loading || !contentRef.current || !svgRef.current || !matches) return;
 
@@ -358,10 +361,13 @@ const BracketsContent = () => {
     resizeObserver.observe(contentRef.current);
     if (containerRef.current) resizeObserver.observe(containerRef.current);
     
+    // Initial draw
     updateLines();
+    
     return () => resizeObserver.disconnect();
   }, [loading, matches, rounds]);
 
+  // Loading Screen
   if (loading && (!matches || matches.length === 0)) {
     return (
       <div className="flex flex-col items-center justify-center h-[500px] text-zinc-500 gap-4 bg-[#0b0c0f]">
@@ -371,20 +377,25 @@ const BracketsContent = () => {
     );
   }
 
+  // Error Boundary View
   if (error) {
     return (
       <div className="p-12 text-center text-red-500 font-mono text-xs uppercase flex flex-col items-center gap-3 bg-[#0b0c0f]">
         <AlertTriangle className="w-8 h-8" />
         <span>Encryption_Error: {error}</span>
+        <button onClick={() => window.location.reload()} className="mt-4 px-4 py-2 bg-red-900/20 border border-red-900/50 text-red-500 hover:bg-red-900/40 transition-colors">
+          Reboot_System
+        </button>
       </div>
     );
   }
 
+  // Empty State View
   if (!loading && (!matches || matches.length === 0)) {
     return (
       <div className="flex flex-col items-center justify-center h-[500px] text-zinc-500 gap-4 bg-[#0b0c0f]">
         <Trophy className="w-12 h-12 opacity-20" />
-        <p className="text-sm font-bold tracking-widest">NO MATCHES FOUND</p>
+        <p className="text-sm font-bold tracking-widest">NO_OPERATIONS_FOUND</p>
       </div>
     );
   }
@@ -393,7 +404,7 @@ const BracketsContent = () => {
 
   return (
     <div className="space-y-12 p-4 md:p-10 animate-in fade-in duration-1000 bg-[#0b0c0f]" ref={containerRef}>
-      {/* Header */}
+      {/* Tactical Header */}
       <div className="flex flex-col md:flex-row justify-between items-end gap-6 border-b border-zinc-800 pb-8 relative z-10">
           <div className="space-y-2">
               <h2 className="text-4xl font-black text-white italic tracking-tighter uppercase leading-none">
@@ -411,15 +422,15 @@ const BracketsContent = () => {
           </div>
       </div>
 
-      {/* Bracket Tree Wrapper */}
+      {/* Main Grid Wrapper */}
       <div className="relative min-w-max" ref={contentRef}>
-        {/* Dynamic SVG Layer */}
+        {/* Dynamic Connector SVG (Direct DOM manipulation for performance) */}
         <svg ref={svgRef} className="absolute inset-0 w-full h-full pointer-events-none z-0" />
 
         <div className="relative z-10 flex gap-24 pb-20 no-scrollbar select-none">
           {sortedRounds.map(([roundNum, roundMatches]) => (
             <div key={roundNum} className="flex flex-col gap-12 min-w-max">
-              {/* Round Metadata */}
+              {/* Round Metadata Header */}
               <div className="relative flex flex-col gap-1 pl-4 border-l-2 border-[#ff5500]/50">
                 <span className="text-[10px] font-mono text-[#ff5500] uppercase tracking-[0.4em] font-black">PHASE_{roundNum.padStart(2, '0')}</span>
                 <span className="text-sm font-black text-white uppercase italic tracking-tighter opacity-80">
@@ -427,7 +438,7 @@ const BracketsContent = () => {
                 </span>
               </div>
 
-              {/* Match Grid */}
+              {/* Match Alignment Grid */}
               <div className="flex flex-col justify-around flex-grow gap-16 relative">
                 {roundMatches.map((match) => (
                   <MatchCard 
@@ -446,8 +457,8 @@ const BracketsContent = () => {
         </div>
       </div>
 
-      {/* Legend / Footer */}
-      <div className="flex flex-wrap gap-10 border-t border-zinc-800 pt-10 opacity-50 hover:opacity-100 transition-opacity duration-500">
+      {/* Legend & Intel Info Footer */}
+      <div className="flex flex-wrap gap-10 border-t border-zinc-800 pt-10 opacity-50 hover:opacity-100 transition-opacity duration-500 relative z-10">
         <div className="flex items-center gap-3">
            <div className="w-3.5 h-3.5 bg-[#ff5500] shadow-[0_0_10px_rgba(255,85,0,0.4)]" style={{ clipPath: 'polygon(0 0, 100% 0, 80% 100%, 0 100%)' }} />
            <span className="text-[10px] font-mono text-white uppercase tracking-widest font-black">Active Zone</span>
@@ -458,11 +469,11 @@ const BracketsContent = () => {
         </div>
         <div className="ml-auto flex items-center gap-2 text-[9px] font-mono text-zinc-600 uppercase tracking-[0.3em]">
            <Info className="w-3 h-3" />
-           Build_Alpha_v2.5.4 // Tactical_Environment
+           Build_Alpha_v2.5.5 // Tactical_Environment
         </div>
       </div>
 
-      {/* Functional Modal Integration */}
+      {/* High-Grade Intel Overlay */}
       {activeIntel && (
         <IntelModal 
           match={activeIntel} 

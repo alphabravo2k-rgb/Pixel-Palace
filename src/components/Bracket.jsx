@@ -25,6 +25,10 @@ export const TournamentProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  /**
+   * FETCH DATA: Unified sync for the tournament state.
+   * Performs heavy lifting and key normalization here so the UI stays "dumb".
+   */
   const fetchData = useCallback(async () => {
     try {
       const [teamsRes, matchesRes] = await Promise.all([
@@ -35,11 +39,24 @@ export const TournamentProvider = ({ children }) => {
       if (teamsRes.error) throw teamsRes.error;
       
       const rawMatches = matchesRes.data || [];
+      
+      // Enforce Stable Data Contract: Normalize backend keys to frontend keys once.
       const enrichedMatches = rawMatches.map(m => ({
-        ...m,
+        id: m.id,
+        round: m.round || 1,
+        slot: m.slot || 0,
+        next_match_id: m.next_match_id,
+        team1Id: m.team1_id,
+        team2Id: m.team2_id,
         team1Name: m.team1_name || "TBD",
         team2Name: m.team2_name || "TBD",
-        status: m.status || 'scheduled'
+        team1Logo: m.team1_logo,
+        team2Logo: m.team2_logo,
+        winnerId: m.winner_id,
+        score: m.score || '0-0',
+        status: m.status || 'scheduled',
+        stream_url: m.stream_url,
+        vetoState: m.metadata?.veto || {}
       }));
 
       setTeams(teamsRes.data || []);
@@ -59,6 +76,7 @@ export const TournamentProvider = ({ children }) => {
     return () => clearInterval(interval);
   }, [fetchData]);
 
+  // Stable Rounds calculation with numerical sorting
   const rounds = useMemo(() => {
     if (!matches || matches.length === 0) return {};
     const grouped = matches.reduce((acc, m) => {
@@ -131,13 +149,12 @@ const getStatusStyles = (status) => {
 // --- SUB-COMPONENTS ---
 
 /**
- * IntelModal: Robust tactical readout.
- * Uses defensive optional chaining to prevent the "blank screen" crash.
+ * IntelModal: Enhanced with defensive property access to prevent blank screen crashes.
  */
 const IntelModal = ({ match, onClose }) => {
   if (!match) return null;
   const theme = getStatusStyles(match.status);
-  const matchIdShort = (match.id || '').toString().split('-')[0] || '00';
+  const matchIdShort = match.id ? match.id.toString().split('-')[0] : 'N/A';
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-300">
@@ -209,7 +226,7 @@ const IntelModal = ({ match, onClose }) => {
 const TeamSlot = ({ name, logo, score, isWinner, isTBD }) => (
   <div className={`flex items-center justify-between px-3 py-2.5 transition-all duration-300 ${isWinner ? 'bg-white/[0.04]' : ''}`}>
     <div className="flex items-center gap-3 min-w-0">
-      <div className={`w-7 h-7 rounded-sm bg-zinc-900 flex-shrink-0 flex items-center justify-center border ${isWinner ? 'border-[#ff5500]/50' : 'border-zinc-800'}`}>
+      <div className={`w-7 h-7 rounded-sm bg-zinc-900 flex-shrink-0 flex items-center justify-center border ${isWinner ? 'border-[#ff5500]/50 shadow-[0_0_10px_rgba(255,85,0,0.1)]' : 'border-zinc-800'}`}>
         {logo ? <img src={logo} alt="" className="w-full h-full object-contain" /> : <Shield className={`w-3.5 h-3.5 ${isTBD ? 'text-zinc-800' : 'text-zinc-600'}`} />}
       </div>
       <span className={`text-[11px] font-medium uppercase tracking-tight truncate ${isTBD ? 'text-zinc-700 italic' : isWinner ? 'text-white' : 'text-zinc-500'}`}>
@@ -225,8 +242,8 @@ const TeamSlot = ({ name, logo, score, isWinner, isTBD }) => (
 const MatchCard = ({ match, onOpenIntel, setRef }) => {
   const theme = getStatusStyles(match.status);
   const isActionable = !!(match.team1Id && match.team2Id);
-  const matchIdShort = (match.id || '').toString().split('-')[0] || 'ERR';
-  const scoreParts = (match.score || '').toString().split('-') || [null, null];
+  const matchIdShort = match.id ? match.id.toString().split('-')[0] : 'ERR';
+  const scoreParts = match.score ? match.score.toString().split('-') : [null, null];
 
   return (
     <div 
@@ -247,12 +264,23 @@ const MatchCard = ({ match, onOpenIntel, setRef }) => {
         <TeamSlot name={match.team2Name} logo={match.team2Logo} score={scoreParts[1]} isWinner={match.winnerId === match.team2Id && match.status === 'completed'} isTBD={!match.team2Id} />
       </div>
       <div className="mt-auto px-3 py-2 bg-black/40 border-t border-zinc-800/50 flex items-center justify-between relative z-10">
-        <Tv className={`w-3.5 h-3.5 ${match.stream_url ? 'text-zinc-400' : 'text-zinc-800'}`} />
+        <div className="flex items-center gap-3">
+          {match.stream_url ? (
+            <a href={match.stream_url} target="_blank" rel="noreferrer" className="text-zinc-500 hover:text-white transition-colors" title="Watch POV">
+              <Tv className="w-3.5 h-3.5" />
+            </a>
+          ) : (
+            <Tv className="w-3.5 h-3.5 text-zinc-800" title="Link Offline" />
+          )}
+        </div>
+
         <button 
           onClick={() => isActionable && onOpenIntel(match)}
           disabled={!isActionable}
           className={`group/btn flex items-center gap-1.5 px-3 py-1 rounded-sm text-[9px] font-black tracking-tighter uppercase transition-all
-            ${isActionable ? 'bg-zinc-800 text-zinc-300 hover:bg-[#ff5500]/20 hover:text-[#ff5500] cursor-pointer' : 'bg-zinc-900/50 text-zinc-700 cursor-not-allowed opacity-50'}`}
+            ${isActionable 
+              ? 'bg-zinc-800 text-zinc-300 hover:bg-[#ff5500]/20 hover:text-[#ff5500] cursor-pointer' 
+              : 'bg-zinc-900/50 text-zinc-700 cursor-not-allowed grayscale'}`}
         >
           {isActionable ? 'ACCESS_INTEL' : 'LOCKED'}
           <ChevronRight className={`w-2.5 h-2.5 transition-transform ${isActionable ? 'group-hover/btn:translate-x-0.5' : ''}`} />
@@ -275,7 +303,7 @@ const BracketsContent = () => {
   /**
    * CONNECTOR ENGINE: 
    * Dynamically draws SVG paths between matches based on DOM positions.
-   * This is the robust math that prevents "broken lines".
+   * This is the math engine that fixes the "broken lines" issue.
    */
   useEffect(() => {
     if (loading || !contentRef.current || !svgRef.current || !matches) return;
@@ -313,7 +341,9 @@ const BracketsContent = () => {
         }
       });
 
-      if (svgRef.current) svgRef.current.innerHTML = paths;
+      if (svgRef.current) {
+        svgRef.current.innerHTML = paths;
+      }
     };
 
     const resizeObserver = new ResizeObserver(() => requestAnimationFrame(updateLines));

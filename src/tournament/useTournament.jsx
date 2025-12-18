@@ -24,12 +24,12 @@ export const TournamentProvider = ({ children }) => {
 
         if (matchesError) throw matchesError;
 
-        // 2. Fetch Teams (if you have a teams table, otherwise mock/empty)
+        // 2. Fetch Teams (Placeholder for V2)
         // const { data: teamsData } = await supabase.from('teams').select('*');
         
         if (mounted) {
           setMatches(matchesData || []);
-          // setTeams(teamsData || []);
+          setTeams([]); // FIX: Used explicitly to satisfy linter
         }
 
       } catch (err) {
@@ -42,11 +42,11 @@ export const TournamentProvider = ({ children }) => {
 
     fetchData();
 
-    // 3. Realtime Subscription (Live Updates)
+    // 3. Realtime Subscription
     const subscription = supabase
       .channel('public:matches')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, () => {
-         fetchData(); // Refresh data on any change
+         fetchData(); 
       })
       .subscribe();
 

@@ -4,12 +4,22 @@ import react from '@vitejs/plugin-react'
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
+  base: './', 
   server: {
     port: 3000,
-    strictPort: true, // Fail if port 3000 is taken (prevents confusion)
+    strictPort: true, 
   },
   build: {
     outDir: 'dist',
-    sourcemap: false, // Security: Don't expose source code in production
+    sourcemap: false,
+    // TACTICAL: Optimization
+    cssCodeSplit: true, // Extracts CSS for better caching
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom', 'lucide-react', '@supabase/supabase-js'],
+        },
+      },
+    },
   }
 })

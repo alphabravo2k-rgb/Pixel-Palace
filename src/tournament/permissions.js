@@ -1,6 +1,7 @@
 import { ROLES } from '../lib/roles';
+import { PERM_ACTIONS } from '../lib/constants';
 
-// --- CONSTANTS ---
+// --- CONFIGURATION: MATCH STATES ---
 export const MATCH_STATUS = {
   SCHEDULED: 'scheduled',
   READY: 'ready',
@@ -12,30 +13,48 @@ export const MATCH_STATUS = {
 // --- PERMISSION MATRIX ---
 const ROLE_PERMISSIONS = {
   [ROLES.SYSTEM_OWNER]: ['*'], 
-  [ROLES.OWNER]: ['match.update', 'match.force_win', 'match.pause', 'match.veto.override', 'server.view_sensitive'],
-  [ROLES.ADMIN]: ['match.update', 'match.force_win', 'match.pause', 'match.veto.override', 'server.view_sensitive'],
-  [ROLES.REFEREE]: ['match.update', 'match.pause', 'match.resume', 'server.view_sensitive'],
-  [ROLES.CAPTAIN]: ['match.veto.act', 'match.dispute', 'server.view_connect'],
-  [ROLES.PLAYER]: ['match.dispute', 'server.view_connect'],
+  [ROLES.OWNER]: [
+    PERM_ACTIONS.MATCH_UPDATE, PERM_ACTIONS.MATCH_FORCE_WIN, 
+    PERM_ACTIONS.MATCH_PAUSE, PERM_ACTIONS.VETO_OVERRIDE, 
+    PERM_ACTIONS.VIEW_SENSITIVE
+  ],
+  [ROLES.ADMIN]: [
+    PERM_ACTIONS.MATCH_UPDATE, PERM_ACTIONS.MATCH_FORCE_WIN, 
+    PERM_ACTIONS.MATCH_PAUSE, PERM_ACTIONS.VETO_OVERRIDE, 
+    PERM_ACTIONS.VIEW_SENSITIVE
+  ],
+  [ROLES.REFEREE]: [
+    PERM_ACTIONS.MATCH_UPDATE, PERM_ACTIONS.MATCH_PAUSE, 
+    PERM_ACTIONS.MATCH_RESUME, PERM_ACTIONS.VIEW_SENSITIVE
+  ],
+  [ROLES.CAPTAIN]: [
+    PERM_ACTIONS.VETO_ACT, PERM_ACTIONS.DISPUTE_RAISE, 
+    PERM_ACTIONS.VIEW_SERVER_IP
+  ],
+  [ROLES.PLAYER]: [
+    PERM_ACTIONS.DISPUTE_RAISE, PERM_ACTIONS.VIEW_SERVER_IP
+  ],
   [ROLES.SPECTATOR]: [],
   [ROLES.GUEST]: []
 };
 
+// --- STATE GUARDS ---
 const STATE_GUARDS = {
-  'match.veto.act': [MATCH_STATUS.VETO],
-  'server.view_connect': [MATCH_STATUS.LIVE], 
-  'server.view_sensitive': [MATCH_STATUS.LIVE, MATCH_STATUS.VETO, MATCH_STATUS.SCHEDULED], 
-  'match.force_win': [MATCH_STATUS.LIVE, MATCH_STATUS.VETO, MATCH_STATUS.READY, MATCH_STATUS.SCHEDULED]
+  [PERM_ACTIONS.VETO_ACT]: [MATCH_STATUS.VETO],
+  [PERM_ACTIONS.VIEW_SERVER_IP]: [MATCH_STATUS.LIVE], 
+  [PERM_ACTIONS.VIEW_SENSITIVE]: [MATCH_STATUS.LIVE, MATCH_STATUS.VETO, MATCH_STATUS.SCHEDULED], 
+  [PERM_ACTIONS.MATCH_FORCE_WIN]: [MATCH_STATUS.LIVE, MATCH_STATUS.VETO, MATCH_STATUS.READY, MATCH_STATUS.SCHEDULED]
 };
 
+// --- SCOPE GUARDS ---
 const TEAM_SCOPE_ACTIONS = [
-  'match.veto.act', 
-  'server.view_connect',
-  'match.dispute'
+  PERM_ACTIONS.VETO_ACT, 
+  PERM_ACTIONS.VIEW_SERVER_IP,
+  PERM_ACTIONS.DISPUTE_RAISE
 ];
 
 /**
- * CORE LOGIC
+ * THE CENTRAL RESOLVER
  */
 export const can = (action, session, context = {}) => {
   if (!session || !session.isAuthenticated) return false;
@@ -54,13 +73,19 @@ export const can = (action, session, context = {}) => {
     }
   }
 
-  // 3. Scope Check (Ownership)
+  // 3. Scope Check (Team/Match Ownership)
   if (TEAM_SCOPE_ACTIONS.includes(action)) {
+    // If action requires scope but no match provided -> Deny
     if (!context.match) return false;
-    const isTeam1 = session.teamId === context.match.team1Id;
-    const isTeam2 = session.teamId === context.match.team2Id;
+
+    // Safety: Handle null team IDs gracefully
+    const userTeamId = session.teamId;
+    if (!userTeamId) return false; // User has no team, cannot perform scoped action
+
+    const isTeam1 = userTeamId === context.match.team1Id;
+    const isTeam2 = userTeamId === context.match.team2Id;
     
-    // Captains/Players must own the match
+    // Enforce scope for Captains and Players
     if ([ROLES.CAPTAIN, ROLES.PLAYER].includes(session.role)) {
       if (!isTeam1 && !isTeam2) return false;
     }
@@ -69,14 +94,13 @@ export const can = (action, session, context = {}) => {
   return true;
 };
 
-// --- HELPERS ---
-// Used by components for quick checks
+// --- HELPER WRAPPERS ---
 export const isAdmin = (session) => {
   return [ROLES.SYSTEM_OWNER, ROLES.OWNER, ROLES.ADMIN].includes(session?.role);
 };
 
 export const isTeamCaptain = (session, teamId) => {
   if (!session?.isAuthenticated) return false;
-  if (isAdmin(session)) return true; // Admins override
+  if (isAdmin(session)) return true; 
   return session.role === ROLES.CAPTAIN && session.teamId === teamId;
 };

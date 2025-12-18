@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
-import { Trophy, Clock, MapPin, MonitorPlay } from 'lucide-react'; 
-// Removed unused imports: Swords, Crosshair
+import { Trophy, Clock, MapPin, MonitorPlay, AlertTriangle } from 'lucide-react'; 
+import { useTournament } from '../tournament/useTournament'; // <--- IMPORT THIS
 
 const BracketMatch = memo(({ match, onMatchClick, style }) => {
   if (!match) return null;
@@ -8,7 +8,6 @@ const BracketMatch = memo(({ match, onMatchClick, style }) => {
   const isLive = match.status === 'live';
   const isCompleted = match.status === 'completed';
   
-  // Tactical Status Colors
   const statusColor = isLive ? 'border-[#ff5500] shadow-[0_0_10px_rgba(255,85,0,0.3)]' : 
                      isCompleted ? 'border-emerald-900/50 opacity-70' : 
                      'border-zinc-800 hover:border-zinc-600';
@@ -19,7 +18,6 @@ const BracketMatch = memo(({ match, onMatchClick, style }) => {
       onClick={() => onMatchClick(match)}
       className={`absolute w-64 bg-[#0b0c0f] border ${statusColor} p-3 cursor-pointer transition-all hover:scale-[1.02] group`}
     >
-      {/* Header */}
       <div className="flex justify-between items-center mb-2 text-[10px] font-mono uppercase tracking-wider text-zinc-500">
         <span className="flex items-center gap-1">
           {match.id.slice(0, 4)} <span className="text-zinc-700">|</span> {match.map || 'VETO'}
@@ -31,7 +29,6 @@ const BracketMatch = memo(({ match, onMatchClick, style }) => {
         )}
       </div>
 
-      {/* Teams */}
       <div className="space-y-1">
         <div className="flex justify-between items-center bg-zinc-900/50 px-2 py-1 rounded-sm border-l-2 border-transparent hover:border-[#ff5500] transition-colors">
           <span className={`font-bold text-xs ${match.winner === match.team1_id ? 'text-[#ff5500]' : 'text-zinc-300'}`}>
@@ -53,12 +50,23 @@ const BracketMatch = memo(({ match, onMatchClick, style }) => {
 BracketMatch.displayName = 'BracketMatch';
 
 const Bracket = ({ onMatchClick }) => {
-  // Mock Data for Visuals - In production, this comes from useTournament
-  const matches = [
-    { id: 'm_01', round: 1, team1_name: 'NAVI', team2_name: 'FAZE', score1: 13, score2: 11, status: 'completed', map: 'Mirage' },
-    { id: 'm_02', round: 1, team1_name: 'G2', team2_name: 'VITALITY', score1: 8, score2: 13, status: 'completed', map: 'Nuke' },
-    { id: 'm_03', round: 2, team1_name: 'NAVI', team2_name: 'VITALITY', score1: 9, score2: 9, status: 'live', map: 'Ancient' },
-  ];
+  // 1. GET REAL DATA
+  const { matches, loading } = useTournament();
+
+  if (loading) {
+     return <div className="w-full h-[600px] flex items-center justify-center text-zinc-600 font-mono animate-pulse">Initializing Uplink...</div>;
+  }
+
+  // If no matches in DB, show warning
+  if (!matches || matches.length === 0) {
+    return (
+        <div className="w-full h-[600px] bg-tactical-grid rounded-lg border border-zinc-800 flex flex-col items-center justify-center text-zinc-500">
+            <AlertTriangle className="mb-4 text-[#ff5500]" />
+            <p className="font-mono text-xs uppercase tracking-widest">No Matches Scheduled</p>
+            <p className="text-[10px] mt-2">Add rows to 'matches' table in Supabase</p>
+        </div>
+    );
+  }
 
   return (
     <div className="w-full h-[600px] relative overflow-hidden bg-tactical-grid rounded-lg border border-zinc-800">
@@ -68,9 +76,12 @@ const Bracket = ({ onMatchClick }) => {
         <span className="flex items-center gap-1"><Clock size={12} /> UTC+0</span>
       </div>
 
-      {/* Manual Positioning for Demo - In prod, calculate x/y dynamically */}
-      <BracketMatch match={matches[0]} style={{ top: 50, left: 50 }} onMatchClick={onMatchClick} />
-      <BracketMatch match={matches[1]} style={{ top: 200, left: 50 }} onMatchClick={onMatchClick} />
+      {/* MAPPING LOGIC: 
+         This maps the first 3 matches from your DB to the visual slots.
+         In V2, you would use 'match.round' or 'match.bracket_position' to place them dynamically.
+      */}
+      {matches[0] && <BracketMatch match={matches[0]} style={{ top: 50, left: 50 }} onMatchClick={onMatchClick} />}
+      {matches[1] && <BracketMatch match={matches[1]} style={{ top: 200, left: 50 }} onMatchClick={onMatchClick} />}
       
       {/* Connector Lines */}
       <svg className="absolute inset-0 pointer-events-none stroke-zinc-800" fill="none">
@@ -78,7 +89,7 @@ const Bracket = ({ onMatchClick }) => {
         <path d="M 310 245 L 350 245 L 350 170" strokeWidth="2" />
       </svg>
 
-      <BracketMatch match={matches[2]} style={{ top: 125, left: 400 }} onMatchClick={onMatchClick} />
+      {matches[2] && <BracketMatch match={matches[2]} style={{ top: 125, left: 400 }} onMatchClick={onMatchClick} />}
     </div>
   );
 };

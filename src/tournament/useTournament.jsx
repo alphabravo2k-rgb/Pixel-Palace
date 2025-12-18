@@ -24,12 +24,19 @@ export const TournamentProvider = ({ children }) => {
 
         if (matchesError) throw matchesError;
 
-        // 2. Fetch Teams (Placeholder for V2)
-        // const { data: teamsData } = await supabase.from('teams').select('*');
+        // 2. Fetch Teams (ENABLED NOW)
+        // Ensure you have a 'teams' table in Supabase, or this will return []
+        const { data: teamsData, error: teamsError } = await supabase
+          .from('teams')
+          .select('*');
+
+        if (teamsError && teamsError.code !== 'PGRST116') {
+             console.warn("Teams fetch warning:", teamsError.message);
+        }
         
         if (mounted) {
           setMatches(matchesData || []);
-          setTeams([]); // FIX: Used explicitly to satisfy linter
+          setTeams(teamsData || []); 
         }
 
       } catch (err) {
@@ -42,17 +49,21 @@ export const TournamentProvider = ({ children }) => {
 
     fetchData();
 
-    // 3. Realtime Subscription
-    const subscription = supabase
+    // 3. Realtime Subscriptions
+    const matchSub = supabase
       .channel('public:matches')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, () => {
-         fetchData(); 
-      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, () => fetchData())
+      .subscribe();
+      
+    const teamSub = supabase
+      .channel('public:teams')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'teams' }, () => fetchData())
       .subscribe();
 
     return () => {
       mounted = false;
-      supabase.removeChannel(subscription);
+      supabase.removeChannel(matchSub);
+      supabase.removeChannel(teamSub);
     };
   }, []);
 

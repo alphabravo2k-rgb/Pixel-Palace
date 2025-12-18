@@ -49,9 +49,7 @@ const Router = () => {
     setCurrentView(view);
   }, []);
 
-  // DEFENSE IN DEPTH: Router-level security gate
   const handleMatchClick = useCallback((match) => {
-    // 1. Must be Authenticated (or Spectator)
     if (!session.isAuthenticated && !permissions.isSpectator) {
         console.warn("[Router] Access Denied: User is Guest");
         return;
@@ -111,15 +109,14 @@ const Router = () => {
       <footer className="border-t border-zinc-900 bg-[#060709] py-8 mt-auto">
         <LayoutContainer className="text-center">
           <p className="text-[10px] text-zinc-700 font-mono uppercase tracking-widest group cursor-help">
-            Pixel Palace // {APP_VERSION}
+            Pixel Palace {'//'} {APP_VERSION}
             <span className="opacity-0 group-hover:opacity-100 transition-opacity ml-2 text-zinc-500">
-               // ID: {session.identity} [{session.role}]
+               {'//'} ID: {session.identity} [{session.role}]
             </span>
           </p>
         </LayoutContainer>
       </footer>
 
-      {/* FINAL GUARD: Only render modal if we have a match AND permission */}
       {(session.isAuthenticated || permissions.isSpectator) && (
         <MatchModal match={selectedMatch} onClose={() => setSelectedMatch(null)} />
       )}

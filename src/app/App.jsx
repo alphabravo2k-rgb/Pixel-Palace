@@ -1,20 +1,31 @@
-import { SessionProvider } from '../auth/useSession.jsx';
-import { TournamentProvider } from '../tournament/useTournament.jsx';
-import Router from './router.jsx';
-import PinLogin from '../components/PinLogin.jsx';
+import React from 'react';
+import { SessionProvider } from '../auth/useSession';
+import { TournamentProvider } from '../tournament/useTournament';
+import Router from './router';
+import PinLogin from '../components/PinLogin';
 
-/**
- * ROOT APPLICATION ORCHESTRATOR
- * Orchestrates global state providers and the tactical UI layer.
- * Enforces strict linting standards by omitting unused React imports.
- */
+// Optional: Import a global error boundary here if desired
+
 const App = () => {
   return (
+    // 1. Auth Layer (Session Management)
     <SessionProvider>
+      
+      {/* 2. Data Layer (Tournament State) */}
       <TournamentProvider>
-        <Router />
-        <PinLogin />
+        
+        <div className="antialiased text-zinc-300 min-h-screen bg-ui-bg selection:bg-brand selection:text-black">
+          
+          {/* 3. Navigation & Views */}
+          <Router />
+          
+          {/* 4. Global Overlays */}
+          <PinLogin />
+          
+        </div>
+        
       </TournamentProvider>
+      
     </SessionProvider>
   );
 };

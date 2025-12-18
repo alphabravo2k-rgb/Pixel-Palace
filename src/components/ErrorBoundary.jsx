@@ -7,7 +7,8 @@ class ErrorBoundary extends React.Component {
     this.state = { hasError: false };
   }
 
-  static getDerivedStateFromError(error) {
+  // FIX: Renamed argument to _error to suppress unused var warning
+  static getDerivedStateFromError(_error) {
     return { hasError: true };
   }
 

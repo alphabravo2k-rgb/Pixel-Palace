@@ -16,12 +16,14 @@ module.exports = {
       'warn',
       { allowConstantExport: true },
     ],
-    // TACTICAL STRICTNESS
+    // TACTICAL DISCIPLINE
     'react/prop-types': 'off', 
     'no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
     'no-console': ['warn', { allow: ['warn', 'error', 'info'] }],
     'react/jsx-props-no-spreading': 'warn',
-    // CONSISTENCY: Enforce Arrow Functions
-    "react/function-component-definition": ["warn", { "namedComponents": "arrow-function" }]
+    "react/function-component-definition": ["warn", { "namedComponents": "arrow-function" }],
+    
+    // CRITICAL SAFETY: Prevent Stale Closures
+    "react-hooks/exhaustive-deps": "error"
   },
 }

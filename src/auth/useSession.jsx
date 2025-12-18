@@ -3,12 +3,10 @@ import { supabase } from '../supabase/client';
 import { ROLES } from '../lib/roles';
 
 // --- CONFIGURATION ---
-const SESSION_TIMEOUT_MS = 12 * 60 * 60 * 1000; // 12 Hours
+const SESSION_TIMEOUT_MS = 12 * 60 * 60 * 1000;
 const PIN_ATTEMPT_COOLDOWN = 2000; 
 const ACTIVITY_WRITE_THROTTLE = 60000; 
-const SESSION_VERSION = '1.3'; // Bumped for new helper logic
-
-// Safety check
+const SESSION_VERSION = '1.3'; 
 const DEV_MODE_ENABLED = import.meta.env.VITE_DEV_MODE === 'true';
 
 const SessionContext = createContext();
@@ -25,7 +23,6 @@ export const SessionProvider = ({ children }) => {
     version: SESSION_VERSION,
     loading: true
   });
-
   const [isPinModalOpen, setIsPinModalOpen] = useState(true);
   const [lastAttemptTime, setLastAttemptTime] = useState(0);
   const lastStorageWrite = useRef(0);
@@ -33,15 +30,11 @@ export const SessionProvider = ({ children }) => {
   const updateSession = useCallback((newSession, skipStorage = false) => {
     const sessionWithVersion = { ...newSession, version: SESSION_VERSION };
     setSession(sessionWithVersion);
-    
     if (!skipStorage) {
         sessionStorage.setItem('pp_user_session', JSON.stringify(sessionWithVersion));
         lastStorageWrite.current = Date.now();
     }
-
-    if (newSession.isAuthenticated) {
-        setIsPinModalOpen(false);
-    }
+    if (newSession.isAuthenticated) setIsPinModalOpen(false);
   }, []);
 
   useEffect(() => {
@@ -99,20 +92,16 @@ export const SessionProvider = ({ children }) => {
 
     try {
       const { data, error } = await supabase.rpc('verify_pin', { input_pin: inputPin.trim() });
-
       if (error) {
         console.error("Auth RPC Error:", error);
         return { success: false, reason: "SERVER CONNECTION FAILED" };
       }
-
-      // Stricter boolean check
       if (data?.valid === true) {
         let identityLabel = data.display_name;
         if (!identityLabel) {
            const suffix = data.team_id ? ` (${data.team_id.slice(0,4)})` : '';
            identityLabel = `${data.role}${suffix}`;
         }
-
         const newSession = {
           isAuthenticated: true,
           role: data.role,
@@ -123,7 +112,6 @@ export const SessionProvider = ({ children }) => {
           lastActive: new Date().toISOString(),
           loading: false
         };
-        
         updateSession(newSession);
         return { success: true };
       } else {
@@ -135,7 +123,8 @@ export const SessionProvider = ({ children }) => {
     }
   }, [lastAttemptTime, updateSession]);
 
-  const logout = useCallback((reason = "USER_ACTION") => {
+  // FIX: Renamed 'reason' to '_reason'
+  const logout = useCallback((_reason = "USER_ACTION") => {
     const emptySession = {
       isAuthenticated: false,
       role: ROLES.GUEST,
@@ -179,9 +168,6 @@ export const SessionProvider = ({ children }) => {
       });
   }, []);
 
-  // --- NEW: CENTRALIZED PERMISSION HELPERS ---
-  // Memoized helpers to prevent recalculation. 
-  // Prevents "scattered logic" in components.
   const permissions = useMemo(() => {
     const r = session.role;
     return {
@@ -194,16 +180,7 @@ export const SessionProvider = ({ children }) => {
   }, [session.role, session.isAuthenticated]);
 
   return (
-    <SessionContext.Provider value={{ 
-        session, 
-        permissions, // Exposed globally
-        verifyPin, 
-        loginAsSpectator, 
-        logout, 
-        isPinModalOpen, 
-        setIsPinModalOpen, 
-        refreshActivity 
-    }}>
+    <SessionContext.Provider value={{ session, permissions, verifyPin, loginAsSpectator, logout, isPinModalOpen, setIsPinModalOpen, refreshActivity }}>
       {children}
     </SessionContext.Provider>
   );

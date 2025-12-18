@@ -3,21 +3,19 @@ import { X } from 'lucide-react';
 
 /**
  * OPINIONATED TACTICAL BUTTON
- * Design System Primitive: Do not use for generic text buttons.
- * Locked API to prevent variant prop drilling.
+ * Design System Primitive. Locked API.
  */
 export const Button = ({ children, variant = 'primary', className = '', disabled = false, type = 'button', ...props }) => {
   const baseStyle = "px-4 py-2 rounded-sm font-black uppercase tracking-widest text-[10px] transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100";
   
   const variants = {
-    primary: "bg-zinc-800 text-zinc-300 hover:bg-[#ff5500] hover:text-black border border-zinc-700 hover:border-[#ff5500]",
+    primary: "bg-zinc-800 text-zinc-300 hover:bg-brand hover:text-black border border-zinc-700 hover:border-brand",
     secondary: "bg-zinc-900 text-zinc-500 hover:text-zinc-300 border border-zinc-800 hover:border-zinc-600",
     danger: "bg-red-900/20 text-red-500 border border-red-900/50 hover:bg-red-900/40 hover:border-red-500",
     success: "bg-emerald-900/20 text-emerald-500 border border-emerald-900/50 hover:bg-emerald-900/40 hover:border-emerald-500",
     ghost: "bg-transparent text-zinc-500 hover:text-white"
   };
 
-  // Safe fallback for invalid variants
   const resolvedVariant = variants[variant] ?? variants.primary;
 
   return (
@@ -39,7 +37,9 @@ export const Badge = ({ children, color = 'blue', className = '' }) => {
     red: 'bg-red-900/30 text-red-400 border-red-800',
     yellow: 'bg-yellow-900/30 text-yellow-500 border-yellow-800',
     gray: 'bg-zinc-800 text-zinc-400 border-zinc-700',
-    orange: 'bg-orange-900/30 text-orange-400 border-orange-800'
+    orange: 'bg-orange-900/30 text-orange-400 border-orange-800',
+    slate: 'bg-slate-800 text-slate-400 border-slate-700', // For spectators
+    purple: 'bg-purple-900/30 text-purple-400 border-purple-800' // For system owners
   };
 
   const resolvedColor = colors[color] || colors.gray;
@@ -53,55 +53,31 @@ export const Badge = ({ children, color = 'blue', className = '' }) => {
 
 /**
  * TACTICAL MODAL SHELL
- * Handles backdrop, focus capture, scroll locking, and basic keyboard events.
- * * Note: This component is currently responsible for both behavior and layout.
- * If needs diverge (e.g. headless modals), split into ModalShell + ModalContent.
  */
 export const Modal = ({ isOpen, onClose, title, children, maxWidth = 'max-w-md' }) => {
   const modalRef = useRef(null);
-  
-  // Generate unique ID for aria-labelledby to prevent collisions
   const titleId = useRef(`modal-title-${Math.random().toString(36).slice(2)}`).current;
 
-  // 1. Handle Keydown (ESC to Close + Strict Tab Block)
+  // Keydown & Focus Management
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (!isOpen) return;
-      
-      if (e.key === 'Escape') {
-        onClose();
-      }
-      
-      // Strict Focus Containment: Block Tab navigation entirely to prevent leakage
-      // A full focus cycle would be better UX, but blocking is safer than leaking.
-      if (e.key === 'Tab') {
-        e.preventDefault();
-      }
+      if (e.key === 'Escape') onClose();
     };
-    
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  // 2. Handle Body Scroll Lock
+  // Lock Body Scroll
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
+      // Slight timeout to allow render before focus
+      setTimeout(() => modalRef.current?.focus(), 50);
     }
     return () => {
       document.body.style.overflow = '';
     };
-  }, [isOpen]);
-
-  // 3. Handle Initial Focus (Recapture)
-  useEffect(() => {
-    if (isOpen) {
-      // Small timeout to ensure DOM is ready for focus
-      const timer = setTimeout(() => {
-        modalRef.current?.focus();
-      }, 50);
-      return () => clearTimeout(timer);
-    }
   }, [isOpen]);
 
   if (!isOpen) return null;
@@ -109,19 +85,20 @@ export const Modal = ({ isOpen, onClose, title, children, maxWidth = 'max-w-md' 
   return (
     <div 
       className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/95 backdrop-blur-xl animate-in fade-in duration-300"
-      onClick={onClose} // Click outside to close
+      onClick={onClose}
       role="dialog"
       aria-modal="true"
       aria-labelledby={title ? titleId : undefined}
     >
       <div 
         ref={modalRef}
-        tabIndex={-1} // Makes the div focusable
-        className={`relative w-full ${maxWidth} bg-[#0b0c0f] border border-zinc-800 shadow-2xl flex flex-col max-h-[90vh] outline-none`}
+        tabIndex={-1}
+        className={`relative w-full ${maxWidth} bg-tactical-surface border border-ui-border shadow-2xl flex flex-col max-h-[90vh] outline-none`}
         style={{ clipPath: 'polygon(0 0, 100% 0, 100% 95%, 95% 100%, 0 100%)' }}
-        onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside modal
+        onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex justify-between items-center p-6 border-b border-zinc-800 bg-[#15191f]/50">
+        {/* Header */}
+        <div className="flex justify-between items-center p-6 border-b border-ui-border bg-tactical-raised/50">
           {title && (
             <h3 id={titleId} className="text-xl font-black text-white italic tracking-tighter uppercase">
               {title}
@@ -130,11 +107,13 @@ export const Modal = ({ isOpen, onClose, title, children, maxWidth = 'max-w-md' 
           <button 
             onClick={onClose} 
             className="text-zinc-500 hover:text-white transition-colors p-2 hover:bg-white/5 rounded-full"
-            aria-label="Close modal"
+            aria-label="Close"
           >
             <X size={20} />
           </button>
         </div>
+
+        {/* Content with Custom Scrollbar */}
         <div className="p-6 overflow-y-auto custom-scrollbar">
           {children}
         </div>

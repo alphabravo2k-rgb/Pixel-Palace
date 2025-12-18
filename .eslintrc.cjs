@@ -12,18 +12,15 @@ module.exports = {
   settings: { react: { version: '18.2' } },
   plugins: ['react-refresh'],
   rules: {
-    'react-refresh/only-export-components': [
-      'warn',
-      { allowConstantExport: true },
-    ],
-    // TACTICAL DISCIPLINE
+    // DISABLE STRICT COMPONENT EXPORT RULE (Allows exporting Hooks + Components in one file)
+    'react-refresh/only-export-components': 'off',
+    
     'react/prop-types': 'off', 
-    'no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+    // ALLOW 'React' IMPORT TO BE UNUSED (Standard Vite behavior)
+    'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^React$' }],
     'no-console': ['warn', { allow: ['warn', 'error', 'info'] }],
     'react/jsx-props-no-spreading': 'warn',
     "react/function-component-definition": ["warn", { "namedComponents": "arrow-function" }],
-    
-    // CRITICAL SAFETY: Prevent Stale Closures
     "react-hooks/exhaustive-deps": "error"
   },
 }

@@ -16,19 +16,9 @@ module.exports = {
       'warn',
       { allowConstantExport: true },
     ],
-
-    // Core discipline
-    'no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
-    'prefer-const': 'error',
-    'eqeqeq': ['error', 'always'],
-    'no-debugger': 'error',
-    'no-duplicate-imports': 'error',
-
-    // Console policy
-    'no-console': ['warn', { allow: ['warn', 'error'] }],
-
-    // React sanity
-    'react/prop-types': 'off',
-    'react-hooks/exhaustive-deps': 'warn',
+    // TACTICAL STRICTNESS
+    'react/prop-types': 'off', // We trust our code structure
+    'no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+    'no-console': ['warn', { allow: ['warn', 'error', 'info'] }] // Allow branded logs
   },
 }

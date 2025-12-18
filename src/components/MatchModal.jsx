@@ -2,9 +2,9 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { X, Clock, Map as MapIcon, Shield, Trophy } from 'lucide-react';
 import { supabase } from '../supabase/client';
 import { useSession } from '../auth/useSession';
-import { PERM_ACTIONS } from '../lib/constants';
+// Removed unused PERM_ACTIONS import
 
-// Simple Badge Component for internal use (avoids circular dependency warnings)
+// Simple Badge Component
 const ModalBadge = ({ children, color = 'gray' }) => {
   const colors = {
     red: 'bg-red-900/30 text-red-400 border-red-800',
@@ -24,10 +24,8 @@ const MatchModal = ({ match, onClose }) => {
   const [timeline, setTimeline] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // FIX: Wrapped in useCallback to satisfy exhaustive-deps
   const fetchMatchTimeline = useCallback(async () => {
     if (!match?.id) return;
-    
     try {
       setLoading(true);
       const { data, error } = await supabase
@@ -45,7 +43,6 @@ const MatchModal = ({ match, onClose }) => {
     }
   }, [match?.id]);
 
-  // FIX: Added fetchMatchTimeline to dependency array
   useEffect(() => {
     if (match?.id) {
       fetchMatchTimeline();
@@ -63,7 +60,6 @@ const MatchModal = ({ match, onClose }) => {
         className="w-full max-w-2xl bg-[#0b0c0f] border border-zinc-800 shadow-2xl flex flex-col max-h-[90vh]"
         style={{ clipPath: 'polygon(0 0, 100% 0, 100% 95%, 95% 100%, 0 100%)' }}
       >
-        {/* Header */}
         <div className="flex justify-between items-start p-6 border-b border-zinc-800 bg-[#15191f]">
           <div>
             <div className="flex items-center gap-3 mb-2">
@@ -90,10 +86,7 @@ const MatchModal = ({ match, onClose }) => {
           </button>
         </div>
 
-        {/* Body */}
         <div className="p-6 overflow-y-auto custom-scrollbar space-y-8">
-          
-          {/* Teams */}
           <div className="grid grid-cols-2 gap-8">
             <div className="p-4 bg-zinc-900/30 border border-zinc-800 text-center">
               <h3 className="text-xl font-black text-[#ff5500] uppercase mb-1">{match.team1_name}</h3>
@@ -105,7 +98,6 @@ const MatchModal = ({ match, onClose }) => {
             </div>
           </div>
 
-          {/* Sensitive Data (Admins Only) */}
           {canViewSensitive && match.server_ip && (
             <div className="bg-red-900/10 border border-red-900/30 p-4">
               <div className="flex items-center gap-2 mb-2 text-red-500 text-xs font-bold uppercase tracking-widest">
@@ -117,7 +109,6 @@ const MatchModal = ({ match, onClose }) => {
             </div>
           )}
 
-          {/* Timeline */}
           <div>
             <h4 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-4 flex items-center gap-2">
               <Trophy className="w-3 h-3" /> Match Events

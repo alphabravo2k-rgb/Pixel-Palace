@@ -1,12 +1,24 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Load environment variables (Vite standard)
-// You MUST add these to your Cloudflare Pages "Environment Variables" settings
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+/**
+ * SUPABASE CLIENT INTERFACE
+ * Standardized initialization with explicit environment validation.
+ * Ensures the application fails immediately if core database configurations are missing.
+ */
 
-if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-  console.warn("⚠️ Supabase Keys missing! Check your .env file or Cloudflare variables.");
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+// Fail-fast validation for tactical infrastructure
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error(
+    "FATAL_CONFIG_ERROR: Supabase credentials not found in environment variables. " +
+    "Check your .env file for VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY."
+  );
 }
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+/**
+ * Singleton instance of the Supabase client.
+ * Configured for the Pixel Palace Tournament Manager environment.
+ */
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);

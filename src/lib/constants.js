@@ -11,7 +11,7 @@ export const MAP_POOL = [
   { id: 'de_vertigo', name: 'Vertigo', slug: 'vertigo', image: 'https://raw.githubusercontent.com/sivert-io/cs2-server-manager/master/map_thumbnails/de_vertigo.png', active: false }
 ];
 
-// --- PERMISSION ACTION CONSTANTS (Avoids Typos) ---
+// --- PERMISSION ACTION CONSTANTS ---
 export const PERM_ACTIONS = {
   // Match Operations
   MATCH_UPDATE: 'match.update',
@@ -44,7 +44,7 @@ export const COUNTRY_MAP = {
   'NPL': 'np', 'NP': 'np'
 };
 
-// --- VETO FLOW ---
+// --- VETO FLOW (Standard Competitive) ---
 export const VETO_FLOW = { 
   "BO1": [
     { team: "A", action: "BAN" }, { team: "B", action: "BAN" },
@@ -56,5 +56,12 @@ export const VETO_FLOW = {
     { team: "A", action: "PICK" }, { team: "B", action: "SIDE" },
     { team: "B", action: "PICK" }, { team: "A", action: "SIDE" },
     { team: "A", action: "BAN" }, { team: "B", action: "BAN" }
+  ],
+  "BO5": [
+    { team: "A", action: "BAN" }, { team: "B", action: "BAN" },
+    { team: "A", action: "PICK" }, { team: "B", action: "SIDE" },
+    { team: "B", action: "PICK" }, { team: "A", action: "SIDE" },
+    { team: "A", action: "PICK" }, { team: "B", action: "SIDE" },
+    { team: "B", action: "PICK" }, { team: "A", action: "SIDE" }
   ]
 };

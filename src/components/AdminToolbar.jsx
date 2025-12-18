@@ -1,47 +1,57 @@
 import React from 'react';
 import { useSession } from '../auth/useSession';
-import { ROLES, ROLE_THEMES } from '../lib/roles';
-import { Button, Badge } from '../ui/Components';
+import { ROLE_THEMES } from '../lib/roles';
+import { Badge } from '../ui/Components';
+import { User, LogOut, Lock, ShieldAlert } from 'lucide-react';
 
 const AdminToolbar = () => {
-  const { session, logout, setIsPinModalOpen } = useSession();
+  const { session, logout, setIsPinModalOpen, permissions } = useSession();
 
+  // 1. Guest View: Login Prompt
   if (!session.isAuthenticated) {
-      return (
-          <div className="bg-slate-950 border-b border-slate-900 p-2 flex justify-end">
-              <button onClick={() => setIsPinModalOpen(true)} className="text-xs text-slate-600 hover:text-white uppercase tracking-wider font-bold transition-colors">
-                  Operator Login
-              </button>
-          </div>
-      );
+    return (
+      <div className="bg-tactical-surface border-b border-ui-border p-2 flex justify-end relative z-50">
+        <button 
+          onClick={() => setIsPinModalOpen(true)} 
+          className="text-[10px] text-zinc-600 hover:text-brand uppercase tracking-widest font-bold transition-colors flex items-center gap-2"
+        >
+          <Lock className="w-3 h-3" /> Operator Login
+        </button>
+      </div>
+    );
   }
 
-  if (session.role === ROLES.SPECTATOR) return null; 
-
-  // Dynamic Theme based on Role
-  const theme = ROLE_THEMES[session.role] || ROLE_THEMES[ROLES.SPECTATOR];
-  const bgColor = `bg-${theme.color}-950/30`;
-  const borderColor = `border-${theme.color}-900/50`;
-  const textColor = `text-${theme.color}-200`;
-  const badgeColor = theme.color;
+  const theme = ROLE_THEMES[session.role] || { color: 'gray', label: 'OPERATOR' };
 
   return (
-    <div className={`${bgColor} border-b ${borderColor} p-3 transition-colors duration-300`}>
-      <div className="container mx-auto flex justify-between items-center">
+    <div className="bg-tactical-surface border-b border-ui-border p-3 relative z-50">
+      <div className="container mx-auto flex justify-between items-center px-4">
+        
+        {/* Left: Identity */}
         <div className="flex items-center gap-4">
-            <Badge color={badgeColor}>{theme.label}</Badge>
-            <span className={`${textColor} font-mono text-sm uppercase tracking-tight`}>
-                {session.identity}
-                {session.teamId && <span className="opacity-50 mx-2">| TEAM ID: {session.teamId}</span>}
-            </span>
+          <Badge color={theme.color}>{theme.label}</Badge>
+          <div className="flex items-center gap-2 text-zinc-400 font-mono text-xs uppercase tracking-tight">
+            <User className="w-3 h-3" />
+            <span className="text-zinc-300">{session.identity}</span>
+            {permissions.isAdmin && (
+              <ShieldAlert className="w-3 h-3 text-red-500 ml-1" title="Admin Privileges Active" />
+            )}
+          </div>
         </div>
-        <div className="flex gap-2">
-           {/* Only Admins/Owners see force update */}
-           {(session.role === ROLES.ADMIN || session.role === ROLES.OWNER) && (
-              <Button variant="danger" className="text-xs py-1 px-2 h-7">Force Sync</Button>
-           )}
-          <Button variant="ghost" className="text-xs py-1 px-2 h-7" onClick={logout}>Logout</Button>
+
+        {/* Right: Actions */}
+        <div className="flex gap-4 items-center">
+           {/* Session Timer / Status could go here in V2 */}
+          <button 
+            onClick={() => logout("USER_INITIATED")} 
+            className="text-zinc-500 hover:text-white transition-colors p-1 flex items-center gap-2 group"
+            title="Terminate Session"
+          >
+            <span className="text-[9px] font-mono uppercase opacity-0 group-hover:opacity-100 transition-opacity">Disconnect</span>
+            <LogOut className="w-4 h-4" />
+          </button>
         </div>
+
       </div>
     </div>
   );

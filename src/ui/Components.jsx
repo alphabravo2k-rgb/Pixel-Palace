@@ -50,31 +50,62 @@ export const Badge = ({ children, color = 'blue', className = '' }) => {
 };
 
 /**
- * TACTICAL MODAL SHELL
+ * TACTICAL MODAL SHELL (WITH FOCUS TRAP)
  */
 export const Modal = ({ isOpen, onClose, title, children, maxWidth = 'max-w-md' }) => {
   const modalRef = useRef(null);
   const titleId = useRef(`modal-title-${Math.random().toString(36).slice(2)}`).current;
 
-  // Handle Keydown (ESC)
+  // Keydown & Focus Trap Logic
   useEffect(() => {
+    if (!isOpen) return;
+
     const handleKeyDown = (e) => {
-      if (!isOpen) return;
-      if (e.key === 'Escape') onClose();
+      // 1. Close on Escape
+      if (e.key === 'Escape') {
+        onClose();
+        return;
+      }
+
+      // 2. Focus Trap (Tab Key)
+      if (e.key === 'Tab') {
+        const focusableElements = modalRef.current?.querySelectorAll(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        
+        if (focusableElements && focusableElements.length > 0) {
+          const firstElement = focusableElements[0];
+          const lastElement = focusableElements[focusableElements.length - 1];
+
+          if (e.shiftKey) { // Shift+Tab (Backwards)
+            if (document.activeElement === firstElement) {
+              e.preventDefault();
+              lastElement.focus();
+            }
+          } else { // Tab (Forwards)
+            if (document.activeElement === lastElement) {
+              e.preventDefault();
+              firstElement.focus();
+            }
+          }
+        }
+      }
     };
+
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  // Handle Scroll Lock & Focus (Optimized with useLayoutEffect)
+  // Lock Body & Initial Focus
   useLayoutEffect(() => {
     if (isOpen) {
-      // 1. Lock Body
       const originalStyle = window.getComputedStyle(document.body).overflow;
       document.body.style.overflow = 'hidden';
       
-      // 2. Capture Focus immediately
-      modalRef.current?.focus();
+      // Focus the modal itself or the first input if available
+      const firstInput = modalRef.current?.querySelector('input, button');
+      if (firstInput) firstInput.focus();
+      else modalRef.current?.focus();
 
       return () => {
         document.body.style.overflow = originalStyle;

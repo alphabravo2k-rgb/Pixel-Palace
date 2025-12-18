@@ -2,18 +2,22 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 // https://vitejs.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react()],
   base: './', 
   server: {
     port: 3000,
     strictPort: true, 
   },
+  // TACTICAL: Production Hardening
+  esbuild: {
+    // Only strip logs in production, keep them for dev
+    drop: mode === 'production' ? ['console', 'debugger'] : [],
+  },
   build: {
     outDir: 'dist',
     sourcemap: false,
-    // TACTICAL: Optimization
-    cssCodeSplit: true, // Extracts CSS for better caching
+    cssCodeSplit: true,
     rollupOptions: {
       output: {
         manualChunks: {
@@ -22,4 +26,4 @@ export default defineConfig({
       },
     },
   }
-})
+}))

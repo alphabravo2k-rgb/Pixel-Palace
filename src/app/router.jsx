@@ -13,6 +13,8 @@ const VIEWS = {
   TEAMS: 'teams'
 };
 
+// --- SUB-COMPONENTS ---
+
 const NavButton = memo(({ view, currentView, onClick, label, icon: Icon }) => (
   <button 
     onClick={() => onClick(view)}
@@ -22,6 +24,7 @@ const NavButton = memo(({ view, currentView, onClick, label, icon: Icon }) => (
         ? 'text-[#ff5500] bg-[#ff5500]/10 border-b-2 border-[#ff5500] shadow-[0_4px_20px_-10px_rgba(255,85,0,0.5)]' 
         : 'text-zinc-500 hover:text-zinc-300 border-b-2 border-transparent hover:bg-white/5'}
     `}
+    type="button"
   >
     <Icon className="w-3.5 h-3.5" />
     {label}
@@ -29,8 +32,16 @@ const NavButton = memo(({ view, currentView, onClick, label, icon: Icon }) => (
 ));
 NavButton.displayName = 'NavButton';
 
+const LayoutContainer = ({ children, className = "" }) => (
+  <div className={`container mx-auto px-4 md:px-8 ${className}`}>
+    {children}
+  </div>
+);
+
+// --- MAIN ROUTER ---
+
 const Router = () => {
-  const { session, permissions } = useSession(); // Access new permissions helper
+  const { session, permissions } = useSession(); 
   const [currentView, setCurrentView] = useState(VIEWS.BRACKET); 
   const [selectedMatch, setSelectedMatch] = useState(null);
 
@@ -38,25 +49,23 @@ const Router = () => {
     setCurrentView(view);
   }, []);
 
+  // DEFENSE IN DEPTH: Router-level security gate
   const handleMatchClick = useCallback((match) => {
-    // SECURITY GUARD:
-    // Only allow Admins, Referees, Captains, Players, or Spectators to open the modal.
-    // Guests (unauthenticated) are blocked at the router level.
-    if (session.isAuthenticated || permissions.isSpectator) {
-        setSelectedMatch(match);
-    } else {
-        console.warn("Security Alert: Unauthorized modal access attempt.");
+    // 1. Must be Authenticated (or Spectator)
+    if (!session.isAuthenticated && !permissions.isSpectator) {
+        console.warn("[Router] Access Denied: User is Guest");
+        return;
     }
-  }, [session.isAuthenticated, permissions.isSpectator]);
+    setSelectedMatch(match);
+  }, [session.isAuthenticated, permissions]);
 
   return (
     <div className="min-h-screen bg-[#060709] text-zinc-300 flex flex-col font-sans selection:bg-[#ff5500] selection:text-black">
       <AdminToolbar />
 
       <nav className="border-b border-zinc-800 bg-[#0b0c0f]/80 backdrop-blur-md sticky top-0 z-40">
-        <div className="container mx-auto px-4 md:px-8">
+        <LayoutContainer>
           <div className="flex justify-between items-end h-16">
-            
             <div className="flex items-center gap-4 mb-4">
               <div className="w-10 h-10 bg-[#ff5500] flex items-center justify-center shadow-[0_0_15px_rgba(255,85,0,0.3)]">
                 <Trophy className="w-5 h-5 text-black fill-black" />
@@ -87,29 +96,33 @@ const Router = () => {
                 icon={LayoutGrid} 
               />
             </div>
-
           </div>
-        </div>
+        </LayoutContainer>
       </nav>
 
-      <main className="container mx-auto px-4 md:px-8 py-12 flex-grow relative">
+      <main className="flex-grow relative py-12">
         <div className="fixed inset-0 bg-tactical-grid"></div>
-
-        <div className="relative z-10">
+        <LayoutContainer className="relative z-10">
           {currentView === VIEWS.BRACKET && <Bracket onMatchClick={handleMatchClick} />}
           {currentView === VIEWS.TEAMS && <TeamRoster />}
-        </div>
+        </LayoutContainer>
       </main>
 
       <footer className="border-t border-zinc-900 bg-[#060709] py-8 mt-auto">
-        <div className="container mx-auto px-8 text-center">
-          <p className="text-[10px] text-zinc-700 font-mono uppercase tracking-widest">
-            Pixel Palace // Competitive Systems {APP_VERSION}
+        <LayoutContainer className="text-center">
+          <p className="text-[10px] text-zinc-700 font-mono uppercase tracking-widest group cursor-help">
+            Pixel Palace // {APP_VERSION}
+            <span className="opacity-0 group-hover:opacity-100 transition-opacity ml-2 text-zinc-500">
+               // ID: {session.identity} [{session.role}]
+            </span>
           </p>
-        </div>
+        </LayoutContainer>
       </footer>
 
-      <MatchModal match={selectedMatch} onClose={() => setSelectedMatch(null)} />
+      {/* FINAL GUARD: Only render modal if we have a match AND permission */}
+      {(session.isAuthenticated || permissions.isSpectator) && (
+        <MatchModal match={selectedMatch} onClose={() => setSelectedMatch(null)} />
+      )}
     </div>
   );
 };

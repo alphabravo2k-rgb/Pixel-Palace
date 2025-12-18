@@ -1,9 +1,8 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 
 /**
  * OPINIONATED TACTICAL BUTTON
- * Design System Primitive. Locked API.
  */
 export const Button = ({ children, variant = 'primary', className = '', disabled = false, type = 'button', ...props }) => {
   const baseStyle = "px-4 py-2 rounded-sm font-black uppercase tracking-widest text-[10px] transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100";
@@ -38,8 +37,7 @@ export const Badge = ({ children, color = 'blue', className = '' }) => {
     yellow: 'bg-yellow-900/30 text-yellow-500 border-yellow-800',
     gray: 'bg-zinc-800 text-zinc-400 border-zinc-700',
     orange: 'bg-orange-900/30 text-orange-400 border-orange-800',
-    slate: 'bg-slate-800 text-slate-400 border-slate-700', // For spectators
-    purple: 'bg-purple-900/30 text-purple-400 border-purple-800' // For system owners
+    purple: 'bg-purple-900/30 text-purple-400 border-purple-800'
   };
 
   const resolvedColor = colors[color] || colors.gray;
@@ -58,7 +56,7 @@ export const Modal = ({ isOpen, onClose, title, children, maxWidth = 'max-w-md' 
   const modalRef = useRef(null);
   const titleId = useRef(`modal-title-${Math.random().toString(36).slice(2)}`).current;
 
-  // Keydown & Focus Management
+  // Handle Keydown (ESC)
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (!isOpen) return;
@@ -68,16 +66,20 @@ export const Modal = ({ isOpen, onClose, title, children, maxWidth = 'max-w-md' 
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  // Lock Body Scroll
-  useEffect(() => {
+  // Handle Scroll Lock & Focus (Optimized with useLayoutEffect)
+  useLayoutEffect(() => {
     if (isOpen) {
+      // 1. Lock Body
+      const originalStyle = window.getComputedStyle(document.body).overflow;
       document.body.style.overflow = 'hidden';
-      // Slight timeout to allow render before focus
-      setTimeout(() => modalRef.current?.focus(), 50);
+      
+      // 2. Capture Focus immediately
+      modalRef.current?.focus();
+
+      return () => {
+        document.body.style.overflow = originalStyle;
+      };
     }
-    return () => {
-      document.body.style.overflow = '';
-    };
   }, [isOpen]);
 
   if (!isOpen) return null;
@@ -97,7 +99,6 @@ export const Modal = ({ isOpen, onClose, title, children, maxWidth = 'max-w-md' 
         style={{ clipPath: 'polygon(0 0, 100% 0, 100% 95%, 95% 100%, 0 100%)' }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
         <div className="flex justify-between items-center p-6 border-b border-ui-border bg-tactical-raised/50">
           {title && (
             <h3 id={titleId} className="text-xl font-black text-white italic tracking-tighter uppercase">
@@ -112,8 +113,6 @@ export const Modal = ({ isOpen, onClose, title, children, maxWidth = 'max-w-md' 
             <X size={20} />
           </button>
         </div>
-
-        {/* Content with Custom Scrollbar */}
         <div className="p-6 overflow-y-auto custom-scrollbar">
           {children}
         </div>

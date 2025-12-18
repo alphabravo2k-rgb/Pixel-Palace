@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import { Trophy, Clock, MapPin, MonitorPlay, AlertTriangle } from 'lucide-react'; 
-import { useTournament } from '../tournament/useTournament'; // <--- IMPORT THIS
+import { useTournament } from '../tournament/useTournament';
 
 const BracketMatch = memo(({ match, onMatchClick, style }) => {
   if (!match) return null;
@@ -50,20 +50,19 @@ const BracketMatch = memo(({ match, onMatchClick, style }) => {
 BracketMatch.displayName = 'BracketMatch';
 
 const Bracket = ({ onMatchClick }) => {
-  // 1. GET REAL DATA
   const { matches, loading } = useTournament();
 
   if (loading) {
      return <div className="w-full h-[600px] flex items-center justify-center text-zinc-600 font-mono animate-pulse">Initializing Uplink...</div>;
   }
 
-  // If no matches in DB, show warning
   if (!matches || matches.length === 0) {
     return (
         <div className="w-full h-[600px] bg-tactical-grid rounded-lg border border-zinc-800 flex flex-col items-center justify-center text-zinc-500">
             <AlertTriangle className="mb-4 text-[#ff5500]" />
             <p className="font-mono text-xs uppercase tracking-widest">No Matches Scheduled</p>
-            <p className="text-[10px] mt-2">Add rows to 'matches' table in Supabase</p>
+            {/* FIX: Escaped quotes below */}
+            <p className="text-[10px] mt-2">Add rows to &apos;matches&apos; table in Supabase</p>
         </div>
     );
   }
@@ -76,14 +75,9 @@ const Bracket = ({ onMatchClick }) => {
         <span className="flex items-center gap-1"><Clock size={12} /> UTC+0</span>
       </div>
 
-      {/* MAPPING LOGIC: 
-         This maps the first 3 matches from your DB to the visual slots.
-         In V2, you would use 'match.round' or 'match.bracket_position' to place them dynamically.
-      */}
       {matches[0] && <BracketMatch match={matches[0]} style={{ top: 50, left: 50 }} onMatchClick={onMatchClick} />}
       {matches[1] && <BracketMatch match={matches[1]} style={{ top: 200, left: 50 }} onMatchClick={onMatchClick} />}
       
-      {/* Connector Lines */}
       <svg className="absolute inset-0 pointer-events-none stroke-zinc-800" fill="none">
         <path d="M 310 95 L 350 95 L 350 170 L 390 170" strokeWidth="2" />
         <path d="M 310 245 L 350 245 L 350 170" strokeWidth="2" />

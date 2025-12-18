@@ -7,32 +7,33 @@ export default {
   theme: {
     extend: {
       colors: {
-        // The "Pixel Palace" Palette
         brand: {
-          DEFAULT: '#ff5500', // Signature Orange
+          DEFAULT: '#ff5500', 
           hover: '#ff7733',
           glow: 'rgba(255, 85, 0, 0.5)'
         },
         tactical: {
-          surface: '#0b0c0f', // Deep Black/Blue (Card Backgrounds)
-          raised: '#15191f',  // Slightly Lighter (Headers)
-          border: '#27272a'   // Zinc-800 equivalent
+          surface: '#0b0c0f', 
+          raised: '#15191f',  
+          border: '#27272a'   
         },
         ui: {
-          bg: '#060709',      // Global Page Background
+          bg: '#060709',
           border: 'rgba(255, 255, 255, 0.1)'
         }
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
-        mono: ['JetBrains Mono', 'Menlo', 'monospace'], // Critical for "Tactical" feel
+        mono: ['JetBrains Mono', 'Menlo', 'monospace'],
+      },
+      // NEW: Standardized Glow Effects
+      boxShadow: {
+        'glow': '0 0 20px rgba(255, 85, 0, 0.35)',
+        'glow-sm': '0 0 10px rgba(255, 85, 0, 0.25)',
+        'tactical': '0 10px 30px -10px rgba(0, 0, 0, 0.5)'
       },
       animation: {
         'spin-slow': 'spin 3s linear infinite',
-        'pulse-fast': 'pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-      },
-      backgroundImage: {
-        'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
       }
     },
   },

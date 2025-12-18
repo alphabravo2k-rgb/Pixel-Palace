@@ -22,12 +22,15 @@ export const Button = ({ children, variant = 'primary', className = '', disabled
      type={type}
      disabled={disabled}
      className={`${baseStyle} ${resolvedVariant} ${className}`}
+     // eslint-disable-next-line react/jsx-props-no-spreading
      {...props}
     >
       {children}
     </button>
   );
 };
+
+// ... (Rest of file remains unchanged, Badge and Modal logic was correct)
 
 export const Badge = ({ children, color = 'blue', className = '' }) => {
   const colors = {
@@ -49,67 +52,41 @@ export const Badge = ({ children, color = 'blue', className = '' }) => {
   );
 };
 
-/**
- * TACTICAL MODAL SHELL (WITH FOCUS TRAP)
- */
 export const Modal = ({ isOpen, onClose, title, children, maxWidth = 'max-w-md' }) => {
   const modalRef = useRef(null);
   const titleId = useRef(`modal-title-${Math.random().toString(36).slice(2)}`).current;
 
-  // Keydown & Focus Trap Logic
   useEffect(() => {
     if (!isOpen) return;
-
     const handleKeyDown = (e) => {
-      // 1. Close on Escape
-      if (e.key === 'Escape') {
-        onClose();
-        return;
-      }
-
-      // 2. Focus Trap (Tab Key)
+      if (e.key === 'Escape') { onClose(); return; }
       if (e.key === 'Tab') {
         const focusableElements = modalRef.current?.querySelectorAll(
           'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
         );
-        
         if (focusableElements && focusableElements.length > 0) {
           const firstElement = focusableElements[0];
           const lastElement = focusableElements[focusableElements.length - 1];
-
-          if (e.shiftKey) { // Shift+Tab (Backwards)
-            if (document.activeElement === firstElement) {
-              e.preventDefault();
-              lastElement.focus();
-            }
-          } else { // Tab (Forwards)
-            if (document.activeElement === lastElement) {
-              e.preventDefault();
-              firstElement.focus();
-            }
+          if (e.shiftKey) { 
+            if (document.activeElement === firstElement) { e.preventDefault(); lastElement.focus(); }
+          } else { 
+            if (document.activeElement === lastElement) { e.preventDefault(); firstElement.focus(); }
           }
         }
       }
     };
-
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  // Lock Body & Initial Focus
   useLayoutEffect(() => {
     if (isOpen) {
       const originalStyle = window.getComputedStyle(document.body).overflow;
       document.body.style.overflow = 'hidden';
-      
-      // Focus the modal itself or the first input if available
       const firstInput = modalRef.current?.querySelector('input, button');
       if (firstInput) firstInput.focus();
       else modalRef.current?.focus();
-
-      return () => {
-        document.body.style.overflow = originalStyle;
-      };
+      return () => { document.body.style.overflow = originalStyle; };
     }
   }, [isOpen]);
 
@@ -131,18 +108,8 @@ export const Modal = ({ isOpen, onClose, title, children, maxWidth = 'max-w-md' 
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex justify-between items-center p-6 border-b border-ui-border bg-tactical-raised/50">
-          {title && (
-            <h3 id={titleId} className="text-xl font-black text-white italic tracking-tighter uppercase">
-              {title}
-            </h3>
-          )}
-          <button 
-            onClick={onClose} 
-            className="text-zinc-500 hover:text-white transition-colors p-2 hover:bg-white/5 rounded-full"
-            aria-label="Close"
-          >
-            <X size={20} />
-          </button>
+          {title && <h3 id={titleId} className="text-xl font-black text-white italic tracking-tighter uppercase">{title}</h3>}
+          <button onClick={onClose} className="text-zinc-500 hover:text-white transition-colors p-2 hover:bg-white/5 rounded-full" aria-label="Close"><X size={20} /></button>
         </div>
         <div className="p-6 overflow-y-auto custom-scrollbar">
           {children}

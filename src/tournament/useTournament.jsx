@@ -16,11 +16,12 @@ export const TournamentProvider = ({ children }) => {
       try {
         setLoading(true);
         
-        // 1. Fetch Matches
+// 1. Fetch Matches
         const { data: matchesData, error: matchesError } = await supabase
           .from('matches')
           .select('*')
-          .order('start_time', { ascending: true });
+          // MAKE SURE THIS LINE HAS THE UNDERSCORE:
+          .order('start_time', { ascending: true }); 
 
         if (matchesError) throw matchesError;
 

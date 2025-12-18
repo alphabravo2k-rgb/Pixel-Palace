@@ -16,17 +16,16 @@ export const TournamentProvider = ({ children }) => {
       try {
         setLoading(true);
         
-// 1. Fetch Matches
+        // 1. Fetch Matches
         const { data: matchesData, error: matchesError } = await supabase
           .from('matches')
           .select('*')
-          // MAKE SURE THIS LINE HAS THE UNDERSCORE:
-          .order('start_time', { ascending: true }); 
+          // FIXED: Changed 'start time' to 'start_time'
+          .order('start_time', { ascending: true });
 
         if (matchesError) throw matchesError;
 
-        // 2. Fetch Teams (ENABLED NOW)
-        // Ensure you have a 'teams' table in Supabase, or this will return []
+        // 2. Fetch Teams
         const { data: teamsData, error: teamsError } = await supabase
           .from('teams')
           .select('*');
@@ -50,7 +49,7 @@ export const TournamentProvider = ({ children }) => {
 
     fetchData();
 
-    // 3. Realtime Subscriptions
+    // 3. Realtime Subscriptions (Live Updates)
     const matchSub = supabase
       .channel('public:matches')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, () => fetchData())

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTournament } from '../tournament/useTournament';
-import { Search, Shield, ChevronRight, AlertCircle, Users } from 'lucide-react';
+import { Search, Shield, ChevronRight, Users } from 'lucide-react';
 
 const TeamRoster = () => {
   const { teams, loading } = useTournament();
@@ -103,6 +103,10 @@ const TeamRoster = () => {
                       </div>
                   </div>
                 </div>
+
+                <button className="w-full mt-4 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white py-2 text-[10px] font-black uppercase tracking-widest border border-zinc-800 transition-colors flex items-center justify-center gap-2 group-hover:border-zinc-600">
+                View Details <ChevronRight className="w-3 h-3" />
+                </button>
             </div>
             ))}
         </div>

@@ -1,9 +1,6 @@
 import { ROLES } from '../lib/roles';
 import { PERM_ACTIONS } from '../lib/constants';
 
-// --- CONFIGURATION ---
-const IS_DEV = import.meta.env.VITE_DEV_MODE === 'true';
-
 export const MATCH_STATUS = {
   SCHEDULED: 'scheduled',
   READY: 'ready',

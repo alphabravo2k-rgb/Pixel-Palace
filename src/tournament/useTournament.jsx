@@ -1,12 +1,9 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import { supabase } from '../supabase/client';
-import { useSession } from '../auth/useSession';
-import { ROLES } from '../lib/roles';
 
 const TournamentContext = createContext();
 
 export const TournamentProvider = ({ children }) => {
-  const { session } = useSession();
   const [teams, setTeams] = useState([]);
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -44,7 +41,7 @@ export const TournamentProvider = ({ children }) => {
         players: Array.isArray(t.players) ? t.players : []
       }));
 
-      // 2. Normalize Matches (The Logic Fix)
+      // 2. Normalize Matches
       const uiMatches = rawMatches.map((m) => {
         const { banned, picked } = parseVetoState(m.metadata?.veto);
         
@@ -57,7 +54,7 @@ export const TournamentProvider = ({ children }) => {
           } else if (banned.length > 0 || picked) {
             displayStatus = 'veto';
           } else {
-            displayStatus = 'scheduled'; // Show as standby if open but no IP
+            displayStatus = 'scheduled';
           }
         }
 
@@ -70,7 +67,7 @@ export const TournamentProvider = ({ children }) => {
           team1Id: m.team1_id,
           team2Id: m.team2_id,
           status: displayStatus,
-          round: Number(m.round) // Ensure numeric for grouping
+          round: Number(m.round)
         };
       });
 

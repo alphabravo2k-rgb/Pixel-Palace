@@ -1,6 +1,6 @@
 import React, { useRef, useEffect } from 'react';
 import { useTournament } from '../tournament/useTournament';
-import { Tv, Shield, AlertTriangle, ChevronRight, Loader2, Trophy, Zap } from 'lucide-react';
+import { Tv, Shield, ChevronRight, Zap } from 'lucide-react';
 
 const getStatusStyles = (status) => {
   const themes = {
@@ -63,7 +63,7 @@ const MatchCard = ({ match, onMatchClick, setRef }) => {
 };
 
 const Bracket = ({ onMatchClick }) => {
-  const { rounds, loading, error, matches } = useTournament();
+  const { rounds, loading, matches } = useTournament();
   const contentRef = useRef(null);
   const svgRef = useRef(null);
   const matchRefs = useRef(new Map());

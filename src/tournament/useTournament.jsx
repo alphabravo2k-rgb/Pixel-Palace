@@ -1,119 +1,154 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import { supabase } from '../supabase/client';
+import { useSession } from '../auth/useSession';
+import { ROLES } from '../lib/roles';
 
 const TournamentContext = createContext();
 
+// --- DATA UTILITIES ---
+const COUNTRY_MAP = {
+  'PAK': 'pk', 'IND': 'in', 'UAE': 'ae', 'SAU': 'sa', 'BAN': 'bd',
+  // ... expand as needed
+};
+
+const extractFaceitNickname = (url) => {
+  if (!url || typeof url !== 'string') return null;
+  try {
+    const u = new URL(url.startsWith('http') ? url : `https://${url}`);
+    const segments = u.pathname.split('/').filter(Boolean);
+    const idx = segments.indexOf('players');
+    return idx !== -1 ? segments[idx + 1] : null;
+  } catch { return null; }
+};
+
 export const TournamentProvider = ({ children }) => {
+  const { session } = useSession();
   const [teams, setTeams] = useState([]);
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const parseVetoState = (vetoMeta) => {
+  const parseVetoState = (vetoMeta, team1Id, team2Id) => {
     const banned = [];
     let picked = null;
     const maps = vetoMeta?.maps || [];
-    if (Array.isArray(maps)) {
-      maps.forEach((entry) => {
-        if (entry.action === 'BAN') banned.push(entry.map_id);
-        if (entry.action === 'PICK') picked = entry.map_id;
-      });
-    }
-    return { banned, picked };
+    maps.forEach(m => {
+      if (m.action === 'BAN') banned.push(m.map_id);
+      if (m.action === 'PICK') picked = m.map_id;
+    });
+    
+    let turnId = null;
+    if (vetoMeta?.turn === 'A') turnId = team1Id;
+    if (vetoMeta?.turn === 'B') turnId = team2Id;
+
+    return { bannedMaps: banned, pickedMap: picked, turn: turnId, phase: vetoMeta?.phase || 'ban' };
   };
 
   const fetchData = useCallback(async () => {
     try {
-      setLoading(true);
-      const [teamsRes, matchesRes] = await Promise.all([
-        supabase.from('teams').select('*, players(*)').order('seed_number', { ascending: true }),
-        supabase.rpc('get_public_matches')
+      // 1. Concurrent Fetch
+      const [teamsRes, playersRes] = await Promise.all([
+        supabase.from('teams').select('*').order('seed_number', { ascending: true }),
+        supabase.from('players').select('*')
       ]);
 
       if (teamsRes.error) throw teamsRes.error;
-      if (matchesRes.error) throw matchesRes.error;
 
-      const rawMatches = matchesRes.data || [];
+      // 2. Specialized Match Fetch (Admin vs Public)
+      let matchesData = [];
+      if (session.isAuthenticated && session.pin) {
+        const { data } = await supabase.rpc('get_authorized_matches', { input_pin: session.pin });
+        matchesData = data || [];
+      } else {
+        const { data } = await supabase.rpc('get_public_matches');
+        matchesData = data || [];
+      }
 
-      // 1. Normalize Teams
-      const uiTeams = (teamsRes.data || []).map((t) => ({
+      // 3. Normalized Roster State
+      const uiTeams = teamsRes.data.map(t => ({
         ...t,
-        players: Array.isArray(t.players) ? t.players : []
+        region_iso2: COUNTRY_MAP[t.region?.toUpperCase()] || 'un',
+        players: (playersRes.data || []).filter(p => p.team_id === t.id).map(p => ({
+          ...p,
+          nickname: extractFaceitNickname(p.faceit_url),
+          role: p.is_captain ? 'CAPTAIN' : 'PLAYER'
+        }))
       }));
 
-      // 2. Normalize Matches
-      const uiMatches = rawMatches.map((m) => {
-        const { banned, picked } = parseVetoState(m.metadata?.veto);
-        
-        let displayStatus = 'scheduled';
-        if (m.state === 'complete') {
-          displayStatus = 'completed';
-        } else if (m.state === 'open') {
-          if (m.server_ip && m.server_ip !== 'HIDDEN' && m.server_ip !== '') {
-            displayStatus = 'live';
-          } else if (banned.length > 0 || picked) {
-            displayStatus = 'veto';
-          } else {
-            displayStatus = 'scheduled';
-          }
+      // 4. Normalized Match State
+      const uiMatches = matchesData.map(m => {
+        const veto = parseVetoState(m.metadata?.veto, m.team1_id, m.team2_id);
+        let status = 'scheduled';
+        if (m.state === 'complete') status = 'completed';
+        else if (m.state === 'open') {
+          status = (m.server_ip && m.server_ip !== 'HIDDEN') ? 'live' : 
+                   (veto.bannedMaps.length > 0) ? 'veto' : 'ready';
         }
 
         return {
           ...m,
-          team1Name: m.team1_name || "OPEN SLOT",
-          team2Name: m.team2_name || "OPEN SLOT",
-          team1Logo: m.team1_logo,
-          team2Logo: m.team2_logo,
-          team1Id: m.team1_id,
-          team2Id: m.team2_id,
-          status: displayStatus,
-          round: Number(m.round)
+          status,
+          vetoState: veto,
+          team1Name: m.team1_name || "TBD",
+          team2Name: m.team2_name || "TBD"
         };
       });
 
       setTeams(uiTeams);
       setMatches(uiMatches);
-      setError(null);
     } catch (err) {
-      console.error("Tournament Sync Error:", err);
+      console.error("Critical Sync Failure:", err);
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [session.pin, session.isAuthenticated]);
 
+  // --- REAL-TIME ENGINE ---
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 30000);
-    return () => clearInterval(interval);
+    
+    // Subscribe to all changes in the database
+    const matchSubscription = supabase
+      .channel('schema-db-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, () => fetchData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'teams' }, () => fetchData())
+      .subscribe();
+
+    return () => supabase.removeChannel(matchSubscription);
   }, [fetchData]);
 
+  // --- MUTATIONS (Admin Sovereign Layer) ---
+  const submitVeto = async (matchId, payload) => {
+    const { error } = await supabase.rpc('submit_veto', {
+      match_id: matchId, input_pin: session.pin, action: payload.action, target_map_id: payload.mapId
+    });
+    if (error) throw error;
+  };
+
+  const adminUpdateMatch = async (matchId, updates) => {
+    const { error } = await supabase.rpc('admin_update_match', {
+      match_id: matchId, input_pin: session.pin, updates
+    });
+    if (error) throw error;
+  };
+
   const rounds = useMemo(() => {
-    if (!matches.length) return {};
     return matches.reduce((acc, m) => {
-      const r = m.round || 1;
-      if (!acc[r]) acc[r] = [];
-      acc[r].push(m);
+      if (!acc[m.round]) acc[m.round] = [];
+      acc[m.round].push(m);
       return acc;
     }, {});
   }, [matches]);
 
   return (
     <TournamentContext.Provider value={{
-      teams,
-      matches,
-      rounds,
-      loading,
-      error,
-      refreshMatches: fetchData
+      teams, matches, rounds, loading, error,
+      submitVeto, adminUpdateMatch, refreshMatches: fetchData
     }}>
       {children}
     </TournamentContext.Provider>
   );
 };
 
-export const useTournament = () => {
-  const context = useContext(TournamentContext);
-  if (!context) throw new Error("useTournament error");
-  return context;
-};
+export const useTournament = () => useContext(TournamentContext);

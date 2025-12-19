@@ -1,15 +1,8 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import { supabase } from '../supabase/client';
 import { useSession } from '../auth/useSession';
-import { ROLES } from '../lib/roles';
 
 const TournamentContext = createContext();
-
-// --- DATA UTILITIES ---
-const COUNTRY_MAP = {
-  'PAK': 'pk', 'IND': 'in', 'UAE': 'ae', 'SAU': 'sa', 'BAN': 'bd',
-  // ... expand as needed
-};
 
 const extractFaceitNickname = (url) => {
   if (!url || typeof url !== 'string') return null;
@@ -26,7 +19,6 @@ export const TournamentProvider = ({ children }) => {
   const [teams, setTeams] = useState([]);
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
 
   const parseVetoState = (vetoMeta, team1Id, team2Id) => {
     const banned = [];
@@ -46,15 +38,11 @@ export const TournamentProvider = ({ children }) => {
 
   const fetchData = useCallback(async () => {
     try {
-      // 1. Concurrent Fetch
       const [teamsRes, playersRes] = await Promise.all([
         supabase.from('teams').select('*').order('seed_number', { ascending: true }),
         supabase.from('players').select('*')
       ]);
 
-      if (teamsRes.error) throw teamsRes.error;
-
-      // 2. Specialized Match Fetch (Admin vs Public)
       let matchesData = [];
       if (session.isAuthenticated && session.pin) {
         const { data } = await supabase.rpc('get_authorized_matches', { input_pin: session.pin });
@@ -64,10 +52,8 @@ export const TournamentProvider = ({ children }) => {
         matchesData = data || [];
       }
 
-      // 3. Normalized Roster State
-      const uiTeams = teamsRes.data.map(t => ({
+      const uiTeams = (teamsRes.data || []).map(t => ({
         ...t,
-        region_iso2: COUNTRY_MAP[t.region?.toUpperCase()] || 'un',
         players: (playersRes.data || []).filter(p => p.team_id === t.id).map(p => ({
           ...p,
           nickname: extractFaceitNickname(p.faceit_url),
@@ -75,7 +61,6 @@ export const TournamentProvider = ({ children }) => {
         }))
       }));
 
-      // 4. Normalized Match State
       const uiMatches = matchesData.map(m => {
         const veto = parseVetoState(m.metadata?.veto, m.team1_id, m.team2_id);
         let status = 'scheduled';
@@ -97,38 +82,25 @@ export const TournamentProvider = ({ children }) => {
       setTeams(uiTeams);
       setMatches(uiMatches);
     } catch (err) {
-      console.error("Critical Sync Failure:", err);
-      setError(err.message);
+      console.error(err);
     } finally {
       setLoading(false);
     }
   }, [session.pin, session.isAuthenticated]);
 
-  // --- REAL-TIME ENGINE ---
   useEffect(() => {
     fetchData();
-    
-    // Subscribe to all changes in the database
     const matchSubscription = supabase
       .channel('schema-db-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, () => fetchData())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'teams' }, () => fetchData())
       .subscribe();
 
     return () => supabase.removeChannel(matchSubscription);
   }, [fetchData]);
 
-  // --- MUTATIONS (Admin Sovereign Layer) ---
   const submitVeto = async (matchId, payload) => {
     const { error } = await supabase.rpc('submit_veto', {
       match_id: matchId, input_pin: session.pin, action: payload.action, target_map_id: payload.mapId
-    });
-    if (error) throw error;
-  };
-
-  const adminUpdateMatch = async (matchId, updates) => {
-    const { error } = await supabase.rpc('admin_update_match', {
-      match_id: matchId, input_pin: session.pin, updates
     });
     if (error) throw error;
   };
@@ -143,8 +115,8 @@ export const TournamentProvider = ({ children }) => {
 
   return (
     <TournamentContext.Provider value={{
-      teams, matches, rounds, loading, error,
-      submitVeto, adminUpdateMatch, refreshMatches: fetchData
+      teams, matches, rounds, loading,
+      submitVeto, refreshMatches: fetchData
     }}>
       {children}
     </TournamentContext.Provider>

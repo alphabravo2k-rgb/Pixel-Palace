@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import { Trophy, Clock, MapPin, MonitorPlay, AlertTriangle } from 'lucide-react'; 
+import { Trophy, Clock, MonitorPlay, AlertTriangle } from 'lucide-react'; 
 import { useTournament } from '../tournament/useTournament';
 
 const BracketMatch = memo(({ match, onMatchClick, style }) => {
@@ -10,7 +10,6 @@ const BracketMatch = memo(({ match, onMatchClick, style }) => {
   
   // VISUAL MASKING: 
   // If the team name is "Team X" and X > 14, it's a placeholder.
-  // We mask it as "OPEN SLOT" or "TBD" so users don't see the database scaffolding.
   const isPlaceholder1 = match.team1_name?.startsWith('Team ') && parseInt(match.team1_name.split(' ')[1]) > 14;
   const isPlaceholder2 = match.team2_name?.startsWith('Team ') && parseInt(match.team2_name.split(' ')[1]) > 14;
 

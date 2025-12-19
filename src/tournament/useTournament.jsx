@@ -1,106 +1,115 @@
-import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import { supabase } from '../supabase/client';
+import { useSession } from '../auth/useSession';
+import { ROLES } from '../lib/roles';
 
 const TournamentContext = createContext();
 
 export const TournamentProvider = ({ children }) => {
-  const [matches, setMatches] = useState([]);
+  const { session } = useSession();
   const [teams, setTeams] = useState([]);
+  const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    let mounted = true;
+  const parseVetoState = (vetoMeta) => {
+    const banned = [];
+    let picked = null;
+    const maps = vetoMeta?.maps || [];
+    if (Array.isArray(maps)) {
+      maps.forEach((entry) => {
+        if (entry.action === 'BAN') banned.push(entry.map_id);
+        if (entry.action === 'PICK') picked = entry.map_id;
+      });
+    }
+    return { banned, picked };
+  };
 
-    const fetchData = async () => {
-      try {
-        setLoading(true);
+  const fetchData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const [teamsRes, matchesRes] = await Promise.all([
+        supabase.from('teams').select('*, players(*)').order('seed_number', { ascending: true }),
+        supabase.rpc('get_public_matches')
+      ]);
+
+      if (teamsRes.error) throw teamsRes.error;
+      if (matchesRes.error) throw matchesRes.error;
+
+      const rawMatches = matchesRes.data || [];
+
+      // 1. Normalize Teams
+      const uiTeams = (teamsRes.data || []).map((t) => ({
+        ...t,
+        players: Array.isArray(t.players) ? t.players : []
+      }));
+
+      // 2. Normalize Matches (The Logic Fix)
+      const uiMatches = rawMatches.map((m) => {
+        const { banned, picked } = parseVetoState(m.metadata?.veto);
         
-        // 1. Fetch Matches (AND join with Teams table to get names)
-        const { data: matchesData, error: matchesError } = await supabase
-          .from('matches')
-          .select(`
-            *,
-            team1:team1_id ( name ),
-            team2:team2_id ( name )
-          `)
-          .order('start_time', { ascending: true });
-
-        if (matchesError) throw matchesError;
-
-        // 2. Fetch Teams (AND join with Players table to get roster)
-        const { data: teamsData, error: teamsError } = await supabase
-          .from('teams')
-          .select(`
-            *,
-            roster:players ( display_name, is_captain )
-          `);
-
-        if (teamsError && teamsError.code !== 'PGRST116') {
-             console.warn("Teams fetch warning:", teamsError.message);
-        }
-        
-        if (mounted) {
-          // TRANSFORM MATCHES: Flatten the nested team objects for the UI
-          const formattedMatches = (matchesData || []).map(m => ({
-            ...m,
-            team1_name: m.team1?.name || 'TBD',
-            team2_name: m.team2?.name || 'TBD'
-          }));
-          setMatches(formattedMatches);
-
-          // TRANSFORM TEAMS: Calculate captain and player list for the UI
-          const formattedTeams = (teamsData || []).map(t => ({
-            ...t,
-            captain: t.roster?.find(p => p.is_captain)?.display_name || 'N/A',
-            players: t.roster?.map(p => p.display_name) || []
-          }));
-          setTeams(formattedTeams); 
+        let displayStatus = 'scheduled';
+        if (m.state === 'complete') {
+          displayStatus = 'completed';
+        } else if (m.state === 'open') {
+          if (m.server_ip && m.server_ip !== 'HIDDEN' && m.server_ip !== '') {
+            displayStatus = 'live';
+          } else if (banned.length > 0 || picked) {
+            displayStatus = 'veto';
+          } else {
+            displayStatus = 'scheduled'; // Show as standby if open but no IP
+          }
         }
 
-      } catch (err) {
-        console.error("Tournament Data Load Failed:", err);
-        if (mounted) setError(err.message);
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    };
+        return {
+          ...m,
+          team1Name: m.team1_name || "OPEN SLOT",
+          team2Name: m.team2_name || "OPEN SLOT",
+          team1Logo: m.team1_logo,
+          team2Logo: m.team2_logo,
+          team1Id: m.team1_id,
+          team2Id: m.team2_id,
+          status: displayStatus,
+          round: Number(m.round) // Ensure numeric for grouping
+        };
+      });
 
-    fetchData();
-
-    // 3. Realtime Subscriptions (Refresh on any change)
-    const matchSub = supabase
-      .channel('public:matches')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, () => fetchData())
-      .subscribe();
-      
-    const teamSub = supabase
-      .channel('public:teams')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'teams' }, () => fetchData())
-      .subscribe();
-
-    const playerSub = supabase
-      .channel('public:players')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, () => fetchData())
-      .subscribe();
-
-    return () => {
-      mounted = false;
-      supabase.removeChannel(matchSub);
-      supabase.removeChannel(teamSub);
-      supabase.removeChannel(playerSub);
-    };
+      setTeams(uiTeams);
+      setMatches(uiMatches);
+      setError(null);
+    } catch (err) {
+      console.error("Tournament Sync Error:", err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const value = useMemo(() => ({
-    matches,
-    teams,
-    loading,
-    error
-  }), [matches, teams, loading, error]);
+  useEffect(() => {
+    fetchData();
+    const interval = setInterval(fetchData, 30000);
+    return () => clearInterval(interval);
+  }, [fetchData]);
+
+  const rounds = useMemo(() => {
+    if (!matches.length) return {};
+    return matches.reduce((acc, m) => {
+      const r = m.round || 1;
+      if (!acc[r]) acc[r] = [];
+      acc[r].push(m);
+      return acc;
+    }, {});
+  }, [matches]);
 
   return (
-    <TournamentContext.Provider value={value}>
+    <TournamentContext.Provider value={{
+      teams,
+      matches,
+      rounds,
+      loading,
+      error,
+      refreshMatches: fetchData
+    }}>
       {children}
     </TournamentContext.Provider>
   );
@@ -108,8 +117,6 @@ export const TournamentProvider = ({ children }) => {
 
 export const useTournament = () => {
   const context = useContext(TournamentContext);
-  if (!context) {
-    throw new Error('useTournament must be used within a TournamentProvider');
-  }
+  if (!context) throw new Error("useTournament error");
   return context;
 };

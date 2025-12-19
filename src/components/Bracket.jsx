@@ -8,18 +8,9 @@ const BracketMatch = memo(({ match, onMatchClick, style }) => {
   const isLive = match.status === 'live';
   const isCompleted = match.status === 'completed';
   
-  // LOGIC FIX: Check if teams are placeholders
-  // We assume 'team1_name' comes from our hook. 
-  // If the hook joined a team with status='PLACEHOLDER', we need to mask it.
-  
-  // Note: ideally passed from hook, but we can detect based on name convention or pass status objects.
-  // For V1 simple fix: If name starts with "Team " and has a number > 14, it's TBD.
-  // BETTER FIX: The hook should pass the team status. 
-  // Let's assume for this specific view, we render what the hook gives us, 
-  // but we mask it visually if it looks like a dummy name for now, 
-  // OR rely on the fact that your 14 real teams have unique names.
-
-  // Let's check if the team name indicates a placeholder
+  // VISUAL MASKING: 
+  // If the team name is "Team X" and X > 14, it's a placeholder.
+  // We mask it as "OPEN SLOT" or "TBD" so users don't see the database scaffolding.
   const isPlaceholder1 = match.team1_name?.startsWith('Team ') && parseInt(match.team1_name.split(' ')[1]) > 14;
   const isPlaceholder2 = match.team2_name?.startsWith('Team ') && parseInt(match.team2_name.split(' ')[1]) > 14;
 
@@ -70,8 +61,6 @@ const BracketMatch = memo(({ match, onMatchClick, style }) => {
 
 BracketMatch.displayName = 'BracketMatch';
 
-// ... (Rest of the Bracket component remains mostly the same, ensuring it passes the props)
-// Standard export at bottom...
 const Bracket = ({ onMatchClick }) => {
   const { matches, loading } = useTournament();
 
@@ -87,10 +76,6 @@ const Bracket = ({ onMatchClick }) => {
     );
   }
 
-  // NOTE: This visual layout manually positions the R32 matches for the demo.
-  // In a real automated bracket, you might calculate 'top' based on slot index.
-  // For V1, we stick to the provided visual structure.
-
   return (
     <div className="w-full h-[1200px] md:h-[600px] relative overflow-auto custom-scrollbar bg-tactical-grid rounded-lg border border-zinc-800">
        <div className="absolute top-4 right-4 flex gap-4 text-[10px] font-mono text-zinc-600 uppercase sticky left-0">
@@ -98,12 +83,8 @@ const Bracket = ({ onMatchClick }) => {
         <span className="flex items-center gap-1"><Clock size={12} /> UTC+0</span>
       </div>
 
-      {/* Render Matches based on availability */}
-      {/* We map the first few matches to demonstrate the logic */}
       {matches.slice(0, 16).map((match, i) => {
-         // Simple math to position them for the demo layout
          const topPos = 50 + (i * 100); 
-         // In production, split these into columns (R32, R16, etc)
          return (
             <BracketMatch 
                 key={match.id} 

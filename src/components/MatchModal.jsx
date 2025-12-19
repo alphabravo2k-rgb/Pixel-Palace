@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useCallback, memo } from 'react';
-import { X, Clock, Shield, Activity, Server, Hammer } from 'lucide-react';
+import React, { useEffect, useCallback, memo } from 'react';
+import { X, Shield, Activity, Hammer } from 'lucide-react';
 import { supabase } from '../supabase/client';
 import { useSession } from '../auth/useSession';
 import { can, isAdmin, MATCH_STATUS } from '../tournament/permissions';
@@ -21,17 +21,14 @@ const TacticalBadge = ({ children, status }) => {
 
 const MatchModal = ({ match, onClose }) => {
   const { session } = useSession();
-  const [timeline, setTimeline] = useState([]);
-  const [copyFeedback, setCopyFeedback] = useState(false);
 
   const fetchMatchTimeline = useCallback(async () => {
     if (!match?.id) return;
-    const { data } = await supabase
+    await supabase
       .from('match_events')
       .select('*')
       .eq('match_id', match.id)
       .order('created_at', { ascending: false });
-    setTimeline(data || []);
   }, [match?.id]);
 
   useEffect(() => {
@@ -47,8 +44,6 @@ const MatchModal = ({ match, onClose }) => {
 
   const handleCopy = (text) => {
     navigator.clipboard.writeText(text);
-    setCopyFeedback(true);
-    setTimeout(() => setCopyFeedback(false), 2000);
   };
 
   const canSeeIP = can(PERM_ACTIONS.VIEW_SERVER_IP, session, { match });

@@ -8,7 +8,6 @@ const TeamRoster = () => {
 
   if (loading) return <div className="text-zinc-500 font-mono text-xs animate-pulse p-12 text-center uppercase tracking-widest">Accessing Registry...</div>;
 
-  // 1. DATA SAFETY: Ensure teams is an array and filter out placeholders
   const teamList = Array.isArray(teams) ? teams : [];
   const realTeams = teamList.filter(t => t && t.status === 'REGISTERED');
   
@@ -23,7 +22,7 @@ const TeamRoster = () => {
   return (
     <div className="space-y-6 animate-in slide-in-from-bottom duration-500">
       
-      {/* HEADER & STATS */}
+      {/* HEADER */}
       <div className="flex flex-col md:flex-row justify-between items-end gap-4 border-b border-zinc-800 pb-6">
         <div>
            <h2 className="text-xl font-black text-white italic tracking-tighter uppercase mb-1">Active Roster</h2>
@@ -64,9 +63,11 @@ const TeamRoster = () => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredTeams.map((team) => {
-              // SAFETY: Ensure players is always an array before mapping
               const playerArray = Array.isArray(team.players) ? team.players : [];
-              const captain = playerArray.find(p => p.is_captain)?.name || 'UNASSIGNED';
+              
+              // FIX: Look for display_name and handle both is_captain and role
+              const captainObj = playerArray.find(p => p.is_captain || p.role === 'CAPTAIN');
+              const captainName = captainObj?.display_name || captainObj?.name || 'LEAD_PENDING';
 
               return (
                 <div key={team.id} className="bg-[#0b0c0f] border border-zinc-800 p-5 hover:border-zinc-700 transition-all group relative overflow-hidden">
@@ -76,7 +77,7 @@ const TeamRoster = () => {
                       <div>
                           <h3 className="text-lg font-black text-white italic tracking-tighter uppercase truncate">{team.name || 'UNKNOWN_UNIT'}</h3>
                           <span className="text-[9px] font-mono text-[#ff5500] tracking-[0.2em] opacity-80">
-                          [{team.tag || 'TBA'}]
+                          {team.tag ? `[${team.tag}]` : '[TBA]'}
                           </span>
                       </div>
                       <Shield className="w-4 h-4 text-zinc-800 group-hover:text-[#ff5500]/50 transition-colors" />
@@ -85,16 +86,16 @@ const TeamRoster = () => {
                     <div className="space-y-4">
                       <div className="flex items-center justify-between text-[10px] border-b border-zinc-900 pb-2">
                           <span className="text-zinc-600 font-mono uppercase">Command</span>
-                          <span className="text-zinc-200 font-bold tracking-widest uppercase">
-                            {captain}
+                          <span className="text-zinc-200 font-bold tracking-widest uppercase truncate max-w-[150px]">
+                            {captainName}
                           </span>
                       </div>
                       
                       <div className="space-y-2">
                           <div className="flex flex-wrap gap-1.5">
                             {playerArray.slice(0, 5).map((p, i) => (
-                                <span key={p.id || i} className="text-[9px] font-mono text-zinc-500 bg-zinc-900/50 px-2 py-1 border border-zinc-800/50 uppercase">
-                                  {p.name || 'OPERATOR'}
+                                <span key={p.id || i} className="text-[9px] font-mono text-zinc-400 bg-zinc-900/80 px-2 py-1 border border-zinc-800/50 uppercase">
+                                  {p.display_name || p.name || 'OPERATOR'}
                                 </span>
                             ))}
                             {playerArray.length > 5 && (
@@ -104,7 +105,7 @@ const TeamRoster = () => {
                       </div>
                     </div>
 
-                    <button className="w-full mt-6 bg-zinc-900/50 hover:bg-[#ff5500]/10 text-zinc-600 hover:text-[#ff5500] py-2 text-[9px] font-black uppercase tracking-[0.3em] border border-zinc-800 hover:border-[#ff5500]/30 transition-all flex items-center justify-center gap-2 group">
+                    <button className="w-full mt-6 bg-zinc-900/50 hover:bg-[#ff5500]/10 text-zinc-500 hover:text-[#ff5500] py-2 text-[9px] font-black uppercase tracking-[0.3em] border border-zinc-800 hover:border-[#ff5500]/30 transition-all flex items-center justify-center gap-2 group">
                       Unit_Details <ChevronRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
                     </button>
                 </div>

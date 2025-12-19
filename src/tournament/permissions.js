@@ -12,49 +12,37 @@ export const MATCH_STATUS = {
   COMPLETED: 'completed'
 };
 
-// --- REUSABLE PERMISSION SETS ---
-const ADMIN_BASE_PERMISSIONS = [
-  PERM_ACTIONS.MATCH_UPDATE, 
-  PERM_ACTIONS.MATCH_FORCE_WIN, 
-  PERM_ACTIONS.MATCH_PAUSE, 
-  PERM_ACTIONS.VETO_OVERRIDE, 
-  PERM_ACTIONS.VIEW_SENSITIVE
-];
-
 // --- PERMISSION MATRIX ---
 const ROLE_PERMISSIONS = {
   [ROLES.SYSTEM_OWNER]: ['*'], 
-  [ROLES.OWNER]: [...ADMIN_BASE_PERMISSIONS],
-  [ROLES.ADMIN]: [...ADMIN_BASE_PERMISSIONS],
-  [ROLES.REFEREE]: [
-    PERM_ACTIONS.MATCH_UPDATE, PERM_ACTIONS.MATCH_PAUSE, 
-    PERM_ACTIONS.MATCH_RESUME, PERM_ACTIONS.VIEW_SENSITIVE
+  [ROLES.OWNER]: [
+    PERM_ACTIONS.MATCH_UPDATE, 
+    PERM_ACTIONS.MATCH_FORCE_WIN, 
+    PERM_ACTIONS.VETO_OVERRIDE, 
+    PERM_ACTIONS.VIEW_SENSITIVE
+  ],
+  [ROLES.ADMIN]: [
+    PERM_ACTIONS.MATCH_UPDATE, 
+    PERM_ACTIONS.MATCH_FORCE_WIN, 
+    PERM_ACTIONS.VETO_OVERRIDE, 
+    PERM_ACTIONS.VIEW_SENSITIVE
   ],
   [ROLES.CAPTAIN]: [
-    PERM_ACTIONS.VETO_ACT, PERM_ACTIONS.DISPUTE_RAISE, 
-    PERM_ACTIONS.VIEW_SERVER_IP
+    PERM_ACTIONS.VETO_ACT, 
+    PERM_ACTIONS.VIEW_SERVER_IP,
+    PERM_ACTIONS.DISPUTE_RAISE
   ],
   [ROLES.PLAYER]: [
-    PERM_ACTIONS.DISPUTE_RAISE, PERM_ACTIONS.VIEW_SERVER_IP
+    PERM_ACTIONS.VIEW_SERVER_IP
   ],
-  [ROLES.SPECTATOR]: [],
-  [ROLES.GUEST]: []
+  [ROLES.SPECTATOR]: []
 };
 
-// --- STATE GUARDS ---
+// --- STATE GUARDS (Law of Visibility) ---
 const STATE_GUARDS = {
-  [PERM_ACTIONS.VETO_ACT]: [MATCH_STATUS.VETO],
-  [PERM_ACTIONS.VIEW_SERVER_IP]: [MATCH_STATUS.LIVE], 
-  [PERM_ACTIONS.VIEW_SENSITIVE]: [MATCH_STATUS.LIVE, MATCH_STATUS.VETO, MATCH_STATUS.SCHEDULED], 
-  [PERM_ACTIONS.MATCH_FORCE_WIN]: [MATCH_STATUS.LIVE, MATCH_STATUS.VETO, MATCH_STATUS.READY, MATCH_STATUS.SCHEDULED]
+  [PERM_ACTIONS.VETO_ACT]: [MATCH_STATUS.LIVE, MATCH_STATUS.VETO],
+  [PERM_ACTIONS.VIEW_SERVER_IP]: [MATCH_STATUS.LIVE]
 };
-
-// --- SCOPE GUARDS ---
-const TEAM_SCOPE_ACTIONS = [
-  PERM_ACTIONS.VETO_ACT, 
-  PERM_ACTIONS.VIEW_SERVER_IP,
-  PERM_ACTIONS.DISPUTE_RAISE
-];
 
 /**
  * THE CENTRAL RESOLVER
@@ -68,38 +56,24 @@ export const can = (action, session, context = {}) => {
     const allowedActions = ROLE_PERMISSIONS[session.role] || [];
     const hasPermission = allowedActions.includes(action) || allowedActions.includes('*');
     
-    if (!hasPermission) {
-      if (IS_DEV) console.warn(`[Perms] Denied '${action}': Role '${session.role}' insufficient.`);
-      return false;
-    }
+    if (!hasPermission) return false;
 
     // 2. State Check
     if (context.match) {
       const allowedStates = STATE_GUARDS[action];
       if (allowedStates && !allowedStates.includes(context.match.status)) {
-        if (IS_DEV) console.warn(`[Perms] Denied '${action}': State '${context.match.status}' not in [${allowedStates}].`);
         return false;
       }
     }
 
-    // 3. Scope Check (Team/Match Ownership)
-    if (TEAM_SCOPE_ACTIONS.includes(action)) {
-      if (!context.match) return false;
-      
+    // 3. Scope Check (Ownership)
+    if ([PERM_ACTIONS.VETO_ACT, PERM_ACTIONS.VIEW_SERVER_IP].includes(action)) {
       const userTeamId = session.teamId;
-      if (!userTeamId) {
-        if (IS_DEV) console.warn(`[Perms] Denied '${action}': Scope required but user has no Team ID.`);
-        return false;
-      }
+      if (!userTeamId || !context.match) return false;
 
-      const isTeam1 = userTeamId === context.match.team1Id;
-      const isTeam2 = userTeamId === context.match.team2Id;
-      
-      if ([ROLES.CAPTAIN, ROLES.PLAYER].includes(session.role)) {
-        if (!isTeam1 && !isTeam2) {
-          if (IS_DEV) console.warn(`[Perms] Denied '${action}': User team '${userTeamId}' not in match.`);
-          return false;
-        }
+      const isParticipant = userTeamId === context.match.team1Id || userTeamId === context.match.team2Id;
+      if (!isParticipant && ![ROLES.ADMIN, ROLES.OWNER].includes(session.role)) {
+        return false;
       }
     }
 
@@ -110,13 +84,6 @@ export const can = (action, session, context = {}) => {
   }
 };
 
-// --- HELPER WRAPPERS ---
 export const isAdmin = (session) => {
   return [ROLES.SYSTEM_OWNER, ROLES.OWNER, ROLES.ADMIN].includes(session?.role);
-};
-
-export const isTeamCaptain = (session, teamId) => {
-  if (!session?.isAuthenticated) return false;
-  if (isAdmin(session)) return true; 
-  return session.role === ROLES.CAPTAIN && session.teamId === teamId;
 };

@@ -1,5 +1,5 @@
 import { ROLES } from '../lib/roles';
-import { PERM_ACTIONS } from '../lib/constants';
+import { PERM_ACTIONS } from '../lib/constants'; // Now this will work!
 
 export const MATCH_STATUS = {
   SCHEDULED: 'scheduled',
@@ -35,7 +35,7 @@ const ROLE_PERMISSIONS = {
   [ROLES.SPECTATOR]: []
 };
 
-// --- STATE GUARDS (Law of Visibility) ---
+// --- STATE GUARDS ---
 const STATE_GUARDS = {
   [PERM_ACTIONS.VETO_ACT]: [MATCH_STATUS.LIVE, MATCH_STATUS.VETO],
   [PERM_ACTIONS.VIEW_SERVER_IP]: [MATCH_STATUS.LIVE]
@@ -69,6 +69,7 @@ export const can = (action, session, context = {}) => {
       if (!userTeamId || !context.match) return false;
 
       const isParticipant = userTeamId === context.match.team1Id || userTeamId === context.match.team2Id;
+      // Admins bypass participation check
       if (!isParticipant && ![ROLES.ADMIN, ROLES.OWNER].includes(session.role)) {
         return false;
       }
@@ -83,4 +84,11 @@ export const can = (action, session, context = {}) => {
 
 export const isAdmin = (session) => {
   return [ROLES.SYSTEM_OWNER, ROLES.OWNER, ROLES.ADMIN].includes(session?.role);
+};
+
+// ADDED: Required by VetoPanel.jsx and MatchModal.jsx
+export const isTeamCaptain = (session, teamId) => {
+  if (!session || !session.isAuthenticated) return false;
+  if (isAdmin(session)) return true; // Admins are super-captains
+  return session.role === ROLES.CAPTAIN && session.teamId === teamId;
 };

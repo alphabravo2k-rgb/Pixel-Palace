@@ -1,16 +1,40 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom'; // Import Router hooks
 import { useCaptainVeto } from '../hooks/useCaptainVeto';
 
-const VetoPanel = ({ activePin }) => {
+const VetoPanel = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  
+  // 1. Grab PIN from Navigation State
+  const activePin = location.state?.pin;
+
+  // 2. Redirect if someone tries to access /veto directly without logging in
+  useEffect(() => {
+    if (!activePin) {
+      navigate('/'); // Bounce back to home
+    }
+  }, [activePin, navigate]);
+
+  // 3. Initialize Hook with the PIN
   const { gameState, loading, error, submitVeto } = useCaptainVeto(activePin);
 
-  if (loading) return <div className="p-10 text-center text-white">Connecting to Satellite...</div>;
+  if (!activePin) return null; // Prevent flicker before redirect
+  if (loading) return <div className="p-10 text-center text-white font-mono animate-pulse">ESTABLISHING UPLINK...</div>;
   
-  // If no gameState, the PIN was likely invalid or not passed yet
-  if (!gameState) return <div className="p-10 text-center text-red-500">Waiting for valid session...</div>;
+  // If no gameState, the PIN was likely invalid or session expired
+  if (!gameState) return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-950">
+       <div className="text-red-500 font-mono border border-red-900 bg-red-900/10 p-6 rounded text-center">
+          <h2 className="text-xl font-bold mb-2">SESSION TERMINATED</h2>
+          <p>Invalid Credentials or Connection Lost.</p>
+          <button onClick={() => navigate('/')} className="mt-4 bg-red-600 text-white px-4 py-2 rounded text-xs uppercase tracking-widest">Return to Base</button>
+       </div>
+    </div>
+  );
 
   return (
-    <div className="bg-slate-900 text-white p-6 rounded-xl border border-slate-700 font-mono w-full max-w-5xl mx-auto shadow-2xl">
+    <div className="bg-slate-900 text-white p-6 rounded-xl border border-slate-700 font-mono w-full max-w-5xl mx-auto shadow-2xl my-8">
       
       {/* HEADER */}
       <div className="flex flex-col md:flex-row justify-between items-end border-b border-slate-800 pb-6 mb-8">
@@ -21,7 +45,7 @@ const VetoPanel = ({ activePin }) => {
           </h1>
         </div>
         <div className="mt-4 md:mt-0">
-           <div className={`px-6 py-3 rounded-lg font-bold text-sm tracking-wider shadow-lg ${gameState.is_my_turn ? 'bg-green-600 text-white animate-pulse' : 'bg-slate-800 text-slate-500'}`}>
+           <div className={`px-6 py-3 rounded-lg font-bold text-sm tracking-wider shadow-lg transition-all ${gameState.is_my_turn ? 'bg-green-600 text-white animate-pulse' : 'bg-slate-800 text-slate-500'}`}>
               {gameState.is_my_turn ? "YOUR TURN TO BAN" : "OPPONENT'S TURN"}
            </div>
         </div>

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTournament } from '../tournament/useTournament';
-import { Search, AlertTriangle, MessageCircle, Shield, Pin, ExternalLink } from 'lucide-react';
+import { Search, AlertTriangle, MessageCircle, Shield, Pin } from 'lucide-react';
 
 // --- ICONS ---
 const Icons = {
@@ -22,7 +22,7 @@ const SocialButton = ({ href, type }) => {
     <a href={href} target="_blank" rel="noreferrer" 
        className={`p-1 text-zinc-500 transition-all duration-200 ${colors} hover:scale-110 active:scale-95 cursor-pointer z-50`} 
        title={`Open ${label}`}
-       onMouseDown={(e) => e.stopPropagation()} // Vital fix for clicks
+       onMouseDown={(e) => e.stopPropagation()} 
     >
       <Icon className="w-3.5 h-3.5" />
     </a>
@@ -44,7 +44,14 @@ const PlayerRow = ({ player }) => {
   return (
     <div className={`relative group w-full h-12 border-b border-white/5 last:border-0 flex items-center overflow-hidden will-change-transform ${isSub ? 'bg-fuchsia-900/10' : 'bg-[#0a0a0c]'}`}>
       
-      {/* Default View */}
+      {/* Pattern for Subs */}
+      {isSub && (
+        <div className="absolute inset-0 opacity-[0.03] pointer-events-none" 
+             style={{ backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 10px, #ffffff 10px, #ffffff 20px)' }} 
+        />
+      )}
+
+      {/* DEFAULT VIEW */}
       <div className="absolute inset-0 flex items-center justify-between px-4 z-10 transition-transform duration-300 group-hover:-translate-y-full">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded bg-zinc-900 border border-white/10 flex items-center justify-center overflow-hidden">
@@ -66,7 +73,7 @@ const PlayerRow = ({ player }) => {
         </span>
       </div>
 
-      {/* Hover View (Socials & Full Name) */}
+      {/* HOVER VIEW (Socials & Full ID) */}
       <div className="absolute inset-0 z-20 flex items-center justify-between px-4 bg-[#0a0a0c] transform translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out">
         <div className="flex items-center gap-2 relative z-50">
            <SocialButton href={player.socials?.faceit} type="faceit" />

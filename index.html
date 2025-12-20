@@ -1,53 +1,13 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Teko:wght@400;600;700&display=swap');
-
-/* --- GLOBAL DEFAULTS --- */
-body {
-  background-color: #060709;
-  color: #e4e4e7;
-  font-family: 'Rajdhani', sans-serif;
-  overflow-x: hidden;
-}
-
-/* --- CUSTOM SCROLLBAR (Cyber Style) --- */
-@layer utilities {
-  .custom-scrollbar::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-  
-  .custom-scrollbar::-webkit-scrollbar-track {
-    background: #0a0a0c;
-  }
-  
-  .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: #3f3f46;
-    border-radius: 3px;
-  }
-  
-  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: #71717a;
-  }
-
-  /* Hides scrollbar but allows scrolling (good for Bracket container) */
-  .no-scrollbar::-webkit-scrollbar {
-    display: none;
-  }
-  .no-scrollbar {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-  }
-}
-
-/* --- ANIMATIONS --- */
-@keyframes breathe {
-  0%, 100% { filter: drop-shadow(0 0 5px rgba(192, 38, 211, 0.5)); transform: scale(1); }
-  50% { filter: drop-shadow(0 0 15px rgba(192, 38, 211, 0.8)); transform: scale(1.02); }
-}
-
-.animate-breathe {
-  animation: breathe 3s infinite ease-in-out;
-}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="https://raw.githubusercontent.com/alphabravo2k-rgb/pixel-palace-registration/1a7d90c43796fd037316bdaf4f3b4de9a485d615/image_4379f9.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pixel Palace | Operations Command</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

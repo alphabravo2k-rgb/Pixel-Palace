@@ -15,7 +15,6 @@ const AdminToolbar = () => {
     setTimeout(() => setIsSyncing(false), 1000);
   };
 
-  // GUEST VIEW
   if (!session.isAuthenticated) {
     return (
       <div className="bg-[#060709] border-b border-zinc-900 p-2 flex justify-end sticky top-0 z-50">
@@ -31,7 +30,7 @@ const AdminToolbar = () => {
 
   const theme = ROLE_THEMES[session.role] || ROLE_THEMES[ROLES.GUEST];
   
-  // Explicit colors for Tailwind safety
+  // Explicit colors for Tailwind
   const badgeStyles = {
     fuchsia: "bg-fuchsia-900/50 text-fuchsia-200 border-fuchsia-700",
     purple: "bg-purple-900/50 text-purple-200 border-purple-700",
@@ -43,7 +42,7 @@ const AdminToolbar = () => {
   const currentBadge = badgeStyles[theme.color] || badgeStyles.zinc;
 
   return (
-    <div className="bg-[#0b0c0f]/90 border-b border-zinc-800 p-3 sticky top-0 z-50 backdrop-blur-md">
+    <div className="bg-[#0b0c0f]/95 border-b border-zinc-800 p-3 sticky top-0 z-50 backdrop-blur-md">
       <div className="container mx-auto flex justify-between items-center px-4">
         
         <div className="flex items-center gap-4">
@@ -68,10 +67,11 @@ const AdminToolbar = () => {
             </button>
           )}
           <button 
-            onClick={() => logout("USER_TERMINATED")} 
-            className="text-zinc-500 hover:text-red-500 transition-all p-1 flex items-center gap-2 group"
+            onClick={() => logout()} 
+            className="flex items-center gap-2 text-zinc-500 hover:text-red-500 transition-all p-1 group border border-transparent hover:border-red-900/50 rounded px-2"
             title="Terminate Session"
           >
+            <span className="text-[9px] font-bold uppercase tracking-widest hidden sm:inline">Terminate</span>
             <LogOut size={14} />
           </button>
         </div>

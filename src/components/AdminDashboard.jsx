@@ -34,7 +34,8 @@ const AdminDashboard = () => {
   };
 
   const goToBracket = () => {
-    navigate('/'); // Navigate to bracket but keep session (if configured)
+    // Pass 'skipLogin' state so the modal doesn't pop up immediately
+    navigate('/', { state: { skipLogin: true } }); 
   };
 
   const handleLogin = (e) => { e.preventDefault(); login(pin); };
@@ -210,6 +211,5 @@ const AdminDashboard = () => {
     </div>
   );
 };
-import { MessageSquare } from 'lucide-react'; 
 
 export default AdminDashboard;

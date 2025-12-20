@@ -1,18 +1,22 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom'; 
 import { supabase } from '../supabase/client';
 import { MessageSquare, ShieldAlert, Eye } from 'lucide-react';
 
 const PinLogin = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // If 'skipLogin' was passed, start hidden. Otherwise, start visible.
+  const [isVisible, setIsVisible] = useState(!location.state?.skipLogin);
+  
   const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [isVisible, setIsVisible] = useState(true); // State to toggle visibility
-  const navigate = useNavigate();
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    if (pin.length < 3) return; // Min length 3 for custom names
+    if (pin.length < 3) return;
     setLoading(true);
     setError(null);
 
@@ -38,7 +42,7 @@ const PinLogin = () => {
     }
   };
 
-  // If spectator mode is active or not on home page, hide
+  // Logic: Show if (Visible AND on Home Page)
   if (!isVisible || window.location.pathname !== '/') return null;
 
   return (
@@ -60,7 +64,7 @@ const PinLogin = () => {
               placeholder="••••••••" 
               value={pin} 
               onChange={(e) => setPin(e.target.value)} 
-              maxLength={20} // UNLOCKED
+              maxLength={20}
             />
           </div>
 
@@ -69,7 +73,6 @@ const PinLogin = () => {
           </button>
         </form>
 
-        {/* ERROR STATE */}
         {error && (
           <div className="px-8 pb-4 animate-in slide-in-from-bottom-2 fade-in duration-300 text-center">
              <span className="text-red-500 font-bold tracking-widest text-xs uppercase border border-red-900/50 bg-red-900/10 px-3 py-1 rounded">
@@ -92,7 +95,7 @@ const PinLogin = () => {
         {!error && (
           <div className="px-8 pb-6">
             <button 
-              onClick={() => setIsVisible(false)} // Hides the modal
+              onClick={() => setIsVisible(false)} // Hides the modal locally
               className="w-full border border-slate-700 hover:bg-slate-800 text-slate-400 hover:text-white py-3 rounded-lg flex items-center justify-center gap-2 transition-all group"
             >
               <Eye className="w-4 h-4 group-hover:scale-110 transition-transform" />

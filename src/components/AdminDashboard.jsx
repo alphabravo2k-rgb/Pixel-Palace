@@ -5,8 +5,12 @@ import { useAdminConsole } from '../hooks/useAdminConsole';
 const AdminDashboard = () => {
   const location = useLocation();
   const [pin, setPin] = useState('');
-  const { adminProfile, tempPin, error, loading, login, createAdmin } = useAdminConsole();
+  const { adminProfile, tempPin, error, loading, login, createAdmin, changeMyPin } = useAdminConsole();
+  
+  // Forms
   const [newAdmin, setNewAdmin] = useState({ name: '', discord: '', discordUser: '', faceitUser: '', faceitUrl: '' });
+  const [changePinData, setChangePinData] = useState({ oldPin: '', newPin: '', securityToken: '' });
+  const [successMsg, setSuccessMsg] = useState('');
 
   useEffect(() => {
     if (location.state?.pin && !adminProfile) {
@@ -17,8 +21,20 @@ const AdminDashboard = () => {
 
   const handleLogin = (e) => { e.preventDefault(); login(pin); };
 
+  const handleChangePin = async (e) => {
+    e.preventDefault();
+    setSuccessMsg('');
+    const success = await changeMyPin(
+      changePinData.oldPin, 
+      changePinData.newPin, 
+      { discordHandle: adminProfile.discord_handle }, // Keep existing profile data
+      changePinData.securityToken
+    );
+    if (success) setSuccessMsg("PIN Updated Successfully. Please re-login.");
+  };
+
   if (!adminProfile) {
-    return (
+    return ( /* ... Login View (Same as before) ... */ 
       <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 font-mono">
          <form onSubmit={handleLogin} className="bg-slate-900 p-8 rounded-xl border border-slate-800 shadow-2xl w-full max-w-md">
             <h2 className="mb-6 text-xl font-bold text-white tracking-wider text-center">SYSTEM ACCESS</h2>
@@ -41,27 +57,62 @@ const AdminDashboard = () => {
           </div>
         </header>
 
+        {/* OWNER TOOLS: CREATE ADMIN */}
         {adminProfile.can_create_admin && (
-          <div className="bg-slate-900 p-8 rounded-xl border border-slate-800">
+          <div className="bg-slate-900 p-8 rounded-xl border border-slate-800 mb-8">
             <h2 className="text-lg font-bold mb-6 text-yellow-500 uppercase tracking-widest border-b border-slate-800 pb-2">Create New Admin</h2>
-            {tempPin && (
+            {/* ... (Same Create Form as before) ... */}
+             {tempPin && (
               <div className="bg-green-900/20 border border-green-500/50 p-6 mb-8 rounded text-center">
                 <p className="text-green-400 text-xs uppercase tracking-widest mb-2">Credentials Generated</p>
                 <p className="text-4xl font-black text-white tracking-widest select-all bg-green-950/50 inline-block px-4 py-2 rounded">{tempPin}</p>
-                <p className="text-xs text-slate-500 mt-2">Copy immediately.</p>
               </div>
             )}
             <form onSubmit={(e) => { e.preventDefault(); createAdmin(pin, newAdmin); }} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <input className="w-full bg-slate-950 border border-slate-700 p-3 rounded text-white" placeholder="Display Name (e.g. Bravo)" onChange={e => setNewAdmin({...newAdmin, name: e.target.value})} />
-              <input className="w-full bg-slate-950 border border-slate-700 p-3 rounded text-white" placeholder="Discord Handle (e.g. bravo.gg)" onChange={e => setNewAdmin({...newAdmin, discord: e.target.value})} />
-              <input className="w-full bg-slate-950 border border-slate-700 p-3 rounded text-white" placeholder="Discord Username (e.g. .bravo)" onChange={e => setNewAdmin({...newAdmin, discordUser: e.target.value})} />
-              <input className="w-full bg-slate-950 border border-slate-700 p-3 rounded text-white" placeholder="Faceit User (Optional)" onChange={e => setNewAdmin({...newAdmin, faceitUser: e.target.value})} />
-              <button disabled={loading} className="col-span-1 md:col-span-2 mt-4 bg-yellow-600 hover:bg-yellow-700 text-white font-bold p-4 rounded uppercase tracking-widest text-sm">
-                {loading ? 'Generating...' : 'Generate Keys'}
-              </button>
+               <input className="w-full bg-slate-950 border border-slate-700 p-3 rounded text-white" placeholder="Display Name" onChange={e => setNewAdmin({...newAdmin, name: e.target.value})} />
+               <input className="w-full bg-slate-950 border border-slate-700 p-3 rounded text-white" placeholder="Discord Handle" onChange={e => setNewAdmin({...newAdmin, discord: e.target.value})} />
+               <input className="w-full bg-slate-950 border border-slate-700 p-3 rounded text-white" placeholder="Discord Username" onChange={e => setNewAdmin({...newAdmin, discordUser: e.target.value})} />
+               <button className="col-span-2 bg-yellow-600 hover:bg-yellow-700 p-4 rounded font-bold uppercase tracking-widest">Generate Admin Keys</button>
             </form>
           </div>
         )}
+
+        {/* OWNER TOOLS: CHANGE PIN */}
+        <div className="bg-slate-900 p-8 rounded-xl border border-slate-800">
+           <h2 className="text-lg font-bold mb-6 text-blue-500 uppercase tracking-widest border-b border-slate-800 pb-2">Change My PIN</h2>
+           {successMsg && <p className="text-green-400 mb-4">{successMsg}</p>}
+           
+           <form onSubmit={handleChangePin} className="space-y-4 max-w-md">
+              <input 
+                type="password" placeholder="Current PIN" maxLength={4}
+                className="w-full bg-slate-950 border border-slate-700 p-3 rounded text-white text-center tracking-[0.5em]" 
+                onChange={e => setChangePinData({...changePinData, oldPin: e.target.value})} 
+              />
+              <input 
+                type="password" placeholder="New PIN" maxLength={4}
+                className="w-full bg-slate-950 border border-slate-700 p-3 rounded text-white text-center tracking-[0.5em]" 
+                onChange={e => setChangePinData({...changePinData, newPin: e.target.value})} 
+              />
+              
+              {/* SECURITY CHECK FOR OWNER ONLY */}
+              {adminProfile.role === 'OWNER' && (
+                 <div className="pt-4 border-t border-slate-800">
+                    <label className="text-xs text-red-500 uppercase tracking-widest block mb-2">Secure Command Key Required</label>
+                    <input 
+                      type="text" placeholder="Identity Verification Token" 
+                      className="w-full bg-red-950/20 border border-red-900/50 p-3 rounded text-red-200 text-center tracking-widest placeholder-red-800" 
+                      onChange={e => setChangePinData({...changePinData, securityToken: e.target.value})} 
+                    />
+                 </div>
+              )}
+              
+              <button disabled={loading} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold p-4 rounded uppercase tracking-widest text-sm mt-4">
+                {loading ? 'Updating...' : 'Update Credentials'}
+              </button>
+           </form>
+           {error && <p className="text-red-500 mt-4 text-sm">{error}</p>}
+        </div>
+
       </div>
     </div>
   );

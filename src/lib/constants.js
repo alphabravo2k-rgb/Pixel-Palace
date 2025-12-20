@@ -1,52 +1,52 @@
-// --- OFFICIAL CS2 MAP POOL (Active Duty + Rotation) ---
 export const MAP_POOL = [
-  { id: 'de_ancient', name: 'Ancient', slug: 'ancient', image: 'https://raw.githubusercontent.com/sivert-io/cs2-server-manager/master/map_thumbnails/de_ancient.png', active: true },
-  { id: 'de_anubis', name: 'Anubis', slug: 'anubis', image: 'https://raw.githubusercontent.com/sivert-io/cs2-server-manager/master/map_thumbnails/de_anubis.png', active: true },
-  { id: 'de_inferno', name: 'Inferno', slug: 'inferno', image: 'https://raw.githubusercontent.com/sivert-io/cs2-server-manager/master/map_thumbnails/de_inferno.png', active: true },
-  { id: 'de_mirage', name: 'Mirage', slug: 'mirage', image: 'https://raw.githubusercontent.com/sivert-io/cs2-server-manager/master/map_thumbnails/de_mirage.png', active: true },
-  { id: 'de_nuke', name: 'Nuke', slug: 'nuke', image: 'https://raw.githubusercontent.com/sivert-io/cs2-server-manager/master/map_thumbnails/de_nuke.png', active: true },
-  { id: 'de_dust2', name: 'Dust 2', slug: 'dust-2', image: 'https://raw.githubusercontent.com/sivert-io/cs2-server-manager/master/map_thumbnails/de_dust2.png', active: true },
-  { id: 'de_train', name: 'Train', slug: 'train', image: 'https://raw.githubusercontent.com/sivert-io/cs2-server-manager/master/map_thumbnails/de_train.png', active: true },
-  { id: 'de_overpass', name: 'Overpass', slug: 'overpass', image: 'https://raw.githubusercontent.com/sivert-io/cs2-server-manager/master/map_thumbnails/de_overpass.png', active: false },
-  { id: 'de_vertigo', name: 'Vertigo', slug: 'vertigo', image: 'https://raw.githubusercontent.com/sivert-io/cs2-server-manager/master/map_thumbnails/de_vertigo.png', active: false }
+  { 
+    id: 'de_ancient', 
+    name: 'Ancient', 
+    image: 'https://img.cdn-thg.com/v1/page/4235226c-da5c-4394-8149-6f9202422207/Ancient_CS2.jpg' 
+  },
+  { 
+    id: 'de_dust2', 
+    name: 'Dust 2', 
+    image: 'https://img.cdn-thg.com/v1/page/6d36e232-a396-4448-b427-023a4993952f/Dust2_CS2.jpg' 
+  },
+  { 
+    id: 'de_inferno', 
+    name: 'Inferno', 
+    image: 'https://img.cdn-thg.com/v1/page/2b425b03-9993-41c3-9824-3a4a796696d0/Inferno_CS2.jpg' 
+  },
+  { 
+    id: 'de_mirage', 
+    name: 'Mirage', 
+    image: 'https://img.cdn-thg.com/v1/page/876d705d-639a-412f-9818-da0256d09c2d/Mirage_CS2.jpg' 
+  },
+  { 
+    id: 'de_nuke', 
+    name: 'Nuke', 
+    image: 'https://img.cdn-thg.com/v1/page/7c865264-8844-4235-9054-04663126743c/Nuke_CS2.jpg' 
+  },
+  { 
+    id: 'de_overpass', 
+    name: 'Overpass', 
+    image: 'https://img.cdn-thg.com/v1/page/370d046c-c72e-48cb-a719-2196023308ba/Overpass_CS2.jpg' 
+  },
+  { 
+    id: 'de_train', 
+    name: 'Train', 
+    image: 'https://cdn.akamai.steamstatic.com/apps/csgo/images/train/train_clean.jpg' 
+  }
 ];
 
-// --- PERMISSION ACTION CONSTANTS (The "Lethal" Logic Keys) ---
-export const PERM_ACTIONS = {
-  MATCH_UPDATE: 'match.update',
-  MATCH_FORCE_WIN: 'match.force_win',
-  MATCH_PAUSE: 'match.pause',
-  MATCH_RESUME: 'match.resume',
-  VETO_ACT: 'match.veto.act',
-  VETO_OVERRIDE: 'match.veto.override',
-  VIEW_SERVER_IP: 'server.view_connect',
-  VIEW_SENSITIVE: 'server.view_sensitive',
-  DISPUTE_RAISE: 'match.dispute'
-};
+export const RANKS = [
+  'Silver I', 'Silver II', 'Silver III', 'Silver IV', 'Silver Elite', 'Silver Elite Master',
+  'Gold Nova I', 'Gold Nova II', 'Gold Nova III', 'Gold Nova Master',
+  'Master Guardian I', 'Master Guardian II', 'Master Guardian Elite',
+  'Distinguished Master Guardian', 'Legendary Eagle', 'Legendary Eagle Master',
+  'Supreme Master First Class', 'Global Elite'
+];
 
-// --- CANONICAL VETO FLOWS (V8 Standard) ---
+// V8 Standard Flow
 export const VETO_FLOW = { 
-  "BO1": [
-    { team: "A", action: "BAN" }, { team: "B", action: "BAN" },
-    { team: "A", action: "BAN" }, { team: "B", action: "BAN" },
-    { team: "A", action: "BAN" }, { team: "B", action: "BAN" },
-    { team: "NONE", action: "DECIDER" }
-  ],
-  "BO3": [
-    { team: "A", action: "BAN" }, { team: "B", action: "BAN" },
-    { team: "A", action: "PICK" }, 
-    { team: "B", action: "SIDE" }, 
-    { team: "B", action: "PICK" }, 
-    { team: "A", action: "SIDE" }, 
-    { team: "A", action: "BAN" }, { team: "B", action: "BAN" },
-    { team: "NONE", action: "DECIDER" }
-  ]
-};
-
-// --- GEOGRAPHIC REGISTRY ---
-export const COUNTRY_MAP = {
-  'PAK': 'pk', 'PK': 'pk', 'PAKISTAN': 'pk',
-  'IND': 'in', 'IN': 'in', 'INDIA': 'in',
-  'UAE': 'ae', 'AE': 'ae',
-  'SAU': 'sa', 'SA': 'sa'
+  "BO1": [ "A:BAN", "B:BAN", "A:BAN", "B:BAN", "A:BAN", "B:BAN" ], 
+  "BO3": [ "A:BAN", "B:BAN", "A:PICK", "B:PICK", "A:BAN", "B:BAN" ], 
+  "BO5": [ "A:BAN", "B:BAN", "A:PICK", "B:PICK", "A:PICK", "B:PICK" ] 
 };

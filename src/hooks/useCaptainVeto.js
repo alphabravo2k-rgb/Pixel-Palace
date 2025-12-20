@@ -6,8 +6,6 @@ export const useCaptainVeto = (pinCode) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // 1. SECURE READ (RPC)
-  // Wrapped in useCallback so it's stable for useEffect dependencies
   const fetchState = useCallback(async () => {
     if (!pinCode || pinCode.length < 4) return;
     setLoading(true);
@@ -17,7 +15,7 @@ export const useCaptainVeto = (pinCode) => {
       });
 
       if (rpcError) throw rpcError;
-      if (!data) throw new Error("Invalid PIN");
+      if (!data) throw new Error("Invalid PIN or Session Expired");
 
       setGameState(data);
       setError(null);
@@ -29,32 +27,23 @@ export const useCaptainVeto = (pinCode) => {
     }
   }, [pinCode]);
 
-  // Initial Fetch
   useEffect(() => {
     fetchState();
   }, [fetchState]);
 
-  // 2. REALTIME LISTENER
   useEffect(() => {
     if (!gameState?.match_id) return;
-
     const subscription = supabase
       .channel(`match-${gameState.match_id}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'matches', filter: `id=eq.${gameState.match_id}` }, 
-        () => {
-          // Re-fetch state on change
-          fetchState();
-        }
+        () => fetchState()
       )
       .subscribe();
-
     return () => supabase.removeChannel(subscription);
   }, [gameState?.match_id, fetchState]);
 
-  // 3. WRITE OPERATION (RPC)
   const submitVeto = async (mapName) => {
     if (!gameState?.is_my_turn) return;
-
     try {
       const { error: rpcError } = await supabase.rpc('cmd_submit_veto', {
         p_match_id: gameState.match_id,
@@ -62,7 +51,6 @@ export const useCaptainVeto = (pinCode) => {
         p_map_name: mapName,
         p_action: 'ban' 
       });
-
       if (rpcError) throw rpcError;
     } catch (err) {
       setError(err.message.replace("P0001: ", ""));

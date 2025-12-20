@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../supabase/client';
 
-const PinLogin = ({ onLogin }) => {
+const PinLogin = () => {
   const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -11,41 +11,29 @@ const PinLogin = ({ onLogin }) => {
   const handleLogin = async (e) => {
     e.preventDefault();
     if (pin.length < 4) return;
-    
     setLoading(true);
     setError(null);
 
     try {
-      // 1. Admin Login
       const { data: adminData, error: adminError } = await supabase.rpc('api_admin_login', { p_pin: pin });
       if (!adminError && adminData.status === 'SUCCESS') {
-        // PASS THE PIN TO THE NEXT SCREEN
         navigate('/admin', { state: { pin } });
         return;
       }
-
-      // 2. Captain Login
       const { data: captainData, error: captainError } = await supabase.rpc('api_get_captain_state', { p_pin: pin });
       if (!captainError && captainData) {
-        // PASS THE PIN TO THE NEXT SCREEN
         navigate('/veto', { state: { pin } });
         return;
       }
-
       throw new Error("Invalid PIN");
     } catch (err) {
       console.error(err);
-      if (err.message.includes("supabaseUrl")) {
-        setError("Missing API Keys");
-      } else {
-        setError("Invalid Credentials");
-      }
+      setError("Invalid Credentials");
     } finally {
       setLoading(false);
     }
   };
 
-  // Only show this overlay if we are on the Home Page ("/")
   if (window.location.pathname !== '/') return null;
 
   return (
@@ -61,16 +49,12 @@ const PinLogin = ({ onLogin }) => {
         />
         <button 
           disabled={loading || pin.length < 4}
-          className="bg-[#ff5500] hover:bg-[#ff5500]/80 text-black font-bold px-3 py-2 rounded text-xs uppercase tracking-wide transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          className="bg-[#ff5500] hover:bg-[#ff5500]/80 text-black font-bold px-3 py-2 rounded text-xs uppercase tracking-wide transition-all disabled:opacity-50"
         >
           {loading ? '...' : 'GO'}
         </button>
       </form>
-      {error && (
-        <div className="absolute bottom-full right-0 mb-2 bg-red-900/90 border border-red-500/50 text-red-100 text-[10px] px-3 py-1.5 rounded shadow-lg whitespace-nowrap backdrop-blur-sm">
-          {error}
-        </div>
-      )}
+      {error && <div className="absolute bottom-full right-0 mb-2 bg-red-900/90 text-red-200 text-[10px] px-2 py-1 rounded whitespace-nowrap">{error}</div>}
     </div>
   );
 };

@@ -1,9 +1,7 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useCaptainVeto } from '../hooks/useCaptainVeto';
 
-// Note: Ensure PinLogin component handles the initial PIN entry, 
-// OR use this integrated view if VetoPanel is a standalone page.
-export default function VetoPanel({ activePin }) {
+const VetoPanel = ({ activePin }) => {
   const { gameState, loading, error, submitVeto } = useCaptainVeto(activePin);
 
   if (loading) return <div className="p-10 text-center text-white">Connecting to Satellite...</div>;
@@ -79,4 +77,6 @@ export default function VetoPanel({ activePin }) {
       </div>
     </div>
   );
-}
+};
+
+export default VetoPanel;

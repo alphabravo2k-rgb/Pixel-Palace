@@ -1,4 +1,4 @@
-import React, { useState, useCallback, memo } from 'react';
+import React, { useState, useEffect, useCallback, memo } from 'react';
 import TeamRoster from '../components/TeamRoster';
 import Bracket from '../components/Bracket';
 import AdminToolbar from '../components/AdminToolbar';
@@ -22,10 +22,16 @@ NavButton.displayName = 'NavButton';
 
 const LayoutContainer = ({ children, className = "" }) => <div className={`container mx-auto px-4 md:px-8 ${className}`}>{children}</div>;
 
-const BracketView = () => {
+// Updated to accept initialTab prop
+const BracketView = ({ initialTab = VIEWS.BRACKET }) => {
   const { session, permissions } = useSession(); 
-  const [currentView, setCurrentView] = useState(VIEWS.BRACKET); 
+  const [currentView, setCurrentView] = useState(initialTab); 
   const [selectedMatch, setSelectedMatch] = useState(null);
+
+  // Sync state if prop changes (navigation)
+  useEffect(() => {
+    setCurrentView(initialTab);
+  }, [initialTab]);
 
   const handleMatchClick = useCallback((match) => {
     if (!session.isAuthenticated && !permissions.isSpectator) { console.warn("Access Denied"); return; }

@@ -2,81 +2,52 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  color-scheme: dark;
-  --grid-opacity: 0.05;
-}
+@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Teko:wght@400;600;700&display=swap');
 
+/* --- GLOBAL DEFAULTS --- */
 body {
   background-color: #060709;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  color: #e4e4e7;
+  font-family: 'Rajdhani', sans-serif;
   overflow-x: hidden;
 }
 
+/* --- CUSTOM SCROLLBAR (Cyber Style) --- */
 @layer utilities {
-  .custom-scrollbar {
-    scrollbar-width: thin;
-    scrollbar-color: #27272a #0b0c0f;
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: #0a0a0c;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #3f3f46;
+    border-radius: 3px;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #71717a;
   }
 
-  @media (pointer: fine) {
-    .custom-scrollbar::-webkit-scrollbar {
-      width: 6px;
-      height: 6px;
-    }
-    .custom-scrollbar::-webkit-scrollbar-track {
-      background: #0b0c0f;
-    }
-    .custom-scrollbar::-webkit-scrollbar-thumb {
-      background: #27272a;
-      border-radius: 2px;
-    }
-    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-      background: #ff5500;
-    }
+  /* Hides scrollbar but allows scrolling (good for Bracket container) */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
   }
-
-  @media (pointer: coarse) {
-    .custom-scrollbar::-webkit-scrollbar {
-      display: none;
-    }
-  }
-  
-  /* Configurable Grid Utility with GPU Hint */
-  .bg-tactical-grid {
-    background-image: 
-      linear-gradient(rgba(255, 255, 255, var(--grid-opacity)) 1px, transparent 1px), 
-      linear-gradient(90deg, rgba(255, 255, 255, var(--grid-opacity)) 1px, transparent 1px);
-    background-size: 32px 32px;
-    /* Forces GPU layer creation to prevent repaint on scroll */
-    transform: translateZ(0); 
-    pointer-events: none;
-  }
-  
-  /* Optimized Animations */
-  .animate-in {
-    animation-duration: 300ms;
-    animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-    animation-fill-mode: forwards;
-    opacity: 0;
-    will-change: transform, opacity;
-  }
-  
-  .fade-in {
-    animation-name: fadeIn;
-  }
-  
-  .slide-in-from-bottom {
-    animation-name: slideUp;
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+/* --- ANIMATIONS --- */
+@keyframes breathe {
+  0%, 100% { filter: drop-shadow(0 0 5px rgba(192, 38, 211, 0.5)); transform: scale(1); }
+  50% { filter: drop-shadow(0 0 15px rgba(192, 38, 211, 0.8)); transform: scale(1.02); }
 }
 
-@keyframes slideUp {
-  from { transform: translateY(10px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
+.animate-breathe {
+  animation: breathe 3s infinite ease-in-out;
 }

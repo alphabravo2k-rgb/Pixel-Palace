@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { supabase } from '../supabase/client'; // <--- Adapted to your structure
+import { supabase } from '../supabase/client';
 
 export const useAdminConsole = () => {
   const [adminProfile, setAdminProfile] = useState(null);
@@ -7,7 +7,6 @@ export const useAdminConsole = () => {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  // LOGIN
   const login = async (pin) => {
     setLoading(true);
     setError(null);
@@ -26,7 +25,6 @@ export const useAdminConsole = () => {
     }
   };
 
-  // OWNER: CREATE ADMIN
   const createAdmin = async (ownerPin, formData) => {
     setLoading(true);
     setTempPin(null);

@@ -9,11 +9,11 @@ const AdminDashboard = () => {
   const [pin, setPin] = useState('');
   const { adminProfile, tempPin, error, loading, login, createAdmin, changeMyPin } = useAdminConsole();
   
-  // Expanded Form State
+  // Forms
   const [newAdmin, setNewAdmin] = useState({ 
     name: '', 
-    discordHandle: '', // The unique ID or Handle
-    discordUser: '',   // The Display Name
+    discordHandle: '', 
+    discordUser: '',   
     faceitUser: '', 
     faceitUrl: '' 
   });
@@ -37,7 +37,6 @@ const AdminDashboard = () => {
 
   const handleCreate = (e) => {
     e.preventDefault();
-    // Map the new state variables to the hook's expected format
     createAdmin(pin, {
         name: newAdmin.name,
         discord: newAdmin.discordHandle,
@@ -53,7 +52,11 @@ const AdminDashboard = () => {
     const success = await changeMyPin(
       changePinData.oldPin, 
       changePinData.newPin, 
-      { discordHandle: adminProfile.discord_handle },
+      { 
+        discordHandle: adminProfile.discord_handle,
+        faceitUser: adminProfile.faceit_username,
+        faceitUrl: adminProfile.faceit_url 
+      },
       changePinData.securityToken
     );
     if (success) setSuccessMsg("PIN Updated. Please Re-Login.");
@@ -119,69 +122,34 @@ const AdminDashboard = () => {
               )}
 
               <form onSubmit={handleCreate} className="space-y-4">
-                 {/* Internal Name */}
                  <div className="space-y-1">
-                    <label className="text-[10px] text-slate-500 uppercase tracking-widest flex items-center gap-1">
-                        <ShieldCheck className="w-3 h-3" /> System Display Name
-                    </label>
-                    <input className="w-full bg-slate-950 border border-slate-700 p-3 rounded text-white focus:border-yellow-500 outline-none" 
-                        placeholder="e.g. Bravo" 
-                        value={newAdmin.name}
-                        onChange={e => setNewAdmin({...newAdmin, name: e.target.value})} 
-                    />
+                    <label className="text-[10px] text-slate-500 uppercase tracking-widest flex items-center gap-1"><ShieldCheck className="w-3 h-3" /> System Display Name</label>
+                    <input className="w-full bg-slate-950 border border-slate-700 p-3 rounded text-white focus:border-yellow-500 outline-none" placeholder="e.g. Bravo" value={newAdmin.name} onChange={e => setNewAdmin({...newAdmin, name: e.target.value})} />
                  </div>
 
-                 {/* Discord Data */}
                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1">
-                        <label className="text-[10px] text-slate-500 uppercase tracking-widest flex items-center gap-1">
-                            <Fingerprint className="w-3 h-3" /> Discord Handle/ID
-                        </label>
-                        <input className="w-full bg-slate-950 border border-slate-700 p-3 rounded text-white focus:border-yellow-500 outline-none text-xs" 
-                            placeholder="bravo.gg" 
-                            value={newAdmin.discordHandle}
-                            onChange={e => setNewAdmin({...newAdmin, discordHandle: e.target.value})} 
-                        />
+                        <label className="text-[10px] text-slate-500 uppercase tracking-widest flex items-center gap-1"><Fingerprint className="w-3 h-3" /> Discord Handle</label>
+                        <input className="w-full bg-slate-950 border border-slate-700 p-3 rounded text-white focus:border-yellow-500 outline-none text-xs" placeholder="bravo.gg" value={newAdmin.discordHandle} onChange={e => setNewAdmin({...newAdmin, discordHandle: e.target.value})} />
                     </div>
                     <div className="space-y-1">
-                        <label className="text-[10px] text-slate-500 uppercase tracking-widest flex items-center gap-1">
-                            <MessageSquare className="w-3 h-3" /> Discord Name
-                        </label>
-                        <input className="w-full bg-slate-950 border border-slate-700 p-3 rounded text-white focus:border-yellow-500 outline-none text-xs" 
-                            placeholder=".bravo" 
-                            value={newAdmin.discordUser}
-                            onChange={e => setNewAdmin({...newAdmin, discordUser: e.target.value})} 
-                        />
+                        <label className="text-[10px] text-slate-500 uppercase tracking-widest flex items-center gap-1"><MessageSquare className="w-3 h-3" /> Discord Name</label>
+                        <input className="w-full bg-slate-950 border border-slate-700 p-3 rounded text-white focus:border-yellow-500 outline-none text-xs" placeholder=".bravo" value={newAdmin.discordUser} onChange={e => setNewAdmin({...newAdmin, discordUser: e.target.value})} />
                     </div>
                  </div>
 
-                 {/* Faceit Data */}
                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1">
-                        <label className="text-[10px] text-slate-500 uppercase tracking-widest flex items-center gap-1">
-                            <Gamepad2 className="w-3 h-3" /> Faceit Username
-                        </label>
-                        <input className="w-full bg-slate-950 border border-slate-700 p-3 rounded text-white focus:border-yellow-500 outline-none text-xs" 
-                            placeholder="Optional" 
-                            value={newAdmin.faceitUser}
-                            onChange={e => setNewAdmin({...newAdmin, faceitUser: e.target.value})} 
-                        />
+                        <label className="text-[10px] text-slate-500 uppercase tracking-widest flex items-center gap-1"><Gamepad2 className="w-3 h-3" /> Faceit Username</label>
+                        <input className="w-full bg-slate-950 border border-slate-700 p-3 rounded text-white focus:border-yellow-500 outline-none text-xs" placeholder="Optional" value={newAdmin.faceitUser} onChange={e => setNewAdmin({...newAdmin, faceitUser: e.target.value})} />
                     </div>
                     <div className="space-y-1">
-                        <label className="text-[10px] text-slate-500 uppercase tracking-widest flex items-center gap-1">
-                            <Link className="w-3 h-3" /> Faceit URL
-                        </label>
-                        <input className="w-full bg-slate-950 border border-slate-700 p-3 rounded text-white focus:border-yellow-500 outline-none text-xs" 
-                            placeholder="Optional" 
-                            value={newAdmin.faceitUrl}
-                            onChange={e => setNewAdmin({...newAdmin, faceitUrl: e.target.value})} 
-                        />
+                        <label className="text-[10px] text-slate-500 uppercase tracking-widest flex items-center gap-1"><Link className="w-3 h-3" /> Faceit URL</label>
+                        <input className="w-full bg-slate-950 border border-slate-700 p-3 rounded text-white focus:border-yellow-500 outline-none text-xs" placeholder="Optional" value={newAdmin.faceitUrl} onChange={e => setNewAdmin({...newAdmin, faceitUrl: e.target.value})} />
                     </div>
                  </div>
 
-                 <button disabled={loading} className="w-full mt-4 bg-yellow-600 hover:bg-yellow-700 text-white font-bold p-4 rounded-lg uppercase tracking-widest text-xs shadow-lg transition-all">
-                    Generate Admin Keys
-                 </button>
+                 <button disabled={loading} className="w-full mt-4 bg-yellow-600 hover:bg-yellow-700 text-white font-bold p-4 rounded-lg uppercase tracking-widest text-xs shadow-lg transition-all">Generate Admin Keys</button>
               </form>
             </div>
           )}
@@ -205,17 +173,22 @@ const AdminDashboard = () => {
                    <input type="password" className="w-full bg-slate-950 border border-slate-700 p-3 rounded text-white tracking-widest focus:border-blue-500 outline-none" onChange={e => setChangePinData({...changePinData, newPin: e.target.value})} />
                 </div>
                 
-                {/* OWNER SECURITY CHECK */}
+                {/* OWNER SECURITY CHECK - STEALTH MODE */}
                 {adminProfile.role === 'OWNER' && (
-                   <div className="pt-4 border-t border-slate-800">
-                      <label className="text-[10px] text-red-500 uppercase tracking-widest block mb-2">Secure Command Key Required</label>
-                      <input type="text" placeholder="Identity Token" className="w-full bg-red-950/20 border border-red-900/50 p-3 rounded text-red-200 text-center tracking-widest placeholder-red-900/50 focus:border-red-500 outline-none" onChange={e => setChangePinData({...changePinData, securityToken: e.target.value})} />
+                   <div className="pt-4 border-t border-slate-800 animate-in fade-in duration-500">
+                      <label className="text-[10px] text-red-500 uppercase tracking-widest block mb-2 flex items-center gap-2">
+                        <ShieldCheck className="w-3 h-3" /> Identity Verification
+                      </label>
+                      <input 
+                        type="password" 
+                        placeholder="Security Token" 
+                        className="w-full bg-red-950/20 border border-red-900/50 p-3 rounded text-red-200 text-center tracking-widest placeholder-red-900/50 focus:border-red-500 outline-none transition-all" 
+                        onChange={e => setChangePinData({...changePinData, securityToken: e.target.value})} 
+                      />
                    </div>
                 )}
                 
-                <button disabled={loading} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold p-4 rounded-lg uppercase tracking-widest text-xs mt-4 shadow-lg">
-                    Confirm Updates
-                </button>
+                <button disabled={loading} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold p-4 rounded-lg uppercase tracking-widest text-xs mt-4 shadow-lg">Confirm Updates</button>
              </form>
              {error && <p className="text-red-500 mt-4 text-xs text-center border border-red-900/50 bg-red-900/10 p-2 rounded">{error}</p>}
           </div>
@@ -225,7 +198,6 @@ const AdminDashboard = () => {
     </div>
   );
 };
-// Helper Icon Component if needed, but imported from lucide-react
 import { MessageSquare } from 'lucide-react'; 
 
 export default AdminDashboard;

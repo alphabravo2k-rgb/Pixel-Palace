@@ -1,42 +1,24 @@
 import React, { useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom'; // Import Router hooks
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useCaptainVeto } from '../hooks/useCaptainVeto';
 
 const VetoPanel = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  
-  // 1. Grab PIN from Navigation State
   const activePin = location.state?.pin;
 
-  // 2. Redirect if someone tries to access /veto directly without logging in
   useEffect(() => {
-    if (!activePin) {
-      navigate('/'); // Bounce back to home
-    }
+    if (!activePin) navigate('/');
   }, [activePin, navigate]);
 
-  // 3. Initialize Hook with the PIN
   const { gameState, loading, error, submitVeto } = useCaptainVeto(activePin);
 
-  if (!activePin) return null; // Prevent flicker before redirect
+  if (!activePin) return null;
   if (loading) return <div className="p-10 text-center text-white font-mono animate-pulse">ESTABLISHING UPLINK...</div>;
-  
-  // If no gameState, the PIN was likely invalid or session expired
-  if (!gameState) return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-950">
-       <div className="text-red-500 font-mono border border-red-900 bg-red-900/10 p-6 rounded text-center">
-          <h2 className="text-xl font-bold mb-2">SESSION TERMINATED</h2>
-          <p>Invalid Credentials or Connection Lost.</p>
-          <button onClick={() => navigate('/')} className="mt-4 bg-red-600 text-white px-4 py-2 rounded text-xs uppercase tracking-widest">Return to Base</button>
-       </div>
-    </div>
-  );
+  if (!gameState) return <div className="p-10 text-center text-red-500 font-mono">SESSION TERMINATED</div>;
 
   return (
     <div className="bg-slate-900 text-white p-6 rounded-xl border border-slate-700 font-mono w-full max-w-5xl mx-auto shadow-2xl my-8">
-      
-      {/* HEADER */}
       <div className="flex flex-col md:flex-row justify-between items-end border-b border-slate-800 pb-6 mb-8">
         <div>
           <h2 className="text-slate-400 text-xs tracking-widest mb-1 uppercase">Match Protocol</h2>
@@ -50,21 +32,16 @@ const VetoPanel = () => {
            </div>
         </div>
       </div>
-
-      {/* ERROR BOX */}
       {error && (
         <div className="bg-red-900/50 border-l-4 border-red-500 text-red-100 p-4 mb-8 rounded-r">
           <p className="font-bold">🛑 COMMAND REJECTED</p>
           <p className="text-sm">{error}</p>
         </div>
       )}
-
-      {/* MAP GRID */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {gameState.map_pool.map(mapName => {
           const isBanned = gameState.banned_maps.includes(mapName);
           const canInteract = gameState.is_my_turn && !isBanned;
-
           return (
             <button
               key={mapName}
@@ -75,26 +52,23 @@ const VetoPanel = () => {
                 ${isBanned 
                   ? 'border-slate-800 bg-slate-950 opacity-40 grayscale cursor-not-allowed' 
                   : canInteract
-                    ? 'border-slate-600 bg-slate-800 hover:border-red-500 hover:scale-[1.02] hover:shadow-red-900/20 shadow-xl cursor-pointer'
+                    ? 'border-slate-600 bg-slate-800 hover:border-red-500 hover:scale-[1.02] shadow-xl cursor-pointer'
                     : 'border-slate-700 bg-slate-800 opacity-60 cursor-wait'
                 }
               `}
             >
-              <span className="z-10 text-lg md:text-xl font-bold tracking-widest uppercase text-slate-200 group-hover:text-white">
+              <span className="z-10 text-lg md:text-xl font-bold tracking-widest uppercase text-slate-200">
                 {mapName.replace("de_", "")}
               </span>
-
-              {/* Banned Overlay */}
               {isBanned && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/60">
-                  <span className="text-red-600 font-black text-2xl md:text-4xl -rotate-12 border-4 border-red-600 px-4 py-1 rounded opacity-80">BANNED</span>
+                  <span className="text-red-600 font-black text-2xl -rotate-12 border-4 border-red-600 px-4 py-1 rounded opacity-80">BANNED</span>
                 </div>
               )}
             </button>
           )
         })}
       </div>
-
       <div className="mt-8 pt-4 border-t border-slate-800 flex justify-between text-xs text-slate-500 uppercase tracking-widest">
         <span>Bans Remaining: {gameState.actions_remaining}</span>
         <span>ID: {gameState.match_id.split('-')[0]}</span>

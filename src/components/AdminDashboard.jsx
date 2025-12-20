@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAdminConsole } from '../hooks/useAdminConsole';
-import { LogOut, ShieldCheck, Key, UserPlus, Fingerprint, Gamepad2, Link } from 'lucide-react';
+import { LogOut, ShieldCheck, Key, UserPlus, Fingerprint, Gamepad2, Link, MonitorPlay } from 'lucide-react';
 
 const AdminDashboard = () => {
   const location = useLocation();
@@ -31,6 +31,10 @@ const AdminDashboard = () => {
 
   const handleLogout = () => {
     navigate('/'); 
+  };
+
+  const goToBracket = () => {
+    navigate('/'); // Navigate to bracket but keep session (if configured)
   };
 
   const handleLogin = (e) => { e.preventDefault(); login(pin); };
@@ -97,10 +101,18 @@ const AdminDashboard = () => {
             </div>
           </div>
           
-          <button onClick={handleLogout} className="flex items-center gap-2 bg-slate-800 hover:bg-red-900/30 hover:text-red-400 hover:border-red-900/50 border border-slate-700 text-slate-400 px-4 py-2 rounded-lg transition-all text-xs uppercase tracking-widest font-bold">
-            <LogOut className="w-4 h-4" />
-            Disconnect
-          </button>
+          <div className="flex gap-3">
+             {/* WAR ROOM BUTTON - Goes to Bracket */}
+             <button onClick={goToBracket} className="flex items-center gap-2 bg-emerald-900/30 hover:bg-emerald-900/50 border border-emerald-500/30 text-emerald-400 px-4 py-2 rounded-lg transition-all text-xs uppercase tracking-widest font-bold group">
+                <MonitorPlay className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                Enter War Room
+             </button>
+
+             <button onClick={handleLogout} className="flex items-center gap-2 bg-slate-800 hover:bg-red-900/30 hover:text-red-400 hover:border-red-900/50 border border-slate-700 text-slate-400 px-4 py-2 rounded-lg transition-all text-xs uppercase tracking-widest font-bold">
+                <LogOut className="w-4 h-4" />
+                Logout
+             </button>
+          </div>
         </header>
 
         <div className="p-8 grid grid-cols-1 lg:grid-cols-2 gap-12">

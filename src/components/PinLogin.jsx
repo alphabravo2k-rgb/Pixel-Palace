@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../supabase/client';
 
-export default function PinLogin({ onLogin }) { // Accepts a callback or handles routing
+const PinLogin = ({ onLogin }) => { 
   const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -23,10 +23,11 @@ export default function PinLogin({ onLogin }) { // Accepts a callback or handles
       
       if (!adminError && adminData.status === 'SUCCESS') {
         // SUCCESS: It's an Admin
-        // If you are using a router, navigate there. 
-        // If you are using state, call onLogin.
-        // navigate('/admin'); 
-        if (onLogin) onLogin(pin, 'ADMIN');
+        if (onLogin) {
+          onLogin(pin, 'ADMIN');
+        } else {
+          navigate('/admin'); // Fallback to router navigation
+        }
         return;
       }
 
@@ -37,8 +38,11 @@ export default function PinLogin({ onLogin }) { // Accepts a callback or handles
       
       if (!captainError && captainData) {
         // SUCCESS: It's a Captain
-        // navigate('/veto');
-        if (onLogin) onLogin(pin, 'CAPTAIN');
+        if (onLogin) {
+          onLogin(pin, 'CAPTAIN');
+        } else {
+          navigate('/veto'); // Fallback to router navigation
+        }
         return;
       }
 
@@ -48,7 +52,7 @@ export default function PinLogin({ onLogin }) { // Accepts a callback or handles
     } catch (err) {
       console.error("Login Error:", err);
       // Check if it's a missing env var issue
-      if (err.message.includes("supabaseUrl")) {
+      if (err.message && err.message.includes("supabaseUrl")) {
         setError("Configuration Error: Missing API Keys");
       } else {
         setError("Access Denied: Invalid Credentials");
@@ -106,4 +110,6 @@ export default function PinLogin({ onLogin }) { // Accepts a callback or handles
       </div>
     </div>
   );
-}
+};
+
+export default PinLogin;

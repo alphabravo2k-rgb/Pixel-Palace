@@ -1,10 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom'; // Import location hook
 import { useAdminConsole } from '../hooks/useAdminConsole';
 
 const AdminDashboard = () => {
+  const location = useLocation();
   const [pin, setPin] = useState('');
   const { adminProfile, tempPin, error, loading, login, createAdmin } = useAdminConsole();
   const [newAdmin, setNewAdmin] = useState({ name: '', discord: '', discordUser: '', faceitUser: '', faceitUrl: '' });
+
+  // 1. AUTO-LOGIN if redirected from PinLogin
+  useEffect(() => {
+    if (location.state?.pin && !adminProfile) {
+      setPin(location.state.pin);
+      login(location.state.pin);
+    }
+  }, [location.state, adminProfile, login]);
 
   const handleLogin = (e) => {
     e.preventDefault();
@@ -25,9 +35,9 @@ const AdminDashboard = () => {
               maxLength={4}
             />
             <button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold p-4 rounded transition-colors uppercase tracking-widest text-sm">
-              Authenticate
+              {loading ? 'VERIFYING...' : 'AUTHENTICATE'}
             </button>
-            {error && <p className="text-red-500 mt-4 text-center text-sm">{error}</p>}
+            {error && <p className="text-red-500 mt-4 text-center text-sm bg-red-900/20 p-2 rounded border border-red-900/50">{error}</p>}
          </form>
       </div>
     );

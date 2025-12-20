@@ -1,164 +1,109 @@
-import React, { useState, useEffect } from 'react';
-import { useSession } from '../auth/useSession';
-import { Modal, Button } from '../ui/Components';
-import { Lock, ShieldAlert, LifeBuoy, Eye, EyeOff } from 'lucide-react';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { supabase } from '../supabase/client';
 
-const PinLogin = () => {
-  const { verifyPin, loginAsSpectator, isPinModalOpen } = useSession();
+export default function PinLogin({ onLogin }) { // Accepts a callback or handles routing
   const [pin, setPin] = useState('');
-  const [showPin, setShowPin] = useState(false);
-  const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [shake, setShake] = useState(false);
+  const [error, setError] = useState(null);
+  const navigate = useNavigate();
 
-  // Focus management
-  useEffect(() => {
-    if (isPinModalOpen && !loading) {
-      const input = document.getElementById('secure-pin-input');
-      if (input) input.focus();
-    }
-  }, [isPinModalOpen, loading]);
-
-  if (!isPinModalOpen) return null;
-
-  const handleSubmit = async (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-    if (!pin.trim()) return;
+    if (pin.length < 4) return;
     
     setLoading(true);
     setError(null);
-    setShake(false);
 
-    const result = await verifyPin(pin);
-    
-    if (!result.success) {
-       setError(result.reason || "ACCESS DENIED: INVALID PROTOCOL");
-       setPin('');
-       setShake(true);
-       
-       // Remove shake class after animation
-       setTimeout(() => setShake(false), 500);
+    try {
+      // ---------------------------------------------------------
+      // 1. ATTEMPT ADMIN LOGIN FIRST
+      // ---------------------------------------------------------
+      const { data: adminData, error: adminError } = await supabase.rpc('api_admin_login', { p_pin: pin });
+      
+      if (!adminError && adminData.status === 'SUCCESS') {
+        // SUCCESS: It's an Admin
+        // If you are using a router, navigate there. 
+        // If you are using state, call onLogin.
+        // navigate('/admin'); 
+        if (onLogin) onLogin(pin, 'ADMIN');
+        return;
+      }
 
-       // Refocus
-       requestAnimationFrame(() => {
-         const inputEl = document.getElementById('secure-pin-input');
-         if (inputEl) inputEl.focus();
-       });
+      // ---------------------------------------------------------
+      // 2. ATTEMPT CAPTAIN LOGIN NEXT
+      // ---------------------------------------------------------
+      const { data: captainData, error: captainError } = await supabase.rpc('api_get_captain_state', { p_pin: pin });
+      
+      if (!captainError && captainData) {
+        // SUCCESS: It's a Captain
+        // navigate('/veto');
+        if (onLogin) onLogin(pin, 'CAPTAIN');
+        return;
+      }
+
+      // If we get here, neither worked
+      throw new Error("Invalid PIN");
+
+    } catch (err) {
+      console.error("Login Error:", err);
+      // Check if it's a missing env var issue
+      if (err.message.includes("supabaseUrl")) {
+        setError("Configuration Error: Missing API Keys");
+      } else {
+        setError("Access Denied: Invalid Credentials");
+      }
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
-  };
-
-  const handleSpectate = () => {
-    loginAsSpectator();
   };
 
   return (
-    <Modal isOpen={isPinModalOpen} onClose={() => {}} title="SECURE ACCESS" maxWidth="max-w-sm">
-      <div role="dialog" aria-modal="true" aria-labelledby="modal-title">
-        <form onSubmit={handleSubmit} className="space-y-6 md:space-y-8">
-          
-          {/* Tactical Header Icon */}
-          <div className="text-center space-y-4">
-              <div className="w-16 h-16 bg-zinc-900 border border-zinc-800 rounded-full flex items-center justify-center mx-auto shadow-inner">
-                 <Lock className="w-6 h-6 text-[#ff5500]" />
-              </div>
-              <div className="space-y-1">
-                 <p id="modal-title" className="text-white font-black uppercase tracking-widest text-sm">Pixel Palace Authority</p>
-                 <p className="text-zinc-600 text-[10px] font-mono uppercase tracking-[0.2em]">Authentication Required</p>
-              </div>
+    <div className="fixed inset-0 bg-slate-950/90 flex items-center justify-center z-50 p-4 font-mono">
+      <div className="bg-slate-900 border border-slate-700 w-full max-w-sm rounded-xl shadow-2xl overflow-hidden">
+        
+        {/* HEADER */}
+        <div className="bg-slate-800 p-4 border-b border-slate-700 text-center">
+          <h2 className="text-slate-400 text-xs tracking-[0.2em] uppercase">Pixel Palace Authority</h2>
+          <h1 className="text-white font-bold mt-1">SECURE ACCESS</h1>
+        </div>
+
+        {/* FORM */}
+        <form onSubmit={handleLogin} className="p-8">
+          <div className="mb-8 text-center">
+            <label className="block text-slate-500 text-xs uppercase mb-4 tracking-widest">Authentication Required</label>
+            <input 
+              type="password" 
+              autoFocus
+              className="w-full bg-slate-950 border border-slate-700 text-white text-center text-3xl p-4 rounded-lg focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none tracking-[0.5em] transition-all placeholder-slate-800"
+              placeholder="••••"
+              value={pin}
+              onChange={(e) => setPin(e.target.value)}
+              maxLength={4}
+            />
           </div>
 
-          {/* PIN Input Group */}
-          <div className="space-y-2">
-              <div className="relative group">
-                <input 
-                   id="secure-pin-input"
-                   aria-label="Secure Access PIN"
-                   type={showPin ? "text" : "password"}
-                   inputMode={showPin ? "text" : "numeric"} // Optimization for mobile keyboards
-                   autoComplete="off"
-                   className={`w-full bg-[#0b0c0f] border ${error ? 'border-red-500/50' : 'border-zinc-700/50'} rounded-sm p-4 pr-12 text-center text-2xl tracking-[0.5em] text-white focus:border-[#ff5500] outline-none transition-all font-mono placeholder:tracking-normal placeholder:text-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed shadow-inner`}
-                   placeholder="••••"
-                   value={pin}
-                   onChange={(e) => setPin(e.target.value)}
-                   disabled={loading}
-                   maxLength={12} 
-                   autoFocus
-                />
-                
-                {/* Show/Hide Toggle */}
-                <button
-                  type="button"
-                  onClick={() => setShowPin(!showPin)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-600 hover:text-zinc-300 transition-colors p-1"
-                  tabIndex="-1" // Skip tab index for smoother typing flow
-                  aria-label={showPin ? "Hide PIN" : "Show PIN"}
-                >
-                  {showPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-          </div>
-
-          {/* Error Feedback with Support Links */}
           {error && (
-              <div className={`space-y-3 ${shake ? 'animate-pulse' : ''}`}>
-                  <div className="bg-red-950/20 border border-red-900/50 p-3 flex items-center gap-3 rounded-sm animate-in slide-in-from-top-1 fade-in duration-200" role="alert">
-                     <ShieldAlert className="w-4 h-4 text-red-500" />
-                     <span className="text-[10px] font-black text-red-500 uppercase tracking-widest">{error}</span>
-                  </div>
-                  
-                  {/* Tactical Support Links */}
-                  <div className="flex justify-center gap-4 text-[9px] font-mono text-zinc-500 uppercase tracking-widest pt-2 border-t border-zinc-800/50 animate-in fade-in duration-500">
-                      <a 
-                        href="https://discord.com/users/425754174932910090" 
-                        target="_blank" 
-                        rel="noreferrer" 
-                        className="hover:text-[#ff5500] flex items-center gap-1 transition-colors group"
-                        title="Contact Admin"
-                      >
-                          <LifeBuoy className="w-3 h-3 group-hover:animate-spin-slow" /> Contact Bravo
-                      </a>
-                      <span className="text-zinc-800">|</span>
-                      <a 
-                        href="https://discord.gg/fKgaGEtY" 
-                        target="_blank" 
-                        rel="noreferrer" 
-                        className="hover:text-blue-400 flex items-center gap-1 transition-colors"
-                        title="Join Support Server"
-                      >
-                          Support Unit
-                      </a>
-                  </div>
-              </div>
+            <div className="mb-6 p-3 bg-red-900/30 border border-red-500/50 rounded text-center">
+              <p className="text-red-400 text-xs font-bold uppercase tracking-wide">Error: {error}</p>
+            </div>
           )}
 
-          {/* Actions */}
-          <div className="space-y-3">
-              <Button 
-                type="submit"
-                className="w-full py-4 bg-[#ff5500] hover:bg-[#ff7733] text-black border-none shadow-[0_0_15px_rgba(255,85,0,0.2)] font-black uppercase tracking-[0.2em] relative overflow-hidden" 
-                disabled={loading}
-              >
-                 {loading ? (
-                   <span className="flex items-center justify-center gap-2 animate-pulse">
-                     DECRYPTING...
-                   </span>
-                 ) : 'AUTHORIZE'}
-              </Button>
-              
-              <button
-                 type="button"
-                 onClick={handleSpectate}
-                 disabled={loading}
-                 className="w-full text-[10px] text-zinc-600 hover:text-zinc-400 uppercase tracking-widest font-mono transition-colors disabled:opacity-50 hover:underline decoration-zinc-800 underline-offset-4"
-              >
-                 Proceed as Spectator (Read Only)
-              </button>
-          </div>
+          <button 
+            disabled={loading || pin.length < 4}
+            className="w-full bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-4 rounded-lg uppercase tracking-widest text-sm transition-all shadow-lg hover:shadow-red-900/20"
+          >
+            {loading ? 'Verifying...' : 'Authorize'}
+          </button>
         </form>
-      </div>
-    </Modal>
-  );
-};
 
-export default PinLogin;
+        {/* FOOTER */}
+        <div className="bg-slate-950 p-4 text-center border-t border-slate-800">
+          <p className="text-slate-600 text-[10px] uppercase tracking-widest">
+            Contact Bravo | Support Unit
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}

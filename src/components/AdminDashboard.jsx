@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAdminConsole } from '../hooks/useAdminConsole';
 
-export default function AdminDashboard() {
+const AdminDashboard = () => {
   const [pin, setPin] = useState('');
   const { adminProfile, tempPin, error, loading, login, createAdmin } = useAdminConsole();
   const [newAdmin, setNewAdmin] = useState({ name: '', discord: '', discordUser: '', faceitUser: '', faceitUrl: '' });
@@ -87,4 +87,6 @@ export default function AdminDashboard() {
       </div>
     </div>
   );
-}
+};
+
+export default AdminDashboard;

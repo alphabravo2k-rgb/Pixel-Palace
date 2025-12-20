@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
 import { useSession } from '../auth/useSession';
 import { useTournament } from '../tournament/useTournament';
-import { ROLE_THEMES } from '../lib/roles';
-import { Badge } from '../ui/Components';
-import { User, LogOut, Lock, RefreshCw } from 'lucide-react';
+import { ROLE_THEMES, ROLES } from '../lib/roles';
+import { User, LogOut, Lock, RefreshCw, ShieldCheck } from 'lucide-react';
 
 const AdminToolbar = () => {
   const { session, logout, setIsPinModalOpen, permissions } = useSession();
@@ -16,6 +15,7 @@ const AdminToolbar = () => {
     setTimeout(() => setIsSyncing(false), 1000);
   };
 
+  // GUEST VIEW
   if (!session.isAuthenticated) {
     return (
       <div className="bg-[#060709] border-b border-zinc-900 p-2 flex justify-end sticky top-0 z-50">
@@ -29,16 +29,30 @@ const AdminToolbar = () => {
     );
   }
 
-  const theme = ROLE_THEMES[session.role] || { color: 'gray', label: 'OPERATOR' };
+  const theme = ROLE_THEMES[session.role] || ROLE_THEMES[ROLES.GUEST];
+  
+  // Explicit colors for Tailwind safety
+  const badgeStyles = {
+    fuchsia: "bg-fuchsia-900/50 text-fuchsia-200 border-fuchsia-700",
+    purple: "bg-purple-900/50 text-purple-200 border-purple-700",
+    cyan: "bg-cyan-900/50 text-cyan-200 border-cyan-700",
+    yellow: "bg-yellow-900/50 text-yellow-200 border-yellow-700",
+    emerald: "bg-emerald-900/50 text-emerald-200 border-emerald-700",
+    zinc: "bg-zinc-800 text-zinc-400 border-zinc-600"
+  };
+  const currentBadge = badgeStyles[theme.color] || badgeStyles.zinc;
 
   return (
-    <div className="bg-[#0b0c0f] border-b border-zinc-800 p-3 sticky top-0 z-50 backdrop-blur-md bg-opacity-90">
+    <div className="bg-[#0b0c0f]/90 border-b border-zinc-800 p-3 sticky top-0 z-50 backdrop-blur-md">
       <div className="container mx-auto flex justify-between items-center px-4">
+        
         <div className="flex items-center gap-4">
-          <Badge color={theme.color}>{theme.label}</Badge>
+          <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border ${currentBadge}`}>
+            {theme.label}
+          </span>
           <div className="flex items-center gap-3 text-zinc-400 font-mono text-xs uppercase tracking-tight">
             <User className="w-3 h-3" />
-            <span className="text-zinc-300">{session.identity}</span>
+            <span className="text-zinc-300 font-bold">{session.identity}</span>
           </div>
         </div>
 
@@ -56,6 +70,7 @@ const AdminToolbar = () => {
           <button 
             onClick={() => logout("USER_TERMINATED")} 
             className="text-zinc-500 hover:text-red-500 transition-all p-1 flex items-center gap-2 group"
+            title="Terminate Session"
           >
             <LogOut size={14} />
           </button>

@@ -6,10 +6,10 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 let supabaseClient;
 
 // 🛡️ CRASH PREVENTION SYSTEM
+// If keys are missing, use a "Dummy" client so the app loads (instead of crashing).
 if (!supabaseUrl || !supabaseAnonKey) {
   console.error("⚠️ SYSTEM WARNING: Supabase keys are missing! App running in UI-Only Mode.");
   
-  // Create a 'Dummy' Client so the app doesn't crash with "ss is not defined"
   supabaseClient = {
     auth: {
       onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
@@ -26,6 +26,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
   };
 } else {
   // ✅ Keys found - Load real client
+  console.log("✅ Supabase Client Initialized Successfully");
   supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
 }
 

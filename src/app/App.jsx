@@ -1,7 +1,7 @@
 import React from 'react';
 import { Outlet } from 'react-router-dom';
 import { SessionProvider } from '../auth/useSession';
-import { TournamentProvider } from '../tournament/useTournament';
+//import { TournamentProvider } from '../tournament/useTournament';
 import ErrorBoundary from '../components/ErrorBoundary';
 // We need AdminToolbar here so it persists across all pages
 import AdminToolbar from '../components/AdminToolbar';

@@ -1,10 +1,12 @@
+/* 1️⃣ IMPORTS FIRST */
+@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Teko:wght@400;600;700&display=swap');
+
+/* 2️⃣ TAILWIND */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Teko:wght@400;600;700&display=swap');
-
-/* --- GLOBAL DEFAULTS --- */
+/* 3️⃣ GLOBAL DEFAULTS */
 body {
   background-color: #060709;
   color: #e4e4e7;
@@ -12,7 +14,7 @@ body {
   overflow-x: hidden;
 }
 
-/* --- CUSTOM SCROLLBAR (Cyber Style) --- */
+/* --- CUSTOM SCROLLBAR --- */
 @layer utilities {
   .custom-scrollbar::-webkit-scrollbar {
     width: 6px;
@@ -32,7 +34,6 @@ body {
     background: #71717a;
   }
 
-  /* Hides scrollbar but allows scrolling (good for Bracket container) */
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }

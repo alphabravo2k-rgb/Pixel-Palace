@@ -1,18 +1,15 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import App from './app/App.jsx';
+import { RouterProvider } from 'react-router-dom';
+import { router } from './app/router'; // 👈 We must use the Router configuration
 import './index.css';
-// 👇 IMPORT THE PROVIDER
-import { SessionProvider } from './auth/useSession'; 
 
-// 🚀 LOG FOR SANITY CHECK
-console.log("🔥🔥 APPLICATION STARTING - BUILD V9 (PROVIDER FIX) 🔥🔥");
+// 🚀 RESTORING ROUTER CONTEXT
+console.log("🔥🔥 APPLICATION STARTING - BUILD V10 (ROUTER RESTORED) 🔥🔥");
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    {/* 👇 WRAP THE ENTIRE APP HERE */}
-    <SessionProvider>
-      <App />
-    </SessionProvider>
+    {/* App.jsx is already inside 'router', so we just render the provider here */}
+    <RouterProvider router={router} />
   </React.StrictMode>,
 );

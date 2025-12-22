@@ -5,26 +5,27 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 let supabaseClient;
 
-// 🛡️ SAFETY CHECK: If keys are missing, don't crash the app.
+// 🛡️ CRASH PREVENTION SYSTEM
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.error("❌ CRITICAL: Supabase Keys are MISSING. App is running in safe mode.");
+  console.error("⚠️ SYSTEM WARNING: Supabase keys are missing! App running in UI-Only Mode.");
   
-  // Create a 'Mock' Client to prevent "ss is not defined" crashes
+  // Create a 'Dummy' Client so the app doesn't crash with "ss is not defined"
   supabaseClient = {
     auth: {
       onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
       getSession: async () => ({ data: { session: null }, error: null }),
-      signInWithPassword: async () => ({ data: null, error: { message: "Supabase Keys Missing" } }),
+      signInWithPassword: async () => ({ data: null, error: { message: "No API Keys Configured" } }),
       signOut: async () => {},
     },
     from: () => ({
       select: () => ({ eq: () => ({ single: () => ({ data: null, error: null }) }) }),
+      insert: () => ({ select: () => ({ data: null, error: null }) }),
+      update: () => ({ eq: () => ({ select: () => ({ data: null, error: null }) }) }),
     }),
-    rpc: async () => ({ data: null, error: { message: "Supabase Keys Missing" } })
+    rpc: async () => ({ data: null, error: { message: "No API Keys Configured" } })
   };
 } else {
-  // Real Client
-  console.log("✅ Supabase Keys Found. Initializing...");
+  // ✅ Keys found - Load real client
   supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
 }
 

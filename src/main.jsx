@@ -1,7 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './app/App.jsx'; // ✅ CHANGED: Added './app/'
-import './ui/index.css';
+import './index.css';
 
 // 🚀 FORCE NEW BUILD HASH
 console.log("🔥🔥 APPLICATION STARTING - BUILD V6 (FIXED IMPORT) 🔥🔥");

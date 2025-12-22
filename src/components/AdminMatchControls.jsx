@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useMatchAdmin } from '../hooks/useMatchAdmin'; // ✅ Corrected Path
-import { supabase } from '../supabase/client';        // ✅ Corrected Path
+import { useMatchAdmin } from '../hooks/useMatchAdmin';
+import { supabase } from '../supabase/client'; // ✅ CORRECT IMPORT
 
 export default function AdminMatchControls({ match, adminUser }) {
   const { swapTeams, scheduleMatch, startMatch, loadingAction, error } = useMatchAdmin();
@@ -125,4 +125,4 @@ export default function AdminMatchControls({ match, adminUser }) {
       )}
     </div>
   );
-}
+}ss

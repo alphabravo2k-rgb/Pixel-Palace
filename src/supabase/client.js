@@ -1,22 +1,31 @@
 import { createClient } from '@supabase/supabase-js';
 
-// 1. Read Environment Variables
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-// 🔍 DEBUGGING LOGS (This will show in your browser console)
-console.log("------------------------------------------------");
-console.log("🔍 SUPABASE INIT DEBUGGER");
-console.log("URL Configured:", !!supabaseUrl); 
-if (supabaseUrl) console.log("URL Preview:", supabaseUrl.substring(0, 15) + "...");
-console.log("Key Configured:", !!supabaseAnonKey);
-console.log("------------------------------------------------");
+let supabaseClient;
 
-// 2. Safety Check (Prevents the "ss is not defined" crash)
+// 🛡️ SAFETY CHECK: If keys are missing, don't crash the app.
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.error("❌ CRITICAL ERROR: Supabase Environment Variables are MISSING in Cloudflare.");
-  // We allow the crash here so you see the error, but we log it first.
+  console.error("❌ CRITICAL: Supabase Keys are MISSING. App is running in safe mode.");
+  
+  // Create a 'Mock' Client to prevent "ss is not defined" crashes
+  supabaseClient = {
+    auth: {
+      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
+      getSession: async () => ({ data: { session: null }, error: null }),
+      signInWithPassword: async () => ({ data: null, error: { message: "Supabase Keys Missing" } }),
+      signOut: async () => {},
+    },
+    from: () => ({
+      select: () => ({ eq: () => ({ single: () => ({ data: null, error: null }) }) }),
+    }),
+    rpc: async () => ({ data: null, error: { message: "Supabase Keys Missing" } })
+  };
+} else {
+  // Real Client
+  console.log("✅ Supabase Keys Found. Initializing...");
+  supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
 }
 
-// 3. Export Client
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = supabaseClient;

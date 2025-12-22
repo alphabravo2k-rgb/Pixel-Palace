@@ -1,32 +1,29 @@
-import React, { useState, useEffect, memo } from 'react';
-import { Modal, Button, Badge } from '../ui/Components';
-import VetoPanel from './VetoPanel'; // Import the unified component
-import { useTournament } from '../tournament/useTournament';
+import React, { useState, memo } from 'react';
+import { Button } from '../ui/Components';
+import VetoPanel from './VetoPanel';
+import AdminMatchControls from './AdminMatchControls'; // ✅ NEW: The Safe Control Plane
+import AdminAuditLog from './AdminAuditLog';           // ✅ NEW: The Paper Trail
 import { isAdmin } from '../tournament/permissions';
 import { useSession } from '../auth/useSession';
-import { Server, Tv, History, ShieldAlert, Play, Pause, RotateCcw, Copy, Check, X, Activity } from 'lucide-react';
+import { Server, Tv, ShieldAlert, Copy, Check, X, Activity } from 'lucide-react';
+
+// ❌ REMOVED: useTournament hook for admin actions. 
+// We only use match prop for display now.
 
 const MatchModal = ({ match, onClose }) => {
-  const { adminUpdateMatch, teams } = useTournament(); 
   const { session } = useSession();
-  const [activeTab, setActiveTab] = useState('overview');
   const [copied, setCopied] = useState(null);
 
   if (!match) return null;
 
   const userIsAdmin = isAdmin(session);
-  const isLive = match.status === 'live';
+  // Normalize status check to match DB state (open/live vs pending)
+  const isLive = match.status === 'live' || match.state === 'open';
 
   const handleCopy = (text, key) => {
     navigator.clipboard.writeText(text);
     setCopied(key);
     setTimeout(() => setCopied(null), 2000);
-  };
-
-  const handleForceWin = async (winnerId) => {
-    if(!confirm("CONFIRM: Force win this match? This cannot be undone.")) return;
-    await adminUpdateMatch(match.id, { winnerId, status: 'completed', 'vetoState.phase': 'complete' });
-    onClose();
   };
 
   return (
@@ -45,8 +42,9 @@ const MatchModal = ({ match, onClose }) => {
                 OPS_CORE // MATCH_{match.id.toString().slice(0, 4)}
               </h2>
               <div className="flex gap-2 mt-1">
+                {/* Display State directly from DB prop */}
                 <span className={`px-2 py-0.5 rounded-sm text-[10px] font-black uppercase tracking-tighter border ${isLive ? 'border-emerald-500/50 text-emerald-500 bg-emerald-900/20' : 'border-zinc-700 text-zinc-500 bg-zinc-900'}`}>
-                   {match.status}
+                   {match.state || match.status} 
                 </span>
               </div>
             </div>
@@ -62,12 +60,12 @@ const MatchModal = ({ match, onClose }) => {
           {/* SCOREBOARD */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center bg-black/40 p-8 border border-zinc-800/50 rounded-lg relative overflow-hidden">
              <div className="absolute inset-0 bg-gradient-to-r from-fuchsia-900/10 via-transparent to-cyan-900/10 pointer-events-none" />
-             <h3 className="text-3xl font-black text-white uppercase text-center md:text-right font-['Teko'] tracking-tight relative z-10">{match.team1Name}</h3>
+             <h3 className="text-3xl font-black text-white uppercase text-center md:text-right font-['Teko'] tracking-tight relative z-10">{match.team1_name || match.team1Name || 'TBD'}</h3>
              <div className="text-6xl font-mono font-black italic text-white text-center tracking-widest relative z-10 drop-shadow-2xl">{match.score || 'VS'}</div>
-             <h3 className="text-3xl font-black text-white uppercase text-center md:text-left font-['Teko'] tracking-tight relative z-10">{match.team2Name}</h3>
+             <h3 className="text-3xl font-black text-white uppercase text-center md:text-left font-['Teko'] tracking-tight relative z-10">{match.team2_name || match.team2Name || 'TBD'}</h3>
           </div>
 
-          {/* VETO PANEL (Embedded Mode) */}
+          {/* VETO PANEL (Read-Only / Display) */}
           <VetoPanel match={match} />
 
           {/* SERVER DETAILS */}
@@ -100,17 +98,18 @@ const MatchModal = ({ match, onClose }) => {
              )}
           </div>
 
-          {/* ADMIN TOOLS */}
+          {/* ✅ THE NEW ADMIN CONSOLE (Replaces old buttons) */}
           {userIsAdmin && (
-             <div className="border-t border-zinc-800 pt-6 mt-6">
-                <h4 className="text-red-500 text-xs font-black uppercase tracking-[0.3em] flex items-center gap-2 mb-4">
+             <div className="border-t border-zinc-800 pt-6 mt-6 space-y-6">
+                <h4 className="text-red-500 text-xs font-black uppercase tracking-[0.3em] flex items-center gap-2">
                    <ShieldAlert size={14} /> System Override Console
                 </h4>
-                <div className="flex gap-4">
-                   <Button variant="danger" onClick={() => handleForceWin(match.team1Id)}>Force Win: {match.team1Name}</Button>
-                   <Button variant="danger" onClick={() => handleForceWin(match.team2Id)}>Force Win: {match.team2Name}</Button>
-                   <Button onClick={() => adminUpdateMatch(match.id, { status: 'live' })} disabled={isLive} className="ml-auto bg-emerald-600 hover:bg-emerald-500"><Play className="w-4 h-4 mr-2" /> Start Match</Button>
-                </div>
+
+                {/* The Buttons are now inside here, protected by backend rules */}
+                <AdminMatchControls match={match} adminUser={session?.user} />
+
+                {/* Read-Only Log */}
+                <AdminAuditLog matchId={match.id} />
              </div>
           )}
 

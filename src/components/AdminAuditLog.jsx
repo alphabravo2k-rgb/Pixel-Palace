@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '../supabase/client'; // ✅ Corrected Path
+import { supabase } from '../supabase/client'; // ✅ CORRECT IMPORT
 
 export default function AdminAuditLog({ matchId }) {
   const [logs, setLogs] = useState([]);

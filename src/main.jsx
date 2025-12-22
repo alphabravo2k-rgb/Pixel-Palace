@@ -1,10 +1,10 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import App from './App.jsx';
+import App from './app/App.jsx'; // ✅ CHANGED: Added './app/'
 import './ui/index.css';
 
-// 🚀 FORCE NEW BUILD HASH (Cache Buster)
-console.log("🔥🔥 APPLICATION STARTING - BUILD V5 (DEBUG MODE) 🔥🔥");
+// 🚀 FORCE NEW BUILD HASH
+console.log("🔥🔥 APPLICATION STARTING - BUILD V6 (FIXED IMPORT) 🔥🔥");
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

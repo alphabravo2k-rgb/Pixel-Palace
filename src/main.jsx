@@ -1,13 +1,18 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './app/App.jsx';
-import './index.css';  // 👈 CHANGED: Removed 'ui/' to look in the current folder
+import './index.css';
+// 👇 IMPORT THE PROVIDER
+import { SessionProvider } from './auth/useSession'; 
 
-// 🚀 FORCE NEW BUILD HASH
-console.log("🔥🔥 APPLICATION STARTING - BUILD V8 (CSS FIX) 🔥🔥");
+// 🚀 LOG FOR SANITY CHECK
+console.log("🔥🔥 APPLICATION STARTING - BUILD V9 (PROVIDER FIX) 🔥🔥");
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <App />
+    {/* 👇 WRAP THE ENTIRE APP HERE */}
+    <SessionProvider>
+      <App />
+    </SessionProvider>
   </React.StrictMode>,
 );

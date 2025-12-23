@@ -1,18 +1,16 @@
 import React, { useState, memo } from 'react';
 import VetoPanel from './VetoPanel';
-import AdminMatchControls from './AdminMatchControls'; // ✅ The Safe Control Plane
-import AdminAuditLog from './AdminAuditLog';           // ✅ The Paper Trail
+import AdminMatchControls from './AdminMatchControls'; 
+import AdminAuditLog from './AdminAuditLog';           
 import { useSession } from '../auth/useSession';
-import { Server, Tv, ShieldAlert, Copy, Check, X, Activity } from 'lucide-react';
+import { Server, Tv, ShieldAlert, Copy, Check, X, Activity, Download } from 'lucide-react'; // Added Download
 
 const MatchModal = ({ match, onClose }) => {
-  // 🛡️ Safe Access: permissions object comes from useSession
   const { session, permissions } = useSession();
   const [copied, setCopied] = useState(null);
 
   if (!match) return null;
 
-  // Normalize status check to match DB state (open/live vs pending)
   const isLive = match.status === 'live' || match.state === 'open';
 
   const handleCopy = (text, key) => {
@@ -37,7 +35,6 @@ const MatchModal = ({ match, onClose }) => {
                 OPS_CORE // MATCH_{(match.id || 'ERR').toString().slice(0, 4)}
               </h2>
               <div className="flex gap-2 mt-1">
-                {/* Display State directly from DB prop */}
                 <span className={`px-2 py-0.5 rounded-sm text-[10px] font-black uppercase tracking-tighter border ${isLive ? 'border-emerald-500/50 text-emerald-500 bg-emerald-900/20' : 'border-zinc-700 text-zinc-500 bg-zinc-900'}`}>
                    {match.state || match.status} 
                 </span>
@@ -93,17 +90,21 @@ const MatchModal = ({ match, onClose }) => {
              )}
           </div>
 
-          {/* ✅ THE NEW ADMIN CONSOLE (Replaces old buttons) */}
+          {/* NEW: DOWNLOAD DEMOS (ACKROS) */}
+          {match.status === 'completed' && (
+             <button className="w-full py-4 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-white font-bold uppercase tracking-widest flex items-center justify-center gap-3 transition-all group rounded">
+                <Download className="w-5 h-5 text-fuchsia-500 group-hover:scale-110 transition-transform" />
+                <span>Download Match Demos (Ackros)</span>
+             </button>
+          )}
+
+          {/* ADMIN CONSOLE */}
           {permissions?.isAdmin && (
              <div className="border-t border-zinc-800 pt-6 mt-6 space-y-6">
                 <h4 className="text-red-500 text-xs font-black uppercase tracking-[0.3em] flex items-center gap-2">
                    <ShieldAlert size={14} /> System Override Console
                 </h4>
-
-                {/* The Buttons are now inside here, protected by backend rules */}
                 <AdminMatchControls match={match} adminUser={session?.identity} />
-
-                {/* Read-Only Log */}
                 <AdminAuditLog matchId={match.id} />
              </div>
           )}

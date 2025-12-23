@@ -1,9 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 
-/**
- * OPINIONATED TACTICAL BUTTON
- */
 export const Button = ({ children, variant = 'primary', className = '', disabled = false, type = 'button', ...props }) => {
   const baseStyle = "px-4 py-2 rounded-sm font-black uppercase tracking-widest text-[10px] transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100";
   
@@ -51,7 +48,6 @@ export const Badge = ({ children, color = 'blue', className = '' }) => {
 
 export const Modal = ({ isOpen, onClose, title, children, maxWidth = 'max-w-md' }) => {
   const modalRef = useRef(null);
-  // Stable ID for accessibility
   const titleId = useRef(`modal-title-${Math.random().toString(36).slice(2)}`).current;
 
   useEffect(() => {
@@ -81,7 +77,6 @@ export const Modal = ({ isOpen, onClose, title, children, maxWidth = 'max-w-md' 
     if (isOpen) {
       const originalStyle = window.getComputedStyle(document.body).overflow;
       document.body.style.overflow = 'hidden';
-      // Attempt to focus first input, else focus modal itself
       const firstInput = modalRef.current?.querySelector('input, button');
       if (firstInput) firstInput.focus();
       else modalRef.current?.focus();
@@ -117,3 +112,25 @@ export const Modal = ({ isOpen, onClose, title, children, maxWidth = 'max-w-md' 
     </div>
   );
 };
+
+// 🆕 NEW: Breathing Logo Component
+export const BreathingLogo = ({ size = "w-16 h-16", className = "" }) => (
+  <a 
+    href="https://discord.gg/2AVFBjff" 
+    target="_blank" 
+    rel="noopener noreferrer"
+    className={`relative block group cursor-pointer ${className}`}
+    title="Join Pixel Palace Discord"
+  >
+    {/* Glow Effect */}
+    <div className={`absolute inset-0 bg-fuchsia-600 rounded-full blur-[20px] opacity-20 group-hover:opacity-50 transition-opacity duration-500 animate-pulse`} />
+    
+    {/* The Logo */}
+    <img 
+      src="https://raw.githubusercontent.com/alphabravo2k-rgb/pixel-palace-registration/1a7d90c43796fd037316bdaf4f3b4de9a485d615/image_4379f9.png" 
+      alt="Pixel Palace" 
+      className={`${size} object-contain relative z-10 transition-transform duration-500 ease-in-out group-hover:scale-110`}
+      style={{ animation: 'breathe 4s infinite ease-in-out' }}
+    />
+  </a>
+);

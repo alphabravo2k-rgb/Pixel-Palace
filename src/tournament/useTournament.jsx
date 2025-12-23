@@ -6,11 +6,19 @@ const TournamentContext = createContext();
 
 // --- SMART HELPERS ---
 const normalizeUrl = (input, type) => {
-  if (!input) return null;
+  if (!input || input === 'null' || input === 'undefined') return null;
   const str = input.toString().trim();
+  if (str.length === 0) return null;
+  
+  // If it's already a link, return it
   if (str.startsWith('http')) return str;
+  
+  // Otherwise, construct it
   if (type === 'faceit') return `https://www.faceit.com/en/players/${str}`;
-  if (type === 'steam') return str.includes('steamcommunity') ? str : `https://steamcommunity.com/id/${str}`;
+  if (type === 'steam') {
+    // Handle Steam64 ID vs Custom URL
+    return str.match(/^\d+$/) ? `https://steamcommunity.com/profiles/${str}` : `https://steamcommunity.com/id/${str}`;
+  }
   return null;
 };
 
@@ -31,14 +39,12 @@ export const TournamentProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // 🛡️ CRITICAL FIX: Safe access to session properties
   const isAuthed = Boolean(session?.isAuthenticated);
   const pin = session?.pin ?? null;
 
   const fetchData = useCallback(async () => {
     try {
       // 1. FETCH RAW TEAMS & PLAYERS
-      // Note: In future, this should move to a DB VIEW for performance
       const [teamsRes, playersRes] = await Promise.all([
         supabase.from('teams').select('*').order('seed_number', { ascending: true }),
         supabase.from('players').select('*')
@@ -46,7 +52,7 @@ export const TournamentProvider = ({ children }) => {
 
       if (teamsRes.error) throw teamsRes.error;
 
-      // 2. PROCESS ROSTER (Safe Client-Side Join)
+      // 2. PROCESS ROSTER
       const uiTeams = (teamsRes.data || []).map((t) => {
         const teamPlayers = playersRes.data ? playersRes.data.filter((p) => p.team_id === t.id) : [];
         
@@ -62,47 +68,42 @@ export const TournamentProvider = ({ children }) => {
               id: p.id,
               name: p.display_name,
               nickname: extractNickname(p.faceit_url, p.display_name),
-              role: role,
+              role: role, // Used for sorting
               avatar: p.faceit_avatar_url,
               elo: p.faceit_elo,
+              // ✅ FIXED: Correctly mapping database columns to social types
               socials: {
-                faceit: normalizeUrl(p.faceit_url, 'faceit'),
-                steam: normalizeUrl(p.steam_url, 'steam'),
-                discord: p.discord_url
+                faceit: normalizeUrl(p.faceit_url || p.faceit_username, 'faceit'),
+                steam: normalizeUrl(p.steam_url || p.steam_id, 'steam'),
+                discord: p.discord_url || (p.discord_handle ? `https://discord.com/users/${p.discord_handle}` : null)
               }
             };
           })
         };
       });
 
-      // 3. PROCESS MATCHES (Security Context Aware)
+      // 3. PROCESS MATCHES
       let matchesData = [];
       
       if (isAuthed && pin) {
-        // Admin/Captain View (Secured via RPC)
         const { data, error } = await supabase.rpc('get_authorized_matches', { input_pin: pin });
         if (!error) matchesData = data || [];
-        else console.warn("Admin RPC failed:", error);
       } else {
-        // Public View (Secured via RPC)
         const { data, error } = await supabase.rpc('get_public_matches');
         if (!error) matchesData = data || [];
-        // 🛡️ SECURITY FIX: Removed raw table fallback for public users
-        // If RPC fails, public users see empty schedule, not leaked IPs.
       }
 
       const uiMatches = matchesData.map(m => {
-        // Calculate Status Logic (Backend should ideally do this)
         let status = 'scheduled';
         if (m.state === 'complete') status = 'completed';
         else if (m.state === 'open') {
-          status = (m.server_ip && m.server_ip !== 'HIDDEN') ? 'live' : 'ready'; 
+          // ✅ FIXED: If teams are defined, it's ready/live
+          status = (m.team1_id && m.team2_id) ? 'live' : 'ready'; 
           if (m.metadata?.veto?.bannedMaps?.length > 0) status = 'veto';
         }
 
         return {
           ...m,
-          // Normalization
           team1Id: m.team1_id,
           team2Id: m.team2_id,
           winnerId: m.winner_id,
@@ -123,16 +124,14 @@ export const TournamentProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, [isAuthed, pin]); // Dependencies corrected
+  }, [isAuthed, pin]);
 
-  // Polling Logic
   useEffect(() => {
     fetchData();
     const interval = setInterval(fetchData, 10000); 
     return () => clearInterval(interval);
   }, [fetchData]);
 
-  // Actions
   const refreshMatches = async () => fetchData();
   
   const adminUpdateMatch = async (matchId, updates) => {
@@ -149,9 +148,8 @@ export const TournamentProvider = ({ children }) => {
     await fetchData();
   };
 
-  // Group by Rounds for Bracket
   const rounds = useMemo(() => {
-    if (!Array.isArray(matches)) return {}; // 🛡️ CRASH GUARD
+    if (!Array.isArray(matches)) return {}; 
     return matches.reduce((acc, m) => {
       if (!acc[m.round]) acc[m.round] = [];
       acc[m.round].push(m);

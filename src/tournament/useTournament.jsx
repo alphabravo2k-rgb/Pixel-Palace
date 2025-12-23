@@ -31,9 +31,14 @@ export const TournamentProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // 🛡️ CRITICAL FIX: Safe access to session properties
+  const isAuthed = Boolean(session?.isAuthenticated);
+  const pin = session?.pin ?? null;
+
   const fetchData = useCallback(async () => {
     try {
-      // 1. FETCH RAW DATA
+      // 1. FETCH RAW TEAMS & PLAYERS
+      // Note: In future, this should move to a DB VIEW for performance
       const [teamsRes, playersRes] = await Promise.all([
         supabase.from('teams').select('*').order('seed_number', { ascending: true }),
         supabase.from('players').select('*')
@@ -41,16 +46,14 @@ export const TournamentProvider = ({ children }) => {
 
       if (teamsRes.error) throw teamsRes.error;
 
-      // 2. PROCESS ROSTER (The "Faceit Level" Standard)
+      // 2. PROCESS ROSTER (Safe Client-Side Join)
       const uiTeams = (teamsRes.data || []).map((t) => {
         const teamPlayers = playersRes.data ? playersRes.data.filter((p) => p.team_id === t.id) : [];
         
         return {
           ...t,
-          // Ensure region is never null
           region_iso2: t.region_iso2 || 'un', 
           players: teamPlayers.map((p) => {
-            // Determine Role Priority
             let role = 'PLAYER';
             if (p.is_captain) role = 'CAPTAIN';
             else if (p.is_substitute) role = 'SUBSTITUTE';
@@ -62,60 +65,49 @@ export const TournamentProvider = ({ children }) => {
               role: role,
               avatar: p.faceit_avatar_url,
               elo: p.faceit_elo,
-              // Smart Link Generation
               socials: {
                 faceit: normalizeUrl(p.faceit_url, 'faceit'),
                 steam: normalizeUrl(p.steam_url, 'steam'),
-                discord: p.discord_url // Assume this is full link or handled elsewhere
+                discord: p.discord_url
               }
             };
           })
         };
       });
 
-      // 3. PROCESS MATCHES (Unlock the Bracket)
+      // 3. PROCESS MATCHES (Security Context Aware)
       let matchesData = [];
-      // If Admin/Captain, get the "Authorized" view (with IPs)
-      if (session.isAuthenticated && session.pin) {
-        // Try RPC first, fallback to table if RPC is missing (Development Safety)
-        const { data, error } = await supabase.rpc('get_authorized_matches', { input_pin: session.pin });
+      
+      if (isAuthed && pin) {
+        // Admin/Captain View (Secured via RPC)
+        const { data, error } = await supabase.rpc('get_authorized_matches', { input_pin: pin });
         if (!error) matchesData = data || [];
-        else console.warn("RPC get_authorized_matches failed, check backend:", error);
+        else console.warn("Admin RPC failed:", error);
       } else {
-        // Otherwise get the Public view
+        // Public View (Secured via RPC)
         const { data, error } = await supabase.rpc('get_public_matches');
         if (!error) matchesData = data || [];
-        // FALLBACK: If RPC missing, fetch raw matches (safe for dev, dangerous for prod due to exposed IPs)
-        else {
-             const { data: rawMatches } = await supabase.from('matches').select('*');
-             matchesData = rawMatches || [];
-        }
+        // 🛡️ SECURITY FIX: Removed raw table fallback for public users
+        // If RPC fails, public users see empty schedule, not leaked IPs.
       }
 
       const uiMatches = matchesData.map(m => {
-        // Calculate Status
+        // Calculate Status Logic (Backend should ideally do this)
         let status = 'scheduled';
         if (m.state === 'complete') status = 'completed';
         else if (m.state === 'open') {
-          // If IP is visible, it's live
           status = (m.server_ip && m.server_ip !== 'HIDDEN') ? 'live' : 'ready'; 
-          // If Veto started, it's in veto
           if (m.metadata?.veto?.bannedMaps?.length > 0) status = 'veto';
         }
 
         return {
           ...m,
-          // CRITICAL: Map snake_case (DB) to camelCase (Frontend)
-          // This fixes the "Locked" bug in the bracket
+          // Normalization
           team1Id: m.team1_id,
           team2Id: m.team2_id,
           winnerId: m.winner_id,
-          
-          // Fallbacks for display
           team1Name: m.team1_name || "TBD",
           team2Name: m.team2_name || "TBD",
-          
-          // Metadata
           status,
           vetoState: m.metadata?.veto || {}
         };
@@ -127,17 +119,16 @@ export const TournamentProvider = ({ children }) => {
 
     } catch (err) {
       console.error("Sync Error:", err);
-      // Don't show full error to user, just "Sync Error"
-      setError(err.message || "Connection Failed");
+      setError(err.message || "Data Sync Failed");
     } finally {
       setLoading(false);
     }
-  }, [session.pin, session.isAuthenticated]);
+  }, [isAuthed, pin]); // Dependencies corrected
 
   // Polling Logic
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 10000); // 10s updates
+    const interval = setInterval(fetchData, 10000); 
     return () => clearInterval(interval);
   }, [fetchData]);
 
@@ -145,14 +136,14 @@ export const TournamentProvider = ({ children }) => {
   const refreshMatches = async () => fetchData();
   
   const adminUpdateMatch = async (matchId, updates) => {
-      if (!session.pin) return;
-      await supabase.rpc('admin_update_match', { match_id: matchId, input_pin: session.pin, updates });
+      if (!pin) return;
+      await supabase.rpc('admin_update_match', { match_id: matchId, input_pin: pin, updates });
       await fetchData();
   };
 
   const submitVeto = async (matchId, payload) => {
     const { error } = await supabase.rpc('submit_veto', {
-      match_id: matchId, input_pin: session.pin, action: payload.action, target_map_id: payload.mapId
+      match_id: matchId, input_pin: pin, action: payload.action, target_map_id: payload.mapId
     });
     if (error) throw error;
     await fetchData();
@@ -160,6 +151,7 @@ export const TournamentProvider = ({ children }) => {
 
   // Group by Rounds for Bracket
   const rounds = useMemo(() => {
+    if (!Array.isArray(matches)) return {}; // 🛡️ CRASH GUARD
     return matches.reduce((acc, m) => {
       if (!acc[m.round]) acc[m.round] = [];
       acc[m.round].push(m);

@@ -18,8 +18,10 @@ const GhostRow = () => (
 );
 
 export const TeamCard = ({ team }) => {
+  // 🛡️ Data Guard: Ensure players is an array
   const players = Array.isArray(team.players) ? team.players : [];
   
+  // 🛡️ Safe Sorting: Handles case sensitivity and missing roles
   const sortedPlayers = [...players].sort((a, b) => {
      const roleOrder = { 'CAPTAIN': 0, 'PLAYER': 1, 'SUBSTITUTE': 2 };
      const rA = (a.role || 'PLAYER').toUpperCase();
@@ -36,6 +38,7 @@ export const TeamCard = ({ team }) => {
     <div className="group relative bg-[#0b0c0f]/80 border border-white/10 hover:border-fuchsia-500/50 transition-all duration-500 flex flex-col h-full overflow-hidden shadow-2xl backdrop-blur-sm hover:shadow-[0_0_30px_rgba(192,38,211,0.15)]"
          style={{ clipPath: 'polygon(0 0, 100% 0, 100% 92%, 94% 100%, 0 100%)' }}>
       
+      {/* Background Grid */}
       <div className="absolute inset-0 opacity-[0.02] pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle, #ffffff 1px, transparent 1px)', backgroundSize: '16px 16px' }} />
 
       <div className="p-4 bg-gradient-to-r from-[#15191f] to-[#0b0c0f] border-b border-white/10 flex items-center justify-between relative z-10">

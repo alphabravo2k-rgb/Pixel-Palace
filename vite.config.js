@@ -11,8 +11,8 @@ export default defineConfig(({ mode }) => ({
   },
   // TACTICAL: Production Hardening
   esbuild: {
-    // Only strip logs in production, keep them for dev
-    drop: mode === 'production' ? ['console', 'debugger'] : [],
+    // ⚠️ I removed 'console' drop so we can debug the live site if needed.
+    drop: mode === 'production' ? ['debugger'] : [],
   },
   build: {
     outDir: 'dist',

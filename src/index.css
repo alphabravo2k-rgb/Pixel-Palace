@@ -1,54 +1,50 @@
-/* 1️⃣ IMPORTS FIRST */
-@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Teko:wght@400;600;700&display=swap');
+/* 1️⃣ FONTS */
+@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Teko:wght@300;400;500;600;700&display=swap');
 
-/* 2️⃣ TAILWIND */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 /* 3️⃣ GLOBAL DEFAULTS */
 body {
-  background-color: #060709;
+  background-color: #050505; /* Reference Black */
   color: #e4e4e7;
   font-family: 'Rajdhani', sans-serif;
   overflow-x: hidden;
+  /* Reference Background Pattern */
+  background-image: 
+    linear-gradient(rgba(18, 18, 18, 0.85), rgba(0, 0, 0, 0.98)),
+    repeating-linear-gradient(0deg, transparent, transparent 2px, #1a1a1a 2px, #1a1a1a 4px),
+    url('https://www.transparenttextures.com/patterns/cubes.png');
+  background-size: cover;
+  background-attachment: fixed;
 }
 
-/* --- CUSTOM SCROLLBAR --- */
-@layer utilities {
-  .custom-scrollbar::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-  
-  .custom-scrollbar::-webkit-scrollbar-track {
-    background: #0a0a0c;
-  }
-  
-  .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: #3f3f46;
-    border-radius: 3px;
-  }
-  
-  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: #71717a;
-  }
+/* Headings use Teko */
+h1, h2, h3, .brand-font {
+  font-family: 'Teko', sans-serif;
+  font-weight: 700;
+}
 
-  .no-scrollbar::-webkit-scrollbar {
-    display: none;
-  }
-  .no-scrollbar {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
+/* --- UTILITIES --- */
+@layer utilities {
+  .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+  .custom-scrollbar::-webkit-scrollbar-track { background: #0a0a0c; }
+  .custom-scrollbar::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 3px; }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #71717a; }
+  
+  .text-shadow-glow {
+    text-shadow: 0 0 10px rgba(192, 38, 211, 0.5);
   }
 }
 
 /* --- ANIMATIONS --- */
 @keyframes breathe {
-  0%, 100% { filter: drop-shadow(0 0 5px rgba(192, 38, 211, 0.5)); transform: scale(1); }
-  50% { filter: drop-shadow(0 0 15px rgba(192, 38, 211, 0.8)); transform: scale(1.02); }
+  0% { transform: scale(1); filter: drop-shadow(0 0 15px rgba(168, 85, 247, 0.5)); }
+  50% { transform: scale(1.03); filter: drop-shadow(0 0 25px rgba(236, 72, 153, 0.7)); }
+  100% { transform: scale(1); filter: drop-shadow(0 0 15px rgba(168, 85, 247, 0.5)); }
 }
 
 .animate-breathe {
-  animation: breathe 3s infinite ease-in-out;
+  animation: breathe 4s ease-in-out infinite;
 }

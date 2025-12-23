@@ -3,10 +3,10 @@ import { Pin, Crown } from 'lucide-react';
 import { SocialButton } from './SocialIcons';
 
 export const PlayerRow = ({ player }) => {
-  // 🛡️ Safe Role Normalization: Defaults to PLAYER if null/undefined
+  // Defensive Role Normalization
   const role = (player.role || 'PLAYER').toUpperCase();
   const isCap = role === 'CAPTAIN';
-  const isSub = role === 'SUBSTITUTE';
+  const isSub = role === 'SUBSTITUTE' || role === 'SUB';
   
   let tag = 'PLY';
   let tagColor = 'bg-zinc-800 text-zinc-500 border border-zinc-700/50';
@@ -40,30 +40,34 @@ export const PlayerRow = ({ player }) => {
             )}
           </div>
           <div className="flex items-center gap-2">
+            {/* Show Pin for Cap/Sub */}
             {(isCap || isSub) && (
                <Pin className={`w-2.5 h-2.5 rotate-45 ${isCap ? 'text-yellow-500 fill-yellow-500/20' : 'text-blue-400'}`} />
             )}
             <span className={`text-sm font-medium truncate max-w-[110px] font-['Rajdhani'] ${isCap ? 'text-yellow-500' : 'text-zinc-300'}`}>
-               {player.nickname || 'Unknown'}
+               {player.nickname || player.name || 'Unknown'}
             </span>
             {isCap && <Crown className="w-3 h-3 text-yellow-500" />}
           </div>
         </div>
         
-        {/* TAG */}
+        {/* TAG - Only visual indicator, no extra icons */}
         <span className={`text-[9px] px-2 py-0.5 rounded-sm font-mono font-bold tracking-wider ${tagColor}`}>
             {tag}
         </span>
       </div>
 
-      {/* HOVER VIEW */}
+      {/* HOVER VIEW - INTERACTIVE LAYER */}
+      {/* Added pointer-events-auto to children to ensure clickability */}
       <div className="absolute inset-0 z-20 flex items-center justify-between px-4 bg-[#0a0a0c] transform translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out">
-        <div className="flex items-center gap-2 relative z-50">
-           {/* Passing String Literals to match Keys */}
+        
+        {/* 🛑 FIX: pointer-events-auto ensures clicks pass through to buttons */}
+        <div className="flex items-center gap-2 relative z-50 pointer-events-auto" onClick={(e) => e.stopPropagation()}>
            <SocialButton href={player.socials?.faceit} type="FACEIT" />
            <SocialButton href={player.socials?.steam} type="STEAM" />
            <SocialButton href={player.socials?.discord} type="DISCORD" />
         </div>
+
         <span className="text-[10px] font-medium text-zinc-100 uppercase tracking-tighter truncate max-w-[120px] px-4">
            {player.nickname}
         </span>

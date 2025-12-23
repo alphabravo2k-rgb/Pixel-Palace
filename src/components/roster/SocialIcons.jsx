@@ -13,6 +13,9 @@ const ICONS = {
 };
 
 export const SocialButton = ({ href, type }) => {
+  // 🛡️ CRITICAL FIX: Guard against undefined/non-string types
+  if (!type || typeof type !== 'string') return null;
+
   const Icon = ICONS[type.toUpperCase()];
   if (!Icon) return null; 
 

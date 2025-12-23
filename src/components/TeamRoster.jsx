@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTournament } from '../tournament/useTournament';
-import { Search, AlertTriangle, MessageCircle, Shield, Pin } from 'lucide-react';
+import { Search, MessageCircle, Shield } from 'lucide-react';
 
 // --- ICONS ---
 const Icons = {
@@ -65,7 +65,6 @@ const PlayerRow = ({ player }) => {
             <span className={`text-sm font-medium truncate max-w-[110px] font-['Rajdhani'] ${isCap ? 'text-white' : 'text-zinc-400'}`}>
                {player.nickname}
             </span>
-            {isCap && <Pin className="w-3 h-3 text-blue-500 fill-blue-500/20 rotate-45" />}
           </div>
         </div>
         <span className="text-xs font-mono font-bold text-fuchsia-500 tabular-nums">
@@ -101,11 +100,14 @@ const GhostRow = () => (
 );
 
 const TeamCard = ({ team }) => {
+  // 🛡️ Safe Access to Players
   const players = team.players || [];
   const sortedPlayers = [...players].sort((a, b) => {
      const roleOrder = { 'CAPTAIN': 0, 'PLAYER': 1, 'SUBSTITUTE': 2 };
      return (roleOrder[a.role] || 1) - (roleOrder[b.role] || 1);
   });
+  
+  // Ghost rows to fill empty spots
   const slotsNeeded = 6; 
   const currentSlots = sortedPlayers.length;
   const emptySlots = Math.max(0, slotsNeeded - currentSlots);
@@ -124,7 +126,7 @@ const TeamCard = ({ team }) => {
                <h3 className="text-white font-black text-lg truncate max-w-[140px] uppercase italic tracking-tighter font-['Teko'] group-hover:text-fuchsia-400 transition-colors">
                  {team.name}
                </h3>
-               <span className="text-[10px] text-zinc-500 font-mono tracking-widest">SEED #{team.seed_number}</span>
+               <span className="text-[10px] text-zinc-500 font-mono tracking-widest">SEED #{team.seed_number || 'UNRANKED'}</span>
            </div>
         </div>
         {team.region_iso2 && team.region_iso2 !== 'un' && (
@@ -148,9 +150,13 @@ const TeamCard = ({ team }) => {
 };
 
 const TeamRoster = () => {
+  // 🛡️ Data Source: useTournament
   const { teams, loading, error } = useTournament(); 
   const [searchTerm, setSearchTerm] = useState('');
-  const filteredTeams = teams.filter(t => t.name?.toLowerCase().includes(searchTerm.toLowerCase()));
+  
+  // 🛡️ Safe Filter: Handle undefined teams
+  const safeTeams = teams || [];
+  const filteredTeams = safeTeams.filter(t => t.name?.toLowerCase().includes(searchTerm.toLowerCase()));
 
   // Add Font Link dynamically if missing
   React.useEffect(() => {
@@ -167,30 +173,4 @@ const TeamRoster = () => {
   if (error) return <div className="p-12 text-center text-red-500 font-mono text-xs uppercase">SYNC FAILURE: {error}</div>;
 
   return (
-    <div className="space-y-8 p-4 md:p-8 animate-in fade-in duration-700 font-['Rajdhani']">
-        <div className="flex flex-col md:flex-row justify-between items-end gap-4 border-b border-white/10 pb-6">
-            <div className="space-y-1">
-                <h2 className="text-4xl font-black text-white italic tracking-tighter uppercase font-['Teko'] drop-shadow-[0_0_10px_rgba(192,38,211,0.5)]">
-                   ROSTER <span className="text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-500 to-purple-600">INTEL</span>
-                </h2>
-                <p className="text-zinc-500 text-[10px] font-mono uppercase tracking-[0.3em]">
-                   Operational Status: {teams.length} Squads Active
-                </p>
-            </div>
-            <div className="w-full md:w-auto relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-                <input 
-                  type="text" placeholder="FIND SQUAD //" 
-                  className="bg-[#0b0c0f] border border-zinc-800 text-white pl-10 pr-4 py-3 rounded w-full md:w-72 focus:border-fuchsia-500/50 focus:bg-fuchsia-900/10 outline-none text-xs font-bold uppercase transition-all tracking-wider placeholder-zinc-700" 
-                  value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} 
-                />
-            </div>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {filteredTeams.map(t => <TeamCard key={t.id} team={t} />)}
-        </div>
-    </div>
-  );
-};
-
-export default TeamRoster;
+    <div className="space-y-8 p-4 md:p-8 animate-in

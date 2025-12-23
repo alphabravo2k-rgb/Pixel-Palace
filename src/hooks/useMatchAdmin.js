@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { supabase } from '../supabase/client'; // ✅ CORRECT IMPORT
+import { supabase } from '../supabase/client'; 
 
 export const useMatchAdmin = () => {
   // 'swap' | 'schedule' | 'start' | null
@@ -30,7 +30,7 @@ export const useMatchAdmin = () => {
         match_id: matchId,
         new_team1_id: team1Id,
         new_team2_id: team2Id,
-        admin_user_id: adminId
+        admin_user_id: adminId // Passed for Audit Log
       });
       if (rpcError) throw rpcError;
     });

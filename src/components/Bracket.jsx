@@ -1,6 +1,6 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { useTournament } from '../tournament/useTournament';
-import { Tv, Shield, ChevronRight, Zap, Trophy, Loader2 } from 'lucide-react';
+import { Tv, Shield, ChevronRight, Zap, Loader2 } from 'lucide-react';
 
 // --- THEME ENGINE ---
 const getStatusStyles = (status) => {
@@ -146,9 +146,13 @@ const Bracket = ({ onMatchClick }) => {
 
   // --- DYNAMIC CONNECTOR LINES ---
   useEffect(() => {
-    if (loading || !contentRef.current || !svgRef.current || !matches.length) return;
+    // 🛡️ Safety: Check if references exist before running
+    if (loading || !contentRef.current || !svgRef.current || !matches?.length) return;
 
     const updateLines = () => {
+      // 🛡️ Double Check: Element might have unmounted during resize
+      if (!contentRef.current) return;
+
       const parentRect = contentRef.current.getBoundingClientRect();
       let paths = "";
       
@@ -160,7 +164,7 @@ const Bracket = ({ onMatchClick }) => {
           const rectA = currentEl.getBoundingClientRect();
           const rectB = nextEl.getBoundingClientRect();
           
-          // Calculate connector points
+          // Calculate connector points relative to parent
           const startX = rectA.right - parentRect.left;
           const endX = rectB.left - parentRect.left;
           const startY = (rectA.top + rectA.height / 2) - parentRect.top;
@@ -181,7 +185,6 @@ const Bracket = ({ onMatchClick }) => {
     const observer = new ResizeObserver(updateLines);
     observer.observe(contentRef.current);
     
-    // Add font listeners if dynamic fonts cause layout shift
     document.fonts.ready.then(updateLines);
 
     return () => observer.disconnect();
@@ -194,7 +197,7 @@ const Bracket = ({ onMatchClick }) => {
     </div>
   );
 
-  const sortedRounds = Object.entries(rounds).sort(([a], [b]) => Number(a) - Number(b));
+  const sortedRounds = Object.entries(rounds || {}).sort(([a], [b]) => Number(a) - Number(b));
 
   if (!sortedRounds.length) return (
     <div className="p-12 text-center text-zinc-600 border border-zinc-800 border-dashed uppercase text-xs tracking-widest font-mono">

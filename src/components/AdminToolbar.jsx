@@ -2,11 +2,15 @@ import React, { useState } from 'react';
 import { useSession } from '../auth/useSession';
 import { useTournament } from '../tournament/useTournament';
 import { ROLE_THEMES, ROLES } from '../lib/roles';
-import { User, LogOut, Lock, RefreshCw, ShieldCheck } from 'lucide-react';
+import { User, LogOut, Lock, RefreshCw } from 'lucide-react';
 
 const AdminToolbar = () => {
   const { session, logout, setIsPinModalOpen, permissions } = useSession();
-  const { refreshMatches } = useTournament();
+  
+  // 🛡️ Safety: Provide fallback if hook context is missing (prevents crash)
+  const tournament = useTournament();
+  const refreshMatches = tournament?.refreshMatches || (async () => {});
+
   const [isSyncing, setIsSyncing] = useState(false);
 
   const handleManualSync = async () => {

@@ -4,7 +4,6 @@ import { useSession } from '../auth/useSession';
 
 const TournamentContext = createContext();
 
-// --- SMART HELPERS ---
 const normalizeUrl = (input, type) => {
   if (!input || input === 'null' || input === 'undefined') return null;
   const str = input.toString().trim();
@@ -41,7 +40,6 @@ export const TournamentProvider = ({ children }) => {
 
   const fetchData = useCallback(async () => {
     try {
-      // 1. FETCH RAW TEAMS & PLAYERS
       const [teamsRes, playersRes] = await Promise.all([
         supabase.from('teams').select('*').order('seed_number', { ascending: true }),
         supabase.from('players').select('*')
@@ -49,11 +47,9 @@ export const TournamentProvider = ({ children }) => {
 
       if (teamsRes.error) throw teamsRes.error;
 
-      // 🛡️ CRITICAL GUARD: Ensure we have arrays
       const rawTeams = Array.isArray(teamsRes.data) ? teamsRes.data : [];
       const rawPlayers = Array.isArray(playersRes.data) ? playersRes.data : [];
 
-      // 2. PROCESS ROSTER
       const uiTeams = rawTeams.map((t) => {
         const teamPlayers = rawPlayers.filter((p) => p.team_id === t.id);
         
@@ -61,9 +57,11 @@ export const TournamentProvider = ({ children }) => {
           ...t,
           region_iso2: t.region_iso2 || 'un', 
           players: teamPlayers.map((p) => {
+            // Defensive Role Check here too
             let role = 'PLAYER';
-            if (p.is_captain) role = 'CAPTAIN';
-            else if (p.is_substitute) role = 'SUBSTITUTE';
+            const r = (p.role || '').toUpperCase();
+            if (p.is_captain || r === 'CAPTAIN') role = 'CAPTAIN';
+            else if (p.is_substitute || r === 'SUB' || r === 'SUBSTITUTE') role = 'SUBSTITUTE';
 
             return {
               id: p.id,
@@ -82,19 +80,16 @@ export const TournamentProvider = ({ children }) => {
         };
       });
 
-      // 3. PROCESS MATCHES
       let matchesData = [];
       
       if (isAuthed && pin) {
         const { data, error } = await supabase.rpc('get_authorized_matches', { input_pin: pin });
         if (!error) matchesData = data || [];
-        else console.warn("Admin RPC failed:", error);
       } else {
         const { data, error } = await supabase.rpc('get_public_matches');
         if (!error) matchesData = data || [];
       }
 
-      // 🛡️ CRITICAL GUARD: Ensure matchesData is an array
       const safeMatchesData = Array.isArray(matchesData) ? matchesData : [];
 
       const uiMatches = safeMatchesData.map(m => {
@@ -124,8 +119,7 @@ export const TournamentProvider = ({ children }) => {
     } catch (err) {
       console.error("Sync Error:", err);
       // Don't show full error object to user, just message
-      setError(err.message || "Connection Failed");
-      // 🛡️ PREVENT STALE UI: Clear data if fetch fails hard
+      setError(err.message || "Data Sync Failed");
       setTeams([]);
       setMatches([]);
     } finally {
@@ -133,9 +127,10 @@ export const TournamentProvider = ({ children }) => {
     }
   }, [isAuthed, pin]);
 
+  // 🛑 FIX: Polling Interval set to 60 seconds (1 minute) for auto-updates
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 10000); 
+    const interval = setInterval(fetchData, 60000); 
     return () => clearInterval(interval);
   }, [fetchData]);
 

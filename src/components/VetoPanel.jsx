@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useCaptainVeto } from '../hooks/useCaptainVeto';
+import { useCaptainVeto } from '../hooks/useCaptainVeto'; // ⚠️ Must be updated!
 import { MAP_POOL } from '../lib/constants';
 import { ShieldAlert, Check, Ban } from 'lucide-react';
 
@@ -10,11 +10,11 @@ const VetoPanel = ({ match }) => { // Optional 'match' prop for Modal usage
   
   // -- MODE DETECTION --
   // If 'match' prop exists, we are in the Modal (Spectator/Admin View)
-  // If not, we are in the Standalone Captain View
   const isEmbedded = !!match; 
   const activePin = location.state?.pin;
 
   // -- CAPTAIN MODE LOGIC --
+  // We call the hook unconditionally, but handle missing PIN gracefully
   const captainHook = useCaptainVeto(activePin);
   
   // Redirect if trying to access standalone without PIN
@@ -24,7 +24,14 @@ const VetoPanel = ({ match }) => { // Optional 'match' prop for Modal usage
 
   // -- DATA NORMALIZATION --
   // We normalize the data so the UI code below is identical for both modes
-  let displayState = null;
+  let displayState = {
+     team_name: 'LOADING',
+     opponent_name: 'LOADING',
+     banned_maps: [],
+     picked_map: null,
+     is_my_turn: false,
+     status_text: 'SYNCING'
+  };
   let actionHandler = null;
   let loading = false;
   let error = null;
@@ -32,8 +39,8 @@ const VetoPanel = ({ match }) => { // Optional 'match' prop for Modal usage
   if (isEmbedded) {
     // MODAL VIEW (Read Only / Admin Override)
     displayState = {
-      team_name: match.team1Name,
-      opponent_name: match.team2Name,
+      team_name: match.team1Name || 'TEAM A',
+      opponent_name: match.team2Name || 'TEAM B',
       banned_maps: match.vetoState?.bannedMaps || [],
       picked_map: match.vetoState?.pickedMap,
       is_my_turn: false, // Admins don't "take turns", they override
@@ -42,12 +49,21 @@ const VetoPanel = ({ match }) => { // Optional 'match' prop for Modal usage
   } else {
     // CAPTAIN VIEW (Interactive)
     if (captainHook.loading) return <div className="p-12 text-center text-fuchsia-500 font-mono animate-pulse tracking-widest">ESTABLISHING SECURE UPLINK...</div>;
-    if (!captainHook.gameState) return <div className="p-12 text-center text-red-500 font-mono tracking-widest">UPLINK TERMINATED</div>;
+    
+    // Graceful error if connection fails
+    if (!captainHook.gameState) {
+       return (
+          <div className="p-12 text-center">
+             <div className="text-red-500 font-mono tracking-widest mb-4">UPLINK TERMINATED</div>
+             <button onClick={() => navigate('/')} className="px-4 py-2 bg-zinc-800 text-white text-xs uppercase rounded hover:bg-zinc-700">Return to Base</button>
+          </div>
+       );
+    }
     
     displayState = {
       team_name: captainHook.gameState.team_name,
       opponent_name: captainHook.gameState.opponent_name || "OPPONENT",
-      banned_maps: captainHook.gameState.banned_maps,
+      banned_maps: captainHook.gameState.banned_maps || [],
       picked_map: null, // Captain hook might not return pick yet?
       is_my_turn: captainHook.gameState.is_my_turn,
       status_text: captainHook.gameState.is_my_turn ? "YOUR COMMAND" : "ENEMY TURN"
@@ -71,13 +87,13 @@ const VetoPanel = ({ match }) => { // Optional 'match' prop for Modal usage
             </h1>
           </div>
           <div className={`mt-4 md:mt-0 px-6 py-3 rounded text-xs font-black uppercase tracking-widest shadow-lg transition-all ${displayState.is_my_turn ? 'bg-emerald-600 text-white animate-pulse shadow-emerald-900/20' : 'bg-zinc-800 text-zinc-500'}`}>
-             {displayState.status_text}
+              {displayState.status_text}
           </div>
         </div>
       )}
 
       {error && (
-        <div className="bg-red-900/20 border border-red-500/50 text-red-400 p-4 mb-6 rounded flex items-center gap-3">
+        <div className="bg-red-900/20 border border-red-500/50 text-red-400 p-4 mb-6 rounded flex items-center gap-3 animate-in fade-in">
            <ShieldAlert className="w-5 h-5" />
            <span className="text-xs font-bold uppercase tracking-wide">{error}</span>
         </div>
@@ -85,8 +101,9 @@ const VetoPanel = ({ match }) => { // Optional 'match' prop for Modal usage
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         {MAP_POOL.map(map => {
-          const isBanned = displayState.banned_maps.includes(map.name) || displayState.banned_maps.includes(map.id); // Handle both formats
-          const isPicked = displayState.picked_map === map.id;
+          // Normalize IDs (sometimes numeric, sometimes string)
+          const isBanned = displayState.banned_maps.some(m => String(m) === String(map.id) || m === map.name);
+          const isPicked = String(displayState.picked_map) === String(map.id);
           const canInteract = !isEmbedded && displayState.is_my_turn && !isBanned;
 
           return (
@@ -129,10 +146,10 @@ const VetoPanel = ({ match }) => { // Optional 'match' prop for Modal usage
         })}
       </div>
       
-      {!isEmbedded && (
+      {!isEmbedded && activePin && (
          <div className="mt-8 pt-4 border-t border-white/5 flex justify-between text-[9px] text-zinc-600 font-mono uppercase tracking-[0.3em]">
             <span>Secure Connection Established</span>
-            <span>ID: {location.state?.pin?.slice(0,4)}...</span>
+            <span>ID: {String(activePin).slice(0,4)}...</span>
          </div>
       )}
     </div>

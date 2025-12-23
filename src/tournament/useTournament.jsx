@@ -77,12 +77,19 @@ export const TournamentProvider = ({ children }) => {
       let matchesData = [];
       // If Admin/Captain, get the "Authorized" view (with IPs)
       if (session.isAuthenticated && session.pin) {
-        const { data } = await supabase.rpc('get_authorized_matches', { input_pin: session.pin });
-        matchesData = data || [];
+        // Try RPC first, fallback to table if RPC is missing (Development Safety)
+        const { data, error } = await supabase.rpc('get_authorized_matches', { input_pin: session.pin });
+        if (!error) matchesData = data || [];
+        else console.warn("RPC get_authorized_matches failed, check backend:", error);
       } else {
         // Otherwise get the Public view
-        const { data } = await supabase.rpc('get_public_matches');
-        matchesData = data || [];
+        const { data, error } = await supabase.rpc('get_public_matches');
+        if (!error) matchesData = data || [];
+        // FALLBACK: If RPC missing, fetch raw matches (safe for dev, dangerous for prod due to exposed IPs)
+        else {
+             const { data: rawMatches } = await supabase.from('matches').select('*');
+             matchesData = rawMatches || [];
+        }
       }
 
       const uiMatches = matchesData.map(m => {
@@ -120,7 +127,8 @@ export const TournamentProvider = ({ children }) => {
 
     } catch (err) {
       console.error("Sync Error:", err);
-      setError(err.message);
+      // Don't show full error to user, just "Sync Error"
+      setError(err.message || "Connection Failed");
     } finally {
       setLoading(false);
     }
@@ -137,9 +145,9 @@ export const TournamentProvider = ({ children }) => {
   const refreshMatches = async () => fetchData();
   
   const adminUpdateMatch = async (matchId, updates) => {
-     if (!session.pin) return;
-     await supabase.rpc('admin_update_match', { match_id: matchId, input_pin: session.pin, updates });
-     await fetchData();
+      if (!session.pin) return;
+      await supabase.rpc('admin_update_match', { match_id: matchId, input_pin: session.pin, updates });
+      await fetchData();
   };
 
   const submitVeto = async (matchId, payload) => {

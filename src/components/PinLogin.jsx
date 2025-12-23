@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom'; 
 import { supabase } from '../supabase/client';
-import { BreathingLogo } from '../ui/Components'; 
-import { MessageSquare, ShieldAlert, Eye, LogOut, ArrowRight, Network, Users, Trophy, ShieldCheck } from 'lucide-react';
+import { BreathingLogo, HudPanel, SkewButton } from '../ui/Components'; 
+import { Eye, LogOut, ArrowRight, Network, Users, Trophy, ShieldCheck, Tv, MessageCircle } from 'lucide-react';
 
 const PinLogin = () => {
   const navigate = useNavigate();
@@ -26,6 +26,7 @@ const PinLogin = () => {
     setError(null);
 
     try {
+      // 1. Try Admin
       const { data: adminData, error: adminError } = await supabase.rpc('api_admin_login', { p_pin: pin });
       if (!adminError && adminData?.status === 'SUCCESS') {
         setLoggedInUser({ type: 'ADMIN', name: adminData.profile.display_name, role: adminData.profile.role, pin: pin });
@@ -33,6 +34,7 @@ const PinLogin = () => {
         return;
       }
 
+      // 2. Try Captain
       const { data: captainData, error: captainError } = await supabase.rpc('api_get_captain_state', { p_pin: pin });
       if (!captainError && captainData?.team_name) {
         setLoggedInUser({ type: 'CAPTAIN', name: captainData.team_name, role: 'Team Captain', pin: pin });
@@ -68,90 +70,116 @@ const PinLogin = () => {
   const isAuthPage = ['/', '/bracket', '/roster'].includes(window.location.pathname);
   if (!isVisible || !isAuthPage) return null;
 
+  // --- AUTHENTICATED WELCOME HUD ---
   if (showWelcome && loggedInUser) {
     return (
       <div className="fixed inset-0 bg-[#050505]/95 flex items-center justify-center z-50 p-4 font-sans backdrop-blur-xl animate-in fade-in duration-500">
-        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-5 pointer-events-none"></div>
-        
-        <div className="relative w-full max-w-lg bg-[#0a0a0c] border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden">
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-fuchsia-600 to-purple-600"></div>
-          
-          <div className="p-8 md:p-12 text-center flex flex-col items-center">
-            <BreathingLogo size="w-24 h-24" className="mb-6" />
+        <HudPanel className="w-full max-w-lg">
+          <div className="text-center flex flex-col items-center">
+            <BreathingLogo size="w-32 h-32" className="mb-6" />
 
-            <div className="mb-4 flex items-center gap-2 bg-zinc-900 px-3 py-1 rounded-full border border-zinc-700">
+            <div className="mb-4 flex items-center gap-2 bg-black/40 px-4 py-1 rounded border border-white/10">
                 <div className={`w-2 h-2 rounded-full ${loggedInUser.type === 'ADMIN' ? 'bg-cyan-400 animate-pulse' : 'bg-yellow-400'}`}></div>
-                <span className="text-[10px] text-zinc-300 font-bold uppercase tracking-widest">{loggedInUser.role} Verified</span>
+                <span className="text-[12px] text-zinc-300 font-bold uppercase tracking-widest brand-font">{loggedInUser.role} Verified</span>
             </div>
 
-            <h1 className="text-3xl font-black text-white italic tracking-tighter mb-8 leading-none">
-              WELCOME, <span className="text-fuchsia-500">{loggedInUser.name.toUpperCase()}</span>
+            <h1 className="text-4xl md:text-5xl font-black text-white italic tracking-tighter mb-8 brand-font leading-none">
+              WELCOME, <span className="text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-400 to-purple-600">{loggedInUser.name.toUpperCase()}</span>
             </h1>
 
-            <div className="w-full grid gap-3">
-               <button onClick={() => proceedToApp()} className="w-full py-4 bg-fuchsia-700 hover:bg-fuchsia-600 text-white font-bold uppercase tracking-[0.2em] rounded flex items-center justify-center gap-3 transition-all shadow-lg shadow-fuchsia-900/20 group">
-                 {loggedInUser.type === 'ADMIN' ? <ShieldCheck className="w-5 h-5"/> : <Trophy className="w-5 h-5"/>}
-                 <span>{loggedInUser.type === 'ADMIN' ? 'Command Console' : 'Captain Veto'}</span>
-                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-               </button>
+            <div className="w-full grid gap-4">
+               {/* Skewed Action Button */}
+               <SkewButton onClick={() => proceedToApp()}>
+                 <div className="flex items-center justify-center gap-3">
+                    {loggedInUser.type === 'ADMIN' ? <ShieldCheck className="w-5 h-5"/> : <Trophy className="w-5 h-5"/>}
+                    {loggedInUser.type === 'ADMIN' ? 'COMMAND CONSOLE' : 'CAPTAIN VETO'}
+                    <ArrowRight className="w-5 h-5" />
+                 </div>
+               </SkewButton>
 
-               <div className="grid grid-cols-2 gap-3">
-                   <button onClick={() => safeNavigate('/bracket')} className="py-3 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-400 hover:text-white text-[10px] font-bold uppercase tracking-widest flex items-center justify-center gap-2 rounded transition-all">
-                      <Network className="w-3 h-3" /> Bracket
+               <div className="grid grid-cols-2 gap-3 mt-2">
+                   <button onClick={() => safeNavigate('/bracket')} className="py-4 bg-zinc-900/50 hover:bg-zinc-800 border border-zinc-700 hover:border-zinc-500 text-white font-bold uppercase tracking-widest flex items-center justify-center gap-2 transition-all">
+                      <Network className="w-4 h-4 text-cyan-400" /> Bracket
                    </button>
-                   <button onClick={() => safeNavigate('/roster')} className="py-3 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-400 hover:text-white text-[10px] font-bold uppercase tracking-widest flex items-center justify-center gap-2 rounded transition-all">
-                      <Users className="w-3 h-3" /> Roster
+                   <button onClick={() => safeNavigate('/roster')} className="py-4 bg-zinc-900/50 hover:bg-zinc-800 border border-zinc-700 hover:border-zinc-500 text-white font-bold uppercase tracking-widest flex items-center justify-center gap-2 transition-all">
+                      <Users className="w-4 h-4 text-purple-400" /> Roster
                    </button>
                </div>
             </div>
 
-            <button onClick={logout} className="mt-8 text-zinc-600 hover:text-red-500 text-[10px] uppercase tracking-widest flex items-center gap-2 transition-colors">
-                 <LogOut className="w-3 h-3" /> Terminate Session
+            <button onClick={logout} className="mt-8 text-zinc-500 hover:text-red-500 text-xs uppercase tracking-widest flex items-center gap-2 transition-colors font-bold">
+                 <LogOut className="w-4 h-4" /> Terminate Session
             </button>
           </div>
-        </div>
+        </HudPanel>
       </div>
     );
   }
 
+  // --- LOGIN SCREEN (Matches Registration Header) ---
   return (
-    <div className="fixed inset-0 bg-[#050505]/95 flex items-center justify-center z-50 p-4 font-sans backdrop-blur-md">
-      <div className="w-full max-w-md bg-[#0a0a0c] border border-zinc-800 rounded-xl shadow-2xl overflow-hidden relative">
-        <div className="absolute top-0 left-0 w-full h-1 bg-zinc-800"></div>
+    <div className="fixed inset-0 bg-[#050505]/98 flex items-center justify-center z-50 p-4 backdrop-blur-md">
+      <div className="w-full max-w-2xl flex flex-col items-center">
         
-        <div className="p-8 text-center">
-           <BreathingLogo size="w-16 h-16" className="mx-auto mb-6" />
-           <h2 className="text-zinc-500 text-[10px] tracking-[0.3em] uppercase mb-1">Pixel Palace Authority</h2>
-           <h1 className="text-white font-black tracking-widest text-xl mb-8">SECURE ACCESS</h1>
+        {/* HEADER SECTION FROM REFERENCE */}
+        <div className="text-center mb-8 relative">
+           <div className="hidden sm:block absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-fuchsia-600/20 blur-[100px] rounded-full -z-10 pointer-events-none"></div>
+           
+           <BreathingLogo size="w-32 h-32 md:w-48 md:h-48" className="mx-auto mb-4" />
+           
+           <h1 className="text-5xl md:text-7xl font-black text-white italic tracking-tighter brand-font leading-none drop-shadow-[0_0_15px_rgba(192,38,211,0.5)]">
+              COMMUNITY <span className="text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-400 via-pink-500 to-purple-600">CUP</span>
+           </h1>
+           
+           <div className="flex items-center justify-center gap-4 mt-4">
+              <a href="https://discord.gg/JdXheQbvec" target="_blank" className="flex items-center gap-2 px-4 py-2 bg-[#5865F2] hover:bg-[#4752C4] text-white font-bold uppercase tracking-widest text-xs rounded transition-all">
+                 <MessageCircle className="w-4 h-4" /> Join Discord
+              </a>
+              <a href="https://www.twitch.tv/pXpLgg" target="_blank" className="flex items-center gap-2 px-4 py-2 bg-purple-900/50 border border-purple-500/50 hover:bg-purple-900/80 text-purple-200 font-bold uppercase tracking-widest text-xs rounded transition-all">
+                 <Tv className="w-4 h-4" /> Twitch
+              </a>
+           </div>
+        </div>
 
-           <form onSubmit={handleLogin}>
-             <input 
-               type="password" 
-               autoFocus
-               className="w-full bg-black border border-zinc-700 text-white text-center text-3xl p-4 rounded focus:border-fuchsia-500 focus:ring-1 focus:ring-fuchsia-500 outline-none tracking-[0.5em] transition-all placeholder-zinc-800 font-mono mb-4"
-               placeholder="••••" 
-               value={pin} onChange={(e) => setPin(e.target.value)} maxLength={20}
-             />
-             <button disabled={loading || pin.length < 3} className="w-full bg-zinc-100 hover:bg-white text-black font-black py-4 rounded uppercase tracking-widest text-xs transition-all shadow-lg">
-               {loading ? 'Verifying...' : 'Authorize'}
-             </button>
+        {/* LOGIN HUD */}
+        <HudPanel className="w-full max-w-md">
+           <h2 className="text-center text-xl text-white brand-font uppercase mb-6 flex items-center justify-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-cyan-400" /> Secure Access
+           </h2>
+
+           <form onSubmit={handleLogin} className="space-y-6">
+             <div>
+                <input 
+                  type="password" 
+                  autoFocus
+                  className="w-full bg-black/50 border border-zinc-700 text-white text-center text-3xl p-4 focus:border-fuchsia-500 focus:bg-black/80 outline-none tracking-[0.5em] transition-all placeholder-zinc-800 font-mono brand-font"
+                  placeholder="••••" 
+                  value={pin} onChange={(e) => setPin(e.target.value)} maxLength={20}
+                />
+             </div>
+
+             <SkewButton type="submit" disabled={loading || pin.length < 3} className="w-full">
+               {loading ? 'VERIFYING...' : 'AUTHORIZE'}
+             </SkewButton>
            </form>
 
            {error && (
-             <div className="mt-6 animate-in slide-in-from-top-2 fade-in">
-                <span className="text-red-500 font-bold tracking-widest text-[10px] uppercase border border-red-900/30 bg-red-900/10 px-3 py-1 rounded">
-                   {error}
-                </span>
+             <div className="mt-6 text-center animate-in fade-in">
+                <div className="inline-flex items-center gap-2 px-4 py-2 bg-red-900/20 border border-red-500/50 text-red-400 font-bold uppercase tracking-widest text-xs">
+                   <ShieldAlert className="w-4 h-4" /> {error}
+                </div>
              </div>
            )}
 
            {!error && (
-             <button onClick={() => setIsVisible(false)} className="mt-6 w-full border border-zinc-800 hover:border-zinc-600 text-zinc-500 hover:text-white py-3 rounded flex items-center justify-center gap-2 transition-all group">
+             <button onClick={() => setIsVisible(false)} className="mt-6 w-full py-3 border border-white/5 hover:bg-white/5 text-zinc-500 hover:text-white flex items-center justify-center gap-2 transition-all group">
                <Eye className="w-4 h-4 group-hover:scale-110 transition-transform" /> 
-               <span className="text-[10px] uppercase tracking-widest font-bold">Spectator View</span>
+               <span className="text-xs uppercase tracking-widest font-bold">Spectator Mode</span>
              </button>
            )}
-        </div>
+        </HudPanel>
+
+        <p className="mt-8 text-zinc-600 text-[10px] uppercase tracking-[0.3em]">System v2.5.1 | Powered by Bravo</p>
       </div>
     </div>
   );

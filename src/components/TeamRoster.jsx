@@ -8,7 +8,10 @@ const TeamRoster = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   
+  // 🛡️ GUARD: Ensure teams is an array before filtering. 
+  // This prevents the white screen crash.
   const safeTeams = Array.isArray(teams) ? teams : [];
+  
   const filteredTeams = safeTeams.filter(t => t.name?.toLowerCase().includes(searchTerm.toLowerCase()));
 
   const handleRefresh = async () => {

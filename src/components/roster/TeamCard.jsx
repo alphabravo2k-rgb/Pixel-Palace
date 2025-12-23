@@ -17,12 +17,13 @@ const GhostRow = () => (
   </div>
 );
 
-// 🛑 FIX: Centralized Role Normalization Logic
+// ✅ LOGIC FIX: Centralized & Robust Role Normalization
 const normalizeRole = (role) => {
   if (!role) return 'PLAYER';
   const r = role.toString().trim().toUpperCase();
-  if (r === 'CAPTAIN' || r === 'CAPT') return 'CAPTAIN';
-  if (r === 'SUB' || r === 'SUBSTITUTE') return 'SUBSTITUTE';
+  // Handle variations common in manual data entry
+  if (r === 'CAPTAIN' || r === 'CAPT' || r === 'C') return 'CAPTAIN';
+  if (r === 'SUB' || r === 'SUBSTITUTE' || r === 'S') return 'SUBSTITUTE';
   return 'PLAYER';
 };
 
@@ -30,14 +31,14 @@ export const TeamCard = ({ team }) => {
   // 🛡️ Data Guard
   const players = Array.isArray(team.players) ? team.players : [];
   
-  // 🛡️ Robust Sorting: Captain -> Player -> Sub
+  // 🛡️ SORTING FIX: Strict Captain -> Player -> Sub order
   const sortedPlayers = [...players].sort((a, b) => {
      const roleOrder = { 'CAPTAIN': 0, 'PLAYER': 1, 'SUBSTITUTE': 2 };
      
      const roleA = normalizeRole(a.role);
      const roleB = normalizeRole(b.role);
      
-     // Subtracting ensures low numbers (0) come first
+     // 0 (Captain) comes before 1 (Player)
      return (roleOrder[roleA] ?? 1) - (roleOrder[roleB] ?? 1);
   });
   
@@ -47,7 +48,8 @@ export const TeamCard = ({ team }) => {
   const emptySlots = Math.max(0, slotsNeeded - currentSlots);
 
   return (
-    <div className="group relative bg-[#0b0c0f]/80 border border-white/10 hover:border-fuchsia-500/50 transition-all duration-500 flex flex-col h-full overflow-hidden shadow-2xl backdrop-blur-sm hover:shadow-[0_0_30px_rgba(192,38,211,0.15)]"
+    // ✅ CSS FIX: 'isolate' creates a new stacking context to fix hover bugs
+    <div className="group relative isolate bg-[#0b0c0f]/80 border border-white/10 hover:border-fuchsia-500/50 transition-all duration-500 flex flex-col h-full overflow-hidden shadow-2xl backdrop-blur-sm hover:shadow-[0_0_30px_rgba(192,38,211,0.15)]"
          style={{ clipPath: 'polygon(0 0, 100% 0, 100% 92%, 94% 100%, 0 100%)' }}>
       
       <div className="absolute inset-0 opacity-[0.02] pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle, #ffffff 1px, transparent 1px)', backgroundSize: '16px 16px' }} />
@@ -64,7 +66,6 @@ export const TeamCard = ({ team }) => {
                <span className="text-[10px] text-zinc-500 font-mono tracking-widest">SEED #{team.seed_number || '-'}</span>
            </div>
         </div>
-        {/* Country Flag */}
         {flagUrl && (
           <img src={flagUrl} alt={team.region_iso2} title={team.region_iso2} className="w-6 h-4 rounded shadow opacity-60 group-hover:opacity-100 transition-opacity border border-white/10" />
         )}

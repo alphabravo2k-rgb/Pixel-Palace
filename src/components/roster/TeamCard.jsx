@@ -17,16 +17,28 @@ const GhostRow = () => (
   </div>
 );
 
+// 🛑 FIX: Centralized Role Normalization Logic
+const normalizeRole = (role) => {
+  if (!role) return 'PLAYER';
+  const r = role.toString().trim().toUpperCase();
+  if (r === 'CAPTAIN' || r === 'CAPT') return 'CAPTAIN';
+  if (r === 'SUB' || r === 'SUBSTITUTE') return 'SUBSTITUTE';
+  return 'PLAYER';
+};
+
 export const TeamCard = ({ team }) => {
-  // 🛡️ Data Guard: Ensure players is an array
+  // 🛡️ Data Guard
   const players = Array.isArray(team.players) ? team.players : [];
   
-  // 🛡️ Safe Sorting: Handles case sensitivity and missing roles
+  // 🛡️ Robust Sorting: Captain -> Player -> Sub
   const sortedPlayers = [...players].sort((a, b) => {
      const roleOrder = { 'CAPTAIN': 0, 'PLAYER': 1, 'SUBSTITUTE': 2 };
-     const rA = (a.role || 'PLAYER').toUpperCase();
-     const rB = (b.role || 'PLAYER').toUpperCase();
-     return (roleOrder[rA] || 1) - (roleOrder[rB] || 1);
+     
+     const roleA = normalizeRole(a.role);
+     const roleB = normalizeRole(b.role);
+     
+     // Subtracting ensures low numbers (0) come first
+     return (roleOrder[roleA] ?? 1) - (roleOrder[roleB] ?? 1);
   });
   
   const flagUrl = getFlagUrl(team.region_iso2);
@@ -38,7 +50,6 @@ export const TeamCard = ({ team }) => {
     <div className="group relative bg-[#0b0c0f]/80 border border-white/10 hover:border-fuchsia-500/50 transition-all duration-500 flex flex-col h-full overflow-hidden shadow-2xl backdrop-blur-sm hover:shadow-[0_0_30px_rgba(192,38,211,0.15)]"
          style={{ clipPath: 'polygon(0 0, 100% 0, 100% 92%, 94% 100%, 0 100%)' }}>
       
-      {/* Background Grid */}
       <div className="absolute inset-0 opacity-[0.02] pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle, #ffffff 1px, transparent 1px)', backgroundSize: '16px 16px' }} />
 
       <div className="p-4 bg-gradient-to-r from-[#15191f] to-[#0b0c0f] border-b border-white/10 flex items-center justify-between relative z-10">
@@ -53,6 +64,7 @@ export const TeamCard = ({ team }) => {
                <span className="text-[10px] text-zinc-500 font-mono tracking-widest">SEED #{team.seed_number || '-'}</span>
            </div>
         </div>
+        {/* Country Flag */}
         {flagUrl && (
           <img src={flagUrl} alt={team.region_iso2} title={team.region_iso2} className="w-6 h-4 rounded shadow opacity-60 group-hover:opacity-100 transition-opacity border border-white/10" />
         )}

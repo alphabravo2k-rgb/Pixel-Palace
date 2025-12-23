@@ -4,19 +4,15 @@ import { useSession } from '../auth/useSession';
 
 const TournamentContext = createContext();
 
-// --- SMART HELPERS ---
 const normalizeUrl = (input, type) => {
   if (!input || input === 'null' || input === 'undefined') return null;
   const str = input.toString().trim();
   if (str.length === 0) return null;
   
-  // If it's already a link, return it
   if (str.startsWith('http')) return str;
   
-  // Otherwise, construct it
   if (type === 'faceit') return `https://www.faceit.com/en/players/${str}`;
   if (type === 'steam') {
-    // Handle Steam64 ID vs Custom URL
     return str.match(/^\d+$/) ? `https://steamcommunity.com/profiles/${str}` : `https://steamcommunity.com/id/${str}`;
   }
   return null;
@@ -25,7 +21,7 @@ const normalizeUrl = (input, type) => {
 const extractNickname = (url, name) => {
   if (!url) return name;
   try {
-    if (!url.includes('/')) return url; // It's already a nickname
+    if (!url.includes('/')) return url; 
     const segments = new URL(url).pathname.split('/').filter(Boolean);
     const idx = segments.indexOf('players');
     return (idx !== -1 && segments[idx + 1]) ? segments[idx + 1] : name;
@@ -44,7 +40,6 @@ export const TournamentProvider = ({ children }) => {
 
   const fetchData = useCallback(async () => {
     try {
-      // 1. FETCH RAW TEAMS & PLAYERS
       const [teamsRes, playersRes] = await Promise.all([
         supabase.from('teams').select('*').order('seed_number', { ascending: true }),
         supabase.from('players').select('*')
@@ -52,9 +47,12 @@ export const TournamentProvider = ({ children }) => {
 
       if (teamsRes.error) throw teamsRes.error;
 
-      // 2. PROCESS ROSTER
-      const uiTeams = (teamsRes.data || []).map((t) => {
-        const teamPlayers = playersRes.data ? playersRes.data.filter((p) => p.team_id === t.id) : [];
+      // Ensure arrays to prevent map errors
+      const rawTeams = Array.isArray(teamsRes.data) ? teamsRes.data : [];
+      const rawPlayers = Array.isArray(playersRes.data) ? playersRes.data : [];
+
+      const uiTeams = rawTeams.map((t) => {
+        const teamPlayers = rawPlayers.filter((p) => p.team_id === t.id);
         
         return {
           ...t,
@@ -68,10 +66,9 @@ export const TournamentProvider = ({ children }) => {
               id: p.id,
               name: p.display_name,
               nickname: extractNickname(p.faceit_url, p.display_name),
-              role: role, // Used for sorting
+              role: role, 
               avatar: p.faceit_avatar_url,
               elo: p.faceit_elo,
-              // ✅ FIXED: Correctly mapping database columns to social types
               socials: {
                 faceit: normalizeUrl(p.faceit_url || p.faceit_username, 'faceit'),
                 steam: normalizeUrl(p.steam_url || p.steam_id, 'steam'),
@@ -82,7 +79,6 @@ export const TournamentProvider = ({ children }) => {
         };
       });
 
-      // 3. PROCESS MATCHES
       let matchesData = [];
       
       if (isAuthed && pin) {
@@ -93,12 +89,13 @@ export const TournamentProvider = ({ children }) => {
         if (!error) matchesData = data || [];
       }
 
-      const uiMatches = matchesData.map(m => {
+      const safeMatchesData = Array.isArray(matchesData) ? matchesData : [];
+
+      const uiMatches = safeMatchesData.map(m => {
         let status = 'scheduled';
         if (m.state === 'complete') status = 'completed';
         else if (m.state === 'open') {
-          // ✅ FIXED: If teams are defined, it's ready/live
-          status = (m.team1_id && m.team2_id) ? 'live' : 'ready'; 
+          status = (m.server_ip && m.server_ip !== 'HIDDEN') ? 'live' : 'ready'; 
           if (m.metadata?.veto?.bannedMaps?.length > 0) status = 'veto';
         }
 
@@ -121,6 +118,8 @@ export const TournamentProvider = ({ children }) => {
     } catch (err) {
       console.error("Sync Error:", err);
       setError(err.message || "Data Sync Failed");
+      setTeams([]);
+      setMatches([]);
     } finally {
       setLoading(false);
     }

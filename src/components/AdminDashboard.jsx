@@ -1,14 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAdminConsole } from '../hooks/useAdminConsole';
-import { LogOut, ShieldCheck, Key, UserPlus, MonitorPlay, Users, Search } from 'lucide-react';
+import { HudPanel, SkewButton, BreathingLogo } from '../ui/Components'; // Use the UI Kit!
+import { LogOut, ShieldCheck, Key, UserPlus, MonitorPlay, Users, Search, Edit2, RotateCcw, Save } from 'lucide-react';
+import { supabase } from '../supabase/client';
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
   const [pin, setPin] = useState('');
-  const [activeTab, setActiveTab] = useState('overview'); // Tabs: overview, users
+  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'users'
   
+  // Data Logic
   const { adminProfile, tempPin, error, loading, login, createAdmin, changeMyPin } = useAdminConsole();
+  
+  // User Management State
+  const [userSearch, setUserSearch] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [editingUser, setEditingUser] = useState(null);
   
   // Forms State
   const [newAdmin, setNewAdmin] = useState({ name: '', discordHandle: '', discordUser: '', faceitUser: '', faceitUrl: '' });
@@ -42,34 +50,45 @@ const AdminDashboard = () => {
     if (success) setSuccessMsg("Credentials Updated. Re-authentication required.");
   };
 
-  // 1. LOGIN SCREEN
+  // --- NEW: USER SEARCH LOGIC ---
+  const searchUsers = async (query) => {
+    if(!query || query.length < 2) return;
+    try {
+        // This RPC will need to be created in Supabase (SQL Provided below)
+        const { data, error } = await supabase.rpc('admin_search_users', { search_term: query, admin_pin: pin });
+        if(!error) setSearchResults(data || []);
+    } catch (e) {
+        console.error("Search failed", e);
+    }
+  };
+
+  // --- LOGIN SCREEN ---
   if (!adminProfile) {
     return (
-      <div className="min-h-screen bg-[#050505] flex items-center justify-center p-4 font-sans">
-         <div className="bg-[#0a0a0c] p-10 rounded-xl border border-zinc-800 shadow-2xl w-full max-w-md relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-fuchsia-600 to-purple-600" />
+      <div className="min-h-screen bg-[#050505] flex items-center justify-center p-4 font-sans backdrop-blur-md">
+         <HudPanel className="w-full max-w-md">
             <h2 className="mb-8 text-2xl font-black text-white tracking-widest text-center uppercase font-['Teko']">Admin Access</h2>
             <form onSubmit={handleLogin} className="space-y-6">
-                <input type="password" value={pin} onChange={e=>setPin(e.target.value)} className="w-full bg-black/50 border border-zinc-700 text-white p-4 text-center text-2xl tracking-[0.5em] rounded focus:border-fuchsia-500 outline-none transition-all placeholder-zinc-800 font-mono" placeholder="••••" autoFocus />
-                <button disabled={loading} className="w-full bg-fuchsia-700 hover:bg-fuchsia-600 text-white font-bold p-4 rounded uppercase tracking-widest text-sm shadow-lg shadow-fuchsia-900/20 transition-all">{loading ? 'Verifying...' : 'Authorize'}</button>
+                <input type="password" value={pin} onChange={e=>setPin(e.target.value)} className="w-full bg-black/50 border border-zinc-700 text-white p-4 text-center text-2xl tracking-[0.5em] focus:border-fuchsia-500 outline-none font-mono placeholder-zinc-800" placeholder="••••" autoFocus />
+                <SkewButton type="submit" disabled={loading} className="w-full">
+                    {loading ? 'VERIFYING...' : 'AUTHORIZE'}
+                </SkewButton>
             </form>
             {error && <div className="mt-6 text-center"><span className="text-red-500 text-xs font-bold uppercase bg-red-900/10 px-3 py-1 rounded border border-red-900/50">{error}</span></div>}
-         </div>
+         </HudPanel>
       </div>
     );
   }
 
-  // 2. DASHBOARD
+  // --- MAIN DASHBOARD ---
   return (
-    <div className="min-h-screen bg-[#060709] p-4 md:p-12 font-sans bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-fixed">
-      <div className="w-full max-w-6xl mx-auto bg-[#0b0c0f]/95 border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden backdrop-blur-md">
+    <div className="min-h-screen bg-[#050505] p-4 md:p-8 font-sans bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-fixed">
+      <div className="w-full max-w-7xl mx-auto space-y-8">
         
         {/* HEADER */}
-        <header className="bg-black/40 border-b border-zinc-800 p-6 flex flex-col md:flex-row justify-between items-center gap-6">
+        <div className="flex flex-col md:flex-row justify-between items-center gap-6 p-6 bg-black/40 border border-zinc-800 backdrop-blur-md" style={{ clipPath: 'polygon(0 0, 100% 0, 100% 85%, 98% 100%, 0 100%)' }}>
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-fuchsia-900/20 rounded-lg border border-fuchsia-500/20">
-              <ShieldCheck className="w-8 h-8 text-fuchsia-500" />
-            </div>
+            <BreathingLogo size="w-12 h-12" />
             <div>
               <h1 className="text-3xl font-black text-white italic tracking-tighter uppercase font-['Teko']">Command <span className="text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-500 to-purple-500">Console</span></h1>
               <div className="flex items-center gap-2 text-xs text-zinc-500 font-mono uppercase tracking-widest">
@@ -80,118 +99,105 @@ const AdminDashboard = () => {
             </div>
           </div>
           
-          <div className="flex gap-3">
-              {/* TABS */}
-              <button onClick={() => setActiveTab('overview')} className={`px-4 py-2 text-xs font-bold uppercase rounded ${activeTab === 'overview' ? 'bg-zinc-800 text-white' : 'text-zinc-500 hover:text-white'}`}>Overview</button>
-              <button onClick={() => setActiveTab('users')} className={`px-4 py-2 text-xs font-bold uppercase rounded ${activeTab === 'users' ? 'bg-zinc-800 text-white' : 'text-zinc-500 hover:text-white'}`}>User Database</button>
-              
+          <div className="flex gap-2">
+              <button onClick={() => setActiveTab('overview')} className={`px-6 py-2 text-xs font-bold uppercase tracking-widest transition-all ${activeTab === 'overview' ? 'bg-fuchsia-900/20 text-fuchsia-400 border border-fuchsia-500/50' : 'text-zinc-500 hover:text-white'}`}>Overview</button>
+              <button onClick={() => setActiveTab('users')} className={`px-6 py-2 text-xs font-bold uppercase tracking-widest transition-all ${activeTab === 'users' ? 'bg-fuchsia-900/20 text-fuchsia-400 border border-fuchsia-500/50' : 'text-zinc-500 hover:text-white'}`}>User Database</button>
               <div className="w-[1px] h-8 bg-zinc-800 mx-2"></div>
-
-              <button onClick={goToBracket} className="flex items-center gap-2 bg-emerald-900/10 hover:bg-emerald-900/30 border border-emerald-500/30 text-emerald-400 px-6 py-2 rounded text-xs font-bold uppercase tracking-widest transition-all group">
-                <MonitorPlay className="w-4 h-4 group-hover:scale-110 transition-transform" /> War Room
-              </button>
-              <button onClick={handleLogout} className="flex items-center gap-2 bg-zinc-800 hover:bg-red-900/20 hover:text-red-400 border border-transparent hover:border-red-900/50 text-zinc-400 px-6 py-2 rounded text-xs font-bold uppercase tracking-widest transition-all">
-                <LogOut className="w-4 h-4" /> Logout
-              </button>
+              <button onClick={goToBracket} className="flex items-center gap-2 text-zinc-400 hover:text-white text-xs font-bold uppercase tracking-widest"><MonitorPlay className="w-4 h-4" /> War Room</button>
+              <button onClick={handleLogout} className="flex items-center gap-2 text-red-900 hover:text-red-500 text-xs font-bold uppercase tracking-widest"><LogOut className="w-4 h-4" /></button>
           </div>
-        </header>
+        </div>
 
+        {/* OVERVIEW TAB */}
         {activeTab === 'overview' && (
-          <div className="p-8 md:p-12 grid grid-cols-1 lg:grid-cols-2 gap-12 animate-in fade-in">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in fade-in">
             {/* CREATE ADMIN */}
             {adminProfile.can_create_admin && (
-              <div className="space-y-6">
+              <HudPanel>
                 <div className="flex items-center gap-2 mb-6 border-b border-white/5 pb-4">
                   <UserPlus className="w-5 h-5 text-yellow-500" />
                   <h2 className="text-lg font-bold text-white uppercase tracking-widest font-['Teko']">New Officer Protocol</h2>
                 </div>
-                
                 {tempPin && (
-                  <div className="bg-emerald-900/10 border border-emerald-500/50 p-6 rounded-xl text-center mb-6 animate-in fade-in">
-                    <p className="text-emerald-500 text-[10px] uppercase tracking-widest mb-2 font-bold">Access Granted</p>
-                    <p className="text-4xl font-black text-white tracking-widest select-all font-mono">{tempPin}</p>
-                    <p className="text-[10px] text-zinc-500 mt-2 uppercase tracking-wide">Copy Immediately - One Time View</p>
+                  <div className="bg-emerald-900/10 border border-emerald-500/50 p-4 mb-6 text-center">
+                    <p className="text-emerald-500 text-[10px] uppercase font-bold">Generated PIN</p>
+                    <p className="text-3xl font-black text-white tracking-widest font-mono">{tempPin}</p>
                   </div>
                 )}
-
                 <form onSubmit={handleCreate} className="space-y-4">
-                   <div className="group">
-                      <label className="text-[10px] text-zinc-500 uppercase tracking-widest mb-1 block group-focus-within:text-yellow-500 transition-colors">Callsign</label>
-                      <input className="w-full bg-black/40 border border-zinc-700 p-3 rounded text-white focus:border-yellow-500 outline-none transition-all placeholder-zinc-800" placeholder="e.g. BRAVO" value={newAdmin.name} onChange={e => setNewAdmin({...newAdmin, name: e.target.value})} />
-                   </div>
+                   <input className="w-full bg-black/40 border border-zinc-700 p-3 text-white text-xs focus:border-yellow-500 outline-none" placeholder="CALLSIGN (e.g. BRAVO)" value={newAdmin.name} onChange={e => setNewAdmin({...newAdmin, name: e.target.value})} />
                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                          <label className="text-[10px] text-zinc-500 uppercase tracking-widest mb-1 block">Discord ID</label>
-                          <input className="w-full bg-black/40 border border-zinc-700 p-3 rounded text-white focus:border-yellow-500 outline-none text-xs" placeholder="bravo.gg" value={newAdmin.discordHandle} onChange={e => setNewAdmin({...newAdmin, discordHandle: e.target.value})} />
-                      </div>
-                      <div>
-                          <label className="text-[10px] text-zinc-500 uppercase tracking-widest mb-1 block">Faceit User</label>
-                          <input className="w-full bg-black/40 border border-zinc-700 p-3 rounded text-white focus:border-yellow-500 outline-none text-xs" placeholder="bravo1337" value={newAdmin.faceitUser} onChange={e => setNewAdmin({...newAdmin, faceitUser: e.target.value})} />
-                      </div>
+                      <input className="bg-black/40 border border-zinc-700 p-3 text-white text-xs focus:border-yellow-500 outline-none" placeholder="DISCORD ID" value={newAdmin.discordHandle} onChange={e => setNewAdmin({...newAdmin, discordHandle: e.target.value})} />
+                      <input className="bg-black/40 border border-zinc-700 p-3 text-white text-xs focus:border-yellow-500 outline-none" placeholder="FACEIT USER" value={newAdmin.faceitUser} onChange={e => setNewAdmin({...newAdmin, faceitUser: e.target.value})} />
                    </div>
-                   <button disabled={loading} className="w-full mt-4 bg-yellow-600 hover:bg-yellow-500 text-black font-black p-4 rounded uppercase tracking-widest text-xs shadow-lg transition-all">Generate Keys</button>
+                   <SkewButton type="submit" disabled={loading} className="w-full mt-4">GENERATE KEYS</SkewButton>
                 </form>
-              </div>
+              </HudPanel>
             )}
 
             {/* SECURITY PANEL */}
-            <div className="space-y-6">
+            <HudPanel>
                <div className="flex items-center gap-2 mb-6 border-b border-white/5 pb-4">
                   <Key className="w-5 h-5 text-fuchsia-500" />
                   <h2 className="text-lg font-bold text-white uppercase tracking-widest font-['Teko']">Security Clearance</h2>
                </div>
-
-               {successMsg && <div className="bg-emerald-900/20 border border-emerald-500/50 text-emerald-400 p-4 rounded text-xs font-bold text-center uppercase tracking-wide">{successMsg}</div>}
-               
+               {successMsg && <div className="bg-emerald-900/20 text-emerald-400 p-2 text-xs font-bold text-center mb-4">{successMsg}</div>}
                <form onSubmit={handleChangePin} className="space-y-4">
-                  <div>
-                     <label className="text-[10px] uppercase text-zinc-500 tracking-widest mb-1 block">Current PIN</label>
-                     <input type="password" className="w-full bg-black/40 border border-zinc-700 p-3 rounded text-white tracking-[0.5em] focus:border-fuchsia-500 outline-none font-mono" onChange={e => setChangePinData({...changePinData, oldPin: e.target.value})} />
-                  </div>
-                  <div>
-                     <label className="text-[10px] uppercase text-zinc-500 tracking-widest mb-1 block">New PIN</label>
-                     <input type="password" className="w-full bg-black/40 border border-zinc-700 p-3 rounded text-white tracking-[0.5em] focus:border-fuchsia-500 outline-none font-mono" onChange={e => setChangePinData({...changePinData, newPin: e.target.value})} />
-                  </div>
-                  
-                  {adminProfile.role === 'OWNER' && (
-                     <div className="pt-4 border-t border-white/10 animate-in fade-in">
-                        <label className="text-[10px] text-red-500 uppercase tracking-widest mb-2 flex items-center gap-2 font-bold">
-                          <ShieldCheck className="w-3 h-3" /> Master Override Token
-                        </label>
-                        <input 
-                          type="password" 
-                          placeholder="••••••••" 
-                          className="w-full bg-red-950/10 border border-red-900/50 p-3 rounded text-red-200 text-center tracking-widest placeholder-red-900/30 focus:border-red-500 outline-none transition-all font-mono" 
-                          onChange={e => setChangePinData({...changePinData, securityToken: e.target.value})} 
-                        />
-                     </div>
-                  )}
-                  
-                  <button disabled={loading} className="w-full bg-fuchsia-700 hover:bg-fuchsia-600 text-white font-bold p-4 rounded uppercase tracking-widest text-xs mt-4 shadow-lg">Update Credentials</button>
+                  <input type="password" placeholder="CURRENT PIN" className="w-full bg-black/40 border border-zinc-700 p-3 text-white tracking-[0.3em] font-mono text-center focus:border-fuchsia-500 outline-none" onChange={e => setChangePinData({...changePinData, oldPin: e.target.value})} />
+                  <input type="password" placeholder="NEW PIN" className="w-full bg-black/40 border border-zinc-700 p-3 text-white tracking-[0.3em] font-mono text-center focus:border-fuchsia-500 outline-none" onChange={e => setChangePinData({...changePinData, newPin: e.target.value})} />
+                  <SkewButton type="submit" disabled={loading} className="w-full mt-4">UPDATE CREDENTIALS</SkewButton>
                </form>
-               {error && <p className="text-red-500 mt-4 text-xs text-center font-bold uppercase tracking-wide bg-red-900/10 p-2 rounded border border-red-900/30">{error}</p>}
-            </div>
+            </HudPanel>
           </div>
         )}
 
+        {/* USER DATABASE TAB */}
         {activeTab === 'users' && (
-          <div className="p-8 md:p-12 animate-in fade-in">
-             <div className="flex items-center justify-between mb-6">
-                <h2 className="text-lg font-bold text-white uppercase tracking-widest font-['Teko'] flex items-center gap-2"><Users className="w-5 h-5 text-blue-500" /> User Database</h2>
+          <HudPanel className="animate-in fade-in">
+             <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-bold text-white uppercase font-['Teko'] flex items-center gap-2"><Users className="w-5 h-5 text-cyan-400" /> Global User Index</h2>
                 <div className="relative">
                    <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
-                   <input type="text" placeholder="SEARCH ID / DISCORD" className="bg-black/40 border border-zinc-700 pl-10 pr-4 py-2 rounded text-xs text-white focus:border-blue-500 outline-none w-64" />
+                   <input 
+                     type="text" 
+                     placeholder="SEARCH ID / NAME" 
+                     className="bg-black/40 border border-zinc-700 pl-10 pr-4 py-2 rounded text-xs text-white focus:border-cyan-500 outline-none w-64 font-mono"
+                     value={userSearch}
+                     onChange={(e) => { setUserSearch(e.target.value); searchUsers(e.target.value); }}
+                   />
                 </div>
              </div>
-             
-             <div className="border border-zinc-800 rounded-lg bg-black/20 p-12 text-center">
-                <p className="text-zinc-500 text-sm uppercase tracking-widest mb-4">Database Connection Required</p>
-                <p className="text-xs text-zinc-600 max-w-md mx-auto">
-                   To enable live user editing (PIN resets, Discord ID fixes), we need to implement the <code>admin_search_users</code> and <code>admin_update_user</code> RPC functions on the backend.
-                </p>
-                <button className="mt-6 px-6 py-2 bg-blue-900/20 border border-blue-500/50 text-blue-400 text-xs font-bold uppercase tracking-widest rounded hover:bg-blue-900/40">Request Feature Activation</button>
+
+             {/* RESULT TABLE */}
+             <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                   <thead>
+                      <tr className="text-[10px] uppercase text-zinc-500 border-b border-zinc-800 tracking-widest">
+                         <th className="p-3">Role</th>
+                         <th className="p-3">Identity</th>
+                         <th className="p-3">Discord</th>
+                         <th className="p-3">Actions</th>
+                      </tr>
+                   </thead>
+                   <tbody className="text-sm text-zinc-300">
+                      {searchResults.length === 0 && (
+                         <tr><td colSpan="4" className="p-8 text-center text-zinc-600 uppercase text-xs tracking-widest">Awaiting Query...</td></tr>
+                      )}
+                      {searchResults.map((u) => (
+                         <tr key={u.id} className="border-b border-zinc-800/50 hover:bg-white/5">
+                            <td className="p-3"><span className={`text-[9px] px-2 py-0.5 rounded font-bold ${u.role === 'ADMIN' ? 'bg-purple-900 text-purple-300' : 'bg-zinc-800'}`}>{u.role}</span></td>
+                            <td className="p-3 font-bold text-white">{u.display_name || u.team_name}</td>
+                            <td className="p-3 font-mono text-xs text-zinc-500">{u.discord_handle || '-'}</td>
+                            <td className="p-3 flex gap-2">
+                               <button className="p-1 hover:text-cyan-400" title="Edit"><Edit2 className="w-4 h-4" /></button>
+                               <button className="p-1 hover:text-yellow-400" title="Reset PIN"><RotateCcw className="w-4 h-4" /></button>
+                            </td>
+                         </tr>
+                      ))}
+                   </tbody>
+                </table>
              </div>
-          </div>
+          </HudPanel>
         )}
 
       </div>

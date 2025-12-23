@@ -12,12 +12,17 @@ export const useAdminConsole = () => {
     setError(null);
     try {
       const { data, error } = await supabase.rpc('api_admin_login', { p_pin: pin });
+      
       if (error) throw error;
-      if (data.status === 'ERROR') throw new Error(data.message);
+      
+      // 🛡️ CRASH GUARD: Handle case where data is null or malformed
+      if (!data) throw new Error("No response from authentication server");
+      if (data.status === 'ERROR') throw new Error(data.message || "Login failed");
       
       setAdminProfile(data.profile);
       return true;
     } catch (err) {
+      console.error("Admin Login Error:", err);
       setError(err.message);
       return false;
     } finally {
@@ -66,7 +71,7 @@ export const useAdminConsole = () => {
     } catch (err) {
       // Clean up the error message for the UI
       let msg = err.message.replace('P0001: ', ''); 
-      if (msg === 'VERIFICATION_FAILED') msg = "Identity Verification Failed"; // Generic, vague message
+      if (msg === 'VERIFICATION_FAILED') msg = "Identity Verification Failed"; 
       setError(msg);
       return false;
     } finally {

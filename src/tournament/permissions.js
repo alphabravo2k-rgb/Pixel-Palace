@@ -1,7 +1,9 @@
 import { ROLES } from '../lib/roles';
-import { PERM_ACTIONS } from '../lib/constants'; // Now this will work!
+import { PERM_ACTIONS } from '../lib/constants'; 
+import { MATCH_STATUS } from '../lib/constants'; // Ensure this exists or define it below if needed
 
-export const MATCH_STATUS = {
+// Defines valid match states if not imported
+const LOCAL_MATCH_STATUS = {
   SCHEDULED: 'scheduled',
   READY: 'ready',
   VETO: 'veto',
@@ -37,8 +39,8 @@ const ROLE_PERMISSIONS = {
 
 // --- STATE GUARDS ---
 const STATE_GUARDS = {
-  [PERM_ACTIONS.VETO_ACT]: [MATCH_STATUS.LIVE, MATCH_STATUS.VETO],
-  [PERM_ACTIONS.VIEW_SERVER_IP]: [MATCH_STATUS.LIVE]
+  [PERM_ACTIONS.VETO_ACT]: [LOCAL_MATCH_STATUS.LIVE, LOCAL_MATCH_STATUS.VETO],
+  [PERM_ACTIONS.VIEW_SERVER_IP]: [LOCAL_MATCH_STATUS.LIVE]
 };
 
 /**
@@ -58,6 +60,7 @@ export const can = (action, session, context = {}) => {
     // 2. State Check
     if (context.match) {
       const allowedStates = STATE_GUARDS[action];
+      // Use the match status from context
       if (allowedStates && !allowedStates.includes(context.match.status)) {
         return false;
       }

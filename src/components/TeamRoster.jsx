@@ -34,7 +34,6 @@ const PlayerRow = ({ player }) => {
   const isCap = player.role === 'CAPTAIN';
   const tag = isCap ? 'CPT' : isSub ? 'SUB' : 'PLY';
   
-  // Theme: Fuchsia/Purple for Subs/Players, Blue for Captains
   const tagColor = isCap 
     ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' 
     : isSub 
@@ -44,7 +43,6 @@ const PlayerRow = ({ player }) => {
   return (
     <div className={`relative group w-full h-12 border-b border-white/5 last:border-0 flex items-center overflow-hidden will-change-transform ${isSub ? 'bg-fuchsia-900/10' : 'bg-[#0a0a0c]'}`}>
       
-      {/* Pattern for Subs */}
       {isSub && (
         <div className="absolute inset-0 opacity-[0.03] pointer-events-none" 
              style={{ backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 10px, #ffffff 10px, #ffffff 20px)' }} 
@@ -72,7 +70,7 @@ const PlayerRow = ({ player }) => {
         </span>
       </div>
 
-      {/* HOVER VIEW (Socials & Full ID) */}
+      {/* HOVER VIEW */}
       <div className="absolute inset-0 z-20 flex items-center justify-between px-4 bg-[#0a0a0c] transform translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out">
         <div className="flex items-center gap-2 relative z-50">
            <SocialButton href={player.socials?.faceit} type="faceit" />
@@ -84,7 +82,6 @@ const PlayerRow = ({ player }) => {
         </span>
       </div>
 
-      {/* Hover Neon Accent */}
       <div className={`absolute left-0 top-0 h-full w-[2px] opacity-0 group-hover:opacity-100 transition-opacity ${isCap ? 'bg-blue-500 shadow-[0_0_10px_#3b82f6]' : 'bg-fuchsia-500 shadow-[0_0_10px_#d946ef]'}`} />
     </div>
   );
@@ -100,14 +97,12 @@ const GhostRow = () => (
 );
 
 const TeamCard = ({ team }) => {
-  // 🛡️ Safe Access to Players
   const players = team.players || [];
   const sortedPlayers = [...players].sort((a, b) => {
      const roleOrder = { 'CAPTAIN': 0, 'PLAYER': 1, 'SUBSTITUTE': 2 };
      return (roleOrder[a.role] || 1) - (roleOrder[b.role] || 1);
   });
   
-  // Ghost rows to fill empty spots
   const slotsNeeded = 6; 
   const currentSlots = sortedPlayers.length;
   const emptySlots = Math.max(0, slotsNeeded - currentSlots);
@@ -116,7 +111,6 @@ const TeamCard = ({ team }) => {
     <div className="group relative bg-[#0b0c0f]/80 border border-white/10 hover:border-fuchsia-500/50 transition-all duration-500 flex flex-col h-full overflow-hidden shadow-2xl backdrop-blur-sm hover:shadow-[0_0_30px_rgba(192,38,211,0.15)]"
          style={{ clipPath: 'polygon(0 0, 100% 0, 100% 92%, 94% 100%, 0 100%)' }}>
       
-      {/* Header */}
       <div className="p-4 bg-gradient-to-r from-[#15191f] to-[#0b0c0f] border-b border-white/10 flex items-center justify-between relative z-10">
         <div className="flex items-center gap-3">
            <div className="w-10 h-10 rounded bg-zinc-900 flex items-center justify-center overflow-hidden border border-white/10 shadow-inner group-hover:border-fuchsia-500/30 transition-colors">
@@ -150,15 +144,12 @@ const TeamCard = ({ team }) => {
 };
 
 const TeamRoster = () => {
-  // 🛡️ Data Source: useTournament
   const { teams, loading, error } = useTournament(); 
   const [searchTerm, setSearchTerm] = useState('');
   
-  // 🛡️ Safe Filter: Handle undefined teams
   const safeTeams = teams || [];
   const filteredTeams = safeTeams.filter(t => t.name?.toLowerCase().includes(searchTerm.toLowerCase()));
 
-  // Add Font Link dynamically if missing
   React.useEffect(() => {
     if (!document.getElementById('google-fonts-rajdhani')) {
         const link = document.createElement('link');

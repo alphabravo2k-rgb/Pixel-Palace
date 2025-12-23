@@ -1,7 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import TeamRoster from '../components/TeamRoster';
 import Bracket from '../components/Bracket';
-import AdminToolbar from '../components/AdminToolbar';
 import MatchModal from '../components/MatchModal';
 import { LayoutGrid, Network, Zap } from 'lucide-react';
 import { useSession } from '../auth/useSession';
@@ -27,12 +26,13 @@ const BracketView = ({ initialTab = VIEWS.BRACKET }) => {
   const [currentView, setCurrentView] = useState(initialTab); 
   const [selectedMatch, setSelectedMatch] = useState(null);
 
+  // Sync prop changes to state
   useEffect(() => {
     setCurrentView(initialTab);
   }, [initialTab]);
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#060709] font-['Rajdhani']">
+    <div className="flex flex-col min-h-screen bg-[#060709] font-sans">
       {/* Background Ambience */}
       <div className="fixed inset-0 pointer-events-none">
          <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-fuchsia-900/10 blur-[120px] rounded-full mix-blend-screen" />
@@ -40,6 +40,7 @@ const BracketView = ({ initialTab = VIEWS.BRACKET }) => {
          <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-[0.03]" />
       </div>
 
+      {/* Navigation Header */}
       <nav className="border-b border-zinc-800 bg-[#0b0c0f]/80 backdrop-blur-md sticky top-0 z-40">
         <div className="container mx-auto px-4 md:px-8">
           <div className="flex flex-col md:flex-row justify-between items-end h-auto md:h-20 pb-0 pt-4 md:pt-0">
@@ -48,7 +49,7 @@ const BracketView = ({ initialTab = VIEWS.BRACKET }) => {
                 <Zap className="w-6 h-6 text-white fill-white" />
               </div>
               <div className="flex flex-col">
-                <h1 className="text-3xl font-black text-white italic tracking-tighter uppercase leading-none font-['Teko']">
+                <h1 className="text-3xl font-black text-white italic tracking-tighter uppercase leading-none">
                   PIXEL <span className="text-transparent bg-clip-text bg-gradient-to-r from-zinc-400 to-zinc-600">PALACE</span>
                 </h1>
                 <span className="text-[10px] font-mono text-fuchsia-500 uppercase tracking-[0.4em] font-bold">
@@ -74,7 +75,7 @@ const BracketView = ({ initialTab = VIEWS.BRACKET }) => {
 
       <footer className="border-t border-zinc-900 bg-[#060709] py-8 mt-auto text-center relative z-10">
          <p className="text-[9px] text-zinc-700 font-mono uppercase tracking-[0.3em]">
-            System v2.5.1 // Secured by Bravo.gg
+           System v2.5.1 // Secured by Bravo.gg
          </p>
       </footer>
 

@@ -3,6 +3,7 @@ import { Pin, Crown } from 'lucide-react';
 import { SocialButton } from './SocialIcons';
 
 export const PlayerRow = ({ player }) => {
+  // 🛡️ Safe Role Normalization: Defaults to PLAYER if null/undefined
   const role = (player.role || 'PLAYER').toUpperCase();
   const isCap = role === 'CAPTAIN';
   const isSub = role === 'SUBSTITUTE';
@@ -21,6 +22,7 @@ export const PlayerRow = ({ player }) => {
   return (
     <div className={`relative group w-full h-12 border-b border-white/5 last:border-0 flex items-center overflow-hidden will-change-transform ${isSub ? 'bg-blue-900/10' : 'bg-[#0a0a0c]'}`}>
       
+      {/* Sub Pattern */}
       {isSub && (
         <div className="absolute inset-0 opacity-[0.03] pointer-events-none" 
              style={{ backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 10px, #ffffff 10px, #ffffff 20px)' }} 
@@ -48,6 +50,7 @@ export const PlayerRow = ({ player }) => {
           </div>
         </div>
         
+        {/* TAG */}
         <span className={`text-[9px] px-2 py-0.5 rounded-sm font-mono font-bold tracking-wider ${tagColor}`}>
             {tag}
         </span>
@@ -56,6 +59,7 @@ export const PlayerRow = ({ player }) => {
       {/* HOVER VIEW */}
       <div className="absolute inset-0 z-20 flex items-center justify-between px-4 bg-[#0a0a0c] transform translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out">
         <div className="flex items-center gap-2 relative z-50">
+           {/* Passing String Literals to match Keys */}
            <SocialButton href={player.socials?.faceit} type="FACEIT" />
            <SocialButton href={player.socials?.steam} type="STEAM" />
            <SocialButton href={player.socials?.discord} type="DISCORD" />
@@ -66,6 +70,7 @@ export const PlayerRow = ({ player }) => {
         <span className={`text-[9px] px-2 py-0.5 rounded-sm font-mono font-bold tracking-wider ${tagColor}`}>{tag}</span>
       </div>
 
+      {/* Accents */}
       <div className={`absolute left-0 top-0 h-full w-[2px] opacity-0 group-hover:opacity-100 transition-opacity ${isCap ? 'bg-yellow-500 shadow-[0_0_10px_#eab308]' : 'bg-fuchsia-500 shadow-[0_0_10px_#d946ef]'}`} />
     </div>
   );

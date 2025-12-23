@@ -3,7 +3,7 @@ import VetoPanel from './VetoPanel';
 import AdminMatchControls from './AdminMatchControls'; 
 import AdminAuditLog from './AdminAuditLog';           
 import { useSession } from '../auth/useSession';
-import { Server, Tv, ShieldAlert, Copy, Check, X, Activity, Download } from 'lucide-react'; // Added Download
+import { Server, Tv, ShieldAlert, Copy, Check, X, Activity, Download, Shield } from 'lucide-react';
 
 const MatchModal = ({ match, onClose }) => {
   const { session, permissions } = useSession();
@@ -31,7 +31,7 @@ const MatchModal = ({ match, onClose }) => {
           <div className="flex items-center gap-4">
             <Activity className={`w-5 h-5 ${isLive ? 'text-emerald-500 animate-pulse' : 'text-zinc-500'}`} />
             <div>
-              <h2 className="text-xl font-black text-white italic tracking-tighter uppercase font-['Teko']">
+              <h2 className="text-xl font-black text-white italic tracking-tighter uppercase brand-font">
                 OPS_CORE // MATCH_{(match.id || 'ERR').toString().slice(0, 4)}
               </h2>
               <div className="flex gap-2 mt-1">
@@ -52,16 +52,17 @@ const MatchModal = ({ match, onClose }) => {
           {/* SCOREBOARD */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center bg-black/40 p-8 border border-zinc-800/50 rounded-lg relative overflow-hidden">
              <div className="absolute inset-0 bg-gradient-to-r from-fuchsia-900/10 via-transparent to-cyan-900/10 pointer-events-none" />
-             <h3 className="text-3xl font-black text-white uppercase text-center md:text-right font-['Teko'] tracking-tight relative z-10">{match.team1_name || match.team1Name || 'TBD'}</h3>
+             <h3 className="text-3xl font-black text-white uppercase text-center md:text-right brand-font tracking-tight relative z-10">{match.team1_name || match.team1Name || 'TBD'}</h3>
              <div className="text-6xl font-mono font-black italic text-white text-center tracking-widest relative z-10 drop-shadow-2xl">{match.score || 'VS'}</div>
-             <h3 className="text-3xl font-black text-white uppercase text-center md:text-left font-['Teko'] tracking-tight relative z-10">{match.team2_name || match.team2Name || 'TBD'}</h3>
+             <h3 className="text-3xl font-black text-white uppercase text-center md:text-left brand-font tracking-tight relative z-10">{match.team2_name || match.team2Name || 'TBD'}</h3>
           </div>
 
-          {/* VETO PANEL (Read-Only / Display) */}
+          {/* VETO PANEL */}
           <VetoPanel match={match} />
 
-          {/* SERVER DETAILS */}
+          {/* SERVER & ANTI-CHEAT SECTION */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+             {/* IP BLOCK */}
              {match.server_ip && match.server_ip !== 'HIDDEN' ? (
                 <div onClick={() => handleCopy(`connect ${match.server_ip}`, 'ip')} className="bg-emerald-950/10 border border-emerald-500/30 p-6 relative overflow-hidden group cursor-pointer hover:bg-emerald-900/20 transition-all rounded">
                    <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500" />
@@ -78,19 +79,18 @@ const MatchModal = ({ match, onClose }) => {
                 </div>
              )}
 
-             {match.stream_url && (
-                <div className="bg-purple-900/10 border border-purple-500/30 p-6 rounded relative overflow-hidden group">
-                   <div className="absolute top-0 left-0 w-1 h-full bg-purple-500" />
-                   <div className="flex justify-between items-center mb-2">
-                      <span className="text-purple-400 font-bold text-xs uppercase flex items-center gap-2"><Tv className="w-4 h-4" /> Broadcast</span>
-                      <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                   </div>
-                   <a href={match.stream_url} target="_blank" rel="noreferrer" className="text-purple-100 font-mono text-sm hover:underline truncate block">{match.stream_url}</a>
+             {/* AKROS BLOCK (Requested) */}
+             <a href="https://akros.ac/#downloadSteps" target="_blank" rel="noopener noreferrer" className="bg-red-950/10 border border-red-500/30 p-6 relative overflow-hidden group cursor-pointer hover:bg-red-900/20 transition-all rounded flex flex-col justify-center">
+                <div className="absolute top-0 left-0 w-1 h-full bg-red-500" />
+                <div className="flex justify-between items-center mb-1">
+                   <span className="text-red-400 font-bold text-xs uppercase flex items-center gap-2"><Shield className="w-4 h-4" /> Mandatory Anti-Cheat</span>
+                   <Download className="w-4 h-4 text-red-500 group-hover:scale-110 transition-transform" />
                 </div>
-             )}
+                <div className="text-red-200 font-bold brand-font text-xl uppercase tracking-wide">Download Akros Client</div>
+             </a>
           </div>
 
-          {/* NEW: DOWNLOAD DEMOS (ACKROS) */}
+          {/* DEMO DOWNLOAD */}
           {match.status === 'completed' && (
              <button className="w-full py-4 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-white font-bold uppercase tracking-widest flex items-center justify-center gap-3 transition-all group rounded">
                 <Download className="w-5 h-5 text-fuchsia-500 group-hover:scale-110 transition-transform" />

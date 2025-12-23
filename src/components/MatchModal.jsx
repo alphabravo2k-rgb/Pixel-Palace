@@ -1,22 +1,17 @@
 import React, { useState, memo } from 'react';
-import { Button } from '../ui/Components';
 import VetoPanel from './VetoPanel';
-import AdminMatchControls from './AdminMatchControls'; // ✅ NEW: The Safe Control Plane
-import AdminAuditLog from './AdminAuditLog';           // ✅ NEW: The Paper Trail
-import { isAdmin } from '../tournament/permissions';
+import AdminMatchControls from './AdminMatchControls'; // ✅ The Safe Control Plane
+import AdminAuditLog from './AdminAuditLog';           // ✅ The Paper Trail
 import { useSession } from '../auth/useSession';
 import { Server, Tv, ShieldAlert, Copy, Check, X, Activity } from 'lucide-react';
 
-// ❌ REMOVED: useTournament hook for admin actions. 
-// We only use match prop for display now.
-
 const MatchModal = ({ match, onClose }) => {
-  const { session } = useSession();
+  // 🛡️ Safe Access: permissions object comes from useSession
+  const { session, permissions } = useSession();
   const [copied, setCopied] = useState(null);
 
   if (!match) return null;
 
-  const userIsAdmin = isAdmin(session);
   // Normalize status check to match DB state (open/live vs pending)
   const isLive = match.status === 'live' || match.state === 'open';
 
@@ -39,7 +34,7 @@ const MatchModal = ({ match, onClose }) => {
             <Activity className={`w-5 h-5 ${isLive ? 'text-emerald-500 animate-pulse' : 'text-zinc-500'}`} />
             <div>
               <h2 className="text-xl font-black text-white italic tracking-tighter uppercase font-['Teko']">
-                OPS_CORE // MATCH_{match.id.toString().slice(0, 4)}
+                OPS_CORE // MATCH_{(match.id || 'ERR').toString().slice(0, 4)}
               </h2>
               <div className="flex gap-2 mt-1">
                 {/* Display State directly from DB prop */}
@@ -99,14 +94,14 @@ const MatchModal = ({ match, onClose }) => {
           </div>
 
           {/* ✅ THE NEW ADMIN CONSOLE (Replaces old buttons) */}
-          {userIsAdmin && (
+          {permissions?.isAdmin && (
              <div className="border-t border-zinc-800 pt-6 mt-6 space-y-6">
                 <h4 className="text-red-500 text-xs font-black uppercase tracking-[0.3em] flex items-center gap-2">
                    <ShieldAlert size={14} /> System Override Console
                 </h4>
 
                 {/* The Buttons are now inside here, protected by backend rules */}
-                <AdminMatchControls match={match} adminUser={session?.user} />
+                <AdminMatchControls match={match} adminUser={session?.identity} />
 
                 {/* Read-Only Log */}
                 <AdminAuditLog matchId={match.id} />

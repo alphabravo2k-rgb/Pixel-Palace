@@ -8,6 +8,7 @@ const PinLogin = () => {
   const location = useLocation();
 
   // STATES
+  // Show unless explicitly skipped via navigation state
   const [isVisible, setIsVisible] = useState(!location.state?.skipLogin);
   const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
@@ -17,7 +18,7 @@ const PinLogin = () => {
   const [loggedInUser, setLoggedInUser] = useState(null); 
   const [showWelcome, setShowWelcome] = useState(false);
 
-  // EFFECTS
+  // EFFECTS: Listen for changes in navigation state
   useEffect(() => {
     if (location.state?.skipLogin) setIsVisible(false);
   }, [location.state]);
@@ -32,7 +33,8 @@ const PinLogin = () => {
     try {
       // 1. Try Admin Login
       const { data: adminData, error: adminError } = await supabase.rpc('api_admin_login', { p_pin: pin });
-      if (!adminError && adminData.status === 'SUCCESS') {
+      
+      if (!adminError && adminData && adminData.status === 'SUCCESS') {
         setLoggedInUser({
           type: 'ADMIN',
           name: adminData.profile.display_name || 'Officer',
@@ -45,7 +47,8 @@ const PinLogin = () => {
 
       // 2. Try Captain Login
       const { data: captainData, error: captainError } = await supabase.rpc('api_get_captain_state', { p_pin: pin });
-      if (!captainError && captainData) {
+      
+      if (!captainError && captainData && captainData.team_name) {
         setLoggedInUser({
           type: 'CAPTAIN',
           name: captainData.team_name,
@@ -75,14 +78,8 @@ const PinLogin = () => {
 
   // Safe navigation for non-auth pages (bracket/roster)
   const safeNavigate = (path) => {
-    // If we are logged in, we pass the PIN so they don't lose session
-    // If not, we just close modal
-    if (loggedInUser) {
-        navigate(path, { state: { skipLogin: true } });
-    } else {
-        navigate(path, { state: { skipLogin: true } });
-        setIsVisible(false);
-    }
+    navigate(path, { state: { skipLogin: true } });
+    setIsVisible(false);
   };
 
   const logout = () => {
@@ -91,7 +88,7 @@ const PinLogin = () => {
     setPin('');
   };
 
-  // Logic: Show if (Visible AND on Home Page/Bracket/Roster)
+  // Logic: Only show on specific Auth Routes
   const isAuthPage = ['/', '/bracket', '/roster'].includes(window.location.pathname);
   if (!isVisible || !isAuthPage) return null;
 

@@ -1,14 +1,3 @@
-// --- PERMISSION CONSTANTS (The missing link) ---
-export const PERM_ACTIONS = {
-  MATCH_UPDATE: 'match.update',
-  MATCH_FORCE_WIN: 'match.force_win',
-  VETO_OVERRIDE: 'veto.override',
-  VIEW_SENSITIVE: 'view.sensitive',
-  VETO_ACT: 'veto.act',
-  VIEW_SERVER_IP: 'server.ip.view',
-  DISPUTE_RAISE: 'dispute.raise'
-};
-
 // --- MAP POOL (High Res) ---
 export const MAP_POOL = [
   { id: 'de_ancient', name: 'Ancient', image: 'https://img.cdn-thg.com/v1/page/4235226c-da5c-4394-8149-6f9202422207/Ancient_CS2.jpg' },

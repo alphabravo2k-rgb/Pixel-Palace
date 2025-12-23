@@ -57,7 +57,7 @@ const PlayerRow = ({ player }) => {
   const isCap = player.role === 'CAPTAIN';
   const tag = isCap ? 'CPT' : isSub ? 'SUB' : 'PLY';
   
-  // Refined Color Scheme
+  // Theme: Captain (Yellow), Sub (Blue), Player (Zinc)
   const tagColor = isCap 
     ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' 
     : isSub 
@@ -74,7 +74,7 @@ const PlayerRow = ({ player }) => {
         />
       )}
 
-      {/* DEFAULT VIEW */}
+      {/* DEFAULT VIEW - Always Visible */}
       <div className="absolute inset-0 flex items-center justify-between px-4 z-10 transition-transform duration-300 group-hover:-translate-y-full pointer-events-none">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded bg-zinc-900 border border-white/10 flex items-center justify-center overflow-hidden relative">
@@ -95,16 +95,16 @@ const PlayerRow = ({ player }) => {
           </div>
         </div>
         
-        {/* ELO / TAG DISPLAY */}
+        {/* ✅ FIXED: Showing Proper Tags in Default View */}
         <div className="flex gap-2 items-center">
-            {/* Show CPT/SUB/PLY tag even in default view if needed, but per request showing ELO mainly */}
-            <span className="text-xs font-mono font-bold text-fuchsia-500 tabular-nums">
-                {player.elo ? `${player.elo}` : '—'}
+            {isCap && <span className="text-[9px] text-yellow-500 font-bold border border-yellow-900/50 px-1 rounded">C</span>}
+            <span className={`text-[9px] px-2 py-0.5 rounded-sm font-mono font-bold tracking-wider ${tagColor}`}>
+                {tag}
             </span>
         </div>
       </div>
 
-      {/* HOVER VIEW (Actionable) */}
+      {/* HOVER VIEW (Actionable Socials) */}
       <div className="absolute inset-0 z-20 flex items-center justify-between px-4 bg-[#0a0a0c] transform translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out">
         <div className="flex items-center gap-2 relative z-50">
            {/* Passing Capitalized Keys for Icons Lookup */}
@@ -143,13 +143,17 @@ const GhostRow = () => (
 const TeamCard = ({ team }) => {
   const players = team.players || [];
   
-  // 🛡️ SORTING: Captain -> Player -> Sub
+  // 🛡️ SORTING FIX: Captain -> Player -> Sub
   const sortedPlayers = [...players].sort((a, b) => {
      const roleOrder = { 'CAPTAIN': 0, 'PLAYER': 1, 'SUBSTITUTE': 2 };
      return (roleOrder[a.role] || 1) - (roleOrder[b.role] || 1);
   });
   
-  const flagUrl = getFlagUrl(team.region_iso2);
+  // ✅ FIXED: Flag Logic
+  const flagUrl = team.region_iso2 && team.region_iso2 !== 'un' 
+    ? `https://flagcdn.com/w40/${team.region_iso2.toLowerCase()}.png` 
+    : null;
+
   const slotsNeeded = 6; 
   const currentSlots = sortedPlayers.length;
   const emptySlots = Math.max(0, slotsNeeded - currentSlots);
@@ -173,7 +177,7 @@ const TeamCard = ({ team }) => {
                <span className="text-[10px] text-zinc-500 font-mono tracking-widest">SEED #{team.seed_number || '-'}</span>
            </div>
         </div>
-        {/* Country Flag */}
+        {/* ✅ FIXED: Flag Display */}
         {flagUrl && (
           <img src={flagUrl} alt={team.region_iso2} title={team.region_iso2} className="w-8 h-5 rounded-sm shadow-sm opacity-60 group-hover:opacity-100 transition-opacity border border-white/5" />
         )}

@@ -19,18 +19,15 @@ export const Button = ({ children, variant = 'primary', className = '', disabled
 
   return (
     <button 
-     type={type}
-     disabled={disabled}
-     className={`${baseStyle} ${resolvedVariant} ${className}`}
-     // eslint-disable-next-line react/jsx-props-no-spreading
-     {...props}
+      type={type}
+      disabled={disabled}
+      className={`${baseStyle} ${resolvedVariant} ${className}`}
+      {...props}
     >
       {children}
     </button>
   );
 };
-
-// ... (Rest of file remains unchanged, Badge and Modal logic was correct)
 
 export const Badge = ({ children, color = 'blue', className = '' }) => {
   const colors = {
@@ -54,6 +51,7 @@ export const Badge = ({ children, color = 'blue', className = '' }) => {
 
 export const Modal = ({ isOpen, onClose, title, children, maxWidth = 'max-w-md' }) => {
   const modalRef = useRef(null);
+  // Stable ID for accessibility
   const titleId = useRef(`modal-title-${Math.random().toString(36).slice(2)}`).current;
 
   useEffect(() => {
@@ -83,6 +81,7 @@ export const Modal = ({ isOpen, onClose, title, children, maxWidth = 'max-w-md' 
     if (isOpen) {
       const originalStyle = window.getComputedStyle(document.body).overflow;
       document.body.style.overflow = 'hidden';
+      // Attempt to focus first input, else focus modal itself
       const firstInput = modalRef.current?.querySelector('input, button');
       if (firstInput) firstInput.focus();
       else modalRef.current?.focus();

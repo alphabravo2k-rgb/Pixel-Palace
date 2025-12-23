@@ -5,47 +5,37 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 let supabaseClient;
 
-// 🛡️ SMART CRASH PREVENTION
-// If keys are missing, return "Safe Objects" so the app logic doesn't break.
 if (!supabaseUrl || !supabaseAnonKey) {
   console.error("⚠️ SYSTEM WARNING: Supabase keys are missing! App running in UI-Only Mode.");
 
-  const safeResponse = { 
-    data: { status: 'FAIL', results: [] }, // ✅ Return an OBJECT, not null
-    error: { message: "No API Keys Configured" } 
-  };
+  const safeList = { data: [], error: null };
+  const safeObj = { data: {}, error: null };
 
   supabaseClient = {
     auth: {
       onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
       getSession: async () => ({ data: { session: null }, error: null }),
-      signInWithPassword: async () => ({ data: null, error: safeResponse.error }),
+      signInWithPassword: async () => ({ data: null, error: { message: "Mock Auth Failed" } }),
       signOut: async () => {},
       getUser: async () => ({ data: { user: null }, error: null }),
     },
-    // Mocking the chain: .from().select().eq().single()
     from: () => ({
       select: () => ({
         eq: () => ({
-          single: () => ({ data: {}, error: null }), // ✅ Return empty object for .single()
-          maybeSingle: () => ({ data: null, error: null }),
-          order: () => ({ data: [], error: null }), // ✅ Return array for lists
+          single: () => safeObj,
+          maybeSingle: () => safeObj,
+          order: () => safeList,
           data: []
         }),
-        order: () => ({ data: [], error: null }),
+        order: () => safeList,
         data: []
       }),
-      insert: () => ({ select: () => ({ data: {}, error: null }) }),
-      update: () => ({ eq: () => ({ select: () => ({ data: {}, error: null }) }) }),
+      insert: () => ({ select: () => safeObj }),
+      update: () => ({ eq: () => ({ select: () => safeObj }) }),
     }),
-    // Mocking RPC to return a safe object with a 'status' property
-    rpc: async () => ({ 
-      data: { status: 'FAIL' }, // ✅ Prevents "Cannot read properties of null"
-      error: safeResponse.error 
-    })
+    rpc: async () => safeList 
   };
 } else {
-  // ✅ Keys found - Load real client
   console.log("✅ Supabase Client Initialized Successfully");
   supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
 }

@@ -1,87 +1,55 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useSession } from '../auth/useSession';
 import { useTournament } from '../tournament/useTournament';
 import { ROLE_THEMES, ROLES } from '../lib/roles';
 import { User, LogOut, Lock, RefreshCw } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
-const AdminToolbar = () => {
-  const { session, logout, setIsPinModalOpen, permissions } = useSession();
-  
-  // 🛡️ Safety: Provide fallback if hook context is missing (prevents crash)
-  const tournament = useTournament();
-  const refreshMatches = tournament?.refreshMatches || (async () => {});
+// ✅ MUST BE "export const" to match the router import
+export const AdminToolbar = () => {
+  const { session, logout } = useSession();
+  const { selectedTournamentId, loading } = useTournament();
+  const navigate = useNavigate();
 
-  const [isSyncing, setIsSyncing] = useState(false);
+  // Guard: Only show for authorized users
+  if (![ROLES.ADMIN, ROLES.OWNER].includes(session.role)) return null;
 
-  const handleManualSync = async () => {
-    setIsSyncing(true);
-    await refreshMatches();
-    setTimeout(() => setIsSyncing(false), 1000);
+  const theme = ROLE_THEMES[session.role] || ROLE_THEMES.GUEST;
+
+  const handleLogout = () => {
+    logout();
+    navigate('/admin/login');
   };
-
-  if (!session.isAuthenticated) {
-    return (
-      <div className="bg-[#060709] border-b border-zinc-900 p-2 flex justify-end sticky top-0 z-50">
-        <button 
-          onClick={() => setIsPinModalOpen(true)} 
-          className="text-[9px] text-zinc-600 hover:text-[#ff5500] uppercase tracking-[0.3em] font-black transition-all flex items-center gap-2 group"
-        >
-          <Lock className="w-3 h-3 group-hover:animate-pulse" /> Operator_Login
-        </button>
-      </div>
-    );
-  }
-
-  const theme = ROLE_THEMES[session.role] || ROLE_THEMES[ROLES.GUEST];
-  
-  // Explicit colors for Tailwind
-  const badgeStyles = {
-    fuchsia: "bg-fuchsia-900/50 text-fuchsia-200 border-fuchsia-700",
-    purple: "bg-purple-900/50 text-purple-200 border-purple-700",
-    cyan: "bg-cyan-900/50 text-cyan-200 border-cyan-700",
-    yellow: "bg-yellow-900/50 text-yellow-200 border-yellow-700",
-    emerald: "bg-emerald-900/50 text-emerald-200 border-emerald-700",
-    zinc: "bg-zinc-800 text-zinc-400 border-zinc-600"
-  };
-  const currentBadge = badgeStyles[theme.color] || badgeStyles.zinc;
 
   return (
-    <div className="bg-[#0b0c0f]/95 border-b border-zinc-800 p-3 sticky top-0 z-50 backdrop-blur-md">
-      <div className="container mx-auto flex justify-between items-center px-4">
-        
-        <div className="flex items-center gap-4">
-          <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border ${currentBadge}`}>
-            {theme.label}
-          </span>
-          <div className="flex items-center gap-3 text-zinc-400 font-mono text-xs uppercase tracking-tight">
-            <User className="w-3 h-3" />
-            <span className="text-zinc-300 font-bold">{session.identity}</span>
-          </div>
+    <div className="fixed top-0 left-0 right-0 z-50 h-14 bg-zinc-950 border-b border-white/10 flex items-center justify-between px-6 shadow-2xl">
+      <div className="flex items-center gap-4">
+        <div className={`flex items-center gap-2 px-3 py-1 rounded-full border ${theme.bg} ${theme.border} ${theme.color}`}>
+          <Lock className="w-3 h-3" />
+          <span className="text-[10px] font-bold uppercase tracking-widest">{theme.label} MODE</span>
         </div>
+        <div className="h-4 w-px bg-white/10" />
+        <div className="flex items-center gap-2 text-xs text-zinc-500">
+          <User className="w-3 h-3" />
+          <span className="font-mono text-zinc-300">{session.identity?.name || 'Unknown'}</span>
+        </div>
+      </div>
 
-        <div className="flex gap-4 items-center">
-          {permissions.isAdmin && (
-            <button 
-              onClick={handleManualSync}
-              disabled={isSyncing}
-              className={`flex items-center gap-2 text-[9px] font-black uppercase tracking-widest transition-colors ${isSyncing ? 'text-[#ff5500]' : 'text-zinc-500 hover:text-white'}`}
-            >
-              <RefreshCw size={12} className={isSyncing ? 'animate-spin' : ''} />
-              <span className="hidden sm:inline">Force_Sync</span>
-            </button>
-          )}
-          <button 
-            onClick={() => logout()} 
-            className="flex items-center gap-2 text-zinc-500 hover:text-red-500 transition-all p-1 group border border-transparent hover:border-red-900/50 rounded px-2"
-            title="Terminate Session"
-          >
-            <span className="text-[9px] font-bold uppercase tracking-widest hidden sm:inline">Terminate</span>
-            <LogOut size={14} />
-          </button>
-        </div>
+      <div className="flex items-center gap-4">
+        {loading && (
+          <div className="flex items-center gap-2 text-[10px] text-fuchsia-500 animate-pulse">
+            <RefreshCw className="w-3 h-3 animate-spin" />
+            SYNCING
+          </div>
+        )}
+        <button 
+          onClick={handleLogout}
+          className="flex items-center gap-2 px-3 py-1.5 hover:bg-red-900/20 text-zinc-500 hover:text-red-400 rounded transition-colors text-xs font-bold uppercase"
+        >
+          <LogOut className="w-3 h-3" />
+          Disconnect
+        </button>
       </div>
     </div>
   );
 };
-
-export default AdminToolbar;

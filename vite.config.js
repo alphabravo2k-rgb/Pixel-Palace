@@ -4,14 +4,16 @@ import react from '@vitejs/plugin-react'
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   plugins: [react()],
-  base: './', 
+  
+  // ⚠️ CRITICAL FIX: Changed './' to '/' 
+  // This ensures assets load correctly from /admin/login
+  base: '/', 
+  
   server: {
     port: 3000,
     strictPort: true, 
   },
-  // TACTICAL: Production Hardening
   esbuild: {
-    // ⚠️ I removed 'console' drop so we can debug the live site if needed.
     drop: mode === 'production' ? ['debugger'] : [],
   },
   build: {

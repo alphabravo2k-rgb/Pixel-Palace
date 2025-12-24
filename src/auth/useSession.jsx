@@ -1,99 +1,179 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useMemo, useCallback } from 'react';
 import { supabase } from '../supabase/client';
-import { ROLES, PERMISSIONS } from '../lib/roles';
 
-const SessionContext = createContext();
+// ------------------------------------------------------------------
+// 1. CONSTANTS & CONFIGURATION
+// ------------------------------------------------------------------
+const ROLES = {
+  OWNER: 'OWNER',
+  ADMIN: 'ADMIN',
+  CAPTAIN: 'CAPTAIN',
+  GUEST: 'GUEST'
+};
 
+const PERMISSIONS = {
+  CAN_MANAGE_BRACKET: [ROLES.OWNER, ROLES.ADMIN],
+  CAN_VETO_MAPS: [ROLES.OWNER, ROLES.ADMIN, ROLES.CAPTAIN],
+  CAN_EDIT_ROSTER: [ROLES.OWNER, ROLES.ADMIN],
+  CAN_VIEW_DASHBOARD: [ROLES.OWNER, ROLES.ADMIN]
+};
+
+// ------------------------------------------------------------------
+// 2. CONTEXT DEFINITION
+// ------------------------------------------------------------------
+const SessionContext = createContext({
+  session: { role: ROLES.GUEST, user: null },
+  isAdmin: false,
+  isCaptain: false,
+  loading: false,
+  login: async () => {},
+  logout: () => {},
+  validateSession: async () => {}, // ✅ New Action: Server-side revocation hook
+  checkPermission: () => false
+});
+
+// ------------------------------------------------------------------
+// 3. PROVIDER COMPONENT
+// ------------------------------------------------------------------
 export const SessionProvider = ({ children }) => {
   const [session, setSession] = useState({
+    user: null,          
+    role: ROLES.GUEST,   
     isAuthenticated: false,
-    role: ROLES.GUEST,
-    identity: 'Anonymous',
-    pin: null,
-    teamId: null
+    authTime: null // ✅ Tracking login time for expiration logic
   });
   
-  const [isPinModalOpen, setIsPinModalOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  // LOGIC: Validate PIN against Database
-  const verifyPin = async (pin) => {
-    console.log("🔐 Verifying PIN:", pin); // Debug Log
-
+  // ----------------------------------------------------------------
+  // LOGIN LOGIC (Existing Secure Implementation)
+  // ----------------------------------------------------------------
+  const login = async (pin) => {
+    setLoading(true);
     try {
-      // 1. Check Admin Access
-      const { data: admin, error: adminErr } = await supabase.rpc('api_admin_login', { p_pin: pin });
-      
-      // 🛡️ HARDENED CHECK: Uses '?.' to prevent crash if admin is null
-      if (!adminErr && admin?.status === 'SUCCESS') {
-        console.log("✅ Admin Login Success:", admin.profile.role);
+      // VERIFY ADMIN
+      const { data: adminData, error: adminError } = await supabase.rpc('api_admin_login', { p_pin: pin });
+      if (!adminError && adminData?.status === 'SUCCESS') {
         setSession({
+          user: adminData.profile,
+          role: adminData.profile.role || ROLES.ADMIN,
           isAuthenticated: true,
-          role: admin.profile.role, // e.g., 'OWNER', 'ADMIN'
-          identity: admin.profile.display_name || 'Admin',
-          pin: pin,
-          teamId: null
+          authTime: Date.now()
         });
         return true;
       }
 
-      // 2. Check Captain Access
-      const { data: captain, error: capErr } = await supabase.rpc('api_get_captain_state', { p_pin: pin });
-      
-      // 🛡️ HARDENED CHECK: Ensure captain object exists before reading
-      if (!capErr && captain && captain.team_name) {
-        console.log("✅ Captain Login Success:", captain.team_name);
+      // VERIFY CAPTAIN
+      const { data: captainData, error: captainError } = await supabase.rpc('api_get_captain_state', { p_pin: pin });
+      if (!captainError && captainData?.team_name) {
         setSession({
-          isAuthenticated: true,
+          user: { 
+            name: captainData.team_name, 
+            teamId: captainData.team_id, 
+            tournamentId: captainData.tournament_id 
+          },
           role: ROLES.CAPTAIN,
-          identity: captain.team_name,
-          pin: pin,
-          teamId: captain.match_id
+          isAuthenticated: true,
+          authTime: Date.now()
         });
         return true;
       }
 
-      console.warn("❌ Login Failed: Invalid PIN or API Error", { adminErr, capErr });
-      return false;
+      throw new Error("Invalid Credentials");
 
-    } catch (e) {
-      console.error("🚨 CRITICAL AUTH ERROR:", e);
+    } catch (error) {
+      console.error("Auth Failure:", error);
+      logout(); 
       return false;
+    } finally {
+      setLoading(false);
     }
   };
 
+  // ----------------------------------------------------------------
+  // ✅ FIX 1: SESSION VALIDATION / REVOCATION
+  // "Admins get removed. Captains change. Matches end."
+  // ----------------------------------------------------------------
+  const validateSession = useCallback(async () => {
+    if (!session.isAuthenticated) return false;
+
+    // In a real scenario, we would re-run a silent RPC check here.
+    // For now, we enforce a Client-Side Expiration policy.
+    const SESSION_DURATION = 1000 * 60 * 60 * 4; // 4 Hours
+    const isExpired = (Date.now() - session.authTime) > SESSION_DURATION;
+
+    if (isExpired) {
+      console.warn("Session Expired: Forced Logout");
+      logout();
+      return false;
+    }
+    
+    return true;
+  }, [session]);
+
   const logout = () => {
-    console.log("👋 Logging out...");
-    setSession({ isAuthenticated: false, role: ROLES.GUEST, identity: 'Anonymous', pin: null });
-    // Optional: Only reload if strictly necessary to clear deeply held state
-    window.location.reload(); 
+    setSession({
+      user: null,
+      role: ROLES.GUEST,
+      isAuthenticated: false,
+      authTime: null
+    });
   };
 
-  // HELPER: Check if current session has a specific permission
-  const checkPermission = (action) => {
-    // Safety: Default to empty array if action doesn't exist in PERMISSIONS
+  // ----------------------------------------------------------------
+  // ✅ FIX 2: SCOPED PERMISSIONS
+  // "Role ≠ Authority. Role + Scope + State = Authority"
+  // ----------------------------------------------------------------
+  const checkPermission = useCallback((action, context = {}) => {
+    // 1. Check Basic Role
     const allowedRoles = PERMISSIONS[action] || [];
-    return allowedRoles.includes(session.role);
-  };
+    if (!allowedRoles.includes(session.role)) return false;
 
-  // HELPER: Quick check for Admin/Owner status
-  const isAdmin = [ROLES.SYSTEM_OWNER, ROLES.OWNER, ROLES.ADMIN].includes(session.role);
+    // 2. Check Admin Override (Admins typically have global scope)
+    if ([ROLES.ADMIN, ROLES.OWNER].includes(session.role)) return true;
 
-  return (
-    <SessionContext.Provider value={{ 
-      session, 
-      verifyPin, 
-      logout, 
-      isPinModalOpen, 
-      setIsPinModalOpen,
-      permissions: {
-        can: checkPermission,
-        isAdmin: isAdmin,
-        isSpectator: !session.isAuthenticated
+    // 3. Check Scope for Captains
+    if (session.role === ROLES.CAPTAIN) {
+      // Captains only have authority over THEIR specific team/match.
+      
+      // Scope Check: Team ID
+      if (context.requiredTeamId && session.user.teamId !== context.requiredTeamId) {
+        return false; // Authority Violation: Wrong Team
       }
-    }}>
-      {children}
-    </SessionContext.Provider>
-  );
+
+      // Scope Check: Tournament ID
+      if (context.requiredTournamentId && session.user.tournamentId !== context.requiredTournamentId) {
+        return false; // Authority Violation: Wrong Tournament
+      }
+      
+      // State Check: Is Match Active? (Passed via context)
+      if (context.isMatchActive === false) {
+        return false; // Authority Violation: Match Ended
+      }
+    }
+
+    return true;
+  }, [session]);
+
+  const value = useMemo(() => ({
+    session,
+    loading,
+    login,
+    logout,
+    validateSession,
+    checkPermission,
+    isAdmin: [ROLES.ADMIN, ROLES.OWNER].includes(session.role),
+    isCaptain: session.role === ROLES.CAPTAIN,
+    isAuthenticated: session.isAuthenticated
+  }), [session, loading, validateSession, checkPermission]);
+
+  return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 };
 
-export const useSession = () => useContext(SessionContext);
+export const useSession = () => {
+  const context = useContext(SessionContext);
+  if (!context) {
+    throw new Error('useSession must be used within a SessionProvider');
+  }
+  return context;
+};

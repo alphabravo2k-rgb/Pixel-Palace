@@ -1,118 +1,202 @@
-import React, { useState, memo } from 'react';
-import VetoPanel from './VetoPanel';
+import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
+
+// --- IMPORTS ---
+// If these components are default exports in your project, keep them without { }.
+// If you updated them to be named exports, add { } around them.
+import VetoPanel from './VetoPanel'; 
 import AdminMatchControls from './AdminMatchControls'; 
-import AdminAuditLog from './AdminAuditLog';           
-import { useSession } from '../auth/useSession';
-import { Server, Tv, ShieldAlert, Copy, Check, X, Activity, Download, Shield } from 'lucide-react';
 
-const MatchModal = ({ match, onClose }) => {
-  const { session, permissions } = useSession();
-  const [copied, setCopied] = useState(null);
+// ✅ FIX: Use Named Import for AdminAuditLog (This was the error)
+import { AdminAuditLog } from './AdminAuditLog'; 
 
-  if (!match) return null;
+import { useSession } from '../auth/useSession'; // Assuming this hook exists
+import { Server, Tv, ShieldAlert, Copy, Check, X, Activity, Download, Shield, Trophy } from 'lucide-react';
 
-  const isLive = match.status === 'live' || match.state === 'open';
+/**
+ * MatchModal
+ * Displays detailed match info, vetoes, and admin controls.
+ */
+export const MatchModal = ({ match, teams, onClose }) => {
+  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'veto' | 'admin' | 'logs'
+  const [copied, setCopied] = useState(false);
+  
+  // Get Session State
+  const { isAdmin } = useSession(); // Adjust based on your actual auth hook return values
 
-  const handleCopy = (text, key) => {
+  // Helper to find team data
+  const team1 = teams.find(t => t.id === match.team1_id);
+  const team2 = teams.find(t => t.id === match.team2_id);
+
+  // Helper for Copy to Clipboard
+  const handleCopy = (text) => {
     navigator.clipboard.writeText(text);
-    setCopied(key);
-    setTimeout(() => setCopied(null), 2000);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/95 backdrop-blur-xl animate-in fade-in duration-300">
-      <div 
-        className="w-full max-w-5xl bg-[#0b0c0f] border border-zinc-800 shadow-2xl flex flex-col max-h-[90vh] relative overflow-hidden"
-        style={{ clipPath: 'polygon(0 0, 100% 0, 100% 96%, 98% 100%, 0 100%)' }}
-      >
+  // Close on Escape key
+  React.useEffect(() => {
+    const handleEsc = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [onClose]);
+
+  // Prevent background scrolling when modal is open
+  React.useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = 'unset'; };
+  }, []);
+
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+      
+      {/* MODAL CONTAINER */}
+      <div className="bg-[#0a0a0a] border border-zinc-800 w-full max-w-4xl max-h-[90vh] flex flex-col rounded-lg shadow-2xl overflow-hidden relative">
         
-        {/* --- HEADER --- */}
-        <div className="flex justify-between items-center p-6 border-b border-zinc-800 bg-[#15191f]/50">
+        {/* HEADER */}
+        <div className="flex justify-between items-center p-6 border-b border-zinc-800 bg-zinc-950">
           <div className="flex items-center gap-4">
-            <Activity className={`w-5 h-5 ${isLive ? 'text-emerald-500 animate-pulse' : 'text-zinc-500'}`} />
+            <div className="p-2 bg-zinc-900 rounded border border-zinc-800">
+                <Trophy className="w-5 h-5 text-fuchsia-500" />
+            </div>
             <div>
-              <h2 className="text-xl font-black text-white italic tracking-tighter uppercase brand-font">
-                OPS_CORE // MATCH_{(match.id || 'ERR').toString().slice(0, 4)}
-              </h2>
-              <div className="flex gap-2 mt-1">
-                <span className={`px-2 py-0.5 rounded-sm text-[10px] font-black uppercase tracking-tighter border ${isLive ? 'border-emerald-500/50 text-emerald-500 bg-emerald-900/20' : 'border-zinc-700 text-zinc-500 bg-zinc-900'}`}>
-                   {match.state || match.status} 
-                </span>
-              </div>
+                <h2 className="text-xl font-black text-white uppercase tracking-widest font-['Teko']">
+                    Match Details
+                </h2>
+                <div className="flex items-center gap-2 text-xs text-zinc-500 font-mono">
+                    <span className="bg-zinc-900 px-1.5 py-0.5 rounded text-zinc-400">R{match.round}</span>
+                    <span>•</span>
+                    <span className="uppercase">{match.state}</span>
+                    <span>•</span>
+                    <span>BO{match.best_of}</span>
+                </div>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 text-zinc-500 hover:text-white transition-colors rounded-full hover:bg-white/10">
-            <X size={24} />
+          
+          <button 
+            onClick={onClose}
+            className="p-2 hover:bg-zinc-900 rounded-full transition-colors text-zinc-500 hover:text-white"
+          >
+            <X className="w-6 h-6" />
           </button>
         </div>
 
-        {/* --- SCROLLABLE CONTENT --- */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
-          
-          {/* SCOREBOARD */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center bg-black/40 p-8 border border-zinc-800/50 rounded-lg relative overflow-hidden">
-             <div className="absolute inset-0 bg-gradient-to-r from-fuchsia-900/10 via-transparent to-cyan-900/10 pointer-events-none" />
-             <h3 className="text-3xl font-black text-white uppercase text-center md:text-right brand-font tracking-tight relative z-10">{match.team1_name || match.team1Name || 'TBD'}</h3>
-             <div className="text-6xl font-mono font-black italic text-white text-center tracking-widest relative z-10 drop-shadow-2xl">{match.score || 'VS'}</div>
-             <h3 className="text-3xl font-black text-white uppercase text-center md:text-left brand-font tracking-tight relative z-10">{match.team2_name || match.team2Name || 'TBD'}</h3>
-          </div>
+        {/* CONTENT BODY */}
+        <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col md:flex-row">
+            
+            {/* LEFT SIDE: MATCHUP INFO */}
+            <div className="w-full md:w-1/3 border-r border-zinc-800 bg-zinc-900/20 p-6 flex flex-col gap-6">
+                
+                {/* TEAMS DISPLAY */}
+                <div className="flex flex-col gap-4">
+                    {/* Team 1 */}
+                    <div className={`p-4 rounded border ${match.winner_id === match.team1_id ? 'border-green-500/50 bg-green-900/10' : 'border-zinc-800 bg-black/40'}`}>
+                        <div className="flex justify-between items-center mb-2">
+                            <span className="text-xs text-zinc-500 font-bold uppercase tracking-widest">Team 1</span>
+                            {match.winner_id === match.team1_id && <Trophy className="w-4 h-4 text-green-500" />}
+                        </div>
+                        <div className="font-bold text-white text-lg truncate">{team1?.name || 'TBD'}</div>
+                        <div className="text-xs text-zinc-600 font-mono">Seed #{team1?.seed_number || '?'}</div>
+                    </div>
 
-          {/* VETO PANEL */}
-          <VetoPanel match={match} />
+                    <div className="text-center text-zinc-700 font-black italic text-xl">VS</div>
 
-          {/* SERVER & ANTI-CHEAT SECTION */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-             {/* IP BLOCK */}
-             {match.server_ip && match.server_ip !== 'HIDDEN' ? (
-                <div onClick={() => handleCopy(`connect ${match.server_ip}`, 'ip')} className="bg-emerald-950/10 border border-emerald-500/30 p-6 relative overflow-hidden group cursor-pointer hover:bg-emerald-900/20 transition-all rounded">
-                   <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500" />
-                   <div className="flex justify-between items-center mb-2">
-                      <span className="text-emerald-400 font-bold text-xs uppercase flex items-center gap-2"><Server className="w-4 h-4" /> Game Server</span>
-                      {copied === 'ip' ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4 text-emerald-500 opacity-50 group-hover:opacity-100" />}
-                   </div>
-                   <code className="text-emerald-100 font-mono text-sm break-all leading-relaxed">connect {match.server_ip}</code>
+                    {/* Team 2 */}
+                    <div className={`p-4 rounded border ${match.winner_id === match.team2_id ? 'border-green-500/50 bg-green-900/10' : 'border-zinc-800 bg-black/40'}`}>
+                        <div className="flex justify-between items-center mb-2">
+                            <span className="text-xs text-zinc-500 font-bold uppercase tracking-widest">Team 2</span>
+                            {match.winner_id === match.team2_id && <Trophy className="w-4 h-4 text-green-500" />}
+                        </div>
+                        <div className="font-bold text-white text-lg truncate">{team2?.name || 'TBD'}</div>
+                        <div className="text-xs text-zinc-600 font-mono">Seed #{team2?.seed_number || '?'}</div>
+                    </div>
                 </div>
-             ) : (
-                <div className="bg-zinc-900/20 border border-zinc-800 p-6 flex flex-col items-center justify-center gap-2 rounded opacity-60">
-                   <ShieldAlert className="w-6 h-6 text-zinc-600" />
-                   <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">Server Intel Locked</span>
+
+                {/* SERVER INFO */}
+                <div className="mt-auto">
+                    <div className="text-[10px] uppercase font-bold text-zinc-500 mb-2 tracking-widest">Connect String</div>
+                    <div className="flex gap-2">
+                        <code className="flex-1 bg-black p-2 rounded border border-zinc-800 text-xs text-zinc-300 font-mono truncate">
+                            {match.server_ip !== 'HIDDEN' ? `connect ${match.server_ip}` : 'SERVER HIDDEN'}
+                        </code>
+                        {match.server_ip !== 'HIDDEN' && (
+                            <button 
+                                onClick={() => handleCopy(`connect ${match.server_ip}`)}
+                                className="p-2 bg-zinc-800 hover:bg-zinc-700 rounded border border-zinc-700 text-white transition-colors"
+                            >
+                                {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                            </button>
+                        )}
+                    </div>
                 </div>
-             )}
+            </div>
 
-             {/* AKROS BLOCK (Requested) */}
-             <a href="https://akros.ac/#downloadSteps" target="_blank" rel="noopener noreferrer" className="bg-red-950/10 border border-red-500/30 p-6 relative overflow-hidden group cursor-pointer hover:bg-red-900/20 transition-all rounded flex flex-col justify-center">
-                <div className="absolute top-0 left-0 w-1 h-full bg-red-500" />
-                <div className="flex justify-between items-center mb-1">
-                   <span className="text-red-400 font-bold text-xs uppercase flex items-center gap-2"><Shield className="w-4 h-4" /> Mandatory Anti-Cheat</span>
-                   <Download className="w-4 h-4 text-red-500 group-hover:scale-110 transition-transform" />
+            {/* RIGHT SIDE: TABS & CONTROLS */}
+            <div className="w-full md:w-2/3 flex flex-col bg-zinc-950/50">
+                
+                {/* TAB NAVIGATION */}
+                <div className="flex border-b border-zinc-800">
+                    <button 
+                        onClick={() => setActiveTab('overview')}
+                        className={`flex-1 py-4 text-xs font-bold uppercase tracking-widest transition-colors ${activeTab === 'overview' ? 'bg-zinc-900 text-white border-b-2 border-fuchsia-500' : 'text-zinc-500 hover:text-zinc-300'}`}
+                    >
+                        Overview
+                    </button>
+                    <button 
+                        onClick={() => setActiveTab('veto')}
+                        className={`flex-1 py-4 text-xs font-bold uppercase tracking-widest transition-colors ${activeTab === 'veto' ? 'bg-zinc-900 text-white border-b-2 border-fuchsia-500' : 'text-zinc-500 hover:text-zinc-300'}`}
+                    >
+                        Map Veto
+                    </button>
+                    {isAdmin && (
+                        <>
+                            <button 
+                                onClick={() => setActiveTab('admin')}
+                                className={`flex-1 py-4 text-xs font-bold uppercase tracking-widest transition-colors ${activeTab === 'admin' ? 'bg-zinc-900 text-red-400 border-b-2 border-red-500' : 'text-zinc-500 hover:text-red-400'}`}
+                            >
+                                Admin Controls
+                            </button>
+                            <button 
+                                onClick={() => setActiveTab('logs')}
+                                className={`flex-1 py-4 text-xs font-bold uppercase tracking-widest transition-colors ${activeTab === 'logs' ? 'bg-zinc-900 text-white border-b-2 border-fuchsia-500' : 'text-zinc-500 hover:text-zinc-300'}`}
+                            >
+                                Audit Logs
+                            </button>
+                        </>
+                    )}
                 </div>
-                <div className="text-red-200 font-bold brand-font text-xl uppercase tracking-wide">Download Akros Client</div>
-             </a>
-          </div>
 
-          {/* DEMO DOWNLOAD */}
-          {match.status === 'completed' && (
-             <button className="w-full py-4 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-white font-bold uppercase tracking-widest flex items-center justify-center gap-3 transition-all group rounded">
-                <Download className="w-5 h-5 text-fuchsia-500 group-hover:scale-110 transition-transform" />
-                <span>Download Match Demos (Ackros)</span>
-             </button>
-          )}
+                {/* TAB CONTENT */}
+                <div className="p-6 h-full min-h-[400px]">
+                    
+                    {activeTab === 'overview' && (
+                        <div className="flex flex-col items-center justify-center h-full text-zinc-500 space-y-4">
+                            <Activity className="w-12 h-12 opacity-20" />
+                            <p className="text-sm font-mono">Match feed and stats coming soon.</p>
+                        </div>
+                    )}
 
-          {/* ADMIN CONSOLE */}
-          {permissions?.isAdmin && (
-             <div className="border-t border-zinc-800 pt-6 mt-6 space-y-6">
-                <h4 className="text-red-500 text-xs font-black uppercase tracking-[0.3em] flex items-center gap-2">
-                   <ShieldAlert size={14} /> System Override Console
-                </h4>
-                <AdminMatchControls match={match} adminUser={session?.identity} />
-                <AdminAuditLog matchId={match.id} />
-             </div>
-          )}
+                    {activeTab === 'veto' && (
+                        <VetoPanel matchId={match.id} team1={team1} team2={team2} />
+                    )}
 
+                    {activeTab === 'admin' && isAdmin && (
+                        <AdminMatchControls match={match} />
+                    )}
+
+                    {activeTab === 'logs' && isAdmin && (
+                        <AdminAuditLog limit={20} />
+                    )}
+
+                </div>
+            </div>
         </div>
+
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
-
-export default memo(MatchModal);

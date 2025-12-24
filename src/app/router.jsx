@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate } from 'react-router-dom';
+import { createBrowserRouter, Navigate, Outlet } from 'react-router-dom';
 import App from './App';
 import { useSession } from '../auth/useSession';
 
@@ -8,6 +8,7 @@ import AdminDashboard from '../components/AdminDashboard';
 import PinLogin from '../components/PinLogin'; 
 import { TeamRoster } from '../components/TeamRoster'; 
 import { VetoPanel } from '../components/VetoPanel';
+import AdminToolbar from '../components/AdminToolbar';
 
 // ROLE DEFINITIONS
 const ROLES = {
@@ -17,21 +18,29 @@ const ROLES = {
 };
 
 /**
- * 🔧 Required Fix: Protected Routes
- * Implementation of role-gated route wrappers.
+ * RequireRole Wrapper
+ * Enforces route-level authority.
  */
 const RequireRole = ({ allowed, children }) => {
   const { session, loading } = useSession();
-
-  // Discipline: Prevent flashes while checking authority
   if (loading) return null; 
-
-  // Enforcement: Redirect if role is not allowed
   if (!session || !allowed.includes(session.role)) {
     return <Navigate to="/" replace />;
   }
-
   return children;
+};
+
+/**
+ * AdminLayout
+ * Mounts AdminToolbar ONLY within authorized nested routes.
+ */
+const AdminLayout = () => {
+  return (
+    <div className="admin-surface">
+      <AdminToolbar />
+      <Outlet />
+    </div>
+  );
 };
 
 export const router = createBrowserRouter([
@@ -42,19 +51,26 @@ export const router = createBrowserRouter([
       { index: true, element: <BracketView /> },
       { path: "bracket", element: <BracketView /> },
       { path: "roster", element: <TeamRoster /> },
-      { path: "admin", element: <PinLogin /> },
-      
-      // ✅ IMPLEMENTED: Dashboard with role-gated wrapper
-      { 
-        path: "dashboard", 
-        element: (
-          <RequireRole allowed={[ROLES.ADMIN, ROLES.OWNER]}>
-            <AdminDashboard />
-          </RequireRole>
-        ) 
+
+      // ✅ IMPLEMENTED: Hardened Nested Admin Structure
+      {
+        path: "admin",
+        children: [
+          { path: "login", element: <PinLogin /> },
+          { index: true, element: <Navigate to="login" replace /> },
+          {
+            element: (
+              <RequireRole allowed={[ROLES.ADMIN, ROLES.OWNER]}>
+                <AdminLayout />
+              </RequireRole>
+            ),
+            children: [
+              { path: "dashboard", element: <AdminDashboard /> }
+            ]
+          }
+        ]
       },
 
-      // ✅ IMPLEMENTED: Veto with role-gated wrapper
       { 
         path: "veto/:matchId", 
         element: (

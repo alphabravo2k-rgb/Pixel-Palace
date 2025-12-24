@@ -1,39 +1,29 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { supabase } from '../supabase/client';
 
-/**
- * useTournament (HARDENED)
- * * RESPONSIBILITY:
- * - Fetch core tournament data (Tournament Row, Matches, Teams)
- * - Provide a "Loading" or "Error" state.
- * - NEVER crash the UI by returning undefined arrays.
- * * RULES:
- * - No mock data.
- * - No inferred state.
- * - Arrays default to [] to prevent .map() crashes.
- */
-export const useTournament = (tournamentId) => {
-  // 1. STATE: Explicit defaults prevent "Cannot read properties of null"
+// 1. Create the Context
+const TournamentContext = createContext(null);
+
+// 2. Define the Hook Logic (Internal)
+const useTournamentLogic = (tournamentId) => {
   const [state, setState] = useState({
-    tournament: null, // The metadata (status, name)
-    matches: [],      // The bracket nodes
-    teams: [],        // The roster
+    tournament: null,
+    matches: [],
+    teams: [],
     loading: true,
     error: null,
-    lastUpdated: null // For debugging freshness
+    lastUpdated: null
   });
 
-  // 2. FETCH LOGIC
   const fetchTournamentData = useCallback(async () => {
     if (!tournamentId) {
-      setState(prev => ({ ...prev, loading: false, error: "No Tournament ID provided" }));
+      setState(prev => ({ ...prev, loading: false }));
       return;
     }
 
     try {
       setState(prev => ({ ...prev, loading: true, error: null }));
 
-      // A. Fetch Tournament Metadata
       const { data: tourneyData, error: tourneyError } = await supabase
         .from('tournaments')
         .select('*')
@@ -41,9 +31,7 @@ export const useTournament = (tournamentId) => {
         .single();
 
       if (tourneyError) throw tourneyError;
-      if (!tourneyData) throw new Error("Tournament not found");
 
-      // B. Fetch Teams (needed for rendering names in bracket)
       const { data: teamsData, error: teamsError } = await supabase
         .from('teams')
         .select('*')
@@ -51,8 +39,6 @@ export const useTournament = (tournamentId) => {
 
       if (teamsError) throw teamsError;
 
-      // C. Fetch Matches (The Bracket Tree)
-      // We order by round/slot to ensure visual consistency
       const { data: matchesData, error: matchesError } = await supabase
         .from('matches')
         .select('*')
@@ -62,42 +48,44 @@ export const useTournament = (tournamentId) => {
 
       if (matchesError) throw matchesError;
 
-      // 3. SUCCESS UPDATE
       setState({
         tournament: tourneyData,
-        matches: matchesData || [], // Safety fallback
-        teams: teamsData || [],     // Safety fallback
+        matches: matchesData || [],
+        teams: teamsData || [],
         loading: false,
         error: null,
         lastUpdated: new Date().toISOString()
       });
 
     } catch (err) {
-      console.error("[useTournament] Critical Fetch Error:", err);
-      setState(prev => ({
-        ...prev,
-        loading: false,
-        // Don't expose raw SQL errors to UI, keeps it cleaner
-        error: err.message || "Failed to load tournament data"
-      }));
+      console.error("[useTournament] Error:", err);
+      setState(prev => ({ ...prev, loading: false, error: err.message }));
     }
   }, [tournamentId]);
 
-  // 3. INITIAL EFFECT
   useEffect(() => {
     fetchTournamentData();
-    
-    // Optional: Realtime Subscription could go here later.
-    // For now, we stick to fetch-on-mount for stability.
-    
   }, [fetchTournamentData]);
 
-  // 4. EXPOSED API (Safe Contracts)
-  return {
-    ...state,
-    refresh: fetchTournamentData, // Manual re-fetch capability
-    
-    // Helper: Is the system ready?
-    isReady: !state.loading && !state.error && !!state.tournament
-  };
+  return { ...state, refresh: fetchTournamentData };
+};
+
+// 3. Export the Provider Component (Used in App.jsx)
+export const TournamentProvider = ({ children, tournamentId }) => {
+  const tournamentData = useTournamentLogic(tournamentId);
+  
+  return (
+    <TournamentContext.Provider value={tournamentData}>
+      {children}
+    </TournamentContext.Provider>
+  );
+};
+
+// 4. Export the Hook (Used in Components)
+export const useTournament = () => {
+  const context = useContext(TournamentContext);
+  if (!context) {
+    throw new Error("useTournament must be used within a TournamentProvider");
+  }
+  return context;
 };

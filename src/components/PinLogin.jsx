@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom'; 
 import { supabase } from '../supabase/client';
-import { useAdminConsole } from '../hooks/useAdminConsole'; // New Hook for Admins
+import { useAdminConsole } from '../hooks/useAdminConsole'; 
 import { BreathingLogo, HudPanel, SkewButton } from '../ui/Components'; 
 import { Eye, LogOut, ArrowRight, Network, Users, Trophy, ShieldCheck, Tv, MessageCircle, Code, ShieldAlert } from 'lucide-react';
 
@@ -19,12 +19,15 @@ const PinLogin = () => {
   const [loggedInUser, setLoggedInUser] = useState(null); 
   const [showWelcome, setShowWelcome] = useState(false);
 
-  // Hook Logic (For Admins)
+  // New Admin Hook logic
   const { login: adminLogin } = useAdminConsole();
 
   // Handle "Spectator Mode" persistence
   useEffect(() => {
-    if (location.state?.skipLogin) setIsVisible(false);
+    if (location.state?.skipLogin) {
+      setIsVisible(false);
+      setShowWelcome(false);
+    }
   }, [location.state]);
 
   // --- LOGIN LOGIC ---
@@ -36,13 +39,11 @@ const PinLogin = () => {
     setLocalError(null);
 
     try {
-      // 1. TRY ADMIN LOGIN (Using the new Hook logic)
+      // 1. TRY ADMIN LOGIN (Hook Pattern)
       const adminSuccess = await adminLogin(pin);
       if (adminSuccess) {
-        // Fetch profile details manually just for the welcome screen text
-        // (The hook sets the real state in the background)
+        // Fetch profile details manually for the welcome text
         const { data } = await supabase.rpc('api_admin_login', { p_pin: pin });
-        
         setLoggedInUser({ 
             type: 'ADMIN', 
             name: data?.profile?.display_name || 'Admin', 
@@ -53,9 +54,8 @@ const PinLogin = () => {
         return;
       }
 
-      // 2. TRY CAPTAIN LOGIN (Direct RPC for now)
+      // 2. TRY CAPTAIN LOGIN (RPC Pattern)
       const { data: captainData, error: captainError } = await supabase.rpc('api_get_captain_state', { p_pin: pin });
-      
       if (!captainError && captainData?.team_name) {
         setLoggedInUser({ 
             type: 'CAPTAIN', 
@@ -80,13 +80,16 @@ const PinLogin = () => {
   // --- NAVIGATION ---
   const proceedToApp = (destination) => {
     if (!loggedInUser) return;
-    const dest = destination || (loggedInUser.type === 'ADMIN' ? '/dashboard' : '/veto'); // Fixed path
+    const dest = destination || (loggedInUser.type === 'ADMIN' ? '/dashboard' : '/veto');
     navigate(dest, { state: { pin: loggedInUser.pin } });
+    setShowWelcome(false); 
   };
 
   const safeNavigate = (path) => {
+    // Navigate and hide the overlay elements
     navigate(path, { state: { skipLogin: true } });
-    setIsVisible(false);
+    setIsVisible(false);    // Hide the input form
+    setShowWelcome(false);  // Hide the welcome screen
   };
 
   const logout = () => {
@@ -95,9 +98,9 @@ const PinLogin = () => {
     setPin('');
   };
 
-  // If not supposed to show login, hide it (but render null if checking paths)
+  // If not supposed to show login, or not on an auth-required path, hide it
   const isAuthPage = ['/', '/bracket', '/roster', '/admin'].includes(window.location.pathname);
-  if (!isVisible && !isAuthPage) return null;
+  if (!isVisible || !isAuthPage) return null;
 
   // --- WELCOME MODAL ---
   if (showWelcome && loggedInUser) {
@@ -152,7 +155,6 @@ const PinLogin = () => {
     <div className="fixed inset-0 bg-[#050505]/98 flex items-center justify-center z-50 p-4 backdrop-blur-md">
       <div className="w-full max-w-2xl flex flex-col items-center">
         
-        {/* LOGO & TITLE */}
         <div className="text-center mb-8 relative">
            <div className="hidden sm:block absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-fuchsia-600/20 blur-[100px] rounded-full -z-10 pointer-events-none"></div>
            
@@ -175,7 +177,6 @@ const PinLogin = () => {
            </div>
         </div>
 
-        {/* INPUT FORM */}
         <HudPanel className="w-full max-w-md">
            <h2 className="text-center text-xl text-white font-['Teko'] uppercase mb-6 flex items-center justify-center gap-2">
               <ShieldCheck className="w-5 h-5 text-cyan-400" /> Secure Access

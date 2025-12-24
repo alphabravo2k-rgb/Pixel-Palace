@@ -30,18 +30,14 @@ const SessionContext = createContext({
   loading: false,
   login: async () => {},
   logout: () => {},
-  can: () => false, // ✅ Future-proof signature
+  can: () => false, 
 });
 
 // ------------------------------------------------------------------
 // 3. PROVIDER COMPONENT
 // ------------------------------------------------------------------
 export const SessionProvider = ({ children }) => {
-  /**
-   * 🔧 Upgrade 1️⃣: Session shape must evolve
-   * From: { role, identity, pin }
-   * To: { role, identity, claims: { ... } }
-   */
+  // 1️⃣ Session shape updated to include explicit claims
   const [session, setSession] = useState({
     role: ROLES.GUEST,
     identity: null,
@@ -55,10 +51,11 @@ export const SessionProvider = ({ children }) => {
   
   const [loading, setLoading] = useState(false);
 
+  // --- LOGIN LOGIC ---
   const login = async (pin) => {
     setLoading(true);
     try {
-      // --- ADMIN LOGIN FLOW ---
+      // ADMIN CHECK
       const { data: adminData, error: adminError } = await supabase.rpc('api_admin_login', { p_pin: pin });
       
       if (!adminError && adminData?.status === 'SUCCESS') {
@@ -68,7 +65,7 @@ export const SessionProvider = ({ children }) => {
             id: adminData.profile.id,
             name: adminData.profile.display_name
           },
-          // Admins typically have global claims (represented here as wildcards or specific assignments)
+          // Admins get wildcard '*' access
           claims: {
             tournamentIds: ['*'], 
             teamIds: ['*'],
@@ -79,7 +76,7 @@ export const SessionProvider = ({ children }) => {
         return true;
       }
 
-      // --- CAPTAIN LOGIN FLOW ---
+      // CAPTAIN CHECK
       const { data: captainData, error: captainError } = await supabase.rpc('api_get_captain_state', { p_pin: pin });
       
       if (!captainError && captainData?.team_name) {
@@ -89,11 +86,11 @@ export const SessionProvider = ({ children }) => {
             id: captainData.team_id,
             name: captainData.team_name
           },
-          // Claims are strictly scoped to their specific ID
+          // Captains get specific ID access
           claims: {
             tournamentIds: [captainData.tournament_id],
             teamIds: [captainData.team_id],
-            matchIds: [] // Can be populated if the logic supports fetching active match IDs
+            matchIds: [] 
           },
           isAuthenticated: true
         });
@@ -120,40 +117,23 @@ export const SessionProvider = ({ children }) => {
     });
   };
 
-  /**
-   * 🔧 Upgrade 2️⃣: checkPermission must accept context
-   * Signature: can(action, context)
-   */
+  // 2️⃣ checkPermission (can) accepts context for scope validation
   const can = useCallback((action, context = {}) => {
-    // 1. Role Check
+    // A. Role Check
     const allowedRoles = PERMISSIONS[action] || [];
     if (!allowedRoles.includes(session.role)) return false;
 
-    // 2. Claim Check (Scope)
-    // If context provides IDs, we must verify the user has a claim to them.
-    
-    // Check: Tournament Scope
+    // B. Scope/Claim Check
     if (context.tournamentId) {
       const hasClaim = session.claims.tournamentIds.includes('*') || 
                        session.claims.tournamentIds.includes(context.tournamentId);
       if (!hasClaim) return false;
     }
 
-    // Check: Team Scope
     if (context.teamId) {
       const hasClaim = session.claims.teamIds.includes('*') || 
                        session.claims.teamIds.includes(context.teamId);
       if (!hasClaim) return false;
-    }
-
-    // Check: Match Scope
-    if (context.matchId) {
-      const hasClaim = session.claims.matchIds.includes('*') || 
-                       session.claims.matchIds.includes(context.matchId);
-      // Note: Captains often don't store matchIds in session but derive access from TeamID inside the match.
-      // We can add logic here: if I own the Team that is IN this match, I can access it.
-      // For now, strict claim checking:
-      if (!hasClaim && session.role !== ROLES.CAPTAIN) return false; 
     }
 
     return true;
@@ -164,8 +144,7 @@ export const SessionProvider = ({ children }) => {
     loading,
     login,
     logout,
-    can, // Exposing the new signature
-    // Convenience Accessors
+    can,
     isAdmin: [ROLES.ADMIN, ROLES.OWNER].includes(session.role),
     isCaptain: session.role === ROLES.CAPTAIN,
   }), [session, loading, can]);

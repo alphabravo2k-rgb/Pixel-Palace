@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase'; // Ensure you have this configured
+import { supabase } from '../supabase/client'; // Ensure you have this configured
 
 export const BracketView = ({ tournamentId }) => {
   const [matches, setMatches] = useState([]);

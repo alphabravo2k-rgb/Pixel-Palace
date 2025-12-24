@@ -13,16 +13,17 @@ const ICONS = {
 };
 
 export const SocialButton = ({ href, type }) => {
-  // 🛡️ CRITICAL FIX: Guard against undefined/non-string types
   if (!type || typeof type !== 'string') return null;
-
   const Icon = ICONS[type.toUpperCase()];
   if (!Icon) return null; 
 
-  if (!href) {
+  const isValid = href && href.length > 5; // Simple length check
+  
+  // ✅ FIX: Visually disabled state + Tooltip explanation
+  if (!isValid) {
     return (
-      <div className="p-1.5 opacity-20 cursor-not-allowed group/social">
-        <Icon className="w-3.5 h-3.5 grayscale" />
+      <div className="p-1 text-zinc-700 cursor-not-allowed opacity-40" title={`No ${type} linked`}>
+         <Icon className="w-3.5 h-3.5" />
       </div>
     );
   }
@@ -37,6 +38,8 @@ export const SocialButton = ({ href, type }) => {
     <a href={href} target="_blank" rel="noreferrer" 
        className={`p-1 text-zinc-500 transition-all duration-200 ${colors[type.toUpperCase()] || ''} hover:scale-110 active:scale-95 cursor-pointer relative z-50`} 
        onMouseDown={(e) => e.stopPropagation()} 
+       onClick={(e) => e.stopPropagation()}
+       title={`Open ${type}`}
     >
       <Icon className="w-3.5 h-3.5" />
     </a>

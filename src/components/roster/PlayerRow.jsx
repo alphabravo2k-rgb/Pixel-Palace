@@ -1,12 +1,11 @@
 import React from 'react';
-import { Pin, Crown } from 'lucide-react';
 import { SocialButton } from './SocialIcons';
 
 export const PlayerRow = ({ player }) => {
   // Defensive Role Normalization
   const role = (player.role || 'PLAYER').toUpperCase();
-  const isCap = role === 'CAPTAIN';
-  const isSub = role === 'SUBSTITUTE' || role === 'SUB';
+  const isCap = player.is_captain || role === 'CAPTAIN' || role === 'CAPT';
+  const isSub = player.is_substitute || role === 'SUB' || role === 'SUBSTITUTE';
   
   let tag = 'PLY';
   let tagColor = 'bg-zinc-800 text-zinc-500 border border-zinc-700/50';
@@ -29,8 +28,9 @@ export const PlayerRow = ({ player }) => {
         />
       )}
 
-      {/* DEFAULT VIEW */}
-      <div className="absolute inset-0 flex items-center justify-between px-4 z-10 transition-transform duration-300 group-hover:-translate-y-full pointer-events-none">
+      {/* DEFAULT VIEW LAYER */}
+      {/* ✅ FIX: pointer-events-auto by default, BUT pointer-events-none when hovered so it doesn't block the layer below */}
+      <div className="absolute inset-0 flex items-center justify-between px-4 z-10 transition-transform duration-300 group-hover:-translate-y-full pointer-events-auto group-hover:pointer-events-none">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded bg-zinc-900 border border-white/10 flex items-center justify-center overflow-hidden relative">
             {player.avatar ? (
@@ -40,29 +40,24 @@ export const PlayerRow = ({ player }) => {
             )}
           </div>
           <div className="flex items-center gap-2">
-            {/* Show Pin for Cap/Sub */}
-            {(isCap || isSub) && (
-               <Pin className={`w-2.5 h-2.5 rotate-45 ${isCap ? 'text-yellow-500 fill-yellow-500/20' : 'text-blue-400'}`} />
-            )}
             <span className={`text-sm font-medium truncate max-w-[110px] font-['Rajdhani'] ${isCap ? 'text-yellow-500' : 'text-zinc-300'}`}>
                {player.nickname || player.name || 'Unknown'}
             </span>
-            {isCap && <Crown className="w-3 h-3 text-yellow-500" />}
           </div>
         </div>
         
-        {/* TAG - Only visual indicator, no extra icons */}
+        {/* TAG */}
         <span className={`text-[9px] px-2 py-0.5 rounded-sm font-mono font-bold tracking-wider ${tagColor}`}>
             {tag}
         </span>
       </div>
 
       {/* HOVER VIEW - INTERACTIVE LAYER */}
-      {/* Added pointer-events-auto to children to ensure clickability */}
-      <div className="absolute inset-0 z-20 flex items-center justify-between px-4 bg-[#0a0a0c] transform translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out">
+      {/* ✅ FIX: pointer-events-none by default (so you can click 'through' it), BUT auto on hover */}
+      <div className="absolute inset-0 z-20 flex items-center justify-between px-4 bg-[#0a0a0c] transform translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out pointer-events-none group-hover:pointer-events-auto">
         
-        {/* 🛑 FIX: pointer-events-auto ensures clicks pass through to buttons */}
-        <div className="flex items-center gap-2 relative z-50 pointer-events-auto" onClick={(e) => e.stopPropagation()}>
+        {/* Social Buttons */}
+        <div className="flex items-center gap-2 relative z-50" onClick={(e) => e.stopPropagation()}>
            <SocialButton href={player.socials?.faceit} type="FACEIT" />
            <SocialButton href={player.socials?.steam} type="STEAM" />
            <SocialButton href={player.socials?.discord} type="DISCORD" />
@@ -71,6 +66,7 @@ export const PlayerRow = ({ player }) => {
         <span className="text-[10px] font-medium text-zinc-100 uppercase tracking-tighter truncate max-w-[120px] px-4">
            {player.nickname}
         </span>
+        
         <span className={`text-[9px] px-2 py-0.5 rounded-sm font-mono font-bold tracking-wider ${tagColor}`}>{tag}</span>
       </div>
 

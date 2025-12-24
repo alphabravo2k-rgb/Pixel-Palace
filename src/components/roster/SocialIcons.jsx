@@ -1,64 +1,49 @@
 import React from 'react';
-import { ExternalLink } from 'lucide-react';
+import { MessageCircle, Gamepad2, Twitter } from 'lucide-react';
 
-/**
- * ❌ CRITICAL FIX: Prevent XSS by validating URL protocol
- * We only allow http: and https: protocols.
- * Javascript: schemes will be rejected immediately.
- */
-const isSafeUrl = (url) => {
-  try {
-    const u = new URL(url);
-    return ['http:', 'https:'].includes(u.protocol);
-  } catch {
-    return false;
-  }
-};
+export const SocialIcons = ({ discord, steam, twitter }) => {
+  const isSafeUrl = (url) => {
+    try {
+      if (!url) return false;
+      const u = new URL(url);
+      return ['http:', 'https:'].includes(u.protocol);
+    } catch {
+      return false; // Handle invalid URLs safely
+    }
+  };
 
-export const SocialButton = ({ icon: Icon, href, label, color = "text-white" }) => {
-  const isValid = href && href.length > 3; // Basic length check
-  
-  // 🛡️ NON-NEGOTIABLE SECURITY CHECK
-  // If URL is invalid OR unsafe (javascript: etc), treat as disabled.
-  const isSafe = isSafeUrl(href);
-  const isDisabled = !isValid || !isSafe;
-
-  if (isDisabled) {
+  // Helper to render a safe link
+  const SocialLink = ({ url, icon: Icon, colorClass }) => {
+    if (!url) return null;
+    
+    // If it's a full URL, check safety. If it's just a username, we might need to build the URL.
+    // For now, assuming raw strings or usernames might need specific handling.
+    // Let's assume Discord is a username (copy only), Steam is a URL.
+    
     return (
-      <div 
-        className="group relative p-2 rounded-md bg-zinc-900/50 opacity-50 cursor-not-allowed"
-        aria-label={`${label} (Unavailable)`}
+      <a 
+        href={isSafeUrl(url) ? url : '#'}
+        target="_blank" 
+        rel="noopener noreferrer"
+        className={`p-1.5 rounded hover:bg-white/10 transition-colors ${colorClass}`}
+        onClick={(e) => {
+          if (!isSafeUrl(url)) {
+            e.preventDefault();
+            navigator.clipboard.writeText(url); // Copy username if not a URL
+            alert(`Copied: ${url}`);
+          }
+        }}
       >
-        <Icon className="w-5 h-5 text-zinc-600" />
-        
-        {/* Tooltip for Disabled State */}
-        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-black text-[10px] text-zinc-500 uppercase rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
-          {label} Unlinked
-        </div>
-      </div>
+        <Icon className="w-3.5 h-3.5" />
+      </a>
     );
-  }
+  };
 
   return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer" // Security best practice for external links
-      className={`
-        group relative p-2 rounded-md bg-zinc-900/50 hover:bg-zinc-800 
-        transition-all duration-300 hover:scale-110 active:scale-95
-        ${color}
-      `}
-      onClick={(e) => e.stopPropagation()} // ✅ Event propagation handling kept
-      aria-label={label}
-    >
-      <Icon className="w-5 h-5" />
-      <ExternalLink className="absolute top-1 right-1 w-2 h-2 opacity-0 group-hover:opacity-50 transition-opacity" />
-      
-      {/* Tooltip for Active State */}
-      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-black text-[10px] text-white uppercase rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
-        Open {label}
-      </div>
-    </a>
+    <div className="flex items-center gap-1">
+      <SocialLink url={discord} icon={MessageCircle} colorClass="text-[#5865F2]" />
+      <SocialLink url={steam} icon={Gamepad2} colorClass="text-[#1b2838]" />
+      <SocialLink url={twitter} icon={Twitter} colorClass="text-[#1DA1F2]" />
+    </div>
   );
 };

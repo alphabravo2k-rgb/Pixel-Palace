@@ -1,9 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+// FIX: Correct path to hooks
 import { useAdminConsole } from '../hooks/useAdminConsole';
-import { AdminAuditLog } from './admin/AdminAuditLog'; // Ensure this path matches where you put the file
-import { HudPanel, SkewButton, BreathingLogo } from './ui/Components'; 
+// FIX: Correct path (Same folder)
+import { AdminAuditLog } from './AdminAuditLog'; 
+// FIX: Correct path to UI
+import { HudPanel, SkewButton, BreathingLogo } from '../ui/Components'; 
 import { LogOut, Key, UserPlus, MonitorPlay, Users, Search, Edit2, RotateCcw, RefreshCw, Trophy, Lock, Unlock, PlayCircle, ShieldAlert, ChevronDown } from 'lucide-react';
+// FIX: Correct path to Supabase
 import { supabase } from '../supabase/client';
 
 const AdminDashboard = () => {

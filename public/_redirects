@@ -1,1 +1,5 @@
-/* /index.html  200
+# Ensure assets load directly
+/assets/* /assets/:splat 200
+
+# Send everything else to index.html
+/* /index.html 200

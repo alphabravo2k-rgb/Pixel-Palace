@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Users, Shield, Trophy, AlertCircle } from 'lucide-react';
+import { Users, Trophy, AlertCircle } from 'lucide-react';
 import { PlayerRow } from './PlayerRow'; 
-import { normalizeRole } from '../lib/roles';
+import { normalizeRole } from '../../lib/roles';
 
 // 1. STRICT SORTING ORDER
 const ROLE_ORDER = {
@@ -23,6 +23,7 @@ export const TeamCard = ({ team, rank, tournamentRules = {} }) => {
 
   if (!team) return null;
 
+  // Determine slots based on team max or tournament rules (default 5)
   const slotsNeeded = team.max_players ?? tournamentRules.team_size ?? 5;
 
   // 2. APPLY SORTING LOGIC
@@ -82,7 +83,7 @@ export const TeamCard = ({ team, rank, tournamentRules = {} }) => {
           />
         ))}
 
-        {/* Ghost Slots */}
+        {/* Ghost Slots (Visual Filler) */}
         {Array.from({ length: emptySlots }).map((_, i) => (
           <div key={`ghost-${i}`} className="flex items-center justify-between p-3 bg-black/20 border-b border-white/5 last:border-0">
             <div className="flex items-center gap-3 opacity-30">
@@ -97,6 +98,13 @@ export const TeamCard = ({ team, rank, tournamentRules = {} }) => {
           </div>
         ))}
       </div>
+      
+      {/* Interactive Footer Gradient */}
+      <div className={`
+        h-1 w-full bg-gradient-to-r from-fuchsia-600 via-purple-600 to-blue-600 
+        transition-all duration-500 origin-left
+        ${isHovered ? 'scale-x-100 opacity-100' : 'scale-x-0 opacity-0'}
+      `} />
     </div>
   );
 };

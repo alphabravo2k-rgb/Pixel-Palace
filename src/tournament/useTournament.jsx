@@ -1,169 +1,103 @@
-import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
-import { supabase } from '../supabase/client';
-import { useSession } from '../auth/useSession';
+import { useState, useEffect, useCallback } from 'react';
+import { supabase } from '../lib/supabase';
 
-const TournamentContext = createContext();
+/**
+ * useTournament (HARDENED)
+ * * RESPONSIBILITY:
+ * - Fetch core tournament data (Tournament Row, Matches, Teams)
+ * - Provide a "Loading" or "Error" state.
+ * - NEVER crash the UI by returning undefined arrays.
+ * * RULES:
+ * - No mock data.
+ * - No inferred state.
+ * - Arrays default to [] to prevent .map() crashes.
+ */
+export const useTournament = (tournamentId) => {
+  // 1. STATE: Explicit defaults prevent "Cannot read properties of null"
+  const [state, setState] = useState({
+    tournament: null, // The metadata (status, name)
+    matches: [],      // The bracket nodes
+    teams: [],        // The roster
+    loading: true,
+    error: null,
+    lastUpdated: null // For debugging freshness
+  });
 
-const normalizeUrl = (input, type) => {
-  if (!input || input === 'null' || input === 'undefined') return null;
-  const str = input.toString().trim();
-  if (str.length === 0) return null;
-  
-  if (str.startsWith('http')) return str;
-  
-  if (type === 'faceit') return `https://www.faceit.com/en/players/${str}`;
-  if (type === 'steam') {
-    return str.match(/^\d+$/) ? `https://steamcommunity.com/profiles/${str}` : `https://steamcommunity.com/id/${str}`;
-  }
-  return null;
-};
+  // 2. FETCH LOGIC
+  const fetchTournamentData = useCallback(async () => {
+    if (!tournamentId) {
+      setState(prev => ({ ...prev, loading: false, error: "No Tournament ID provided" }));
+      return;
+    }
 
-const extractNickname = (url, name) => {
-  if (!url) return name;
-  try {
-    if (!url.includes('/')) return url; 
-    const segments = new URL(url).pathname.split('/').filter(Boolean);
-    const idx = segments.indexOf('players');
-    return (idx !== -1 && segments[idx + 1]) ? segments[idx + 1] : name;
-  } catch { return name; }
-};
-
-export const TournamentProvider = ({ children }) => {
-  const { session } = useSession();
-  const [teams, setTeams] = useState([]);
-  const [matches, setMatches] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  const isAuthed = Boolean(session?.isAuthenticated);
-  const pin = session?.pin ?? null;
-
-  const fetchData = useCallback(async () => {
     try {
-      const [teamsRes, playersRes] = await Promise.all([
-        supabase.from('teams').select('*').order('seed_number', { ascending: true }),
-        supabase.from('players').select('*')
-      ]);
+      setState(prev => ({ ...prev, loading: true, error: null }));
 
-      if (teamsRes.error) throw teamsRes.error;
+      // A. Fetch Tournament Metadata
+      const { data: tourneyData, error: tourneyError } = await supabase
+        .from('tournaments')
+        .select('*')
+        .eq('id', tournamentId)
+        .single();
 
-      const rawTeams = Array.isArray(teamsRes.data) ? teamsRes.data : [];
-      const rawPlayers = Array.isArray(playersRes.data) ? playersRes.data : [];
+      if (tourneyError) throw tourneyError;
+      if (!tourneyData) throw new Error("Tournament not found");
 
-      const uiTeams = rawTeams.map((t) => {
-        const teamPlayers = rawPlayers.filter((p) => p.team_id === t.id);
-        
-        return {
-          ...t,
-          region_iso2: t.region_iso2 || 'un', 
-          players: teamPlayers.map((p) => {
-            // Defensive Role Check here too
-            let role = 'PLAYER';
-            const r = (p.role || '').toUpperCase();
-            if (p.is_captain || r === 'CAPTAIN') role = 'CAPTAIN';
-            else if (p.is_substitute || r === 'SUB' || r === 'SUBSTITUTE') role = 'SUBSTITUTE';
+      // B. Fetch Teams (needed for rendering names in bracket)
+      const { data: teamsData, error: teamsError } = await supabase
+        .from('teams')
+        .select('*')
+        .eq('tournament_id', tournamentId);
 
-            return {
-              id: p.id,
-              name: p.display_name,
-              nickname: extractNickname(p.faceit_url, p.display_name),
-              role: role, 
-              avatar: p.faceit_avatar_url,
-              elo: p.faceit_elo,
-              socials: {
-                faceit: normalizeUrl(p.faceit_url || p.faceit_username, 'faceit'),
-                steam: normalizeUrl(p.steam_url || p.steam_id, 'steam'),
-                discord: p.discord_url || (p.discord_handle ? `https://discord.com/users/${p.discord_handle}` : null)
-              }
-            };
-          })
-        };
+      if (teamsError) throw teamsError;
+
+      // C. Fetch Matches (The Bracket Tree)
+      // We order by round/slot to ensure visual consistency
+      const { data: matchesData, error: matchesError } = await supabase
+        .from('matches')
+        .select('*')
+        .eq('tournament_id', tournamentId)
+        .order('round', { ascending: true })
+        .order('slot', { ascending: true });
+
+      if (matchesError) throw matchesError;
+
+      // 3. SUCCESS UPDATE
+      setState({
+        tournament: tourneyData,
+        matches: matchesData || [], // Safety fallback
+        teams: teamsData || [],     // Safety fallback
+        loading: false,
+        error: null,
+        lastUpdated: new Date().toISOString()
       });
-
-      let matchesData = [];
-      
-      if (isAuthed && pin) {
-        const { data, error } = await supabase.rpc('get_authorized_matches', { input_pin: pin });
-        if (!error) matchesData = data || [];
-      } else {
-        const { data, error } = await supabase.rpc('get_public_matches');
-        if (!error) matchesData = data || [];
-      }
-
-      const safeMatchesData = Array.isArray(matchesData) ? matchesData : [];
-
-      const uiMatches = safeMatchesData.map(m => {
-        let status = 'scheduled';
-        if (m.state === 'complete') status = 'completed';
-        else if (m.state === 'open') {
-          status = (m.server_ip && m.server_ip !== 'HIDDEN') ? 'live' : 'ready'; 
-          if (m.metadata?.veto?.bannedMaps?.length > 0) status = 'veto';
-        }
-
-        return {
-          ...m,
-          team1Id: m.team1_id,
-          team2Id: m.team2_id,
-          winnerId: m.winner_id,
-          team1Name: m.team1_name || "TBD",
-          team2Name: m.team2_name || "TBD",
-          status,
-          vetoState: m.metadata?.veto || {}
-        };
-      });
-
-      setTeams(uiTeams);
-      setMatches(uiMatches);
-      setError(null);
 
     } catch (err) {
-      console.error("Sync Error:", err);
-      // Don't show full error object to user, just message
-      setError(err.message || "Data Sync Failed");
-      setTeams([]);
-      setMatches([]);
-    } finally {
-      setLoading(false);
+      console.error("[useTournament] Critical Fetch Error:", err);
+      setState(prev => ({
+        ...prev,
+        loading: false,
+        // Don't expose raw SQL errors to UI, keeps it cleaner
+        error: err.message || "Failed to load tournament data"
+      }));
     }
-  }, [isAuthed, pin]);
+  }, [tournamentId]);
 
-  // 🛑 FIX: Polling Interval set to 60 seconds (1 minute) for auto-updates
+  // 3. INITIAL EFFECT
   useEffect(() => {
-    fetchData();
-    const interval = setInterval(fetchData, 60000); 
-    return () => clearInterval(interval);
-  }, [fetchData]);
+    fetchTournamentData();
+    
+    // Optional: Realtime Subscription could go here later.
+    // For now, we stick to fetch-on-mount for stability.
+    
+  }, [fetchTournamentData]);
 
-  const refreshMatches = async () => fetchData();
-  
-  const adminUpdateMatch = async (matchId, updates) => {
-      if (!pin) return;
-      await supabase.rpc('admin_update_match', { match_id: matchId, input_pin: pin, updates });
-      await fetchData();
+  // 4. EXPOSED API (Safe Contracts)
+  return {
+    ...state,
+    refresh: fetchTournamentData, // Manual re-fetch capability
+    
+    // Helper: Is the system ready?
+    isReady: !state.loading && !state.error && !!state.tournament
   };
-
-  const submitVeto = async (matchId, payload) => {
-    const { error } = await supabase.rpc('submit_veto', {
-      match_id: matchId, input_pin: pin, action: payload.action, target_map_id: payload.mapId
-    });
-    if (error) throw error;
-    await fetchData();
-  };
-
-  const rounds = useMemo(() => {
-    if (!Array.isArray(matches)) return {}; 
-    return matches.reduce((acc, m) => {
-      if (!acc[m.round]) acc[m.round] = [];
-      acc[m.round].push(m);
-      return acc;
-    }, {});
-  }, [matches]);
-
-  return (
-    <TournamentContext.Provider value={{ teams, matches, rounds, loading, error, refreshMatches, adminUpdateMatch, submitVeto }}>
-      {children}
-    </TournamentContext.Provider>
-  );
 };
-
-export const useTournament = () => useContext(TournamentContext);

@@ -1,148 +1,107 @@
-import { useState } from 'react';
-import { supabase } from '../supabase/client'; // FIX IMPORT PATH
+import { useState, useCallback } from 'react';
+import { supabase } from '../supabase/client';
+import { useSession } from '../auth/useSession';
 
+/**
+ * 4️⃣ useAdminConsole — THE OPERATIONAL BRIDGE
+ * strictly enforces "Role + Scope + State" before execution.
+ */
 export const useAdminConsole = () => {
-  const [adminProfile, setAdminProfile] = useState(null);
-  const [tempPin, setTempPin] = useState(null);
-  const [error, setError] = useState(null);
+  const { session, can } = useSession();
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState(null);
+  const [error, setError] = useState(null);
 
-  const executeCommand = async (commandName, rpcName, params = {}) => {
-    setLoading(true);
+  /**
+   * GENERIC EXECUTOR
+   * Wraps all RPC calls with:
+   * 1. Permission Gating (Client-side)
+   * 2. Error Handling
+   * 3. Loading State
+   */
+  const execute = useCallback(async (action, permission, rpcName, params = {}) => {
     setError(null);
-    setResult(null);
-    console.log(`[AdminConsole] 🚀 Executing ${commandName}...`, params);
 
+    // 🛡️ GATEKEEPER: Check Authority before Network Request
+    if (!can(permission)) {
+      setError(`ACCESS DENIED: Missing permission ${permission}`);
+      return { success: false, error: 'Unauthorized' };
+    }
+
+    setLoading(true);
     try {
       const { data, error: rpcError } = await supabase.rpc(rpcName, params);
+      
       if (rpcError) throw rpcError;
-      if (typeof data === 'string' && data.startsWith('Error:')) throw new Error(data);
-
-      console.log(`[AdminConsole] ✅ ${commandName} Success:`, data);
-      setResult(typeof data === 'string' ? data : 'Operation Successful');
+      
       return { success: true, data };
     } catch (err) {
-      console.error(`[AdminConsole] ❌ ${commandName} Failed:`, err);
-      setError(err.message || 'Unknown Error');
+      console.error(`[${action}] Failed:`, err);
+      setError(err.message);
       return { success: false, error: err.message };
     } finally {
       setLoading(false);
     }
+  }, [can]);
+
+  // ----------------------------------------------------------------
+  // OPERATIONAL METHODS
+  // ----------------------------------------------------------------
+
+  /**
+   * CREATE ADMIN
+   * ⚠️ Sensitive Action: Requires Re-Auth (PIN)
+   */
+  const createAdmin = async (authPin, newAdminData) => {
+    return execute(
+      'CREATE_ADMIN',
+      'CAN_MANAGE_BRACKET', // Permission Check
+      'api_create_admin_v2', // RPC Name
+      { 
+        p_auth_pin: authPin, // Re-auth credential
+        p_name: newAdminData.name,
+        p_discord: newAdminData.discord,
+        p_faceit: newAdminData.faceitUser 
+      }
+    );
   };
 
-  const login = async (pin) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const { data, error } = await supabase.rpc('api_admin_login', { p_pin: pin });
-      if (error) throw error;
-      if (!data) throw new Error("No response from authentication server");
-      if (data.status === 'ERROR') throw new Error(data.message || "Login failed");
-      setAdminProfile(data.profile);
-      return true;
-    } catch (err) {
-      console.error("Admin Login Error:", err);
-      setError(err.message);
-      return false;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const createAdmin = async (ownerPin, formData) => {
-    setLoading(true);
-    setTempPin(null);
-    try {
-      const { data, error } = await supabase.rpc('cmd_owner_create_admin', {
-        p_owner_pin: ownerPin,
-        p_display_name: formData.name,
-        p_discord_handle: formData.discord,
-        p_discord_username: formData.discordUser,
-        p_faceit_username: formData.faceitUser || null,
-        p_faceit_url: formData.faceitUrl || null
-      });
-      if (error) throw error;
-      setTempPin(data.generated_pin);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const changeMyPin = async (oldPin, newPin, identityData, securityToken = '') => {
-    setLoading(true);
-    setError(null);
-    try {
-      const { error: rpcError } = await supabase.rpc('cmd_admin_change_pin', {
-        p_old_pin: oldPin,
-        p_new_pin: newPin,
-        p_discord_handle: identityData.discordHandle || null,
-        p_faceit_username: identityData.faceitUser || null,
-        p_faceit_url: identityData.faceitUrl || null,
-        p_security_token: securityToken
-      });
-      if (rpcError) throw rpcError;
-      return true;
-    } catch (err) {
-      let msg = err.message.replace('P0001: ', ''); 
-      if (msg === 'VERIFICATION_FAILED') msg = "Identity Verification Failed"; 
-      setError(msg);
-      return false;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const searchUsers = async (query, adminPin) => {
-    if (!query || query.length < 2) return [];
-    try {
-        const { data, error } = await supabase.rpc('admin_search_users', { search_term: query, admin_pin: adminPin });
-        if (error) throw error;
-        return data || [];
-    } catch (e) {
-        console.error("Search failed", e);
-        return [];
-    }
-  };
-
-  const fetchTournaments = async () => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase.from('tournaments').select('*').order('created_at', { ascending: false });
-      if (error) throw error;
-      return data || [];
-    } catch (err) {
-      setError(err.message);
-      return [];
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const syncRegistrations = async (tournamentId) => {
-    return executeCommand('Sync Registrations', 'sync_registrations_to_tables', { target_tourney_id: tournamentId });
-  };
-
+  /**
+   * GENERATE BRACKET
+   * Scoped Action: Context aware
+   */
   const generateBracket = async (tournamentId) => {
-    return executeCommand('Generate Bracket', 'force_generate_bracket', { target_tourney_id: tournamentId });
+    // We pass the context { tournamentId } to can() to verify scope
+    if (!can('CAN_MANAGE_BRACKET', { tournamentId })) {
+      setError("Scope Violation: You do not own this tournament.");
+      return { success: false };
+    }
+
+    return execute(
+      'GENERATE_BRACKET',
+      'CAN_MANAGE_BRACKET',
+      'api_generate_bracket',
+      { p_tournament_id: tournamentId }
+    );
   };
 
-  const swapTeams = async (matchId, adminPin) => {
-    if (!adminPin) { setError("Session expired or PIN missing."); return; }
-    return executeCommand('Swap Teams', 'admin_swap_teams', { match_id: matchId, admin_pin: adminPin });
-  };
-
-  const updateMatchConfig = async (matchId, bestOf, adminPin) => {
-    if (![1, 3, 5].includes(bestOf)) { setError("Best Of must be 1, 3, or 5."); return; }
-    if (!adminPin) { setError("Session expired or PIN missing."); return; }
-    return executeCommand('Update Config', 'admin_update_match_config', { match_id: matchId, new_best_of: bestOf, admin_pin: adminPin });
+  /**
+   * SYNC REGISTRATIONS
+   * Idempotent safe action
+   */
+  const syncRegistrations = async (tournamentId) => {
+    return execute(
+      'SYNC_ROSTER',
+      'CAN_EDIT_ROSTER',
+      'api_sync_registrations',
+      { p_tournament_id: tournamentId }
+    );
   };
 
   return {
-    adminProfile, tempPin, loading, error, result,
-    login, createAdmin, changeMyPin, searchUsers, fetchTournaments,
-    syncRegistrations, generateBracket, swapTeams, updateMatchConfig
+    loading,
+    error,
+    createAdmin,
+    generateBracket,
+    syncRegistrations
   };
 };

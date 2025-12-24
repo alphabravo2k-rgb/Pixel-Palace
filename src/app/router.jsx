@@ -2,11 +2,13 @@ import { createBrowserRouter } from 'react-router-dom';
 import App from './App';
 
 // IMPORTS
-// Note: We use the default/named exports based on your previous files
+// We use Default Imports for the main views we fixed earlier
 import BracketView from '../components/BracketView'; 
-import { TeamRoster } from '../components/TeamRoster'; // We will create this below to be safe
 import AdminDashboard from '../components/AdminDashboard'; 
-import PinLogin from '../components/PinLogin'; // We will fix this below
+import PinLogin from '../components/PinLogin'; 
+
+// We use Named Imports { } for components typically exported as constants
+import { TeamRoster } from '../components/TeamRoster'; 
 import { VetoPanel } from '../components/VetoPanel'; 
 
 export const router = createBrowserRouter([
@@ -15,18 +17,38 @@ export const router = createBrowserRouter([
     element: <App />,
     children: [
       // 1. HOME & BRACKET (Both show the bracket)
-      { index: true, element: <BracketView /> },
-      { path: "bracket", element: <BracketView /> },
+      { 
+        index: true, 
+        element: <BracketView /> 
+      },
+      { 
+        path: "bracket", 
+        element: <BracketView /> 
+      },
 
       // 2. ROSTER (Shows the teams)
-      { path: "roster", element: <TeamRoster /> },
+      { 
+        path: "roster", 
+        element: <TeamRoster /> 
+      },
 
-      // 3. ADMIN & DASHBOARD
-      { path: "admin", element: <PinLogin /> },
-      { path: "dashboard", element: <AdminDashboard /> },
+      // 3. ADMIN LOGIN
+      { 
+        path: "admin", 
+        element: <PinLogin /> 
+      },
 
-      // 4. VETO
-      { path: "veto/:matchId", element: <VetoPanel /> }
+      // 4. ADMIN DASHBOARD (Protected by Auth Logic in component)
+      { 
+        path: "dashboard", 
+        element: <AdminDashboard /> 
+      },
+
+      // 5. VETO INTERFACE
+      { 
+        path: "veto/:matchId", 
+        element: <VetoPanel /> 
+      }
     ]
   }
 ]);

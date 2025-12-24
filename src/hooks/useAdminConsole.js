@@ -1,6 +1,14 @@
 import { useState } from 'react';
 import { supabase } from '../supabase/client';
 
+/**
+ * useAdminConsole (THE BRAIN)
+ * * CORE PHILOSOPHY:
+ * - Frontend never infers state.
+ * - Frontend only issues commands.
+ * - Backend (RPCs) enforces rules.
+ * * This hook acts as the bridge between your UI buttons and the Postgres functions.
+ */
 export const useAdminConsole = () => {
   // --- AUTH STATE ---
   const [adminProfile, setAdminProfile] = useState(null);
@@ -9,10 +17,41 @@ export const useAdminConsole = () => {
   // --- OPERATION STATE ---
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState(null); // For success messages (Sync complete, etc)
+  const [result, setResult] = useState(null); // Success messages
+
+  // Helper: Centralized command execution with logging and error handling
+  const executeCommand = async (commandName, rpcName, params = {}) => {
+    setLoading(true);
+    setError(null);
+    setResult(null);
+    
+    console.log(`[AdminConsole] 🚀 Executing ${commandName}...`, params);
+
+    try {
+      const { data, error: rpcError } = await supabase.rpc(rpcName, params);
+
+      if (rpcError) throw rpcError;
+
+      // Handle legacy SQL error strings (some RPCs return 'Error: ...')
+      if (typeof data === 'string' && data.startsWith('Error:')) {
+        throw new Error(data);
+      }
+
+      console.log(`[AdminConsole] ✅ ${commandName} Success:`, data);
+      setResult(typeof data === 'string' ? data : 'Operation Successful');
+      return { success: true, data };
+
+    } catch (err) {
+      console.error(`[AdminConsole] ❌ ${commandName} Failed:`, err);
+      setError(err.message || 'Unknown Error');
+      return { success: false, error: err.message };
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // =========================================================================
-  // 🔐 AUTHENTICATION & USER MANAGEMENT (Existing Logic)
+  // 1. AUTHENTICATION
   // =========================================================================
 
   const login = async (pin) => {
@@ -20,10 +59,12 @@ export const useAdminConsole = () => {
     setError(null);
     try {
       const { data, error } = await supabase.rpc('api_admin_login', { p_pin: pin });
+      
       if (error) throw error;
       if (!data) throw new Error("No response from authentication server");
       if (data.status === 'ERROR') throw new Error(data.message || "Login failed");
       
+      // ✅ Set the profile so components can check Boolean(adminProfile?.id)
       setAdminProfile(data.profile);
       return true;
     } catch (err) {
@@ -82,67 +123,88 @@ export const useAdminConsole = () => {
     }
   };
 
+  const searchUsers = async (query, adminPin) => {
+    if (!query || query.length < 2) return [];
+    try {
+        const { data, error } = await supabase.rpc('admin_search_users', { 
+            search_term: query, 
+            admin_pin: adminPin 
+        });
+        if (error) throw error;
+        return data || [];
+    } catch (e) {
+        console.error("Search failed", e);
+        return [];
+    }
+  };
+
   // =========================================================================
-  // 🎮 TOURNAMENT OPERATIONS (New "Style 1" Logic)
+  // 2. TOURNAMENT DATA (Selectors)
   // =========================================================================
 
   /**
-   * Helper to execute strict admin commands
+   * Fetch Available Tournaments
+   * Used to populate the selector dropdown in the dashboard.
    */
-  const executeCommand = async (commandName, rpcName, params = {}) => {
+  const fetchTournaments = async () => {
     setLoading(true);
-    setError(null);
-    setResult(null);
-    console.log(`[AdminConsole] 🚀 Executing ${commandName}...`, params);
-
     try {
-      const { data, error: rpcError } = await supabase.rpc(rpcName, params);
-      if (rpcError) throw rpcError;
+      const { data, error } = await supabase
+        .from('tournaments')
+        .select('*')
+        .order('created_at', { ascending: false });
       
-      // Handle legacy SQL error strings
-      if (typeof data === 'string' && data.startsWith('Error:')) {
-        throw new Error(data);
-      }
-
-      console.log(`[AdminConsole] ✅ ${commandName} Success:`, data);
-      setResult(typeof data === 'string' ? data : 'Operation Successful');
-      return { success: true, data };
+      if (error) throw error;
+      return data || [];
     } catch (err) {
-      console.error(`[AdminConsole] ❌ ${commandName} Failed:`, err);
-      setError(err.message || 'Unknown Error');
-      return { success: false, error: err.message };
+      setError(err.message);
+      return [];
     } finally {
       setLoading(false);
     }
   };
 
-  // 1. Sync Registrations (Explicit)
+  // =========================================================================
+  // 3. TOURNAMENT OPS (Strict Commands)
+  // =========================================================================
+
   const syncRegistrations = async (tournamentId) => {
     return executeCommand('Sync Registrations', 'sync_registrations_to_tables', {
       target_tourney_id: tournamentId
     });
   };
 
-  // 2. Generate Bracket (Explicit)
   const generateBracket = async (tournamentId) => {
     return executeCommand('Generate Bracket', 'force_generate_bracket', {
       target_tourney_id: tournamentId
     });
   };
 
-  // 3. Swap Teams (Explicit + Guarded)
+  // =========================================================================
+  // 4. MATCH OPS (Strict Commands + Guardrails)
+  // =========================================================================
+
   const swapTeams = async (matchId, adminPin) => {
-    if (!adminPin) return setError("PIN required for sensitive ops.");
+    if (!adminPin) {
+      setError("Session expired or PIN missing. Please relogin.");
+      return;
+    }
     return executeCommand('Swap Teams', 'admin_swap_teams', {
       match_id: matchId,
       admin_pin: adminPin
     });
   };
 
-  // 4. Update Match Config (Explicit + Guarded)
   const updateMatchConfig = async (matchId, bestOf, adminPin) => {
-    if (![1, 3, 5].includes(bestOf)) return setError("Best Of must be 1, 3, or 5.");
-    if (!adminPin) return setError("PIN required.");
+    // Frontend Guardrail: Only allow valid BO values
+    if (![1, 3, 5].includes(bestOf)) {
+      setError("Invalid Best Of value. Must be 1, 3, or 5.");
+      return;
+    }
+    if (!adminPin) {
+      setError("Session expired or PIN missing.");
+      return;
+    }
     
     return executeCommand('Update Config', 'admin_update_match_config', {
       match_id: matchId,
@@ -151,9 +213,32 @@ export const useAdminConsole = () => {
     });
   };
 
+  // =========================================================================
+  // EXPORTS
+  // =========================================================================
   return {
-    adminProfile, tempPin, error, loading, result,
-    login, createAdmin, changeMyPin,
-    syncRegistrations, generateBracket, swapTeams, updateMatchConfig
+    // State
+    adminProfile,
+    tempPin,
+    loading,
+    error,
+    result,
+
+    // Auth Actions
+    login,
+    createAdmin,
+    changeMyPin,
+    searchUsers,
+
+    // Data Fetching
+    fetchTournaments, // <--- EXPORTED AS REQUESTED
+
+    // Tournament Ops
+    syncRegistrations,
+    generateBracket,
+
+    // Match Ops
+    swapTeams,
+    updateMatchConfig
   };
 };

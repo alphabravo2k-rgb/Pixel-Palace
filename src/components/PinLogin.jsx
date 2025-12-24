@@ -1,56 +1,86 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom'; 
 import { supabase } from '../supabase/client';
+import { useAdminConsole } from '../hooks/useAdminConsole'; // New Hook for Admins
 import { BreathingLogo, HudPanel, SkewButton } from '../ui/Components'; 
-import { Eye, LogOut, ArrowRight, Network, Users, Trophy, ShieldCheck, Tv, MessageCircle, Code } from 'lucide-react';
+import { Eye, LogOut, ArrowRight, Network, Users, Trophy, ShieldCheck, Tv, MessageCircle, Code, ShieldAlert } from 'lucide-react';
 
 const PinLogin = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
+  // --- STATE ---
   const [isVisible, setIsVisible] = useState(!location.state?.skipLogin);
   const [pin, setPin] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [localLoading, setLocalLoading] = useState(false);
+  const [localError, setLocalError] = useState(null);
+  
+  // Login Session State
   const [loggedInUser, setLoggedInUser] = useState(null); 
   const [showWelcome, setShowWelcome] = useState(false);
 
+  // Hook Logic (For Admins)
+  const { login: adminLogin } = useAdminConsole();
+
+  // Handle "Spectator Mode" persistence
   useEffect(() => {
     if (location.state?.skipLogin) setIsVisible(false);
   }, [location.state]);
 
+  // --- LOGIN LOGIC ---
   const handleLogin = async (e) => {
     e.preventDefault();
     if (pin.length < 3) return;
-    setLoading(true);
-    setError(null);
+    
+    setLocalLoading(true);
+    setLocalError(null);
 
     try {
-      const { data: adminData, error: adminError } = await supabase.rpc('api_admin_login', { p_pin: pin });
-      if (!adminError && adminData?.status === 'SUCCESS') {
-        setLoggedInUser({ type: 'ADMIN', name: adminData.profile.display_name, role: adminData.profile.role, pin: pin });
+      // 1. TRY ADMIN LOGIN (Using the new Hook logic)
+      const adminSuccess = await adminLogin(pin);
+      if (adminSuccess) {
+        // Fetch profile details manually just for the welcome screen text
+        // (The hook sets the real state in the background)
+        const { data } = await supabase.rpc('api_admin_login', { p_pin: pin });
+        
+        setLoggedInUser({ 
+            type: 'ADMIN', 
+            name: data?.profile?.display_name || 'Admin', 
+            role: data?.profile?.role || 'OFFICER', 
+            pin: pin 
+        });
         setShowWelcome(true); 
         return;
       }
 
+      // 2. TRY CAPTAIN LOGIN (Direct RPC for now)
       const { data: captainData, error: captainError } = await supabase.rpc('api_get_captain_state', { p_pin: pin });
+      
       if (!captainError && captainData?.team_name) {
-        setLoggedInUser({ type: 'CAPTAIN', name: captainData.team_name, role: 'Team Captain', pin: pin });
+        setLoggedInUser({ 
+            type: 'CAPTAIN', 
+            name: captainData.team_name, 
+            role: 'Team Captain', 
+            pin: pin 
+        });
         setShowWelcome(true); 
         return;
       }
 
       throw new Error("Invalid Credentials");
+
     } catch (err) {
-      setError("ACCESS DENIED");
+      console.error(err);
+      setLocalError("ACCESS DENIED");
     } finally {
-      setLoading(false);
+      setLocalLoading(false);
     }
   };
 
+  // --- NAVIGATION ---
   const proceedToApp = (destination) => {
     if (!loggedInUser) return;
-    const dest = destination || (loggedInUser.type === 'ADMIN' ? '/admin' : '/veto');
+    const dest = destination || (loggedInUser.type === 'ADMIN' ? '/dashboard' : '/veto'); // Fixed path
     navigate(dest, { state: { pin: loggedInUser.pin } });
   };
 
@@ -65,17 +95,17 @@ const PinLogin = () => {
     setPin('');
   };
 
-  const isAuthPage = ['/', '/bracket', '/roster'].includes(window.location.pathname);
-  if (!isVisible || !isAuthPage) return null;
+  // If not supposed to show login, hide it (but render null if checking paths)
+  const isAuthPage = ['/', '/bracket', '/roster', '/admin'].includes(window.location.pathname);
+  if (!isVisible && !isAuthPage) return null;
 
-  // --- WELCOME SCREEN ---
+  // --- WELCOME MODAL ---
   if (showWelcome && loggedInUser) {
     return (
       <div className="fixed inset-0 bg-[#050505]/95 flex items-center justify-center z-50 p-4 font-sans backdrop-blur-xl animate-in fade-in duration-500">
         <HudPanel className="w-full max-w-lg">
           <div className="text-center flex flex-col items-center">
             
-            {/* Clickable Logo leading to Developer/Owner */}
             <a href="https://discord.gg/2AVFBjff" target="_blank" rel="noreferrer" className="mb-6 hover:scale-105 transition-transform">
                 <BreathingLogo size="w-32 h-32" />
             </a>
@@ -117,12 +147,12 @@ const PinLogin = () => {
     );
   }
 
-  // --- LOGIN SCREEN ---
+  // --- LOGIN FORM ---
   return (
     <div className="fixed inset-0 bg-[#050505]/98 flex items-center justify-center z-50 p-4 backdrop-blur-md">
       <div className="w-full max-w-2xl flex flex-col items-center">
         
-        {/* HEADER */}
+        {/* LOGO & TITLE */}
         <div className="text-center mb-8 relative">
            <div className="hidden sm:block absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-fuchsia-600/20 blur-[100px] rounded-full -z-10 pointer-events-none"></div>
            
@@ -131,7 +161,7 @@ const PinLogin = () => {
            </a>
            
            <h1 className="text-5xl md:text-7xl font-black text-white italic tracking-tighter font-['Teko'] leading-none drop-shadow-[0_0_15px_rgba(192,38,211,0.5)]">
-              PIXEL <span className="text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-400 via-pink-500 to-purple-600">PALACE</span>
+             PIXEL <span className="text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-400 via-pink-500 to-purple-600">PALACE</span>
            </h1>
            <p className="text-zinc-400 text-lg uppercase tracking-[0.4em] font-['Teko'] mt-1">Operations Command</p>
            
@@ -145,7 +175,7 @@ const PinLogin = () => {
            </div>
         </div>
 
-        {/* LOGIN FORM */}
+        {/* INPUT FORM */}
         <HudPanel className="w-full max-w-md">
            <h2 className="text-center text-xl text-white font-['Teko'] uppercase mb-6 flex items-center justify-center gap-2">
               <ShieldCheck className="w-5 h-5 text-cyan-400" /> Secure Access
@@ -162,20 +192,20 @@ const PinLogin = () => {
                 />
              </div>
 
-             <SkewButton type="submit" disabled={loading || pin.length < 3} className="w-full">
-               {loading ? 'VERIFYING...' : 'AUTHORIZE'}
+             <SkewButton type="submit" disabled={localLoading || pin.length < 3} className="w-full">
+               {localLoading ? 'VERIFYING...' : 'AUTHORIZE'}
              </SkewButton>
            </form>
 
-           {error && (
+           {localError && (
              <div className="mt-6 text-center animate-in fade-in">
                 <div className="inline-flex items-center gap-2 px-4 py-2 bg-red-900/20 border border-red-500/50 text-red-400 font-bold uppercase tracking-widest text-xs">
-                   <ShieldAlert className="w-4 h-4" /> {error}
+                   <ShieldAlert className="w-4 h-4" /> {localError}
                 </div>
              </div>
            )}
 
-           {!error && (
+           {!localError && (
              <button onClick={() => setIsVisible(false)} className="mt-6 w-full py-3 border border-white/5 hover:bg-white/5 text-zinc-500 hover:text-white flex items-center justify-center gap-2 transition-all group">
                <Eye className="w-4 h-4 group-hover:scale-110 transition-transform" /> 
                <span className="text-xs uppercase tracking-widest font-bold">Spectator Mode</span>

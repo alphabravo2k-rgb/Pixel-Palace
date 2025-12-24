@@ -1,44 +1,41 @@
 import { createBrowserRouter, Navigate, Outlet } from 'react-router-dom';
 import App from './App';
 import { useSession } from '../auth/useSession';
+import { ROLES } from '../lib/roles';
 
 // COMPONENT IMPORTS
+// ✅ FIX: Named Imports for Admin Components to match their exports
 import BracketView from '../components/BracketView'; 
-import AdminDashboard from '../components/AdminDashboard'; 
+import { AdminDashboard } from '../components/AdminDashboard'; 
 import PinLogin from '../components/PinLogin'; 
 import { TeamRoster } from '../components/TeamRoster'; 
-import { VetoPanel } from '../components/VetoPanel';
 import AdminToolbar from '../components/AdminToolbar';
 
-// ROLE DEFINITIONS
-const ROLES = {
-  ADMIN: 'ADMIN',
-  OWNER: 'OWNER',
-  CAPTAIN: 'CAPTAIN'
-};
-
-/**
- * RequireRole Wrapper
- * Enforces route-level authority.
- */
+// 🛡️ AUTH GUARD WRAPPER
+// "Route-level access control" - Must be role-gated, not component-gated.
 const RequireRole = ({ allowed, children }) => {
   const { session, loading } = useSession();
-  if (loading) return null; 
-  if (!session || !allowed.includes(session.role)) {
+
+  if (loading) return <div className="p-10 text-center text-zinc-500">Authenticating...</div>;
+
+  if (!allowed.includes(session.role)) {
+    // If Admin/Owner try to access but fail, go to login. Others go home.
+    if (allowed.includes(ROLES.ADMIN)) return <Navigate to="/admin/login" replace />;
     return <Navigate to="/" replace />;
   }
+
   return children;
 };
 
-/**
- * AdminLayout
- * Mounts AdminToolbar ONLY within authorized nested routes.
- */
+// 🛡️ ADMIN LAYOUT WRAPPER
+// "AdminToolbar is mounted inside admin-only layouts"
 const AdminLayout = () => {
   return (
-    <div className="admin-surface">
-      <AdminToolbar />
-      <Outlet />
+    <div className="min-h-screen bg-black">
+      <AdminToolbar /> 
+      <div className="pt-20"> 
+        <Outlet />
+      </div>
     </div>
   );
 };
@@ -48,36 +45,48 @@ export const router = createBrowserRouter([
     path: "/",
     element: <App />,
     children: [
-      { index: true, element: <BracketView /> },
-      { path: "bracket", element: <BracketView /> },
-      { path: "roster", element: <TeamRoster /> },
+      // --- PUBLIC ROUTES ---
+      {
+        index: true,
+        element: <BracketView />
+      },
+      {
+        path: "roster",
+        element: <TeamRoster />
+      },
 
-      // ✅ IMPLEMENTED: Hardened Nested Admin Structure
+      // --- ADMIN ROUTES (NESTED & GUARDED) ---
       {
         path: "admin",
+        element: <Outlet />, // Parent for admin grouping
         children: [
-          { path: "login", element: <PinLogin /> },
-          { index: true, element: <Navigate to="login" replace /> },
+          // Public Entry: Login
           {
+            path: "login",
+            element: <PinLogin />
+          },
+          // Protected Area: Dashboard
+          {
+            path: "dashboard",
             element: (
               <RequireRole allowed={[ROLES.ADMIN, ROLES.OWNER]}>
                 <AdminLayout />
               </RequireRole>
             ),
             children: [
-              { path: "dashboard", element: <AdminDashboard /> }
+              {
+                index: true,
+                element: <AdminDashboard /> // ✅ Renders inside AdminLayout
+              }
             ]
           }
         ]
       },
 
-      { 
-        path: "veto/:matchId", 
-        element: (
-          <RequireRole allowed={[ROLES.ADMIN, ROLES.OWNER, ROLES.CAPTAIN]}>
-            <VetoPanel />
-          </RequireRole>
-        ) 
+      // Fallback
+      {
+        path: "*",
+        element: <Navigate to="/" replace />
       }
     ]
   }

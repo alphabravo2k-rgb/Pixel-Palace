@@ -1,96 +1,105 @@
-import React, { useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { useCaptainVeto } from '../hooks/useCaptainVeto'; // ⚠️ Must be updated!
-import { MAP_POOL } from '../lib/constants';
-import { ShieldAlert, Check, Ban } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useCaptainVeto } from '../hooks/useCaptainVeto';
+import { ShieldAlert, Ban, CheckCircle, Map } from 'lucide-react';
+import { HudPanel, SkewButton } from '../ui/Components';
 
-const VetoPanel = ({ match }) => { // Optional 'match' prop for Modal usage
+// MAP POOL CONSTANTS
+const MAP_POOL = [
+  { id: 'mirage', name: 'Mirage', image: 'https://img.youtube.com/vi/F91V3V6Qh6U/maxresdefault.jpg' },
+  { id: 'inferno', name: 'Inferno', image: 'https://blob.faceit.com/static/img/maps/cs2/inferno_bg.jpg' },
+  { id: 'nuke', name: 'Nuke', image: 'https://blob.faceit.com/static/img/maps/cs2/nuke_bg.jpg' },
+  { id: 'overpass', name: 'Overpass', image: 'https://blob.faceit.com/static/img/maps/cs2/overpass_bg.jpg' },
+  { id: 'vertigo', name: 'Vertigo', image: 'https://blob.faceit.com/static/img/maps/cs2/vertigo_bg.jpg' },
+  { id: 'ancient', name: 'Ancient', image: 'https://blob.faceit.com/static/img/maps/cs2/ancient_bg.jpg' },
+  { id: 'anubis', name: 'Anubis', image: 'https://blob.faceit.com/static/img/maps/cs2/anubis_bg.jpg' }
+];
+
+/**
+ * VetoPanel Component
+ * Works as both a Standalone Page (Captain) and Embedded Component (Admin Modal).
+ */
+export const VetoPanel = ({ matchId: propMatchId, team1: propTeam1, team2: propTeam2 }) => {
   const location = useLocation();
   const navigate = useNavigate();
-  
-  // -- MODE DETECTION --
-  // If 'match' prop exists, we are in the Modal (Spectator/Admin View)
-  const isEmbedded = !!match; 
+  const params = useParams();
+
+  // 1. DETERMINE MODE & ID
+  // If props exist, we are embedded in Modal. If not, we check URL params.
+  const isEmbedded = !!propMatchId;
+  const matchId = propMatchId || params.matchId;
   const activePin = location.state?.pin;
 
-  // -- CAPTAIN MODE LOGIC --
-  // We call the hook unconditionally, but handle missing PIN gracefully
-  const captainHook = useCaptainVeto(activePin);
-  
-  // Redirect if trying to access standalone without PIN
+  // 2. INITIALIZE HOOK
+  // If standalone captain mode, we pass the PIN to the hook for authorization
+  const { vetoState, submitVeto, loading, error } = useCaptainVeto(matchId, activePin);
+  const [selectedMap, setSelectedMap] = useState(null);
+
+  // 3. SECURITY REDIRECT (Standalone only)
   useEffect(() => {
-    if (!isEmbedded && !activePin) navigate('/');
+    if (!isEmbedded && !activePin) {
+        // If trying to access /veto/:id without logging in first
+        navigate('/admin'); // Redirect to login
+    }
   }, [isEmbedded, activePin, navigate]);
 
-  // -- DATA NORMALIZATION --
-  // We normalize the data so the UI code below is identical for both modes
-  let displayState = {
-     team_name: 'LOADING',
-     opponent_name: 'LOADING',
-     banned_maps: [],
-     picked_map: null,
-     is_my_turn: false,
-     status_text: 'SYNCING'
+  // 4. DATA NORMALIZATION
+  // If embedded, we use props if available, otherwise fallback to hook state
+  const team1Name = propTeam1?.name || vetoState?.team1_name || 'Team 1';
+  const team2Name = propTeam2?.name || vetoState?.team2_name || 'Team 2';
+  
+  // Turn Logic
+  const isTeam1Turn = vetoState?.current_turn_team_id === (propTeam1?.id || vetoState?.team1_id);
+  const isTeam2Turn = vetoState?.current_turn_team_id === (propTeam2?.id || vetoState?.team2_id);
+  
+  // Interactive Check: Can this user click buttons?
+  // Embedded (Admin) = Read Only (unless we add admin override logic later)
+  // Standalone (Captain) = My Turn Only
+  const canInteract = !isEmbedded && vetoState?.is_my_turn;
+
+  const getMapStatus = (mapId) => {
+    if (vetoState?.bans?.includes(mapId)) return 'BANNED';
+    if (vetoState?.picks?.includes(mapId)) return 'PICKED';
+    return 'AVAILABLE';
   };
-  let actionHandler = null;
-  let loading = false;
-  let error = null;
 
-  if (isEmbedded) {
-    // MODAL VIEW (Read Only / Admin Override)
-    displayState = {
-      team_name: match.team1Name || 'TEAM A',
-      opponent_name: match.team2Name || 'TEAM B',
-      banned_maps: match.vetoState?.bannedMaps || [],
-      picked_map: match.vetoState?.pickedMap,
-      is_my_turn: false, // Admins don't "take turns", they override
-      status_text: match.vetoState?.phase === 'complete' ? 'LOCKED' : 'IN PROGRESS'
-    };
-  } else {
-    // CAPTAIN VIEW (Interactive)
-    if (captainHook.loading) return <div className="p-12 text-center text-fuchsia-500 font-mono animate-pulse tracking-widest">ESTABLISHING SECURE UPLINK...</div>;
-    
-    // Graceful error if connection fails
-    if (!captainHook.gameState) {
-       return (
-          <div className="p-12 text-center">
-             <div className="text-red-500 font-mono tracking-widest mb-4">UPLINK TERMINATED</div>
-             <button onClick={() => navigate('/')} className="px-4 py-2 bg-zinc-800 text-white text-xs uppercase rounded hover:bg-zinc-700">Return to Base</button>
-          </div>
-       );
-    }
-    
-    displayState = {
-      team_name: captainHook.gameState.team_name,
-      opponent_name: captainHook.gameState.opponent_name || "OPPONENT",
-      banned_maps: captainHook.gameState.banned_maps || [],
-      picked_map: null, // Captain hook might not return pick yet?
-      is_my_turn: captainHook.gameState.is_my_turn,
-      status_text: captainHook.gameState.is_my_turn ? "YOUR COMMAND" : "ENEMY TURN"
-    };
-    actionHandler = captainHook.submitVeto;
-    loading = captainHook.loading;
-    error = captainHook.error;
-  }
+  const handleAction = async () => {
+    if (!selectedMap || !canInteract) return;
+    await submitVeto(selectedMap);
+    setSelectedMap(null);
+  };
 
-  // -- RENDER --
+  if (loading && !vetoState) return <div className="p-12 text-center animate-pulse text-fuchsia-500 font-mono">ESTABLISHING SECURE UPLINK...</div>;
+  
+  // 5. RENDER
   return (
-    <div className={`w-full ${isEmbedded ? '' : 'max-w-6xl mx-auto my-8 bg-[#0b0c0f] border border-zinc-800 p-6 rounded-xl shadow-2xl'}`}>
+    <div className={`w-full h-full flex flex-col ${!isEmbedded ? 'max-w-6xl mx-auto p-4 md:p-8 min-h-screen bg-[#050505]' : ''}`}>
       
-      {/* Header (Only for Standalone) */}
-      {!isEmbedded && (
-        <div className="flex flex-col md:flex-row justify-between items-end border-b border-white/10 pb-6 mb-8">
-          <div>
-            <h2 className="text-zinc-500 text-[10px] font-mono uppercase tracking-[0.3em] mb-1">Veto Protocol</h2>
-            <h1 className="text-3xl md:text-5xl font-black text-white italic tracking-tighter uppercase leading-none">
-              {displayState.team_name} <span className="text-fuchsia-600 px-2">VS</span> {displayState.opponent_name}
-            </h1>
-          </div>
-          <div className={`mt-4 md:mt-0 px-6 py-3 rounded text-xs font-black uppercase tracking-widest shadow-lg transition-all ${displayState.is_my_turn ? 'bg-emerald-600 text-white animate-pulse shadow-emerald-900/20' : 'bg-zinc-800 text-zinc-500'}`}>
-              {displayState.status_text}
-          </div>
+      {/* HEADER */}
+      <div className={`flex justify-between items-center mb-6 bg-zinc-900/50 p-4 rounded border border-zinc-800 ${!isEmbedded ? 'mt-8' : ''}`}>
+        <div className="flex items-center gap-4">
+           <Map className="text-fuchsia-500 w-6 h-6" />
+           <div>
+              <h3 className="text-white font-bold uppercase tracking-widest font-['Teko'] text-xl">Map Veto Phase</h3>
+              <div className="flex items-center gap-2 text-xs font-mono">
+                 <span className={isTeam1Turn ? 'text-green-400 font-bold animate-pulse' : 'text-zinc-500'}>
+                    {team1Name}
+                 </span>
+                 <span className="text-zinc-600">vs</span>
+                 <span className={isTeam2Turn ? 'text-green-400 font-bold animate-pulse' : 'text-zinc-500'}>
+                    {team2Name}
+                 </span>
+              </div>
+           </div>
         </div>
-      )}
+        
+        <div className={`px-4 py-2 rounded text-xs font-bold uppercase tracking-widest border ${
+            vetoState?.status === 'completed' ? 'bg-green-900/20 text-green-500 border-green-500/50' :
+            'bg-yellow-900/20 text-yellow-500 border-yellow-500/50'
+        }`}>
+            {vetoState?.status === 'completed' ? 'VETO COMPLETE' : canInteract ? 'YOUR TURN' : 'OPPONENT TURN'}
+        </div>
+      </div>
 
       {error && (
         <div className="bg-red-900/20 border border-red-500/50 text-red-400 p-4 mb-6 rounded flex items-center gap-3 animate-in fade-in">
@@ -99,61 +108,72 @@ const VetoPanel = ({ match }) => { // Optional 'match' prop for Modal usage
         </div>
       )}
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-        {MAP_POOL.map(map => {
-          // Normalize IDs (sometimes numeric, sometimes string)
-          const isBanned = displayState.banned_maps.some(m => String(m) === String(map.id) || m === map.name);
-          const isPicked = String(displayState.picked_map) === String(map.id);
-          const canInteract = !isEmbedded && displayState.is_my_turn && !isBanned;
+      {/* MAP GRID */}
+      <div className={`grid grid-cols-2 md:grid-cols-4 gap-4 flex-1 overflow-y-auto p-2 ${!isEmbedded ? 'min-h-[500px]' : ''}`}>
+         {MAP_POOL.map((map) => {
+            const status = getMapStatus(map.id);
+            const isSelected = selectedMap === map.id;
+            const isDisabled = !canInteract || status !== 'AVAILABLE' || vetoState?.status === 'completed';
 
-          return (
-            <button
-              key={map.id}
-              onClick={() => canInteract && actionHandler(map.id)}
-              disabled={!canInteract || loading}
-              className={`
-                relative h-32 md:h-40 rounded-lg overflow-hidden border-2 transition-all duration-300 group
-                ${isBanned ? 'border-red-900/30 opacity-40 grayscale cursor-not-allowed' : 'border-zinc-800'}
-                ${isPicked ? 'border-emerald-500 ring-4 ring-emerald-500/20 scale-[1.02] z-10 opacity-100' : ''}
-                ${canInteract ? 'hover:border-fuchsia-500 hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(192,38,211,0.3)] cursor-pointer' : ''}
-              `}
-            >
-              <img src={map.image} alt={map.name} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
-              
-              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent flex items-end justify-center pb-3">
-                <span className="text-white font-black uppercase text-sm tracking-widest drop-shadow-md">{map.name}</span>
-              </div>
+            return (
+               <button
+                  key={map.id}
+                  disabled={isDisabled}
+                  onClick={() => setSelectedMap(map.id)}
+                  className={`
+                     relative group overflow-hidden rounded border transition-all h-32 md:h-40
+                     ${status === 'BANNED' ? 'opacity-30 grayscale border-red-900' : ''}
+                     ${status === 'PICKED' ? 'border-green-500 ring-2 ring-green-500/50' : ''}
+                     ${isSelected ? 'border-fuchsia-500 ring-2 ring-fuchsia-500/50 scale-[1.02]' : 'border-zinc-800'}
+                     ${!isDisabled ? 'hover:border-zinc-500 cursor-pointer' : 'cursor-not-allowed'}
+                  `}
+               >
+                  {/* Background Image */}
+                  <div 
+                    className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-110"
+                    style={{ backgroundImage: `url(${map.image})` }}
+                  />
+                  <div className="absolute inset-0 bg-black/50 group-hover:bg-black/30 transition-colors" />
 
-              {/* OVERLAYS */}
-              {isBanned && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/70 backdrop-blur-[2px]">
-                  <div className="border-2 border-red-500 text-red-500 px-3 py-1 transform -rotate-12 font-black text-sm uppercase tracking-widest rounded flex items-center gap-2">
-                    <Ban className="w-4 h-4" /> BANNED
+                  {/* Label */}
+                  <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black via-black/80 to-transparent">
+                     <span className="text-white font-bold uppercase tracking-widest text-sm">{map.name}</span>
                   </div>
-                </div>
-              )}
-              
-              {isPicked && (
-                <div className="absolute inset-0 flex items-center justify-center bg-emerald-900/40 backdrop-blur-[1px]">
-                   <div className="flex flex-col items-center">
-                      <Check className="w-10 h-10 text-emerald-400 drop-shadow-lg mb-1" />
-                      <span className="text-white font-black text-xs uppercase tracking-widest drop-shadow-md">CONFIRMED</span>
-                   </div>
-                </div>
-              )}
-            </button>
-          )
-        })}
+
+                  {/* Status Overlay */}
+                  {status === 'BANNED' && (
+                     <div className="absolute inset-0 flex items-center justify-center bg-black/60">
+                        <Ban className="text-red-500 w-8 h-8 rotate-45" />
+                     </div>
+                  )}
+                  {status === 'PICKED' && (
+                     <div className="absolute inset-0 flex items-center justify-center bg-green-900/40">
+                        <CheckCircle className="text-green-400 w-8 h-8" />
+                     </div>
+                  )}
+               </button>
+            );
+         })}
       </div>
-      
-      {!isEmbedded && activePin && (
-         <div className="mt-8 pt-4 border-t border-white/5 flex justify-between text-[9px] text-zinc-600 font-mono uppercase tracking-[0.3em]">
-            <span>Secure Connection Established</span>
-            <span>ID: {String(activePin).slice(0,4)}...</span>
+
+      {/* ACTION FOOTER */}
+      {vetoState?.status !== 'completed' && canInteract && (
+         <div className="mt-4 pt-4 border-t border-zinc-800 flex justify-between items-center">
+            <div className="text-zinc-500 text-xs font-mono">
+               ACTION: <span className="text-white font-bold">BAN</span> phase
+            </div>
+            <SkewButton 
+               onClick={handleAction} 
+               disabled={!selectedMap || loading}
+               className="bg-red-900/20 border-red-500/50 hover:bg-red-900/40"
+            >
+               {loading ? 'PROCESSING...' : 'CONFIRM BAN'}
+            </SkewButton>
          </div>
       )}
     </div>
   );
 };
 
+// ✅ EXPORT DEFAULT for Router Compatibility
 export default VetoPanel;

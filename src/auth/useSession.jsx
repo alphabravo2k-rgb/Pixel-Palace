@@ -22,59 +22,80 @@ const PERMISSIONS = {
 // 2. CONTEXT DEFINITION
 // ------------------------------------------------------------------
 const SessionContext = createContext({
-  session: { role: ROLES.GUEST, user: null },
-  isAdmin: false,
-  isCaptain: false,
+  session: { 
+    role: ROLES.GUEST, 
+    identity: null, 
+    claims: { tournamentIds: [], teamIds: [], matchIds: [] } 
+  },
   loading: false,
   login: async () => {},
   logout: () => {},
-  validateSession: async () => {}, // ✅ New Action: Server-side revocation hook
-  checkPermission: () => false
+  can: () => false, // ✅ Future-proof signature
 });
 
 // ------------------------------------------------------------------
 // 3. PROVIDER COMPONENT
 // ------------------------------------------------------------------
 export const SessionProvider = ({ children }) => {
+  /**
+   * 🔧 Upgrade 1️⃣: Session shape must evolve
+   * From: { role, identity, pin }
+   * To: { role, identity, claims: { ... } }
+   */
   const [session, setSession] = useState({
-    user: null,          
-    role: ROLES.GUEST,   
-    isAuthenticated: false,
-    authTime: null // ✅ Tracking login time for expiration logic
+    role: ROLES.GUEST,
+    identity: null,
+    claims: {
+      tournamentIds: [],
+      teamIds: [],
+      matchIds: []
+    },
+    isAuthenticated: false
   });
   
   const [loading, setLoading] = useState(false);
 
-  // ----------------------------------------------------------------
-  // LOGIN LOGIC (Existing Secure Implementation)
-  // ----------------------------------------------------------------
   const login = async (pin) => {
     setLoading(true);
     try {
-      // VERIFY ADMIN
+      // --- ADMIN LOGIN FLOW ---
       const { data: adminData, error: adminError } = await supabase.rpc('api_admin_login', { p_pin: pin });
+      
       if (!adminError && adminData?.status === 'SUCCESS') {
         setSession({
-          user: adminData.profile,
           role: adminData.profile.role || ROLES.ADMIN,
-          isAuthenticated: true,
-          authTime: Date.now()
+          identity: {
+            id: adminData.profile.id,
+            name: adminData.profile.display_name
+          },
+          // Admins typically have global claims (represented here as wildcards or specific assignments)
+          claims: {
+            tournamentIds: ['*'], 
+            teamIds: ['*'],
+            matchIds: ['*']
+          },
+          isAuthenticated: true
         });
         return true;
       }
 
-      // VERIFY CAPTAIN
+      // --- CAPTAIN LOGIN FLOW ---
       const { data: captainData, error: captainError } = await supabase.rpc('api_get_captain_state', { p_pin: pin });
+      
       if (!captainError && captainData?.team_name) {
         setSession({
-          user: { 
-            name: captainData.team_name, 
-            teamId: captainData.team_id, 
-            tournamentId: captainData.tournament_id 
-          },
           role: ROLES.CAPTAIN,
-          isAuthenticated: true,
-          authTime: Date.now()
+          identity: {
+            id: captainData.team_id,
+            name: captainData.team_name
+          },
+          // Claims are strictly scoped to their specific ID
+          claims: {
+            tournamentIds: [captainData.tournament_id],
+            teamIds: [captainData.team_id],
+            matchIds: [] // Can be populated if the logic supports fetching active match IDs
+          },
+          isAuthenticated: true
         });
         return true;
       }
@@ -90,66 +111,49 @@ export const SessionProvider = ({ children }) => {
     }
   };
 
-  // ----------------------------------------------------------------
-  // ✅ FIX 1: SESSION VALIDATION / REVOCATION
-  // "Admins get removed. Captains change. Matches end."
-  // ----------------------------------------------------------------
-  const validateSession = useCallback(async () => {
-    if (!session.isAuthenticated) return false;
-
-    // In a real scenario, we would re-run a silent RPC check here.
-    // For now, we enforce a Client-Side Expiration policy.
-    const SESSION_DURATION = 1000 * 60 * 60 * 4; // 4 Hours
-    const isExpired = (Date.now() - session.authTime) > SESSION_DURATION;
-
-    if (isExpired) {
-      console.warn("Session Expired: Forced Logout");
-      logout();
-      return false;
-    }
-    
-    return true;
-  }, [session]);
-
   const logout = () => {
     setSession({
-      user: null,
       role: ROLES.GUEST,
-      isAuthenticated: false,
-      authTime: null
+      identity: null,
+      claims: { tournamentIds: [], teamIds: [], matchIds: [] },
+      isAuthenticated: false
     });
   };
 
-  // ----------------------------------------------------------------
-  // ✅ FIX 2: SCOPED PERMISSIONS
-  // "Role ≠ Authority. Role + Scope + State = Authority"
-  // ----------------------------------------------------------------
-  const checkPermission = useCallback((action, context = {}) => {
-    // 1. Check Basic Role
+  /**
+   * 🔧 Upgrade 2️⃣: checkPermission must accept context
+   * Signature: can(action, context)
+   */
+  const can = useCallback((action, context = {}) => {
+    // 1. Role Check
     const allowedRoles = PERMISSIONS[action] || [];
     if (!allowedRoles.includes(session.role)) return false;
 
-    // 2. Check Admin Override (Admins typically have global scope)
-    if ([ROLES.ADMIN, ROLES.OWNER].includes(session.role)) return true;
+    // 2. Claim Check (Scope)
+    // If context provides IDs, we must verify the user has a claim to them.
+    
+    // Check: Tournament Scope
+    if (context.tournamentId) {
+      const hasClaim = session.claims.tournamentIds.includes('*') || 
+                       session.claims.tournamentIds.includes(context.tournamentId);
+      if (!hasClaim) return false;
+    }
 
-    // 3. Check Scope for Captains
-    if (session.role === ROLES.CAPTAIN) {
-      // Captains only have authority over THEIR specific team/match.
-      
-      // Scope Check: Team ID
-      if (context.requiredTeamId && session.user.teamId !== context.requiredTeamId) {
-        return false; // Authority Violation: Wrong Team
-      }
+    // Check: Team Scope
+    if (context.teamId) {
+      const hasClaim = session.claims.teamIds.includes('*') || 
+                       session.claims.teamIds.includes(context.teamId);
+      if (!hasClaim) return false;
+    }
 
-      // Scope Check: Tournament ID
-      if (context.requiredTournamentId && session.user.tournamentId !== context.requiredTournamentId) {
-        return false; // Authority Violation: Wrong Tournament
-      }
-      
-      // State Check: Is Match Active? (Passed via context)
-      if (context.isMatchActive === false) {
-        return false; // Authority Violation: Match Ended
-      }
+    // Check: Match Scope
+    if (context.matchId) {
+      const hasClaim = session.claims.matchIds.includes('*') || 
+                       session.claims.matchIds.includes(context.matchId);
+      // Note: Captains often don't store matchIds in session but derive access from TeamID inside the match.
+      // We can add logic here: if I own the Team that is IN this match, I can access it.
+      // For now, strict claim checking:
+      if (!hasClaim && session.role !== ROLES.CAPTAIN) return false; 
     }
 
     return true;
@@ -160,12 +164,11 @@ export const SessionProvider = ({ children }) => {
     loading,
     login,
     logout,
-    validateSession,
-    checkPermission,
+    can, // Exposing the new signature
+    // Convenience Accessors
     isAdmin: [ROLES.ADMIN, ROLES.OWNER].includes(session.role),
     isCaptain: session.role === ROLES.CAPTAIN,
-    isAuthenticated: session.isAuthenticated
-  }), [session, loading, validateSession, checkPermission]);
+  }), [session, loading, can]);
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 };

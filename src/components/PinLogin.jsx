@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { Lock, ArrowRight, AlertTriangle } from 'lucide-react';
 import { useSession } from '../auth/useSession';
 import { useNavigate } from 'react-router-dom';
-import { ROLES } from '../lib/roles'; // ✅ Import ROLES
+import { supabase } from '../supabase/client'; // ✅ Direct access for verification
+import { ROLES } from '../lib/roles';
 
 export const PinLogin = () => {
   const [pin, setPin] = useState('');
@@ -19,23 +20,25 @@ export const PinLogin = () => {
       return;
     }
 
-    // ✅ LOGIN RETURNS THE ROLE OBJECT (We updated useSession to return this previously)
-    // If your useSession only returns true/false, we might need to check state differently.
-    // Assuming login returns the session object or role string:
-    const result = await login(pin);
+    // 1. Attempt Session Login
+    const success = await login(pin);
     
-    if (result) {
-      // 🚦 TRAFFIC CONTROL
-      // We check the role derived from the login result
-      // Note: If result is just 'true', we might need to rely on the hook's state updating.
-      // But for safety, we can default to Home for non-admins.
-      
-      const role = result.role || result; // Handle if it returns object or string
+    if (success) {
+      // 2. DOUBLE CHECK: Who is this?
+      // We manually fetch the profile to guarantee we send them to the right place.
+      const { data: adminUser } = await supabase
+        .from('admin_profiles')
+        .select('role')
+        .eq('pin_code', pin) // Assuming pin_code is unique enough for this check
+        .single();
 
-      if ([ROLES.ADMIN, ROLES.OWNER].includes(role)) {
+      // If they exist in admin_profiles, they are ADMIN or OWNER
+      if (adminUser) {
+        console.log("Admin Identified, routing to Dashboard...");
         navigate('/admin/dashboard');
       } else {
-        // Captains go to the Bracket to do Vetoes
+        // Otherwise, they must be a Captain
+        console.log("Captain Identified, routing to Bracket...");
         navigate('/'); 
       }
     } else {
@@ -52,7 +55,6 @@ export const PinLogin = () => {
             <Lock className="w-8 h-8 text-fuchsia-500" />
           </div>
           <h1 className="font-['Teko'] text-4xl uppercase text-white tracking-widest">Restricted Access</h1>
-          <p className="text-zinc-500 text-sm mt-2">Enter Admin or Captain PIN</p>
         </div>
 
         <form onSubmit={handleLogin} className="space-y-6">

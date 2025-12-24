@@ -1,25 +1,26 @@
 import React from 'react';
 import { Outlet } from 'react-router-dom';
+import ErrorBoundary from '../components/ErrorBoundary';
 import { SessionProvider } from '../auth/useSession';
 import { TournamentProvider } from '../tournament/useTournament';
-import ErrorBoundary from '../components/ErrorBoundary';
 
 /**
  * 1️⃣ App.jsx — ROOT COMPOSITION AUDIT
- * Strict implementation: Provides capabilities, NOT controls.
+ * 🔧 Required Fix: Root provides capabilities, not controls.
+ *
+ * - ❌ Removed <AdminToolbar /> (Now exists only in AdminLayout via router)
+ * - ❌ Removed <PinLogin /> (Now exists only at /admin/login)
+ * - ✅ Providers only
+ * - ✅ Layout shell only
  */
 const App = () => {
-  // Constant for the active tournament instance
-  const ACTIVE_TOURNAMENT_ID = 'e42d6e9f-a84f-47b5-b26c-48b2cab0d5ca';
-
   return (
     <ErrorBoundary>
       <SessionProvider>
-        <TournamentProvider tournamentId={ACTIVE_TOURNAMENT_ID}>
-          <div className="app-shell">
-            {/* All controls (AdminToolbar, PinLogin) are removed.
-               These will be mounted conditionally inside specific 
-               layouts or routes in router.jsx to prevent leakage.
+        <TournamentProvider>
+          <div className="app-shell min-h-screen bg-black text-white font-sans selection:bg-fuchsia-500/30 selection:text-fuchsia-200">
+            {/* The Outlet renders the route content determined by router.jsx 
+              (e.g., BracketView, AdminLayout, etc.)
             */}
             <Outlet />
           </div>

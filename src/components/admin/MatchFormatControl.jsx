@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Settings, ShieldAlert, Check, Lock } from 'lucide-react';
+import { Settings, ShieldAlert, Check, Lock, Ban } from 'lucide-react';
 import { supabase } from '../../supabase/client';
 import { useSession } from '../../auth/useSession';
 
@@ -7,9 +7,11 @@ export const MatchFormatControl = ({ match, onUpdate }) => {
   const { session } = useSession();
   const [loading, setLoading] = useState(false);
 
-  // 1. Guard: State Locking
-  // If match is LIVE or COMPLETED, this control is read-only.
-  const isLocked = ['live', 'completed'].includes(match.status);
+  // 🔒 STRICT STATE LOCKING
+  // Locked if: Live, Completed, or Veto in progress/done
+  // We check status AND if veto data exists to be safe
+  const hasVetoStarted = (match.status === 'veto') || (match.vetoes && match.vetoes.length > 0);
+  const isLocked = ['live', 'completed', 'veto'].includes(match.status) || hasVetoStarted;
 
   const handleFormatChange = async (newFormat) => {
     if (isLocked || loading) return;
@@ -17,7 +19,7 @@ export const MatchFormatControl = ({ match, onUpdate }) => {
 
     // Confirm Intent (Because this resets veto logic potentially)
     const confirmed = window.confirm(
-      `⚠️ CHANGING MATCH FORMAT \n\nChanging from BO${match.best_of} to BO${newFormat}.\nThis will be logged in the Audit Trail.\n\nProceed?`
+      `⚠️ CRITICAL CHANGE \n\nChanging from BO${match.best_of} to BO${newFormat}.\nThis will be logged in the Audit Trail.\n\nProceed?`
     );
     if (!confirmed) return;
 
@@ -34,25 +36,31 @@ export const MatchFormatControl = ({ match, onUpdate }) => {
       if (data.success) {
         if (onUpdate) onUpdate(); // Refresh parent view
       } else {
-        alert(data.message);
+        alert(`Request Rejected: ${data.message}`);
       }
     } catch (err) {
       console.error("Format Update Failed:", err);
-      alert("Failed to update format. Check console.");
+      alert("Failed to update format. Server rejected the request.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="flex flex-col gap-2 bg-zinc-900/50 p-3 rounded border border-white/5">
+    <div className={`
+      flex flex-col gap-2 p-3 rounded border 
+      ${isLocked ? 'bg-zinc-950/50 border-zinc-900 opacity-75' : 'bg-zinc-900/50 border-white/5'}
+    `}>
       <div className="flex items-center justify-between">
         <span className="text-xs font-bold uppercase text-zinc-500 flex items-center gap-1">
           <Settings className="w-3 h-3" /> Match Format
         </span>
+        
+        {/* LOCK BADGE */}
         {isLocked && (
-          <span className="text-[10px] text-red-500 flex items-center gap-1 uppercase font-bold bg-red-900/10 px-1.5 py-0.5 rounded">
-            <Lock className="w-3 h-3" /> Locked ({match.status})
+          <span className="text-[9px] flex items-center gap-1 uppercase font-bold px-1.5 py-0.5 rounded border bg-red-950/30 text-red-500 border-red-900/50">
+            {hasVetoStarted ? <Ban className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
+            {hasVetoStarted ? 'VETO LOCKED' : 'MATCH LIVE'}
           </span>
         )}
       </div>
@@ -69,8 +77,9 @@ export const MatchFormatControl = ({ match, onUpdate }) => {
                 relative px-3 py-2 text-sm font-bold uppercase tracking-wider rounded transition-all
                 ${isActive 
                   ? 'bg-fuchsia-600 text-white border-fuchsia-500 shadow-lg shadow-fuchsia-900/20' 
-                  : 'bg-black text-zinc-500 border border-zinc-800 hover:border-zinc-600 hover:text-zinc-300'}
-                ${isLocked ? 'opacity-50 cursor-not-allowed' : ''}
+                  : 'bg-black text-zinc-500 border border-zinc-800'}
+                ${!isLocked && !isActive ? 'hover:border-zinc-600 hover:text-zinc-300' : ''}
+                ${isLocked ? 'cursor-not-allowed opacity-50' : ''}
               `}
             >
               BO{fmt}
@@ -83,7 +92,7 @@ export const MatchFormatControl = ({ match, onUpdate }) => {
       {!isLocked && (
         <div className="text-[9px] text-zinc-600 flex items-center gap-1 mt-1">
           <ShieldAlert className="w-3 h-3" />
-          <span>Changes are logged to Admin Audit</span>
+          <span>Updates logged to Admin Audit</span>
         </div>
       )}
     </div>

@@ -1,31 +1,29 @@
 import React, { useEffect, useState } from 'react';
-import { supabase } from '../supabase/client';
-import { useTournament } from '../tournament/useTournament';
-import { ScrollText, RefreshCw, AlertTriangle } from 'lucide-react';
+import { supabase } from '../../supabase/client'; // Check path ../../ or ../
+import { useTournament } from '../../tournament/useTournament'; // Check path
+import { ScrollText, RefreshCw, AlertTriangle, Activity } from 'lucide-react';
 
+// Safe JSON Viewer
 const DetailsViewer = ({ data }) => {
   if (!data) return <span className="text-zinc-500 italic">No details</span>;
   
-  // SAFEGUARD: Ensure we don't crash on non-objects
-  let displayContent = data;
-  if (typeof data === 'object') {
-      try {
-          displayContent = JSON.stringify(data, null, 2);
-      } catch (e) {
-          displayContent = "Invalid Data";
-      }
+  let content = "Invalid Data";
+  try {
+      content = typeof data === 'object' ? JSON.stringify(data, null, 2) : String(data);
+  } catch (e) {
+      console.warn("JSON Parse Error", e);
   }
 
   return (
     <pre className="mt-2 p-2 bg-black/40 rounded border border-white/5 text-[10px] text-fuchsia-300 font-mono overflow-x-auto whitespace-pre-wrap">
-      {displayContent}
+      {content}
     </pre>
   );
 };
 
 export const AdminAuditLog = () => {
   const { selectedTournamentId } = useTournament();
-  const [logs, setLogs] = useState([]); // ✅ Initialize as empty array
+  const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(false);
 
   const fetchLogs = async () => {
@@ -39,12 +37,10 @@ export const AdminAuditLog = () => {
         .limit(50);
 
       if (error) throw error;
-      
-      // ✅ SAFEGUARD: Ensure data is an array
       setLogs(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Audit Log Fetch Error:', err);
-      setLogs([]); // Reset on error to prevent map() crash
+      setLogs([]); 
     } finally {
       setLoading(false);
     }
@@ -85,8 +81,14 @@ export const AdminAuditLog = () => {
             <div key={log.id || Math.random()} className="flex flex-col gap-1 p-3 rounded bg-zinc-950/50 border border-white/5">
               <div className="flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2">
-                  <span className="font-mono text-fuchsia-400 font-bold uppercase">[{log.action_type || 'UNKNOWN'}]</span>
-                  <span className="text-zinc-400">by <span className="text-white">{log.admin_identifier || 'System'}</span></span>
+                  {/* 🛡️ SAFE ICON: Always use generic Activity icon to prevent crashes */}
+                  <Activity className="w-3 h-3 text-zinc-500" />
+                  <span className="font-mono text-fuchsia-400 font-bold uppercase">
+                    [{log.action_type || 'UNKNOWN'}]
+                  </span>
+                  <span className="text-zinc-400">
+                    by <span className="text-white">{log.admin_identifier || 'System'}</span>
+                  </span>
                 </div>
                 <span className="text-zinc-600 font-mono">
                   {log.created_at ? new Date(log.created_at).toLocaleTimeString() : '-'}

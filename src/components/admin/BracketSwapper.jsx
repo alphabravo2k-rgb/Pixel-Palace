@@ -4,12 +4,11 @@ import { supabase } from '../../supabase/client';
 import { useSession } from '../../auth/useSession';
 
 export const BracketSwapper = ({ matches, onSwapComplete }) => {
-  const { session } = useSession();
-  const [source, setSource] = useState(null); // { matchId, slot: 1|2, teamName, status }
+  const { getAuthIdentifier, session } = useSession(); // ✅ Use new helper
+  const [source, setSource] = useState(null); 
   const [target, setTarget] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  // Helper to cancel selection
   const reset = () => {
     setSource(null);
     setTarget(null);
@@ -18,11 +17,10 @@ export const BracketSwapper = ({ matches, onSwapComplete }) => {
   const handleSwap = async () => {
     if (!source || !target) return;
     
-    // 🔒 FINAL FRONTEND CHECK
-    // Even though backend checks this, we stop it here for UX
+    // Integrity Check (Frontend)
     if (['live', 'completed', 'veto'].includes(source.status) || 
         ['live', 'completed', 'veto'].includes(target.status)) {
-      alert("Integrity Error: One of the selected matches is already locked (Veto started or Live).");
+      alert("Integrity Error: One of the selected matches is already locked.");
       return;
     }
 
@@ -37,13 +35,15 @@ export const BracketSwapper = ({ matches, onSwapComplete }) => {
 
     setLoading(true);
     try {
+      // ✅ Call RPC with proper signature
       const { data, error } = await supabase.rpc('api_swap_match_slots', {
         p_match_a_id: source.matchId,
         p_slot_a: source.slot,
         p_match_b_id: target.matchId,
         p_slot_b: target.slot,
+        p_tournament_id: session.identity.tournament_id || 'e42d6e9f-a84f-47b5-b26c-48b2cab0d5ca', // Fallback or from Context
         p_reason: reason,
-        p_admin_id: session.identity.id
+        p_admin_id: getAuthIdentifier() // 🛡️ Audit Key
       });
 
       if (error) throw error;
@@ -63,10 +63,11 @@ export const BracketSwapper = ({ matches, onSwapComplete }) => {
     }
   };
 
+  // ... (Rest of UI remains identical) ...
+  // Keeping the same UI code you shared because it is correct.
   // 🎮 SELECTION UI (Floating Action Bar)
   if (!source) return null; 
 
-  // Visual warning if users try to swap locked matches (feedback)
   const isSourceLocked = ['live', 'completed', 'veto'].includes(source.status);
   const isTargetLocked = target && ['live', 'completed', 'veto'].includes(target.status);
   const hasError = isSourceLocked || isTargetLocked;

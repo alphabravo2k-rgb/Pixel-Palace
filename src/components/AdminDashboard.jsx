@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { LayoutDashboard, Users, Activity } from 'lucide-react';
 import { AdminAuditLog } from './AdminAuditLog';
-import { TournamentWarRoom } from './TournamentWarRoom';
-import { AdminUsersPanel } from './AdminUsersPanel';
+import { TournamentWarRoom } from './TournamentWarRoom'; // Ensure this file exists
+// import { AdminUsersPanel } from './AdminUsersPanel'; // Uncomment when you create this
 
 export const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('OPS');
@@ -19,7 +19,7 @@ export const AdminDashboard = () => {
       </div>
       <div className="min-h-[600px]">
         {activeTab === 'OPS' && <TournamentWarRoom />}
-        {activeTab === 'USERS' && <AdminUsersPanel />}
+        {/* {activeTab === 'USERS' && <AdminUsersPanel />} */}
         {activeTab === 'LOGS' && <AdminAuditLog />}
       </div>
     </div>

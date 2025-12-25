@@ -4,7 +4,7 @@ import { useTournament } from '../tournament/useTournament';
 import { Bracket } from './Bracket';
 import { RefreshCw, Loader2 } from 'lucide-react';
 // ✅ FIX: Correct path based on your file structure
-import { AdminMatchModal } from './AdminMatchModal'; 
+import { AdminMatchModal } from './admin/AdminMatchModal';
 
 export const BracketView = () => {
   const { selectedTournamentId, tournamentData, loading: contextLoading } = useTournament();

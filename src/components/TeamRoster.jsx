@@ -4,29 +4,27 @@ import { useTournament } from '../tournament/useTournament';
 import { Users, Loader2, Shield } from 'lucide-react';
 
 export const TeamRoster = () => {
-  // 1. Get Context (The Scope)
+  // 1. Get Context
   const { selectedTournamentId, loading: contextLoading } = useTournament();
   
   const [teams, setTeams] = useState([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // 🛑 2. PREVENT LEAKS
-    // If no tournament is selected, do NOT fetch data.
+    // 2. Prevent Leaks: No ID, No Fetch
     if (!selectedTournamentId) return;
 
     const fetchRoster = async () => {
       setLoading(true);
       try {
-        // 🛑 3. SCOPED QUERY
-        // strictly filter by tournament_id
+        // 3. Scoped Query
         const { data, error } = await supabase
           .from('teams')
           .select(`
             *,
             players (*)
           `)
-          .eq('tournament_id', selectedTournamentId) // <--- CRITICAL FIX
+          .eq('tournament_id', selectedTournamentId) // ✅ CRITICAL FIX
           .order('name', { ascending: true });
 
         if (error) throw error;
@@ -91,7 +89,7 @@ export const TeamRoster = () => {
                 team.players.map((player) => (
                   <div key={player.id} className="flex items-center justify-between text-xs group">
                     <span className="text-zinc-400 group-hover:text-zinc-200 transition-colors">
-                      {player.gamertag || player.name || 'Unknown'}
+                      {player.gamertag || player.display_name || 'Unknown'}
                     </span>
                     {player.role === 'CAPTAIN' && (
                       <span className="text-[9px] bg-fuchsia-900/20 text-fuchsia-500 px-1.5 py-0.5 rounded border border-fuchsia-500/20">

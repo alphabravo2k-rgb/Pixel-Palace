@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { supabase } from '../../supabase/client';
+import { supabase } from '../supabase/client';
 import { useTournament } from '../../tournament/useTournament'; // 🛑 NEW: Scope Source
 import { Users, Loader2, Shield } from 'lucide-react';
 

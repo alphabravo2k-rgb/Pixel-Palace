@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabase/client';
-import { useTournament } from '../../tournament/useTournament'; // 🛑 NEW: Scope Source
+import { useTournament } from '../tournament/useTournament';
 import { Users, Loader2, Shield } from 'lucide-react';
 
 export const TeamRoster = () => {

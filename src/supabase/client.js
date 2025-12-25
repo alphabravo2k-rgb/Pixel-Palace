@@ -8,7 +8,7 @@ let supabaseClient;
 if (!supabaseUrl || !supabaseAnonKey) {
   console.error("⚠️ SYSTEM WARNING: Supabase keys are missing! App running in UI-Only Mode.");
 
-  // ✅ SAFE MOCK: Returns empty arrays for lists, avoiding .map() crashes
+  // ✅ SAFE MOCK: Returns empty arrays to prevent crashes
   const safeList = { data: [], error: null };
   const safeObj = { data: {}, error: null };
 
@@ -34,10 +34,9 @@ if (!supabaseUrl || !supabaseAnonKey) {
       insert: () => ({ select: () => safeObj }),
       update: () => ({ eq: () => ({ select: () => safeObj }) }),
     }),
-    // 🛡️ LOUD MOCK: Logs warnings so you know you are offline
     rpc: async (fnName) => {
         console.warn(`⚠️ MOCK RPC: "${fnName}" called in UI-Only Mode. Returning empty data.`);
-        return safeList;
+        return { data: { success: false, message: "Mock Mode" }, error: null };
     } 
   };
 } else {

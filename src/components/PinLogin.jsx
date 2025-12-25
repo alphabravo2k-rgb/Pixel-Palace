@@ -78,7 +78,7 @@ export const PinLogin = () => {
                 placeholder:text-zinc-700 placeholder:tracking-normal placeholder:font-sans placeholder:text-xs
                 ${error ? 'border-red-900/50 text-red-500 focus:border-red-500' : 'border-zinc-800 text-white focus:border-fuchsia-500/50 focus:bg-zinc-900'}
               `}
-              maxLength={6}
+              maxLength={20} /* ✅ FIXED: Changed from 6 to 20 */
               autoFocus
             />
             

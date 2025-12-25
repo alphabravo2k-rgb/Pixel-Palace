@@ -73,15 +73,20 @@ export const useCaptainVeto = (match) => {
     
     setLoading(true);
     try {
+      // 🛑 NO OPTIMISTIC UPDATE
+      // We trust the server response completely.
       const { data, error } = await supabase.rpc('api_submit_veto', {
         p_match_id: match.id,
-        p_team_id: session.identity.id, // 🛡️ AUTH: Uses Session, not a loose PIN
+        p_team_id: session.identity.id, // 🛡️ AUTH: Uses Session ID
         p_map_name: mapName,
         p_format: match.best_of
       });
 
       if (error) throw error;
-      if (!data.success) alert(data.message);
+      if (!data.success) {
+        alert(data.message);
+      }
+      // Success? We do nothing. Realtime subscription updates the UI.
       
     } catch (err) {
       console.error("Veto Error:", err);

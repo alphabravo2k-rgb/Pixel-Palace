@@ -5,7 +5,7 @@ import { useSession } from '../../auth/useSession';
 import { useTournament } from '../../tournament/useTournament';
 
 export const MatchFormatControl = ({ match, onUpdate }) => {
-  const { session } = useSession();
+  const { getAuthIdentifier } = useSession(); // ✅ New Helper
   const { selectedTournamentId } = useTournament();
   const [loading, setLoading] = useState(false);
 
@@ -17,13 +17,10 @@ export const MatchFormatControl = ({ match, onUpdate }) => {
     if (isLocked || loading) return;
     if (newFormat === match.best_of) return;
 
-    // 🛑 FIX: MANDATORY REASON INPUT
-    // We replaced window.confirm with prompt to force the "Why"
     const reason = prompt(
       `⚠️ CHANGING MATCH FORMAT (BO${match.best_of} -> BO${newFormat})\n\nThis action requires justification for the Audit Log.\n\nEnter Reason:`
     );
 
-    // If user cancels or types nothing/whitespace -> ABORT
     if (reason === null) return; 
     if (!reason || reason.trim().length < 3) {
       alert("Format change blocked: A valid reason is required.");
@@ -32,12 +29,13 @@ export const MatchFormatControl = ({ match, onUpdate }) => {
 
     setLoading(true);
     try {
+      // ✅ RPC CALL
       const { data, error } = await supabase.rpc('api_update_match_format', {
         p_match_id: match.id,
         p_new_format: parseInt(newFormat),
         p_tournament_id: selectedTournamentId,
-        p_reason: reason.trim(), // 👈 Passing the reason
-        p_admin_id: session.identity.id
+        p_reason: reason.trim(),
+        p_admin_id: getAuthIdentifier() // 🛡️ Audit Key
       });
 
       if (error) throw error;
@@ -55,6 +53,7 @@ export const MatchFormatControl = ({ match, onUpdate }) => {
     }
   };
 
+  // ... (UI remains same as your original) ...
   return (
     <div className={`
       flex flex-col gap-2 p-3 rounded border 

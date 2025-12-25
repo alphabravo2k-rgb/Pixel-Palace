@@ -4,7 +4,7 @@ import { supabase } from '../../supabase/client';
 import { useSession } from '../../auth/useSession';
 
 export const TeamStatusControl = ({ team, onUpdate }) => {
-  const { session } = useSession();
+  const { getAuthIdentifier } = useSession(); // ✅ New Helper
   const [loading, setLoading] = useState(false);
 
   const toggleStatus = async (type, currentValue) => {
@@ -16,20 +16,21 @@ export const TeamStatusControl = ({ team, onUpdate }) => {
       "Organizer Decision"
     );
 
-    if (!reason) return; // Cancel if no reason given
+    if (!reason) return;
 
     setLoading(true);
     try {
+      // ✅ RPC CALL
       const { data, error } = await supabase.rpc('api_toggle_team_status', {
         p_team_id: team.id,
         p_status_type: type,
         p_value: newValue,
         p_reason: reason,
-        p_admin_id: session.identity.id
+        p_admin_id: getAuthIdentifier() // 🛡️ Audit Key
       });
 
       if (error) throw error;
-      if (onUpdate) onUpdate(); // Refresh parent
+      if (onUpdate) onUpdate(); 
 
     } catch (err) {
       console.error("Status Update Failed:", err);

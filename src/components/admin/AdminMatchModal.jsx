@@ -2,24 +2,18 @@ import React, { useState } from 'react';
 import { X, ShieldAlert, Trophy, Save } from 'lucide-react';
 import { supabase } from '../../supabase/client';
 import { useSession } from '../../auth/useSession';
-import { MatchFormatControl } from './MatchFormatControl'; // Already updated
-import { PERM_ACTIONS } from '../../lib/permissions.actions'; // Ensure this exists
+import { MatchFormatControl } from './MatchFormatControl';
 
 export const AdminMatchModal = ({ match, isOpen, onClose, onUpdate }) => {
-  const { can, session } = useSession(); // Access the secure 'can' function
+  const { session, getAuthIdentifier } = useSession(); // ✅ Use new helper
   const [loading, setLoading] = useState(false);
 
   if (!isOpen || !match) return null;
 
-  // 🛡️ FIX 5️⃣: Contextual Permission Check
-  // We don't just ask "Can I manage brackets?"
-  // We ask: "Can I manage brackets FOR THIS TOURNAMENT?"
-  const isAdmin = can(PERM_ACTIONS.CAN_MANAGE_BRACKET, { 
-    tournamentId: match.tournament_id 
-  });
-
-  if (!isAdmin) {
-    return null; // Or render a "Access Denied" state
+  // 1. Permission Check (Simplified)
+  // Backend handles real security. Frontend just hides it for guests.
+  if (session.role !== 'ADMIN' && session.role !== 'OWNER' && session.role !== 'REFEREE') {
+    return null; 
   }
 
   const handleScoreUpdate = async (e) => {
@@ -29,21 +23,23 @@ export const AdminMatchModal = ({ match, isOpen, onClose, onUpdate }) => {
     
     setLoading(true);
     try {
-      // Basic score update logic (Separate RPC recommended for production integrity)
-      const { error } = await supabase
-        .from('matches')
-        .update({ 
-          team1_score: parseInt(t1Score), 
-          team2_score: parseInt(t2Score),
-          updated_at: new Date()
-        })
-        .eq('id', match.id);
+      // ✅ USE NEW RPC (Code 43)
+      // This ensures the update is logged and triggers winner propagation
+      const { data, error } = await supabase.rpc('api_report_match_score', {
+        p_match_id: match.id,
+        p_team1_score: parseInt(t1Score),
+        p_team2_score: parseInt(t2Score),
+        p_winner_id: null, // Let backend calculate based on score
+        p_admin_id: getAuthIdentifier() // 🛡️ Audit Key
+      });
 
       if (error) throw error;
+      if (!data.success) throw new Error(data.message);
+
       onUpdate();
       onClose();
     } catch (err) {
-      alert("Update failed");
+      alert("Update failed: " + err.message);
     } finally {
       setLoading(false);
     }
@@ -69,7 +65,7 @@ export const AdminMatchModal = ({ match, isOpen, onClose, onUpdate }) => {
         {/* Content */}
         <div className="p-6 space-y-6">
           
-          {/* 1. Format Control (Already Fixed) */}
+          {/* 1. Format Control */}
           <MatchFormatControl match={match} onUpdate={onUpdate} />
 
           {/* 2. Score Override (Quick Edit) */}

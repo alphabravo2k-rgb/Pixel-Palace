@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useSession } from '../../auth/useSession';
+import { useSession } from '../auth/useSession'; // ✅ Up one level to src/auth
 import { 
   ShieldAlert, 
   Trophy, 
@@ -9,10 +9,9 @@ import {
   LogOut 
 } from 'lucide-react';
 
-// ✅ STRICT NAMED IMPORTS
-// We assume these files export "const ComponentName" (not default)
+// ✅ SIBLING IMPORTS (Same Folder)
 import { TournamentWarRoom } from './TournamentWarRoom';
-import { AdminAuditLog } from '../AdminAuditLog'; // Moved to components root in previous steps
+import { AdminAuditLog } from './AdminAuditLog';
 
 export const AdminDashboard = () => {
   const { logout, session } = useSession();

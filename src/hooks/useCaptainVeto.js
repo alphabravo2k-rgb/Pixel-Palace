@@ -1,86 +1,88 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../supabase/client';
+import { useSession } from '../auth/useSession';
 
-export const useCaptainVeto = (pinCode) => {
-  const [gameState, setGameState] = useState(null);
+export const useCaptainVeto = (match) => {
+  const { session } = useSession();
+  const [vetoes, setVetoes] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
 
-  const fetchState = useCallback(async () => {
-    if (!pinCode || pinCode.length < 3) return;
-    
-    // Only set loading on initial fetch to prevent UI flickering during live updates
-    if (!gameState) setLoading(true);
-    
-    try {
-      const { data, error: rpcError } = await supabase.rpc('api_get_captain_state', { 
-        p_pin: pinCode 
-      });
-
-      if (rpcError) throw rpcError;
-      if (!data) throw new Error("Invalid PIN or Session Expired");
-
-      setGameState(data);
-      setError(null);
-    } catch (err) {
-      console.error("Veto State Error:", err);
-      // Don't wipe state on minor network blips, only on auth failures
-      if (err.message.includes("Invalid PIN")) setGameState(null);
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }, [pinCode, gameState]);
-
-  // Initial Fetch
+  // 1. Initial Load
   useEffect(() => {
-    fetchState();
-  }, [fetchState]);
+    if (!match?.id) return;
+    const fetchVetoes = async () => {
+      const { data } = await supabase
+        .from('match_vetoes')
+        .select('*')
+        .eq('match_id', match.id)
+        .order('pick_order', { ascending: true });
+      if (data) setVetoes(data);
+    };
+    fetchVetoes();
 
-  // Realtime Subscription
-  useEffect(() => {
-    if (!gameState?.match_id) return;
-    
+    // 2. Realtime Subscription (The Pulse)
     const channel = supabase
-      .channel(`veto-${gameState.match_id}`)
-      .on(
-        'postgres_changes', 
-        { event: 'UPDATE', schema: 'public', table: 'matches', filter: `id=eq.${gameState.match_id}` }, 
-        () => {
-          console.log("⚡ Veto Update Detected - Refreshing...");
-          fetchState();
+      .channel(`veto-${match.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'match_vetoes', filter: `match_id=eq.${match.id}` }, 
+        (payload) => {
+          setVetoes((prev) => [...prev, payload.new].sort((a,b) => a.pick_order - b.pick_order));
         }
+      )
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'match_vetoes', filter: `match_id=eq.${match.id}` },
+        () => setVetoes([]) // Handle Reset
       )
       .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [gameState?.match_id, fetchState]);
+    return () => { supabase.removeChannel(channel); };
+  }, [match?.id]);
 
-  const submitVeto = async (mapIdOrName) => {
-    if (!gameState?.is_my_turn) return;
+  // 3. Logic: Whose Turn Is It?
+  const isTeam1 = session.identity?.id === match.team1_id;
+  const isTeam2 = session.identity?.id === match.team2_id;
+  
+  // Logic Mirroring Backend (For UI State only)
+  // BO1: 0(T1), 1(T2), 2(T1)...
+  // BO3: 0(T1), 1(T2), 2(T1-Pick), 3(T2-Pick)...
+  const turnCount = vetoes.length;
+  let isMyTurn = false;
+  let currentAction = 'WAITING';
+
+  if (match.best_of === 1) {
+    const isTeam1Turn = (turnCount % 2) === 0;
+    isMyTurn = (isTeam1 && isTeam1Turn) || (isTeam2 && !isTeam1Turn);
+    currentAction = 'BAN';
+  } else if (match.best_of === 3) {
+    // 0,2,4 = Team 1 | 1,3,5 = Team 2
+    // But actions change
+    const isTeam1Turn = [0, 2, 4].includes(turnCount);
+    isMyTurn = (isTeam1 && isTeam1Turn) || (isTeam2 && !isTeam1Turn);
+    currentAction = [2, 3].includes(turnCount) ? 'PICK' : 'BAN';
+  }
+
+  // 4. Action: Submit Veto
+  const submitVeto = async (mapName) => {
+    if (!isMyTurn || loading) return;
     
-    // 🛡️ Optimistic Update (makes UI feel faster)
-    const previousState = { ...gameState };
-    setGameState(prev => ({ ...prev, is_my_turn: false })); 
-
+    // Optimistic UI update could go here, but risky for race conditions
+    setLoading(true);
     try {
-      const { error: rpcError } = await supabase.rpc('cmd_submit_veto', {
-        p_match_id: gameState.match_id,
-        p_pin_code: pinCode,
-        p_map_name: mapIdOrName, // API likely handles both ID and Name strings
-        p_action: 'ban' 
+      const { data, error } = await supabase.rpc('api_submit_veto', {
+        p_match_id: match.id,
+        p_team_id: session.identity.id,
+        p_map_name: mapName,
+        p_format: match.best_of
       });
 
-      if (rpcError) throw rpcError;
-      
+      if (error) throw error;
+      if (!data.success) {
+        alert(data.message); // "Not your turn" or "Map taken"
+      }
     } catch (err) {
-      console.error("Veto Submit Error:", err);
-      setError(err.message.replace("P0001: ", ""));
-      setGameState(previousState); // Revert on failure
+      console.error("Veto Error:", err);
+    } finally {
+      setLoading(false);
     }
   };
 
-  return { gameState, loading, error, submitVeto };
+  return { vetoes, isMyTurn, currentAction, submitVeto, loading };
 };

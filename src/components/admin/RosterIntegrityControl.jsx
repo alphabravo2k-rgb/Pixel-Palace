@@ -5,24 +5,20 @@ import { useSession } from '../../auth/useSession';
 import { ROLES } from '../../lib/roles';
 
 export const RosterIntegrityControl = ({ player, onUpdate }) => {
-  const { session } = useSession();
+  const { getAuthIdentifier } = useSession(); // ✅ Use Helper
   const [loading, setLoading] = useState(false);
 
-  // LOGIC: Detect if role string doesn't match expected reality
-  // Example: Name implies captain but role is 'PLAYER'
-  // Or: Just allow Admin to force set Roles easily
-  
   const handleFixRole = async (targetRole) => {
     setLoading(true);
     try {
       const { data, error } = await supabase.rpc('api_force_update_player_role', {
         p_player_id: player.id,
         p_new_role: targetRole,
-        p_admin_id: session.identity.id
+        p_admin_id: getAuthIdentifier() // 🛡️ Audit Key
       });
 
       if (error) throw error;
-      if (onUpdate) onUpdate(); // Refresh the list
+      if (onUpdate) onUpdate(); 
     } catch (err) {
       console.error("Role Fix Failed:", err);
       alert("Failed to update role.");
@@ -47,7 +43,6 @@ export const RosterIntegrityControl = ({ player, onUpdate }) => {
         </button>
       )}
 
-      {/* Downgrade Option if needed */}
       {player.role === ROLES.CAPTAIN && (
         <button
           onClick={() => handleFixRole(ROLES.PLAYER)}

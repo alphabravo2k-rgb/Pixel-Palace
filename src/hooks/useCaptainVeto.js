@@ -2,14 +2,20 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../supabase/client';
 import { useSession } from '../auth/useSession';
 
+// ✅ FIXED CONTRACT: We pass the full Match Object
 export const useCaptainVeto = (match) => {
   const { session } = useSession();
   const [vetoes, setVetoes] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // 1. Initial Load
+  // 1. Validate Inputs
+  // If match is missing or session isn't ready, we cannot function.
+  if (!match?.id || !session) {
+    return { vetoes: [], isMyTurn: false, loading: false };
+  }
+
+  // 2. Realtime Subscription
   useEffect(() => {
-    if (!match?.id) return;
     const fetchVetoes = async () => {
       const { data } = await supabase
         .from('match_vetoes')
@@ -20,63 +26,63 @@ export const useCaptainVeto = (match) => {
     };
     fetchVetoes();
 
-    // 2. Realtime Subscription (The Pulse)
     const channel = supabase
       .channel(`veto-${match.id}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'match_vetoes', filter: `match_id=eq.${match.id}` }, 
-        (payload) => {
+      .on('postgres_changes', { 
+        event: 'INSERT', 
+        schema: 'public', 
+        table: 'match_vetoes', 
+        filter: `match_id=eq.${match.id}` 
+      }, (payload) => {
           setVetoes((prev) => [...prev, payload.new].sort((a,b) => a.pick_order - b.pick_order));
-        }
-      )
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'match_vetoes', filter: `match_id=eq.${match.id}` },
-        () => setVetoes([]) // Handle Reset
-      )
+      })
+      .on('postgres_changes', { 
+        event: 'DELETE', 
+        schema: 'public', 
+        table: 'match_vetoes', 
+        filter: `match_id=eq.${match.id}` 
+      }, () => setVetoes([])) // Handle Reset
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [match?.id]);
+  }, [match.id]);
 
-  // 3. Logic: Whose Turn Is It?
+  // 3. Turn Calculation Logic
   const isTeam1 = session.identity?.id === match.team1_id;
   const isTeam2 = session.identity?.id === match.team2_id;
-  
-  // Logic Mirroring Backend (For UI State only)
-  // BO1: 0(T1), 1(T2), 2(T1)...
-  // BO3: 0(T1), 1(T2), 2(T1-Pick), 3(T2-Pick)...
   const turnCount = vetoes.length;
+  
   let isMyTurn = false;
   let currentAction = 'WAITING';
 
   if (match.best_of === 1) {
+    // BO1: Strict Alternating Bans
     const isTeam1Turn = (turnCount % 2) === 0;
     isMyTurn = (isTeam1 && isTeam1Turn) || (isTeam2 && !isTeam1Turn);
     currentAction = 'BAN';
   } else if (match.best_of === 3) {
-    // 0,2,4 = Team 1 | 1,3,5 = Team 2
-    // But actions change
+    // BO3: Ban, Ban, Pick, Pick, Ban, Ban...
     const isTeam1Turn = [0, 2, 4].includes(turnCount);
     isMyTurn = (isTeam1 && isTeam1Turn) || (isTeam2 && !isTeam1Turn);
     currentAction = [2, 3].includes(turnCount) ? 'PICK' : 'BAN';
   }
 
-  // 4. Action: Submit Veto
+  // 4. Submit Action (Authenticated via Session)
   const submitVeto = async (mapName) => {
     if (!isMyTurn || loading) return;
     
-    // Optimistic UI update could go here, but risky for race conditions
     setLoading(true);
     try {
       const { data, error } = await supabase.rpc('api_submit_veto', {
         p_match_id: match.id,
-        p_team_id: session.identity.id,
+        p_team_id: session.identity.id, // 🛡️ AUTH: Uses Session, not a loose PIN
         p_map_name: mapName,
         p_format: match.best_of
       });
 
       if (error) throw error;
-      if (!data.success) {
-        alert(data.message); // "Not your turn" or "Map taken"
-      }
+      if (!data.success) alert(data.message);
+      
     } catch (err) {
       console.error("Veto Error:", err);
     } finally {

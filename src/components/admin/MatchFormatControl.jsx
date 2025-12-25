@@ -2,15 +2,14 @@ import React, { useState } from 'react';
 import { Settings, ShieldAlert, Check, Lock, Ban } from 'lucide-react';
 import { supabase } from '../../supabase/client';
 import { useSession } from '../../auth/useSession';
-import { useTournament } from '../../tournament/useTournament'; // ✅ NEW: Import Context
+import { useTournament } from '../../tournament/useTournament';
 
 export const MatchFormatControl = ({ match, onUpdate }) => {
   const { session } = useSession();
-  const { selectedTournamentId } = useTournament(); // ✅ NEW: Get Context
+  const { selectedTournamentId } = useTournament();
   const [loading, setLoading] = useState(false);
 
-  // 🔒 STRICT STATE LOCKING
-  // Locked if: Live, Completed, or Veto in progress/done
+  // Locked if: Live, Completed, or Veto started
   const hasVetoStarted = (match.status === 'veto') || (match.vetoes && match.vetoes.length > 0);
   const isLocked = ['live', 'completed', 'veto'].includes(match.status) || hasVetoStarted;
 
@@ -18,32 +17,39 @@ export const MatchFormatControl = ({ match, onUpdate }) => {
     if (isLocked || loading) return;
     if (newFormat === match.best_of) return;
 
-    // Confirm Intent
-    const confirmed = window.confirm(
-      `⚠️ CRITICAL CHANGE \n\nChanging from BO${match.best_of} to BO${newFormat}.\nThis will be logged in the Audit Trail.\n\nProceed?`
+    // 🛑 FIX: MANDATORY REASON INPUT
+    // We replaced window.confirm with prompt to force the "Why"
+    const reason = prompt(
+      `⚠️ CHANGING MATCH FORMAT (BO${match.best_of} -> BO${newFormat})\n\nThis action requires justification for the Audit Log.\n\nEnter Reason:`
     );
-    if (!confirmed) return;
+
+    // If user cancels or types nothing/whitespace -> ABORT
+    if (reason === null) return; 
+    if (!reason || reason.trim().length < 3) {
+      alert("Format change blocked: A valid reason is required.");
+      return;
+    }
 
     setLoading(true);
     try {
-      // ✅ UPDATED RPC CALL: Includes p_tournament_id
       const { data, error } = await supabase.rpc('api_update_match_format', {
         p_match_id: match.id,
         p_new_format: parseInt(newFormat),
-        p_tournament_id: selectedTournamentId, // 🛡️ SECURITY: Bind to Context
+        p_tournament_id: selectedTournamentId,
+        p_reason: reason.trim(), // 👈 Passing the reason
         p_admin_id: session.identity.id
       });
 
       if (error) throw error;
 
       if (data.success) {
-        if (onUpdate) onUpdate(); // Refresh parent view
+        if (onUpdate) onUpdate();
       } else {
         alert(`Request Rejected: ${data.message}`);
       }
     } catch (err) {
       console.error("Format Update Failed:", err);
-      alert("Failed to update format. Server rejected the request.");
+      alert("Failed to update format.");
     } finally {
       setLoading(false);
     }
@@ -59,7 +65,6 @@ export const MatchFormatControl = ({ match, onUpdate }) => {
           <Settings className="w-3 h-3" /> Match Format
         </span>
         
-        {/* LOCK BADGE */}
         {isLocked && (
           <span className="text-[9px] flex items-center gap-1 uppercase font-bold px-1.5 py-0.5 rounded border bg-red-950/30 text-red-500 border-red-900/50">
             {hasVetoStarted ? <Ban className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
@@ -95,7 +100,7 @@ export const MatchFormatControl = ({ match, onUpdate }) => {
       {!isLocked && (
         <div className="text-[9px] text-zinc-600 flex items-center gap-1 mt-1">
           <ShieldAlert className="w-3 h-3" />
-          <span>Updates logged to Admin Audit</span>
+          <span>Updates require Audit Log justification</span>
         </div>
       )}
     </div>

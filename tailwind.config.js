@@ -25,8 +25,9 @@ export default {
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
         mono: ['JetBrains Mono', 'Menlo', 'monospace'],
+        // ✅ ADDED: Official support for your headings
+        teko: ['Teko', 'sans-serif'], 
       },
-      // NEW: Standardized Glow Effects
       boxShadow: {
         'glow': '0 0 20px rgba(255, 85, 0, 0.35)',
         'glow-sm': '0 0 10px rgba(255, 85, 0, 0.25)',
@@ -34,6 +35,7 @@ export default {
       },
       animation: {
         'spin-slow': 'spin 3s linear infinite',
+        'breathe': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
       }
     },
   },

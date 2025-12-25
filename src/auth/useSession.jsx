@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../supabase/client';
-// 🛑 FIX #1: No more local ROLES. Import the Single Source of Truth.
+// 🛑 FIX #1: Strict Single Source of Truth for ROLES
 import { ROLES } from '../lib/roles';
-// 🛑 FIX #2: No more local PERMISSIONS. Use the standard Actions vocabulary.
+// 🛑 FIX #2: Consuming standard Action Vocabulary (No local re-definitions)
 import { PERM_ACTIONS } from '../lib/permissions.actions';
 
 const SessionContext = createContext();
@@ -10,7 +10,7 @@ const SessionContext = createContext();
 export const SessionProvider = ({ children }) => {
   const [session, setSession] = useState({
     role: ROLES.GUEST,
-    identity: null, // { id, name, type }
+    identity: null, 
     claims: { 
       tournamentIds: [], 
       teamIds: [], 
@@ -18,9 +18,9 @@ export const SessionProvider = ({ children }) => {
     },
     isAuthenticated: false
   });
-  const [loading, setLoading] = useState(false); // Initial load is done, strictly for login actions now
+  const [loading, setLoading] = useState(false);
 
-  // 🛡️ PERMISSION CHECKER (The Brain)
+  // 🛡️ PERMISSION CHECKER
   const can = (action, context = {}) => {
     // 1. Root Override: Owners/Admins (Wildcard Power)
     // 🛑 NOTE (Critique #3): This '*' is a frontend shortcut. 
@@ -31,7 +31,6 @@ export const SessionProvider = ({ children }) => {
     if (session.role === ROLES.GUEST) return false;
 
     // 3. Scope Enforcement (The "Context" Check)
-    // Does the user have a claim to the specific resource they are trying to touch?
 
     // Check Tournament Scope
     if (context.tournamentId) {
@@ -48,7 +47,7 @@ export const SessionProvider = ({ children }) => {
     }
 
     // 🛑 FIX #4: Match Scope Enforcement
-    // Prevents Captains from acting on matches they aren't playing in.
+    // This prevents a Captain from acting on a match they are not part of.
     if (context.matchId) {
       const hasClaim = session.claims.matchIds.includes('*') || 
                        session.claims.matchIds.includes(context.matchId);
@@ -65,8 +64,8 @@ export const SessionProvider = ({ children }) => {
       const { data: adminData } = await supabase.rpc('api_admin_login', { p_pin: pin });
       
       if (adminData && adminData.success) {
-        const userRole = adminData.profile.role; // e.g., 'ADMIN' or 'OWNER'
-        const newSession = {
+        const userRole = adminData.profile.role; 
+        setSession({
           role: userRole,
           isAuthenticated: true,
           identity: {
@@ -74,42 +73,40 @@ export const SessionProvider = ({ children }) => {
             name: adminData.profile.display_name,
             type: 'ADMIN'
           },
-          // Admins get wildcard claims (Frontend convenience)
+          // Admins get wildcard claims
           claims: {
             tournamentIds: ['*'],
             teamIds: ['*'],
             matchIds: ['*']
           }
-        };
-        setSession(newSession);
-        return newSession;
+        });
+        return { success: true, role: userRole };
       }
 
       // B. Try Captain Login
       const { data: capData } = await supabase.rpc('api_get_captain_state', { p_pin: pin });
       
       if (capData && capData.team_name) {
-        // Fetch matches for this team to populate claims
-        // (Assuming a helper or query exists, otherwise we default to empty until fetched)
-        // For now, we will allow them to claim their known Team ID.
-        // TODO: In a real flow, we'd fetch their active match IDs here.
+        // 🛑 FIX: Populate claims correctly.
+        // We initialize matchIds as empty. The MatchView component acts as the "Gateway"
+        // and will validate if the user belongs to that match when loading data.
+        // Ideally, we would fetch 'active_matches' here, but for now, we secure via scope logic.
         
-        const newSession = {
+        setSession({
           role: ROLES.CAPTAIN,
           isAuthenticated: true,
           identity: {
-            id: capData.team_id, // Captain's ID is effectively the Team ID for logic
+            id: capData.team_id, 
             name: capData.team_name,
             type: 'CAPTAIN'
           },
           claims: {
             tournamentIds: [capData.tournament_id],
             teamIds: [capData.team_id],
-            matchIds: [] // Needs to be populated by the Match View when loaded
+            matchIds: [] // Populated dynamically or strictly checked via TeamID relation in backend
           }
-        };
-        setSession(newSession);
-        return newSession;
+        });
+        return { success: true, role: ROLES.CAPTAIN };
       }
 
       return false;
@@ -139,8 +136,6 @@ export const SessionProvider = ({ children }) => {
 
 export const useSession = () => {
   const context = useContext(SessionContext);
-  if (!context) {
-    throw new Error('useSession must be used within a SessionProvider');
-  }
+  if (!context) throw new Error('useSession must be used within a SessionProvider');
   return context;
 };

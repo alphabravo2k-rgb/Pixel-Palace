@@ -1,7 +1,7 @@
-import React, { useEffect, useLayoutEffect, useRef } from 'react';
+import React from 'react';
 import { X } from 'lucide-react';
 
-// 🆕 NEW: Skewed Action Button (From Registration Page)
+// 🆕 Skewed Action Button
 export const SkewButton = ({ children, onClick, className = "", disabled = false, type = "button" }) => (
   <button 
     type={type}
@@ -20,7 +20,7 @@ export const SkewButton = ({ children, onClick, className = "", disabled = false
   </button>
 );
 
-// 🆕 NEW: HUD Panel (Glassmorphism + Border)
+// 🆕 HUD Panel
 export const HudPanel = ({ children, className = "" }) => (
   <div className={`
     relative bg-[#141419]/70 backdrop-blur-md 
@@ -37,7 +37,7 @@ export const HudPanel = ({ children, className = "" }) => (
   </div>
 );
 
-// 🆕 UPDATED: Breathing Logo (Exact from Reference)
+// 🆕 Breathing Logo
 export const BreathingLogo = ({ size = "w-40 h-40", className = "" }) => (
   <a 
     href="https://discord.gg/JdXheQbvec" 
@@ -54,9 +54,8 @@ export const BreathingLogo = ({ size = "w-40 h-40", className = "" }) => (
   </a>
 );
 
-// --- Keep existing Modal/Badge/Button for compatibility ---
+// --- Compatibility Components ---
 export const Button = ({ children, variant = 'primary', className = '', ...props }) => {
-  // Keeping this for non-skewed buttons in the admin panel
   const baseStyle = "px-4 py-2 rounded-sm font-black uppercase tracking-widest text-[10px] transition-all";
   const variants = {
     primary: "bg-zinc-800 text-zinc-300 hover:bg-[#ff5500] hover:text-black border border-zinc-700",

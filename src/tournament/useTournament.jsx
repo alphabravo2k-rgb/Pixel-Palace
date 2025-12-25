@@ -1,17 +1,21 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../supabase/client';
+// 🛑 FIX: Import useSession to bridge the gap
+import { useSession } from '../auth/useSession';
+import { ROLES } from '../lib/roles';
 
 const TournamentContext = createContext();
 
 export const TournamentProvider = ({ children, defaultId }) => {
-  // ✅ Initialize state with the defaultId if provided
+  const { session } = useSession(); // 🔗 BINDING THE SESSION
+  
   const [selectedTournamentId, setSelectedTournamentId] = useState(defaultId || null);
   const [tournaments, setTournaments] = useState([]);
   const [tournamentData, setTournamentData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // 1. Fetch List of Tournaments (for Admin Selector)
+  // 1. Fetch List of Tournaments (For Admin Selector or Public History)
   useEffect(() => {
     const fetchTournaments = async () => {
       const { data, error } = await supabase
@@ -21,17 +25,32 @@ export const TournamentProvider = ({ children, defaultId }) => {
       
       if (data) {
         setTournaments(data);
-        // If no default was passed, and we have tournaments, auto-select the first one?
-        // Let's stick to the env var for precision, but fallback to first if desperate.
-        if (!selectedTournamentId && data.length > 0) {
-             // Optional: setSelectedTournamentId(data[0].id);
+        
+        // Fallback: If no default env var and no selection, grab the first active one
+        if (!selectedTournamentId && data.length > 0 && !defaultId) {
+             setSelectedTournamentId(data[0].id);
         }
       }
     };
     fetchTournaments();
-  }, []);
+  }, [defaultId, selectedTournamentId]);
 
-  // 2. Fetch Active Tournament Data
+  // 🛡️ 2. CRITICAL BINDING: Session Claims -> Tournament Selection
+  // If the user logs in as a Captain, they are strictly bound to ONE tournament.
+  // We must force the app to switch to that tournament immediately.
+  useEffect(() => {
+    if (session.isAuthenticated && session.role === ROLES.CAPTAIN) {
+      // Captains usually have exactly one tournament ID in their claims
+      const allowedTournamentId = session.claims.tournamentIds[0];
+      
+      if (allowedTournamentId && selectedTournamentId !== allowedTournamentId) {
+        console.log(`🔗 Binding Violation Detected. Auto-switching Captain to ${allowedTournamentId}`);
+        setSelectedTournamentId(allowedTournamentId);
+      }
+    }
+  }, [session, selectedTournamentId]);
+
+  // 3. Fetch Active Tournament Data
   useEffect(() => {
     if (!selectedTournamentId) return;
 

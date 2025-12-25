@@ -1,26 +1,7 @@
 import React, { useEffect, useState } from 'react';
-// ✅ FIXED PATHS: Single dot (../) because file is in src/components/
 import { supabase } from '../supabase/client';
 import { useTournament } from '../tournament/useTournament';
-import { ScrollText, RefreshCw, AlertTriangle, Activity } from 'lucide-react';
-
-// Safe JSON Viewer
-const DetailsViewer = ({ data }) => {
-  if (!data) return <span className="text-zinc-500 italic">No details</span>;
-  
-  let content = "Invalid Data";
-  try {
-      content = typeof data === 'object' ? JSON.stringify(data, null, 2) : String(data);
-  } catch (e) {
-      console.warn("JSON Parse Error", e);
-  }
-
-  return (
-    <pre className="mt-2 p-2 bg-black/40 rounded border border-white/5 text-[10px] text-fuchsia-300 font-mono overflow-x-auto whitespace-pre-wrap">
-      {content}
-    </pre>
-  );
-};
+import { ScrollText, RefreshCw, Activity, AlertTriangle } from 'lucide-react';
 
 export const AdminAuditLog = () => {
   const { selectedTournamentId } = useTournament();
@@ -34,15 +15,14 @@ export const AdminAuditLog = () => {
       const { data, error } = await supabase
         .from('admin_audit_logs')
         .select('*')
-        .eq('tournament_id', selectedTournamentId) // ✅ Added Scope
+        .eq('tournament_id', selectedTournamentId)
         .order('created_at', { ascending: false })
         .limit(50);
 
       if (error) throw error;
-      setLogs(Array.isArray(data) ? data : []);
+      setLogs(data || []);
     } catch (err) {
-      console.error('Audit Log Fetch Error:', err);
-      setLogs([]); 
+      console.error('Logs Error:', err);
     } finally {
       setLoading(false);
     }
@@ -53,49 +33,29 @@ export const AdminAuditLog = () => {
   }, [selectedTournamentId]);
 
   return (
-    <div className="w-full bg-zinc-900 border border-white/10 rounded-lg overflow-hidden flex flex-col h-[500px]">
-      <div className="p-4 border-b border-white/5 bg-zinc-950 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <ScrollText className="w-5 h-5 text-fuchsia-500" />
-          <h3 className="font-['Teko'] text-xl uppercase tracking-wider text-zinc-200">
-            System Audit Log
-          </h3>
-        </div>
-        <button 
-          onClick={fetchLogs}
-          disabled={loading}
-          className="p-2 hover:bg-white/5 rounded-full transition-colors disabled:opacity-50"
-        >
+    <div className="w-full bg-zinc-900 border border-white/10 rounded-lg flex flex-col h-[500px]">
+      <div className="p-4 border-b border-white/5 bg-zinc-950 flex justify-between items-center">
+        <h3 className="font-['Teko'] text-xl uppercase text-zinc-200 flex items-center gap-2">
+          <ScrollText className="w-5 h-5 text-fuchsia-500" /> Audit Log
+        </h3>
+        <button onClick={fetchLogs} className="p-2 hover:bg-white/5 rounded-full">
           <RefreshCw className={`w-4 h-4 text-zinc-400 ${loading ? 'animate-spin' : ''}`} />
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-zinc-700">
-        {!selectedTournamentId ? (
-          <div className="text-center text-zinc-500 py-10 flex flex-col items-center gap-2">
-            <AlertTriangle className="w-6 h-6 opacity-50" />
-            <span>Select a tournament to view logs</span>
-          </div>
-        ) : logs.length === 0 && !loading ? (
-          <div className="text-center text-zinc-500 italic py-10">No actions recorded.</div>
+      <div className="flex-1 overflow-y-auto p-4 space-y-2">
+        {logs.length === 0 ? (
+          <div className="text-center text-zinc-500 py-10 italic">No logs found.</div>
         ) : (
           logs.map((log) => (
-            <div key={log.id || Math.random()} className="flex flex-col gap-1 p-3 rounded bg-zinc-950/50 border border-white/5">
-              <div className="flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2">
-                  <Activity className="w-3 h-3 text-zinc-500" />
-                  <span className="font-mono text-fuchsia-400 font-bold uppercase">
-                    [{log.action_type || 'UNKNOWN'}]
-                  </span>
-                  <span className="text-zinc-400">
-                    by <span className="text-white">{log.admin_identifier || 'System'}</span>
-                  </span>
-                </div>
-                <span className="text-zinc-600 font-mono">
-                  {log.created_at ? new Date(log.created_at).toLocaleTimeString() : '-'}
-                </span>
+            <div key={log.id} className="p-3 bg-black/20 rounded border border-white/5 flex flex-col gap-1">
+              <div className="flex justify-between text-xs">
+                <span className="font-bold text-fuchsia-400 font-mono uppercase">[{log.action_type}]</span>
+                <span className="text-zinc-500">{new Date(log.created_at).toLocaleTimeString()}</span>
               </div>
-              <DetailsViewer data={log.details} />
+              <div className="text-[10px] text-zinc-400 font-mono break-all">
+                {JSON.stringify(log.details)}
+              </div>
             </div>
           ))
         )}

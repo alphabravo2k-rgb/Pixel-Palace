@@ -1,21 +1,20 @@
 import React from 'react';
 import { Play, RefreshCw, AlertTriangle, Trophy } from 'lucide-react';
 
-// ✅ STRICT NAMED IMPORTS
-import { useTournament } from '../../tournament/useTournament';
-import { useAdminConsole } from '../../hooks/useAdminConsole';
-import { useSession } from '../../auth/useSession';
+// ✅ UP ONE LEVEL IMPORTS
+import { useTournament } from '../tournament/useTournament';
+import { useAdminConsole } from '../hooks/useAdminConsole';
+import { useSession } from '../auth/useSession';
 
 export const TournamentWarRoom = () => {
   const { selectedTournamentId, tournamentData } = useTournament();
   const { generateBracket, syncRegistrations, loading } = useAdminConsole();
   const { can } = useSession();
 
-  // Guard Clause: Don't render if data isn't ready
+  // Guard Clause
   if (!selectedTournamentId) return null;
 
   const canManage = can('CAN_MANAGE_BRACKET', { tournamentId: selectedTournamentId });
-  // Case-insensitive check for 'setup' status
   const isSetupPhase = tournamentData?.status?.toLowerCase() === 'setup';
 
   return (

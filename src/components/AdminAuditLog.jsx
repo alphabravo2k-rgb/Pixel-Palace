@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+// ✅ UP ONE LEVEL IMPORTS
 import { supabase } from '../supabase/client';
 import { useTournament } from '../tournament/useTournament';
 import { ScrollText, RefreshCw, Activity, AlertTriangle } from 'lucide-react';

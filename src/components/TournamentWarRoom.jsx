@@ -1,7 +1,7 @@
 import React from 'react';
 import { Play, RefreshCw, AlertTriangle, Trophy } from 'lucide-react';
 
-// ✅ UP ONE LEVEL IMPORTS
+// Sibling Imports (Flat structure)
 import { useTournament } from '../tournament/useTournament';
 import { useAdminConsole } from '../hooks/useAdminConsole';
 import { useSession } from '../auth/useSession';
@@ -11,10 +11,13 @@ export const TournamentWarRoom = () => {
   const { generateBracket, syncRegistrations, loading } = useAdminConsole();
   const { can } = useSession();
 
-  // Guard Clause
   if (!selectedTournamentId) return null;
 
-  const canManage = can('CAN_MANAGE_BRACKET', { tournamentId: selectedTournamentId });
+  // 🛡️ CRASH PROTECTION: Default to false if `can` is missing
+  const canManage = typeof can === 'function' 
+      ? can('CAN_MANAGE_BRACKET', { tournamentId: selectedTournamentId })
+      : false;
+
   const isSetupPhase = tournamentData?.status?.toLowerCase() === 'setup';
 
   return (

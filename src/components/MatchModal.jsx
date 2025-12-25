@@ -1,33 +1,32 @@
 import React, { useEffect } from 'react';
 import { X, ShieldAlert, Trophy } from 'lucide-react';
 import { useSession } from '../auth/useSession';
-import { normalizeRole } from '../lib/roles';
+import { ROLES } from '../lib/roles';
 
-// ✅ FIX: Named Imports to match the new architecture
-import { VetoPanel } from './VetoPanel'; 
+// ✅ Correct Import Paths (Assuming they are in same folder or subfolder)
+// Adjust './admin/...' if your file structure is flat or nested
 import { AdminMatchControls } from './AdminMatchControls'; 
 import { AdminAuditLog } from './AdminAuditLog';
+// import { VetoPanel } from './VetoPanel'; // Uncomment when VetoPanel is created
 
 export const MatchModal = ({ match, teams, onClose }) => {
-  const { session, can } = useSession();
+  const { session } = useSession();
 
-  // Prevent background scrolling when modal is open
+  // Prevent background scrolling
   useEffect(() => {
     document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
+    return () => { document.body.style.overflow = 'unset'; };
   }, []);
 
   if (!match) return null;
 
-  // Determine Permissions
-  const isCaptain = session.role === 'CAPTAIN';
-  const isAdmin = can('CAN_MANAGE_BRACKET'); // Admin/Owner
+  // Permissions
+  const isAdmin = [ROLES.ADMIN, ROLES.OWNER, ROLES.REFEREE].includes(session.role);
   
-  // For Captains: Verify they belong to one of the teams in this match
-  const userTeamId = session.claims?.teamIds?.[0]; // Assuming single team claim for now
-  const isMyMatch = match.team1?.id === userTeamId || match.team2?.id === userTeamId;
+  // Captain Logic
+  const userTeamId = session.identity?.id; 
+  const isCaptain = session.role === ROLES.CAPTAIN;
+  const isMyMatch = isCaptain && (match.team1_id === userTeamId || match.team2_id === userTeamId);
 
   // Render Logic
   const showAdminControls = isAdmin;
@@ -61,32 +60,32 @@ export const MatchModal = ({ match, teams, onClose }) => {
         {/* Scrollable Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
           
-          {/* 1. ADMIN CONTROLS (Protected) */}
+          {/* 1. ADMIN CONTROLS */}
           {showAdminControls && (
             <div className="space-y-4">
               <div className="flex items-center gap-2 text-red-400 text-sm font-bold uppercase tracking-wider">
                 <ShieldAlert className="w-4 h-4" /> Admin Control Deck
               </div>
-              <AdminMatchControls match={match} teams={teams} />
+              <AdminMatchControls match={match} teams={teams} onUpdate={onClose} />
             </div>
           )}
 
-          {/* 2. VETO PANEL (Context Aware) */}
-          {showVeto ? (
+          {/* 2. VETO PANEL */}
+          {/* {showVeto ? (
             <div className="space-y-4">
               <VetoPanel matchId={match.id} />
             </div>
           ) : (
-            <div className="p-10 text-center text-zinc-500 italic border border-dashed border-white/10 rounded">
-              Waiting for teams to be determined or map veto to begin.
-            </div>
+             <div className="p-10 text-center text-zinc-500 italic border border-dashed border-white/10 rounded">
+               Waiting for teams to be determined or map veto to begin.
+             </div>
           )}
+          */}
 
-          {/* 3. MATCH AUDIT LOG (Admin Only) */}
+          {/* 3. MATCH AUDIT LOG */}
           {showAdminControls && (
             <div className="pt-6 border-t border-white/5">
               <h3 className="text-xs font-bold text-zinc-500 uppercase mb-3">Match Logs</h3>
-              {/* Reuse the generic log, or scoped if extended later */}
               <AdminAuditLog /> 
             </div>
           )}
@@ -95,8 +94,3 @@ export const MatchModal = ({ match, teams, onClose }) => {
     </div>
   );
 };
-
-// Default export is no longer standard in this architecture, 
-// but we export named to be safe. 
-// If your router lazy loads this, you might need: export default MatchModal;
-export default MatchModal;

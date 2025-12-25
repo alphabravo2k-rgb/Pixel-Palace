@@ -11,9 +11,9 @@ export const TournamentWarRoom = () => {
 
   if (!selectedTournamentId) return null;
 
-  // ✅ Role + Scope Check
+  // Role + Scope Check
   const canManage = can('CAN_MANAGE_BRACKET', { tournamentId: selectedTournamentId });
-  const isSetupPhase = tournamentData?.status === 'SETUP';
+  const isSetupPhase = tournamentData?.status === 'setup'; // Check lowercase 'setup' from DB
 
   const handleSync = async () => {
     if (!isSetupPhase) return;

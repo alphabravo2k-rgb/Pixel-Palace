@@ -1,13 +1,12 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../supabase/client';
-// 🛑 FIX: Import useSession to bridge the gap
 import { useSession } from '../auth/useSession';
 import { ROLES } from '../lib/roles';
 
 const TournamentContext = createContext();
 
 export const TournamentProvider = ({ children, defaultId }) => {
-  const { session } = useSession(); // 🔗 BINDING THE SESSION
+  const { session } = useSession(); 
   
   const [selectedTournamentId, setSelectedTournamentId] = useState(defaultId || null);
   const [tournaments, setTournaments] = useState([]);
@@ -15,7 +14,7 @@ export const TournamentProvider = ({ children, defaultId }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // 1. Fetch List of Tournaments (For Admin Selector or Public History)
+  // 1. Fetch List of Tournaments
   useEffect(() => {
     const fetchTournaments = async () => {
       const { data, error } = await supabase
@@ -33,15 +32,13 @@ export const TournamentProvider = ({ children, defaultId }) => {
       }
     };
     fetchTournaments();
-  }, [defaultId, selectedTournamentId]);
+  }, [defaultId]); // Removed selectedTournamentId from dep to prevent loop
 
-  // 🛡️ 2. CRITICAL BINDING: Session Claims -> Tournament Selection
-  // If the user logs in as a Captain, they are strictly bound to ONE tournament.
-  // We must force the app to switch to that tournament immediately.
+  // 🛡️ 2. CRITICAL BINDING: Captain -> Tournament
   useEffect(() => {
     if (session.isAuthenticated && session.role === ROLES.CAPTAIN) {
-      // Captains usually have exactly one tournament ID in their claims
-      const allowedTournamentId = session.claims.tournamentIds[0];
+      // ✅ FIX: Use identity, not claims
+      const allowedTournamentId = session.identity?.tournament_id;
       
       if (allowedTournamentId && selectedTournamentId !== allowedTournamentId) {
         console.log(`🔗 Binding Violation Detected. Auto-switching Captain to ${allowedTournamentId}`);

@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import { supabase } from '../supabase/client';
 import { useSession } from '../auth/useSession';
 
@@ -14,94 +14,58 @@ export const useAdminConsole = () => {
   /**
    * GENERIC EXECUTOR
    * Wraps all RPC calls with:
-   * 1. Permission Gating (Client-side)
+   * 1. Permission Gating (Client-side with Context)
    * 2. Error Handling
    * 3. Loading State
+   * 4. Audit Trail Injection
    */
-  const execute = useCallback(async (action, permission, rpcName, params = {}) => {
+  const execute = async ({ 
+    action,       // Permission String (e.g. 'CAN_MANAGE_BRACKET')
+    context = {}, // { tournamentId, matchId }
+    rpc,          // The SQL function name
+    params = {},  // RPC parameters
+    onSuccess     // Callback
+  }) => {
     setError(null);
 
-    // 🛡️ GATEKEEPER: Check Authority before Network Request
-    if (!can(permission)) {
-      setError(`ACCESS DENIED: Missing permission ${permission}`);
+    // 🛡️ GATEKEEPER: Check Authority + Scope before Network Request
+    if (!can(action, context)) {
+      const msg = `ACCESS DENIED: Missing permission ${action} for this scope.`;
+      console.error(msg);
+      setError(msg);
+      alert(msg);
       return { success: false, error: 'Unauthorized' };
     }
 
     setLoading(true);
     try {
-      const { data, error: rpcError } = await supabase.rpc(rpcName, params);
+      // 🕵️ AUDIT INJECTION: Always attach the operator's ID
+      const payload = {
+        ...params,
+        p_admin_id: session.identity.id
+      };
+
+      const { data, error: rpcError } = await supabase.rpc(rpc, payload);
       
       if (rpcError) throw rpcError;
+
+      // Handle custom API error responses (success: false)
+      if (data && data.success === false) {
+        throw new Error(data.message || 'Operation Failed');
+      }
       
+      if (onSuccess) onSuccess(data);
       return { success: true, data };
+
     } catch (err) {
       console.error(`[${action}] Failed:`, err);
       setError(err.message);
+      alert(`Action Failed: ${err.message}`);
       return { success: false, error: err.message };
     } finally {
       setLoading(false);
     }
-  }, [can]);
-
-  // ----------------------------------------------------------------
-  // OPERATIONAL METHODS
-  // ----------------------------------------------------------------
-
-  /**
-   * CREATE ADMIN
-   * ⚠️ Sensitive Action: Requires Re-Auth (PIN)
-   */
-  const createAdmin = async (authPin, newAdminData) => {
-    return execute(
-      'CREATE_ADMIN',
-      'CAN_MANAGE_BRACKET', // Permission Check
-      'api_create_admin_v2', // RPC Name
-      { 
-        p_auth_pin: authPin, // Re-auth credential
-        p_name: newAdminData.name,
-        p_discord: newAdminData.discord,
-        p_faceit: newAdminData.faceitUser 
-      }
-    );
   };
 
-  /**
-   * GENERATE BRACKET
-   * Scoped Action: Context aware
-   */
-  const generateBracket = async (tournamentId) => {
-    // We pass the context { tournamentId } to can() to verify scope
-    if (!can('CAN_MANAGE_BRACKET', { tournamentId })) {
-      setError("Scope Violation: You do not own this tournament.");
-      return { success: false };
-    }
-
-    return execute(
-      'GENERATE_BRACKET',
-      'CAN_MANAGE_BRACKET',
-      'api_generate_bracket',
-      { p_tournament_id: tournamentId }
-    );
-  };
-
-  /**
-   * SYNC REGISTRATIONS
-   * Idempotent safe action
-   */
-  const syncRegistrations = async (tournamentId) => {
-    return execute(
-      'SYNC_ROSTER',
-      'CAN_EDIT_ROSTER',
-      'api_sync_registrations',
-      { p_tournament_id: tournamentId }
-    );
-  };
-
-  return {
-    loading,
-    error,
-    createAdmin,
-    generateBracket,
-    syncRegistrations
-  };
+  return { execute, loading, error };
 };

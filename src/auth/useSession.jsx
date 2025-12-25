@@ -1,86 +1,95 @@
-import React, { createContext, useContext, useState } from 'react';
+import { useState, useEffect, useContext, createContext } from 'react';
 import { supabase } from '../supabase/client';
-import { ROLES } from '../lib/roles';
+import { can as checkPermission } from '../lib/permissions'; // Ensure this path is correct
+import { normalizeRole } from '../lib/roles';
 
-const SessionContext = createContext();
+// 1. Create Context
+const SessionContext = createContext(null);
 
+// 2. Provider Component
 export const SessionProvider = ({ children }) => {
   const [session, setSession] = useState({
-    role: ROLES.GUEST,
     isAuthenticated: false,
-    identity: null, // { id: 'uuid', name: 'DispName', type: 'ADMIN' | 'CAPTAIN' }
+    role: 'GUEST',
+    identity: null,
+    claims: { tournamentIds: [] } // Default safe claims
   });
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  // 🛡️ NEW: The Golden Key Helper
-  // Use this when calling ANY backend RPC that requires p_admin_id or p_team_id
-  const getAuthIdentifier = () => {
-    if (!session.isAuthenticated || !session.identity) return null;
-    return session.identity.id;
-  };
+  useEffect(() => {
+    // Restore session from localStorage on load (Simple persistence)
+    const stored = localStorage.getItem('pp_session');
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        // Verify expiry (optional, strictly speaking)
+        setSession(parsed);
+      } catch (e) {
+        localStorage.removeItem('pp_session');
+      }
+    }
+    setLoading(false);
+  }, []);
 
   const login = async (pin) => {
-    setLoading(true);
     try {
-      // A. Try Admin Login (Code 29)
-      const { data: adminData, error: adminError } = await supabase.rpc('api_admin_login', { p_pin: pin });
+      // 🔒 RPC Call to Backend
+      const { data, error } = await supabase.rpc('api_auth_pin', { p_pin: pin });
       
-      if (!adminError && adminData && adminData.success) {
-        setSession({
-          role: adminData.profile.role, // 'OWNER', 'ADMIN', 'REFEREE'
-          isAuthenticated: true,
-          identity: {
-            id: adminData.profile.id, // 🛑 THIS UUID IS YOUR ADMIN KEY
-            name: adminData.profile.display_name,
-            type: 'ADMIN'
-          }
-        });
-        return { success: true, role: adminData.profile.role };
-      }
+      if (error) throw error;
+      if (!data.success) return { success: false, message: 'Invalid PIN' };
 
-      // B. Try Captain Login (Code 29)
-      const { data: capData, error: capError } = await supabase.rpc('api_get_captain_state', { p_pin: pin });
-      
-      if (!capError && capData && capData.success) {
-        setSession({
-          role: ROLES.CAPTAIN,
-          isAuthenticated: true,
-          identity: {
-            id: capData.team_id, // 🛑 THIS UUID IS YOUR TEAM KEY
-            name: capData.team_name,
-            tournament_id: capData.tournament_id,
-            type: 'CAPTAIN'
-          }
-        });
-        return { success: true, role: ROLES.CAPTAIN };
-      }
+      // ✅ Construct Session Object
+      const newSession = {
+        isAuthenticated: true,
+        role: normalizeRole(data.role),
+        identity: {
+            id: data.identity_id,
+            tournament_id: data.tournament_id
+        },
+        // We store the PIN in memory for sensitive confirmations if needed, 
+        // but rely on identity_id for logic.
+        _debug_pin: pin 
+      };
 
-      return { success: false, message: 'Invalid PIN' };
+      setSession(newSession);
+      localStorage.setItem('pp_session', JSON.stringify(newSession));
+      return { success: true, role: newSession.role };
+
     } catch (err) {
-      console.error("Login System Error:", err);
-      return { success: false, message: 'System Error' };
-    } finally {
-      setLoading(false);
+      console.error("Auth Error:", err);
+      return { success: false, message: "System Error" };
     }
   };
 
   const logout = () => {
-    setSession({
-      role: ROLES.GUEST,
-      isAuthenticated: false,
-      identity: null
-    });
+    setSession({ isAuthenticated: false, role: 'GUEST', identity: null });
+    localStorage.removeItem('pp_session');
+  };
+
+  // 🛡️ The "can" Helper
+  // This is what was missing/breaking in your app!
+  const can = (action, context = {}) => {
+    return checkPermission(action, session, context);
+  };
+
+  // 🔑 Helper to get the ID for database logs
+  const getAuthIdentifier = () => {
+      return session?.identity?.id || null;
   };
 
   return (
-    <SessionContext.Provider value={{ session, login, logout, loading, getAuthIdentifier }}>
-      {children}
+    <SessionContext.Provider value={{ session, login, logout, can, getAuthIdentifier, loading }}>
+      {!loading && children}
     </SessionContext.Provider>
   );
 };
 
+// 3. The Hook
 export const useSession = () => {
   const context = useContext(SessionContext);
-  if (!context) throw new Error('useSession must be used within a SessionProvider');
+  if (!context) {
+    throw new Error("useSession must be used within a SessionProvider");
+  }
   return context;
 };

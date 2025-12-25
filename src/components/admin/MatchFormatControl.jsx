@@ -2,14 +2,15 @@ import React, { useState } from 'react';
 import { Settings, ShieldAlert, Check, Lock, Ban } from 'lucide-react';
 import { supabase } from '../../supabase/client';
 import { useSession } from '../../auth/useSession';
+import { useTournament } from '../../tournament/useTournament'; // ✅ NEW: Import Context
 
 export const MatchFormatControl = ({ match, onUpdate }) => {
   const { session } = useSession();
+  const { selectedTournamentId } = useTournament(); // ✅ NEW: Get Context
   const [loading, setLoading] = useState(false);
 
   // 🔒 STRICT STATE LOCKING
   // Locked if: Live, Completed, or Veto in progress/done
-  // We check status AND if veto data exists to be safe
   const hasVetoStarted = (match.status === 'veto') || (match.vetoes && match.vetoes.length > 0);
   const isLocked = ['live', 'completed', 'veto'].includes(match.status) || hasVetoStarted;
 
@@ -17,7 +18,7 @@ export const MatchFormatControl = ({ match, onUpdate }) => {
     if (isLocked || loading) return;
     if (newFormat === match.best_of) return;
 
-    // Confirm Intent (Because this resets veto logic potentially)
+    // Confirm Intent
     const confirmed = window.confirm(
       `⚠️ CRITICAL CHANGE \n\nChanging from BO${match.best_of} to BO${newFormat}.\nThis will be logged in the Audit Trail.\n\nProceed?`
     );
@@ -25,9 +26,11 @@ export const MatchFormatControl = ({ match, onUpdate }) => {
 
     setLoading(true);
     try {
+      // ✅ UPDATED RPC CALL: Includes p_tournament_id
       const { data, error } = await supabase.rpc('api_update_match_format', {
         p_match_id: match.id,
         p_new_format: parseInt(newFormat),
+        p_tournament_id: selectedTournamentId, // 🛡️ SECURITY: Bind to Context
         p_admin_id: session.identity.id
       });
 

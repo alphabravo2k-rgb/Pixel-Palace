@@ -3,28 +3,30 @@ import { supabase } from '../supabase/client';
 import { useTournament } from '../tournament/useTournament';
 import { Bracket } from './Bracket';
 import { RefreshCw, Loader2 } from 'lucide-react';
-import { AdminMatchModal } from './admin/AdminMatchModal'; // Ensure this path is correct
+// ✅ FIX: Correct path based on your file structure
+import { AdminMatchModal } from './AdminMatchModal'; 
 
 export const BracketView = () => {
-  // 1. Context Binding (The Single Source of Truth)
   const { selectedTournamentId, tournamentData, loading: contextLoading } = useTournament();
   
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [selectedMatch, setSelectedMatch] = useState(null); // Controls the Admin Modal
+  const [selectedMatch, setSelectedMatch] = useState(null);
 
-  // 2. Fetch Logic (Strictly typed to Supabase structure)
   const fetchBracket = async () => {
     if (!selectedTournamentId) return;
     
     setLoading(true);
     try {
+      // ✅ FIX: Simplified Query
+      // Using 'team1:team1_id(...)' relies on Supabase auto-detecting the FK.
+      // If this fails, we can revert to the explicit string, but this is cleaner.
       const { data, error } = await supabase
         .from('matches')
         .select(`
           *,
-          team1:teams!matches_team1_id_fkey(id, name, logo_url),
-          team2:teams!matches_team2_id_fkey(id, name, logo_url)
+          team1:team1_id(id, name, logo_url),
+          team2:team2_id(id, name, logo_url)
         `)
         .eq('tournament_id', selectedTournamentId)
         .order('match_no', { ascending: true });
@@ -38,7 +40,6 @@ export const BracketView = () => {
     }
   };
 
-  // 3. Lifecycle & Realtime
   useEffect(() => {
     fetchBracket();
 
@@ -58,7 +59,6 @@ export const BracketView = () => {
     return () => { supabase.removeChannel(subscription); };
   }, [selectedTournamentId]);
 
-  // Loading States
   if (contextLoading) return <div className="h-screen flex items-center justify-center text-zinc-500"><Loader2 className="animate-spin w-8 h-8" /></div>;
   if (!selectedTournamentId) return <div className="h-screen flex items-center justify-center text-zinc-500 uppercase font-mono tracking-widest">No Tournament Selected</div>;
 
@@ -89,11 +89,11 @@ export const BracketView = () => {
       <div className="relative min-h-[600px] bg-[url('/grid-pattern.svg')] bg-fixed overflow-x-auto custom-scrollbar">
         <Bracket 
           matches={matches} 
-          onMatchClick={(m) => setSelectedMatch(m)} // Pass the click handler down
+          onMatchClick={(m) => setSelectedMatch(m)} 
         />
       </div>
 
-      {/* ADMIN MODAL (Lives at the top level) */}
+      {/* ADMIN MODAL */}
       {selectedMatch && (
         <AdminMatchModal 
           match={selectedMatch} 

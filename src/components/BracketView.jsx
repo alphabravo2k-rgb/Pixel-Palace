@@ -1,128 +1,109 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabase/client';
 import { useTournament } from '../tournament/useTournament';
-import { Trophy, Clock, Monitor, Shield, AlertTriangle } from 'lucide-react';
-import { MatchModal } from './MatchModal';
+import { Bracket } from './Bracket';
+import { RefreshCw, Loader2 } from 'lucide-react';
+import { AdminMatchModal } from './admin/AdminMatchModal'; // Ensure this path is correct
 
-/**
- * BracketView Component
- * Renders the tournament bracket tree.
- */
 export const BracketView = () => {
-  const { matches, teams, loading, error, refresh } = useTournament();
-  const [selectedMatch, setSelectedMatch] = useState(null);
+  // 1. Context Binding (The Single Source of Truth)
+  const { selectedTournamentId, tournamentData, loading: contextLoading } = useTournament();
+  
+  const [matches, setMatches] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedMatch, setSelectedMatch] = useState(null); // Controls the Admin Modal
 
-  // Group matches by round
-  const rounds = matches.reduce((acc, match) => {
-    const roundKey = match.round;
-    if (!acc[roundKey]) acc[roundKey] = [];
-    acc[roundKey].push(match);
-    return acc;
-  }, {});
+  // 2. Fetch Logic (Strictly typed to Supabase structure)
+  const fetchBracket = async () => {
+    if (!selectedTournamentId) return;
+    
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('matches')
+        .select(`
+          *,
+          team1:teams!matches_team1_id_fkey(id, name, logo_url),
+          team2:teams!matches_team2_id_fkey(id, name, logo_url)
+        `)
+        .eq('tournament_id', selectedTournamentId)
+        .order('match_no', { ascending: true });
 
-  const roundKeys = Object.keys(rounds).sort((a, b) => Number(a) - Number(b));
+      if (error) throw error;
+      setMatches(data || []);
+    } catch (err) {
+      console.error("Bracket Load Error:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  if (loading) return <div className="p-12 text-center text-zinc-500 animate-pulse">Loading Bracket Structure...</div>;
-  if (error) return <div className="p-12 text-center text-red-500 border border-red-900 bg-red-900/10 rounded">Bracket Error: {error}</div>;
-  if (matches.length === 0) return <div className="p-12 text-center text-zinc-500 border border-zinc-800 border-dashed rounded">No matches scheduled. Waiting for Generation.</div>;
+  // 3. Lifecycle & Realtime
+  useEffect(() => {
+    fetchBracket();
+
+    const subscription = supabase
+      .channel(`bracket-live-${selectedTournamentId}`)
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'matches',
+        filter: `tournament_id=eq.${selectedTournamentId}` 
+      }, () => {
+        console.log("⚡ Bracket Update Detected");
+        fetchBracket();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(subscription); };
+  }, [selectedTournamentId]);
+
+  // Loading States
+  if (contextLoading) return <div className="h-screen flex items-center justify-center text-zinc-500"><Loader2 className="animate-spin w-8 h-8" /></div>;
+  if (!selectedTournamentId) return <div className="h-screen flex items-center justify-center text-zinc-500 uppercase font-mono tracking-widest">No Tournament Selected</div>;
 
   return (
-    <div className="w-full overflow-x-auto pb-12 custom-scrollbar">
-      <div className="flex gap-16 min-w-max px-8 pt-8">
-        {roundKeys.map((round) => (
-          <div key={round} className="flex flex-col justify-around gap-8 min-w-[280px]">
-            
-            {/* ROUND HEADER */}
-            <div className="text-center pb-4 border-b border-zinc-800 mb-4">
-              <h3 className="text-zinc-400 font-black uppercase tracking-widest text-sm font-['Teko']">
-                Round {round}
-              </h3>
-            </div>
+    <div className="min-h-screen bg-black text-white relative">
+      {/* View Header */}
+      <div className="p-6 border-b border-white/5 flex items-center justify-between bg-zinc-950/50 backdrop-blur-sm sticky top-0 z-20">
+        <div>
+           <h1 className="text-3xl font-['Teko'] uppercase font-bold tracking-wider text-white">
+             {tournamentData?.name || 'Tournament Bracket'}
+           </h1>
+           <div className="flex items-center gap-2 text-xs text-zinc-500 font-mono">
+             <span className={`w-2 h-2 rounded-full ${matches.length > 0 ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' : 'bg-red-500'}`} />
+             {matches.length > 0 ? 'LIVE BRACKET' : 'OFFLINE'}
+           </div>
+        </div>
 
-            {/* MATCH CARDS */}
-            {rounds[round].map((match) => {
-              const team1 = teams.find(t => t.id === match.team1_id);
-              const team2 = teams.find(t => t.id === match.team2_id);
-              
-              const isLive = match.state === 'live';
-              const isCompleted = match.state === 'completed';
-
-              return (
-                <div 
-                  key={match.id}
-                  onClick={() => setSelectedMatch(match)}
-                  className={`
-                    relative flex flex-col bg-zinc-900/80 border transition-all cursor-pointer group
-                    ${isLive ? 'border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.2)]' : 'border-zinc-800 hover:border-zinc-600'}
-                    rounded w-full
-                  `}
-                >
-                  {/* STATUS BADGE */}
-                  <div className="absolute -top-3 right-2 flex gap-2">
-                    {isLive && (
-                      <span className="bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded flex items-center gap-1 animate-pulse">
-                        <Monitor className="w-3 h-3" /> LIVE
-                      </span>
-                    )}
-                    {match.best_of > 1 && (
-                      <span className="bg-zinc-800 text-zinc-400 text-[10px] font-bold px-2 py-0.5 rounded border border-zinc-700">
-                        BO{match.best_of}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* TEAM 1 */}
-                  <div className={`p-3 flex justify-between items-center border-b border-zinc-800/50 ${match.winner_id === match.team1_id ? 'bg-green-900/10' : ''}`}>
-                    <div className="flex items-center gap-3">
-                      {team1?.logo_url ? (
-                        <img src={team1.logo_url} className="w-6 h-6 object-contain" alt="" />
-                      ) : (
-                        <div className="w-6 h-6 bg-zinc-800 rounded-full flex items-center justify-center text-[10px] text-zinc-500">?</div>
-                      )}
-                      <span className={`font-bold text-sm ${match.winner_id === match.team1_id ? 'text-green-400' : 'text-zinc-300'}`}>
-                        {team1?.name || 'TBD'}
-                      </span>
-                    </div>
-                    <span className="font-mono font-bold text-white">{match.team1_score}</span>
-                  </div>
-
-                  {/* TEAM 2 */}
-                  <div className={`p-3 flex justify-between items-center ${match.winner_id === match.team2_id ? 'bg-green-900/10' : ''}`}>
-                    <div className="flex items-center gap-3">
-                      {team2?.logo_url ? (
-                        <img src={team2.logo_url} className="w-6 h-6 object-contain" alt="" />
-                      ) : (
-                        <div className="w-6 h-6 bg-zinc-800 rounded-full flex items-center justify-center text-[10px] text-zinc-500">?</div>
-                      )}
-                      <span className={`font-bold text-sm ${match.winner_id === match.team2_id ? 'text-green-400' : 'text-zinc-300'}`}>
-                        {team2?.name || 'TBD'}
-                      </span>
-                    </div>
-                    <span className="font-mono font-bold text-white">{match.team2_score}</span>
-                  </div>
-
-                  {/* HOVER HINT */}
-                  <div className="absolute inset-0 bg-black/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded">
-                    <span className="text-xs font-bold text-white uppercase tracking-widest border border-white/20 px-3 py-1 rounded">Manage Match</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ))}
+        <button 
+          onClick={fetchBracket} 
+          disabled={loading}
+          className="p-2 hover:bg-white/10 rounded-full transition-colors"
+        >
+          <RefreshCw className={`w-5 h-5 text-zinc-400 ${loading ? 'animate-spin' : ''}`} />
+        </button>
       </div>
 
-      {/* MATCH MODAL (Admin Controls) */}
+      {/* RENDER THE BRACKET */}
+      <div className="relative min-h-[600px] bg-[url('/grid-pattern.svg')] bg-fixed overflow-x-auto custom-scrollbar">
+        <Bracket 
+          matches={matches} 
+          onMatchClick={(m) => setSelectedMatch(m)} // Pass the click handler down
+        />
+      </div>
+
+      {/* ADMIN MODAL (Lives at the top level) */}
       {selectedMatch && (
-        <MatchModal 
+        <AdminMatchModal 
           match={selectedMatch} 
-          teams={teams}
-          onClose={() => { setSelectedMatch(null); refresh(); }} 
+          isOpen={!!selectedMatch} 
+          onClose={() => setSelectedMatch(null)}
+          onUpdate={fetchBracket} 
         />
       )}
     </div>
   );
 };
 
-// ✅ CRITICAL FIX: Default Export for Router Compatibility
 export default BracketView;

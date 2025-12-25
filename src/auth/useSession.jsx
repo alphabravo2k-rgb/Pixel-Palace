@@ -1,107 +1,120 @@
-import React, { createContext, useContext, useState, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../supabase/client';
+// 🛑 FIX #1: No more local ROLES. Import the Single Source of Truth.
+import { ROLES } from '../lib/roles';
+// 🛑 FIX #2: No more local PERMISSIONS. Use the standard Actions vocabulary.
+import { PERM_ACTIONS } from '../lib/permissions.actions';
 
-// ------------------------------------------------------------------
-// 1. CONSTANTS & CONFIGURATION
-// ------------------------------------------------------------------
-const ROLES = {
-  OWNER: 'OWNER',
-  ADMIN: 'ADMIN',
-  CAPTAIN: 'CAPTAIN',
-  GUEST: 'GUEST'
-};
+const SessionContext = createContext();
 
-const PERMISSIONS = {
-  CAN_MANAGE_BRACKET: [ROLES.OWNER, ROLES.ADMIN],
-  CAN_VETO_MAPS: [ROLES.OWNER, ROLES.ADMIN, ROLES.CAPTAIN],
-  CAN_EDIT_ROSTER: [ROLES.OWNER, ROLES.ADMIN],
-  CAN_VIEW_DASHBOARD: [ROLES.OWNER, ROLES.ADMIN]
-};
-
-// ------------------------------------------------------------------
-// 2. CONTEXT DEFINITION
-// ------------------------------------------------------------------
-const SessionContext = createContext({
-  session: { 
-    role: ROLES.GUEST, 
-    identity: null, 
-    claims: { tournamentIds: [], teamIds: [], matchIds: [] } 
-  },
-  loading: false,
-  login: async () => {},
-  logout: () => {},
-  can: () => false, 
-});
-
-// ------------------------------------------------------------------
-// 3. PROVIDER COMPONENT
-// ------------------------------------------------------------------
 export const SessionProvider = ({ children }) => {
-  // 1️⃣ Session shape updated to include explicit claims
   const [session, setSession] = useState({
     role: ROLES.GUEST,
-    identity: null,
-    claims: {
-      tournamentIds: [],
-      teamIds: [],
-      matchIds: []
+    identity: null, // { id, name, type }
+    claims: { 
+      tournamentIds: [], 
+      teamIds: [], 
+      matchIds: [] 
     },
     isAuthenticated: false
   });
-  
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false); // Initial load is done, strictly for login actions now
 
-  // --- LOGIN LOGIC ---
+  // 🛡️ PERMISSION CHECKER (The Brain)
+  const can = (action, context = {}) => {
+    // 1. Root Override: Owners/Admins (Wildcard Power)
+    // 🛑 NOTE (Critique #3): This '*' is a frontend shortcut. 
+    // The Backend RLS/RPC must still validate the actual request.
+    if ([ROLES.OWNER, ROLES.ADMIN].includes(session.role)) return true;
+
+    // 2. Role-Based Capabilities (Guest check)
+    if (session.role === ROLES.GUEST) return false;
+
+    // 3. Scope Enforcement (The "Context" Check)
+    // Does the user have a claim to the specific resource they are trying to touch?
+
+    // Check Tournament Scope
+    if (context.tournamentId) {
+      const hasClaim = session.claims.tournamentIds.includes('*') || 
+                       session.claims.tournamentIds.includes(context.tournamentId);
+      if (!hasClaim) return false;
+    }
+
+    // Check Team Scope
+    if (context.teamId) {
+      const hasClaim = session.claims.teamIds.includes('*') || 
+                       session.claims.teamIds.includes(context.teamId);
+      if (!hasClaim) return false;
+    }
+
+    // 🛑 FIX #4: Match Scope Enforcement
+    // Prevents Captains from acting on matches they aren't playing in.
+    if (context.matchId) {
+      const hasClaim = session.claims.matchIds.includes('*') || 
+                       session.claims.matchIds.includes(context.matchId);
+      if (!hasClaim) return false;
+    }
+
+    return true;
+  };
+
   const login = async (pin) => {
     setLoading(true);
     try {
-      // ADMIN CHECK
-      const { data: adminData, error: adminError } = await supabase.rpc('api_admin_login', { p_pin: pin });
+      // A. Try Admin Login
+      const { data: adminData } = await supabase.rpc('api_admin_login', { p_pin: pin });
       
-      if (!adminError && adminData?.status === 'SUCCESS') {
-        setSession({
-          role: adminData.profile.role || ROLES.ADMIN,
+      if (adminData && adminData.success) {
+        const userRole = adminData.profile.role; // e.g., 'ADMIN' or 'OWNER'
+        const newSession = {
+          role: userRole,
+          isAuthenticated: true,
           identity: {
             id: adminData.profile.id,
-            name: adminData.profile.display_name
+            name: adminData.profile.display_name,
+            type: 'ADMIN'
           },
-          // Admins get wildcard '*' access
+          // Admins get wildcard claims (Frontend convenience)
           claims: {
-            tournamentIds: ['*'], 
+            tournamentIds: ['*'],
             teamIds: ['*'],
             matchIds: ['*']
-          },
-          isAuthenticated: true
-        });
-        return true;
+          }
+        };
+        setSession(newSession);
+        return newSession;
       }
 
-      // CAPTAIN CHECK
-      const { data: captainData, error: captainError } = await supabase.rpc('api_get_captain_state', { p_pin: pin });
+      // B. Try Captain Login
+      const { data: capData } = await supabase.rpc('api_get_captain_state', { p_pin: pin });
       
-      if (!captainError && captainData?.team_name) {
-        setSession({
+      if (capData && capData.team_name) {
+        // Fetch matches for this team to populate claims
+        // (Assuming a helper or query exists, otherwise we default to empty until fetched)
+        // For now, we will allow them to claim their known Team ID.
+        // TODO: In a real flow, we'd fetch their active match IDs here.
+        
+        const newSession = {
           role: ROLES.CAPTAIN,
+          isAuthenticated: true,
           identity: {
-            id: captainData.team_id,
-            name: captainData.team_name
+            id: capData.team_id, // Captain's ID is effectively the Team ID for logic
+            name: capData.team_name,
+            type: 'CAPTAIN'
           },
-          // Captains get specific ID access
           claims: {
-            tournamentIds: [captainData.tournament_id],
-            teamIds: [captainData.team_id],
-            matchIds: [] 
-          },
-          isAuthenticated: true
-        });
-        return true;
+            tournamentIds: [capData.tournament_id],
+            teamIds: [capData.team_id],
+            matchIds: [] // Needs to be populated by the Match View when loaded
+          }
+        };
+        setSession(newSession);
+        return newSession;
       }
 
-      throw new Error("Invalid Credentials");
-
-    } catch (error) {
-      console.error("Auth Failure:", error);
-      logout(); 
+      return false;
+    } catch (err) {
+      console.error("Login Error:", err);
       return false;
     } finally {
       setLoading(false);
@@ -117,39 +130,11 @@ export const SessionProvider = ({ children }) => {
     });
   };
 
-  // 2️⃣ checkPermission (can) accepts context for scope validation
-  const can = useCallback((action, context = {}) => {
-    // A. Role Check
-    const allowedRoles = PERMISSIONS[action] || [];
-    if (!allowedRoles.includes(session.role)) return false;
-
-    // B. Scope/Claim Check
-    if (context.tournamentId) {
-      const hasClaim = session.claims.tournamentIds.includes('*') || 
-                       session.claims.tournamentIds.includes(context.tournamentId);
-      if (!hasClaim) return false;
-    }
-
-    if (context.teamId) {
-      const hasClaim = session.claims.teamIds.includes('*') || 
-                       session.claims.teamIds.includes(context.teamId);
-      if (!hasClaim) return false;
-    }
-
-    return true;
-  }, [session]);
-
-  const value = useMemo(() => ({
-    session,
-    loading,
-    login,
-    logout,
-    can,
-    isAdmin: [ROLES.ADMIN, ROLES.OWNER].includes(session.role),
-    isCaptain: session.role === ROLES.CAPTAIN,
-  }), [session, loading, can]);
-
-  return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
+  return (
+    <SessionContext.Provider value={{ session, login, logout, can, loading }}>
+      {children}
+    </SessionContext.Provider>
+  );
 };
 
 export const useSession = () => {

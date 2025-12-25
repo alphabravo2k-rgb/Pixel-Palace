@@ -5,8 +5,7 @@ import react from '@vitejs/plugin-react'
 export default defineConfig(({ mode }) => ({
   plugins: [react()],
   
-  // ⚠️ CRITICAL FIX: Changed './' to '/' 
-  // This ensures assets load correctly from /admin/login
+  // ✅ Critical for routing
   base: '/', 
   
   server: {
@@ -23,9 +22,9 @@ export default defineConfig(({ mode }) => ({
     rollupOptions: {
       output: {
         manualChunks: {
-          vendor: ['react', 'react-dom', 'lucide-react', '@supabase/supabase-js'],
+          vendor: ['react', 'react-dom', 'lucide-react', '@supabase/supabase-js', 'react-router-dom'],
         },
       },
     },
-  }
+  },
 }))

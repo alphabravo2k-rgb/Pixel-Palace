@@ -4,68 +4,85 @@ import { useSession } from '../auth/useSession';
 
 /**
  * 4️⃣ useAdminConsole — THE OPERATIONAL BRIDGE
- * strictly enforces "Role + Scope + State" before execution.
+ * Wraps RPC calls with Audit IDs and Permission Checks.
  */
 export const useAdminConsole = () => {
-  const { session, can } = useSession();
+  const { session, getAuthIdentifier } = useSession();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
   /**
    * GENERIC EXECUTOR
-   * Wraps all RPC calls with:
-   * 1. Permission Gating (Client-side with Context)
-   * 2. Error Handling
-   * 3. Loading State
-   * 4. Audit Trail Injection
+   * 1. Checks Auth
+   * 2. Injects p_admin_id
+   * 3. Calls RPC
    */
-  const execute = async ({ 
-    action,       // Permission String (e.g. 'CAN_MANAGE_BRACKET')
-    context = {}, // { tournamentId, matchId }
-    rpc,          // The SQL function name
-    params = {},  // RPC parameters
-    onSuccess     // Callback
-  }) => {
+  const execute = async (rpcName, params = {}) => {
     setError(null);
-
-    // 🛡️ GATEKEEPER: Check Authority + Scope before Network Request
-    if (!can(action, context)) {
-      const msg = `ACCESS DENIED: Missing permission ${action} for this scope.`;
-      console.error(msg);
-      setError(msg);
-      alert(msg);
-      return { success: false, error: 'Unauthorized' };
+    
+    // 1. Basic Gatekeeping
+    if (!session.isAuthenticated || !['ADMIN', 'OWNER'].includes(session.role)) {
+       const msg = "ACCESS DENIED: Unauthorized Role";
+       console.error(msg);
+       setError(msg);
+       return { success: false, message: msg };
     }
 
     setLoading(true);
     try {
-      // 🕵️ AUDIT INJECTION: Always attach the operator's ID
+      // 2. Audit Injection
+      const adminId = getAuthIdentifier();
+      if (!adminId) throw new Error("Security Error: No Identity Found");
+
       const payload = {
         ...params,
-        p_admin_id: session.identity.id
+        p_admin_id: adminId // 🔒 The Golden Key
       };
 
-      const { data, error: rpcError } = await supabase.rpc(rpc, payload);
+      // 3. Network Request
+      const { data, error: rpcError } = await supabase.rpc(rpcName, payload);
       
       if (rpcError) throw rpcError;
 
-      // Handle custom API error responses (success: false)
+      // 4. Logic Handling
+      // Some RPCs return void, some return { success: true }
       if (data && data.success === false) {
         throw new Error(data.message || 'Operation Failed');
       }
       
-      if (onSuccess) onSuccess(data);
       return { success: true, data };
 
     } catch (err) {
-      console.error(`[${action}] Failed:`, err);
+      console.error(`[${rpcName}] Failed:`, err);
       setError(err.message);
-      alert(`Action Failed: ${err.message}`);
-      return { success: false, error: err.message };
+      return { success: false, message: err.message };
     } finally {
       setLoading(false);
     }
   };
 
-  return { execute, loading, error };
+  // --- PRE-FABRICATED ACTIONS ---
+
+  const syncRegistrations = (tournamentId) => {
+    return execute('api_sync_registrations', { p_tournament_id: tournamentId });
+  };
+
+  const generateBracket = (tournamentId) => {
+    return execute('api_generate_bracket', { p_tournament_id: tournamentId });
+  };
+
+  const createAdmin = (pin, { name, discord, faceitUser }) => {
+     // NOTE: We use direct insert in the UI panel for now, 
+     // but if we move to RPC, this is where it goes.
+     return { success: false, message: "Use Panel Direct Insert" };
+  };
+
+  return { 
+    execute, 
+    syncRegistrations, 
+    generateBracket, 
+    createAdmin,
+    loading, 
+    error 
+  };
 };

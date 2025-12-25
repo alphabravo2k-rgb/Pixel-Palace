@@ -7,10 +7,11 @@ import { useNavigate } from 'react-router-dom';
 
 export const AdminToolbar = () => {
   const { session, logout } = useSession();
-  // ✅ NEW: Extract tournaments list and setter
+  // ✅ Connected to Global Context
   const { selectedTournamentId, setSelectedTournamentId, tournaments = [], loading } = useTournament();
   const navigate = useNavigate();
 
+  // Hide if not admin (though Route Guard handles this mostly)
   if (![ROLES.ADMIN, ROLES.OWNER].includes(session.role)) return null;
 
   const theme = ROLE_THEMES[session.role] || ROLE_THEMES.GUEST;
@@ -30,7 +31,7 @@ export const AdminToolbar = () => {
           <span className="text-[10px] font-bold uppercase tracking-widest">{theme.label} MODE</span>
         </div>
         
-        {/* ✅ NEW: Tournament Selector */}
+        {/* ✅ Global Tournament Selector */}
         <div className="relative group">
           <select 
             value={selectedTournamentId || ''}
@@ -38,7 +39,7 @@ export const AdminToolbar = () => {
             className="appearance-none bg-black border border-white/10 text-white text-xs font-bold uppercase py-1 pl-3 pr-8 rounded focus:border-fuchsia-500 outline-none cursor-pointer hover:bg-white/5 transition-colors"
           >
             <option value="" disabled>-- SELECT EVENT --</option>
-            {tournaments.map(t => (
+            {tournaments && tournaments.map(t => (
               <option key={t.id} value={t.id}>{t.name}</option>
             ))}
           </select>

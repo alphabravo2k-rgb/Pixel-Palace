@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { supabase } from '../../supabase/client'; // Check path ../../ or ../
-import { useTournament } from '../../tournament/useTournament'; // Check path
+// ✅ FIXED PATHS: Single dot (../) because file is in src/components/
+import { supabase } from '../supabase/client';
+import { useTournament } from '../tournament/useTournament';
 import { ScrollText, RefreshCw, AlertTriangle, Activity } from 'lucide-react';
 
 // Safe JSON Viewer
@@ -33,6 +34,7 @@ export const AdminAuditLog = () => {
       const { data, error } = await supabase
         .from('admin_audit_logs')
         .select('*')
+        .eq('tournament_id', selectedTournamentId) // ✅ Added Scope
         .order('created_at', { ascending: false })
         .limit(50);
 
@@ -81,7 +83,6 @@ export const AdminAuditLog = () => {
             <div key={log.id || Math.random()} className="flex flex-col gap-1 p-3 rounded bg-zinc-950/50 border border-white/5">
               <div className="flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2">
-                  {/* 🛡️ SAFE ICON: Always use generic Activity icon to prevent crashes */}
                   <Activity className="w-3 h-3 text-zinc-500" />
                   <span className="font-mono text-fuchsia-400 font-bold uppercase">
                     [{log.action_type || 'UNKNOWN'}]

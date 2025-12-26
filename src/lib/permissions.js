@@ -1,49 +1,13 @@
-import { ROLES } from './roles';
-import { PERM_ACTIONS } from './permissions.actions'; 
-
-const LOCAL_MATCH_STATUS = {
-  SCHEDULED: 'scheduled',
-  READY: 'ready',
-  VETO: 'veto',
-  LIVE: 'live',
-  COMPLETED: 'completed'
-};
-
-const ROLE_PERMISSIONS = {
-  [ROLES.OWNER]: ['*'], 
-  [ROLES.ADMIN]: [
-    PERM_ACTIONS.MATCH_UPDATE, 
-    PERM_ACTIONS.VETO_OVERRIDE, 
-    PERM_ACTIONS.VIEW_SENSITIVE,
-    PERM_ACTIONS.CAN_MANAGE_BRACKET,
-    PERM_ACTIONS.CAN_MANAGE_MATCH,
-    PERM_ACTIONS.GENERATE_BRACKET,
-    PERM_ACTIONS.SYNC_ROSTER
-  ],
-  [ROLES.CAPTAIN]: [
-    PERM_ACTIONS.VETO_ACT, 
-    PERM_ACTIONS.VIEW_SERVER_IP
-  ],
-  [ROLES.REFEREE]: [
-    PERM_ACTIONS.MATCH_UPDATE,
-    PERM_ACTIONS.CAN_MANAGE_MATCH,
-    PERM_ACTIONS.VIEW_LOGS
-  ],
-  [ROLES.PLAYER]: [],
-  [ROLES.GUEST]: []
-};
-
-const STATE_GUARDS = {
-  [PERM_ACTIONS.VETO_ACT]: [LOCAL_MATCH_STATUS.LIVE, LOCAL_MATCH_STATUS.VETO, LOCAL_MATCH_STATUS.SCHEDULED],
-  [PERM_ACTIONS.VIEW_SERVER_IP]: [LOCAL_MATCH_STATUS.LIVE]
-};
-
 export const can = (action, session, context = {}) => {
   try {
     if (!session || !session.isAuthenticated) return false;
     
+    // 🛡️ THE GOD-MODE OVERRIDE (Upper-case for safety)
+    const sessionRole = session.role?.toUpperCase();
+    if (sessionRole === 'OWNER') return true; 
+
     // 1. Role Check
-    const allowedActions = ROLE_PERMISSIONS[session.role] || [];
+    const allowedActions = ROLE_PERMISSIONS[sessionRole] || [];
     const hasPermission = allowedActions.includes(action) || allowedActions.includes('*');
     
     if (!hasPermission) return false;
@@ -56,15 +20,15 @@ export const can = (action, session, context = {}) => {
       }
     }
 
-    // 3. Scope Check (Ownership)
+    // 3. Scope Check (Ownership for Captains)
     if ([PERM_ACTIONS.VETO_ACT].includes(action)) {
       const userTeamId = session.identity?.id; 
       if (!userTeamId || !context.match) return false;
 
       const isParticipant = userTeamId === context.match.team1_id || userTeamId === context.match.team2_id;
-      if (!isParticipant && ![ROLES.ADMIN, ROLES.OWNER].includes(session.role)) {
-        return false;
-      }
+      // Admins/Owners bypass this check via the God-Mode above, 
+      // but we keep this logic for Captains.
+      if (!isParticipant) return false;
     }
 
     return true;

@@ -9,36 +9,23 @@ import { TournamentProvider } from '../tournament/useTournament';
 // 2. Components
 import { PlayerDashboard } from '../components/player/PlayerDashboard';
 import { MatchRoom } from '../components/match/MatchRoom';
-import { AdminDashboard } from '../components/admin'; // ✅ Using the Index Barrel we made
+import { AdminDashboard } from '../components/admin'; 
 import { AdminLogin } from '../components/admin/AdminLogin'; 
 import { LandingPage } from '../components/LandingPage'; 
-import ErrorBoundary from '../components/ErrorBoundary'; // ✅ Import ErrorBoundary
+import ErrorBoundary from '../components/ErrorBoundary'; // ✅ Import
 
 // 🛡️ CAPABILITY GUARD
 const RouteGuard = ({ children, requiredCapability = null }) => {
   const { session, loading } = useSession();
   const { hasCapability } = useCapabilities();
 
-  if (loading) {
-    return (
-      <div className="h-screen w-full bg-black flex items-center justify-center">
-        <div className="text-zinc-500 font-mono text-sm animate-pulse">
-          VERIFYING IDENTITY PROTOCOLS...
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <div className="h-screen bg-black" />;
 
-  if (!session?.isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
+  if (!session?.isAuthenticated) return <Navigate to="/login" replace />;
 
   if (requiredCapability) {
     const [resource, action] = requiredCapability.split(':');
-    const canAccess = hasCapability(session.role, resource, action);
-
-    if (!canAccess) {
-      console.warn(`SECURITY ALERT: Access Denied. Missing ${requiredCapability}`);
+    if (!hasCapability(session.role, resource, action)) {
       return <Navigate to="/dashboard" replace />;
     }
   }
@@ -52,12 +39,12 @@ const MatchRoomWrapper = () => {
 };
 
 // 🛡️ ERROR BOUNDARY WRAPPER
-// This component listens to the route. If the route changes, it resets the error boundary.
 const AppContent = () => {
-  const location = useLocation(); 
+  const location = useLocation(); // Gets current route path
 
   return (
-    <ErrorBoundary key={location.pathname}>
+    // Key forces ErrorBoundary to reset state on route change
+    <ErrorBoundary resetKey={location.pathname}> 
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<AdminLogin />} />
@@ -88,13 +75,6 @@ const AppContent = () => {
             </RouteGuard>
           } 
         />
-
-        <Route path="*" element={
-          <div className="h-screen bg-black text-white flex flex-col items-center justify-center font-mono">
-            <h1 className="text-4xl font-bold text-red-500">404 // ZONE LOST</h1>
-            <p className="text-zinc-500 mt-2">The requested sector does not exist.</p>
-          </div>
-        } />
       </Routes>
     </ErrorBoundary>
   );

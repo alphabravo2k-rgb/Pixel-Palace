@@ -1,83 +1,71 @@
-import React, { useState } from 'react';
-import { Trophy, Zap, ShieldAlert } from 'lucide-react';
-import { supabase } from '../../supabase/client';
-import { useSession } from '../../auth/useSession';
+import React from 'react';
+import { useTournament } from '../../tournament/useTournament';
+import { useAdminConsole } from '../../hooks/useAdminConsole';
+import { Lock, Trophy, Star } from 'lucide-react';
 
 export const TeamStatusControl = ({ team, onUpdate }) => {
-  const { getAuthIdentifier } = useSession(); // ✅ New Helper
-  const [loading, setLoading] = useState(false);
+  const { tournamentData, lifecycle } = useTournament();
+  const { execute, loading } = useAdminConsole();
 
-  const toggleStatus = async (type, currentValue) => {
-    if (loading) return;
-    
-    const newValue = !currentValue;
-    const reason = prompt(
-      `📝 Reason for marking ${team.name} as ${type} ${newValue ? 'ACTIVE' : 'INACTIVE'}?`, 
-      "Organizer Decision"
-    );
+  // 1. THE LIFECYCLE LOCK
+  // If the bracket is already generated, changing qualification status is dangerous.
+  const isLocked = tournamentData?.bracket_generated;
 
-    if (!reason) return;
-
-    setLoading(true);
-    try {
-      // ✅ RPC CALL
-      const { data, error } = await supabase.rpc('api_toggle_team_status', {
-        p_team_id: team.id,
-        p_status_type: type,
-        p_value: newValue,
-        p_reason: reason,
-        p_admin_id: getAuthIdentifier() // 🛡️ Audit Key
-      });
-
-      if (error) throw error;
-      if (onUpdate) onUpdate(); 
-
-    } catch (err) {
-      console.error("Status Update Failed:", err);
-      alert("Failed to update status.");
-    } finally {
-      setLoading(false);
+  const handleToggle = async (field, currentValue) => {
+    // 2. STOP "CASUAL" CLICKS
+    if (isLocked) {
+      alert("ACTION BLOCKED: The bracket has already been generated.\n\nYou cannot change qualification status now without corrupting the tournament. Reset the bracket first if this is required.");
+      return;
     }
+
+    const newValue = !currentValue;
+    
+    // 3. BACKEND IDEMPOTENCY (Send request, let DB handle it)
+    await execute('admin_update_team_status', {
+      p_team_id: team.id,
+      p_field: field, // 'is_playoff' or 'is_wildcard'
+      p_value: newValue,
+      p_reason: `Manual toggle of ${field} to ${newValue}`
+    });
+
+    if (onUpdate) onUpdate();
   };
 
   return (
-    <div className="flex items-center gap-2 mt-2">
+    <div className="flex items-center gap-2">
       {/* Playoff Toggle */}
       <button
-        onClick={() => toggleStatus('PLAYOFF', team.is_playoff)}
-        disabled={loading}
+        onClick={() => handleToggle('is_playoff', team.is_playoff)}
+        disabled={loading || isLocked}
         className={`
-          flex items-center gap-1 px-2 py-1 text-[10px] font-bold uppercase rounded border transition-all
+          relative p-1.5 rounded border transition-all
           ${team.is_playoff 
-            ? 'bg-yellow-500/20 text-yellow-500 border-yellow-500/50 hover:bg-yellow-500/30' 
-            : 'bg-zinc-900 text-zinc-600 border-zinc-800 hover:border-zinc-600'}
+            ? 'bg-fuchsia-900/20 border-fuchsia-500/50 text-fuchsia-400' 
+            : 'bg-zinc-900/50 border-white/5 text-zinc-600 hover:text-zinc-400'}
+          ${isLocked ? 'cursor-not-allowed opacity-50' : ''}
         `}
+        title={isLocked ? "Locked: Bracket Generated" : "Toggle Playoff Qualification"}
       >
-        <Trophy className="w-3 h-3" />
-        {team.is_playoff ? 'Qualified' : 'Qualify'}
+        <Trophy size={14} />
+        {isLocked && <Lock size={10} className="absolute -top-1 -right-1 text-zinc-500 bg-black rounded-full p-0.5" />}
       </button>
 
       {/* Wildcard Toggle */}
       <button
-        onClick={() => toggleStatus('WILDCARD', team.is_wildcard)}
-        disabled={loading}
+        onClick={() => handleToggle('is_wildcard', team.is_wildcard)}
+        disabled={loading || isLocked}
         className={`
-          flex items-center gap-1 px-2 py-1 text-[10px] font-bold uppercase rounded border transition-all
+          relative p-1.5 rounded border transition-all
           ${team.is_wildcard 
-            ? 'bg-fuchsia-500/20 text-fuchsia-500 border-fuchsia-500/50 hover:bg-fuchsia-500/30' 
-            : 'bg-zinc-900 text-zinc-600 border-zinc-800 hover:border-zinc-600'}
+            ? 'bg-amber-900/20 border-amber-500/50 text-amber-400' 
+            : 'bg-zinc-900/50 border-white/5 text-zinc-600 hover:text-zinc-400'}
+          ${isLocked ? 'cursor-not-allowed opacity-50' : ''}
         `}
+        title={isLocked ? "Locked: Bracket Generated" : "Toggle Wildcard Status"}
       >
-        <Zap className="w-3 h-3" />
-        {team.is_wildcard ? 'Wildcard' : 'Set Wildcard'}
+        <Star size={14} />
+        {isLocked && <Lock size={10} className="absolute -top-1 -right-1 text-zinc-500 bg-black rounded-full p-0.5" />}
       </button>
-
-      {team.qualification_reason && (
-        <div className="ml-auto text-[9px] text-zinc-600 italic flex items-center gap-1">
-          <ShieldAlert className="w-3 h-3" />
-          <span>{team.qualification_reason}</span>
-        </div>
-      )}
     </div>
   );
 };

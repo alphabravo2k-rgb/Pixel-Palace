@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../supabase/client';
+import { normalizeRole } from '../lib/roles'; // 🛡️ Import the role sanitizer
 
 const SessionContext = createContext(null);
 
@@ -14,50 +15,56 @@ export const SessionProvider = ({ children }) => {
 
   // 1. BOOTSTRAP: Listen for Auth Changes
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) handleSessionUpdate(session);
-      else setLoading(false); // No session found, stop loading
+    supabase.auth.getSession().then(({ data: { session: authSession } }) => {
+      if (authSession) handleSessionUpdate(authSession);
+      else setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) handleSessionUpdate(session);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, authSession) => {
+      if (authSession) handleSessionUpdate(authSession);
       else {
-         // Only clear if we aren't using a mocked PIN session
-         // We check inside the state setter to be safe
-         setSession(prev => prev.user?.isMock ? prev : { isAuthenticated: false, user: null, identity: null, role: 'GUEST' });
+        setSession(prev => prev.user?.isMock ? prev : { 
+          isAuthenticated: false, 
+          user: null, 
+          identity: null, 
+          role: 'GUEST' 
+        });
       }
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  // 2. IDENTITY RESOLVER
+  // 2. IDENTITY RESOLVER (Fixing Column Mismatches)
   const handleSessionUpdate = async (authSession) => {
     if (!authSession?.user) return;
 
     try {
-      // A. Try to fetch Global Identity
+      // A. Fetch Global Identity (Using 'id' as per your schema)
       const { data: identity } = await supabase
         .from('global_identities')
         .select('*')
-        .eq('auth_user_id', authSession.user.id)
+        .eq('id', authSession.user.id)
         .maybeSingle();
 
       // B. Determine Role
-      let role = 'PLAYER';
+      let rawRole = 'PLAYER';
       const { data: adminRecord } = await supabase
         .from('app_admins')
         .select('role')
         .eq('id', authSession.user.id)
         .maybeSingle();
 
-      if (adminRecord) role = adminRecord.role;
+      if (adminRecord) rawRole = adminRecord.role;
+
+      // C. NORMALIZE ROLE (Ensures 'Owner' becomes 'OWNER')
+      const cleanRole = normalizeRole(rawRole);
 
       setSession({
         isAuthenticated: true,
         user: authSession.user,
-        identity: identity || { username: authSession.user.email || 'Agent' },
-        role: role
+        identity: identity || { username: authSession.user.email?.split('@')[0] || 'Agent' },
+        role: cleanRole
       });
 
     } catch (err) {
@@ -67,62 +74,62 @@ export const SessionProvider = ({ children }) => {
     }
   };
 
-  // 3. EXPOSED ACTIONS (THE HYBRID LOGIN LOGIC)
+  // 3. EXPOSED ACTIONS
   const login = async (credential, passwordOrPin) => {
     setLoading(true);
 
     try {
-      // STRATEGY A: Try Email/Password (Supabase Auth - The Future)
+      // STRATEGY A: Email/Password
       if (credential.includes('@')) {
         const { data, error } = await supabase.auth.signInWithPassword({
-          email: credential,
-          password: passwordOrPin,
+          email: credential.trim(),
+          password: passwordOrPin.trim(),
         });
         
-        if (!error && data.user) {
-           // Identity resolution happens in useEffect
-           return { success: true, role: 'PLAYER' }; // Role updates async
-        }
+        if (error) throw error;
+        return { success: true }; // handleSessionUpdate takes over
       }
 
-      // STRATEGY B: PIN / Access Code (Legacy Bridge - The Present)
-      // 1. Check Admin PINs
+      // STRATEGY B: PIN / Access Code (Fixed for your Schema)
       const { data: adminData } = await supabase
         .from('app_admins')
         .select('*')
-        .eq('pin_code', passwordOrPin)
+        .eq('pin_code', passwordOrPin.trim())
         .maybeSingle();
 
       if (adminData) {
-        // MOCK SESSION for Admin
-        const mockUser = { id: adminData.id, email: 'admin@legacy.com', isMock: true };
+        const cleanRole = normalizeRole(adminData.role);
+        
+        // Ensure identity is fetched for mock sessions too
+        const { data: profile } = await supabase
+          .from('global_identities')
+          .select('*')
+          .eq('id', adminData.id)
+          .maybeSingle();
+
         setSession({
           isAuthenticated: true,
-          user: mockUser,
-          identity: { id: adminData.id, username: adminData.name, role: adminData.role },
-          role: adminData.role
+          user: { id: adminData.id, email: 'admin@legacy.com', isMock: true },
+          identity: profile || { id: adminData.id, username: adminData.name },
+          role: cleanRole
         });
-        setLoading(false);
-        return { success: true, role: adminData.role };
+        return { success: true, role: cleanRole };
       }
 
-      // 2. Check Team/Captain Access Codes
+      // Check Team Captains
       const { data: teamData } = await supabase
         .from('teams')
         .select('*')
-        .eq('access_code', passwordOrPin)
+        .eq('access_code', passwordOrPin.trim())
         .maybeSingle();
 
       if (teamData) {
-        // MOCK SESSION for Captain
-        const mockUser = { id: teamData.id, email: 'captain@legacy.com', isMock: true };
         setSession({
           isAuthenticated: true,
-          user: mockUser,
+          user: { id: teamData.id, isMock: true },
           identity: { id: teamData.id, username: credential || teamData.name, team_id: teamData.id },
           role: 'CAPTAIN'
         });
-        setLoading(false);
         return { success: true, role: 'CAPTAIN' };
       }
 
@@ -130,18 +137,15 @@ export const SessionProvider = ({ children }) => {
 
     } catch (err) {
       console.error("Login Error:", err);
-      return { success: false, message: 'System Error during Auth' };
+      return { success: false, message: err.message || 'Auth System Error' };
     } finally {
       setLoading(false);
     }
   };
 
   const logout = async () => {
-    setLoading(true);
     await supabase.auth.signOut();
-    // Clear state explicitly for mock sessions
     setSession({ isAuthenticated: false, user: null, identity: null, role: 'GUEST' });
-    setLoading(false);
   };
 
   return (
@@ -153,8 +157,6 @@ export const SessionProvider = ({ children }) => {
 
 export const useSession = () => {
   const context = useContext(SessionContext);
-  if (!context) {
-    throw new Error('useSession must be used within a SessionProvider');
-  }
+  if (!context) throw new Error('useSession must be used within a SessionProvider');
   return context;
 };

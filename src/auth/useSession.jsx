@@ -6,66 +6,57 @@ const SessionContext = createContext(null);
 export const SessionProvider = ({ children }) => {
   const [session, setSession] = useState({
     isAuthenticated: false,
-    user: null,    // The Auth User (Email/Password)
-    identity: null, // The Global Identity (Profile, Avatar)
-    role: 'GUEST'   // The Calculated Role
+    user: null,    
+    identity: null, 
+    role: 'GUEST'   
   });
   const [loading, setLoading] = useState(true);
 
-  // 1. BOOTSTRAP: Listen for Auth Changes (The "Real" Source of Truth)
+  // 1. BOOTSTRAP: Listen for Auth Changes
   useEffect(() => {
-    // Check active session on mount
     supabase.auth.getSession().then(({ data: { session } }) => {
-      handleSessionUpdate(session);
+      if (session) handleSessionUpdate(session);
+      else setLoading(false); // No session found, stop loading
     });
 
-    // Subscribe to changes (Login, Logout, Auto-Refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      handleSessionUpdate(session);
+      if (session) handleSessionUpdate(session);
+      else {
+         // Only clear if we aren't using a mocked PIN session
+         // We check inside the state setter to be safe
+         setSession(prev => prev.user?.isMock ? prev : { isAuthenticated: false, user: null, identity: null, role: 'GUEST' });
+      }
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  // 2. IDENTITY RESOLVER: Turn a "Auth User" into a "Pixel Palace Admin"
+  // 2. IDENTITY RESOLVER
   const handleSessionUpdate = async (authSession) => {
-    if (!authSession?.user) {
-      setSession({ isAuthenticated: false, user: null, identity: null, role: 'GUEST' });
-      setLoading(false);
-      return;
-    }
+    if (!authSession?.user) return;
 
     try {
-      // A. Fetch the Global Identity
-      const { data: identity, error } = await supabase
+      // A. Try to fetch Global Identity
+      const { data: identity } = await supabase
         .from('global_identities')
         .select('*')
         .eq('auth_user_id', authSession.user.id)
-        .single();
+        .maybeSingle();
 
-      if (error || !identity) {
-        console.warn("User authenticated but has no Global Identity.");
-        // Fallback for fresh users (Standard behavior)
-      }
-
-      // B. Determine Highest Role (Simple check for now, RBAC handles specific permissions)
-      // We check if they exist in the 'app_admins' table for legacy compatibility
-      // OR if they have the 'OWNER' permission in the new system.
+      // B. Determine Role
       let role = 'PLAYER';
-      
       const { data: adminRecord } = await supabase
-        .from('app_admins') // Legacy table bridge
+        .from('app_admins')
         .select('role')
-        .eq('id', authSession.user.id) // Assuming we migrated IDs, otherwise use email mapping
+        .eq('id', authSession.user.id)
         .maybeSingle();
 
       if (adminRecord) role = adminRecord.role;
 
-      // C. Update State
       setSession({
         isAuthenticated: true,
         user: authSession.user,
-        identity: identity || { username: 'Unknown Agent' },
+        identity: identity || { username: authSession.user.email || 'Agent' },
         role: role
       });
 
@@ -76,28 +67,81 @@ export const SessionProvider = ({ children }) => {
     }
   };
 
-  // 3. EXPOSED ACTIONS
-  const login = async (email, password) => {
+  // 3. EXPOSED ACTIONS (THE HYBRID LOGIN LOGIC)
+  const login = async (credential, passwordOrPin) => {
     setLoading(true);
-    // CRITICAL CHANGE: We now use Email/Password, not PINs
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
 
-    if (error) {
+    try {
+      // STRATEGY A: Try Email/Password (Supabase Auth - The Future)
+      if (credential.includes('@')) {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: credential,
+          password: passwordOrPin,
+        });
+        
+        if (!error && data.user) {
+           // Identity resolution happens in useEffect
+           return { success: true, role: 'PLAYER' }; // Role updates async
+        }
+      }
+
+      // STRATEGY B: PIN / Access Code (Legacy Bridge - The Present)
+      // 1. Check Admin PINs
+      const { data: adminData } = await supabase
+        .from('app_admins')
+        .select('*')
+        .eq('pin_code', passwordOrPin)
+        .maybeSingle();
+
+      if (adminData) {
+        // MOCK SESSION for Admin
+        const mockUser = { id: adminData.id, email: 'admin@legacy.com', isMock: true };
+        setSession({
+          isAuthenticated: true,
+          user: mockUser,
+          identity: { id: adminData.id, username: adminData.name, role: adminData.role },
+          role: adminData.role
+        });
+        setLoading(false);
+        return { success: true, role: adminData.role };
+      }
+
+      // 2. Check Team/Captain Access Codes
+      const { data: teamData } = await supabase
+        .from('teams')
+        .select('*')
+        .eq('access_code', passwordOrPin)
+        .maybeSingle();
+
+      if (teamData) {
+        // MOCK SESSION for Captain
+        const mockUser = { id: teamData.id, email: 'captain@legacy.com', isMock: true };
+        setSession({
+          isAuthenticated: true,
+          user: mockUser,
+          identity: { id: teamData.id, username: credential || teamData.name, team_id: teamData.id },
+          role: 'CAPTAIN'
+        });
+        setLoading(false);
+        return { success: true, role: 'CAPTAIN' };
+      }
+
+      return { success: false, message: 'Invalid Access Code or Email' };
+
+    } catch (err) {
+      console.error("Login Error:", err);
+      return { success: false, message: 'System Error during Auth' };
+    } finally {
       setLoading(false);
-      return { success: false, message: error.message };
     }
-    
-    // The useEffect hook will handle the state update automatically
-    return { success: true };
   };
 
   const logout = async () => {
     setLoading(true);
     await supabase.auth.signOut();
-    // State clears automatically via subscription
+    // Clear state explicitly for mock sessions
+    setSession({ isAuthenticated: false, user: null, identity: null, role: 'GUEST' });
+    setLoading(false);
   };
 
   return (

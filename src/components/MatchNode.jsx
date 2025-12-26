@@ -7,29 +7,26 @@ const getStatusStyles = (status) => {
     live: { 
       label: 'LIVE_COMBAT', 
       border: 'border-emerald-500', 
-      bg: 'bg-emerald-950/20', 
+      bg: 'bg-emerald-950/40', // Slightly more opaque for readability
       text: 'text-emerald-400', 
-      glow: 'shadow-[0_0_20px_rgba(16,185,129,0.25)]', 
-      line: '#10b981',
+      glow: 'shadow-[0_0_25px_rgba(16,185,129,0.15)]', 
       accent: 'bg-emerald-500'
     },
     veto: { 
       label: 'VETO_PROTOCOL', 
       border: 'border-fuchsia-500', 
-      bg: 'bg-fuchsia-950/20', 
+      bg: 'bg-fuchsia-950/30', 
       text: 'text-fuchsia-400', 
-      glow: 'shadow-[0_0_20px_rgba(192,38,211,0.25)]', 
-      line: '#d946ef',
+      glow: 'shadow-[0_0_15px_rgba(192,38,211,0.15)]', 
       accent: 'bg-fuchsia-500'
     },
     completed: { 
       label: 'ARCHIVED', 
-      border: 'border-zinc-700', 
+      border: 'border-zinc-800', 
       bg: 'bg-[#0a0a0c]', 
       text: 'text-zinc-500', 
       glow: '', 
-      line: '#3f3f46',
-      accent: 'bg-zinc-700'
+      accent: 'bg-zinc-800'
     },
     scheduled: { 
       label: 'STANDBY', 
@@ -37,7 +34,6 @@ const getStatusStyles = (status) => {
       bg: 'bg-[#0b0c0f]', 
       text: 'text-zinc-600', 
       glow: '', 
-      line: '#27272a',
       accent: 'bg-zinc-800'
     }
   };
@@ -64,16 +60,12 @@ const TeamSlot = ({ team, score, isWinner }) => (
   </div>
 );
 
-export const MatchNode = ({ match, onClick, setRef }) => {
+export const MatchNode = ({ match, onClick }) => {
   const theme = getStatusStyles(match.status);
-  // Match is actionable if both teams exist
   const isActionable = !!(match.team1 && match.team2); 
-  const matchIdShort = (match.id || '').toString().split('-')[0] || 'ERR';
 
   return (
-    <div 
-      ref={setRef}
-      className={`
+    <div className={`
         relative group w-72 flex flex-col overflow-hidden rounded-lg border backdrop-blur-md transition-all duration-500
         ${theme.border} ${theme.bg} ${theme.glow}
       `}
@@ -127,7 +119,7 @@ export const MatchNode = ({ match, onClick, setRef }) => {
               : 'text-zinc-800 cursor-not-allowed'}
           `}
         >
-          {isActionable ? 'ACCESS_INTEL' : 'LOCKED'}
+          {isActionable ? 'INTEL' : 'LOCKED'}
           <ChevronRight className="w-2.5 h-2.5" />
         </button>
       </div>

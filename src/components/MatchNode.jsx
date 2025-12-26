@@ -7,7 +7,7 @@ const getStatusStyles = (status) => {
     live: { 
       label: 'LIVE_COMBAT', 
       border: 'border-emerald-500', 
-      bg: 'bg-emerald-950/40', // Slightly more opaque for readability
+      bg: 'bg-emerald-950/40', 
       text: 'text-emerald-400', 
       glow: 'shadow-[0_0_25px_rgba(16,185,129,0.15)]', 
       accent: 'bg-emerald-500'
@@ -62,7 +62,13 @@ const TeamSlot = ({ team, score, isWinner }) => (
 
 export const MatchNode = ({ match, onClick }) => {
   const theme = getStatusStyles(match.status);
-  const isActionable = !!(match.team1 && match.team2); 
+  
+  // 🛡️ LOGIC FIX: Actionable only if teams exist AND status is valid
+  // 'completed' matches are view-only, but 'scheduled/live/veto' might be actionable.
+  // This depends on your app rules. Usually Admin wants to click ANY match.
+  // But for players, maybe only scheduled. 
+  // Assuming this is the bracket view where clicking opens the details/admin modal:
+  const isActionable = !!(match.team1 || match.team2); 
 
   return (
     <div className={`

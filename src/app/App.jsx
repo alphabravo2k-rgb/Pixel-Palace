@@ -1,94 +1,112 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
 
-// 1. Auth & Context (Note the '../' to go up one level)
+// 1. Auth & Governance (Correctly stepping out of src/app)
 import { SessionProvider, useSession } from '../auth/useSession';
+import { useCapabilities } from '../auth/useCapabilities';
 
-// 2. The New Components (We just built these)
+// 2. Components
 import { PlayerDashboard } from '../components/player/PlayerDashboard';
 import { MatchRoom } from '../components/match/MatchRoom';
-
-// 3. Existing/Placeholder Components (Ensure these exist or comment them out)
-// If you don't have an AdminDashboard yet, you can temporarily point it to PlayerDashboard
 import { AdminDashboard } from '../components/admin/AdminDashboard'; 
 import { AdminLogin } from '../components/admin/AdminLogin'; 
 import { LandingPage } from '../components/LandingPage'; 
 
-// 🛡️ Route Guard: Ensures user is logged in
-const ProtectedRoute = ({ children, requiredRole = null }) => {
+/**
+ * 🛡️ CAPABILITY GUARD (The "Real" Check)
+ * instead of checking "Is Admin?", we check "Can this user Configure Tournaments?"
+ * This decouples your Router from your Roles.
+ */
+const RouteGuard = ({ children, requiredCapability = null }) => {
   const { session, loading } = useSession();
+  const { hasCapability } = useCapabilities();
 
+  // 1. Loading State (Don't leak UI while checking)
   if (loading) {
     return (
-      <div className="h-screen bg-black flex items-center justify-center text-zinc-500">
-        Loading System Access...
+      <div className="h-screen w-full bg-black flex items-center justify-center">
+        <div className="text-zinc-500 font-mono text-sm animate-pulse">
+          VERIFYING IDENTITY PROTOCOLS...
+        </div>
       </div>
     );
   }
 
+  // 2. Authentication Check (Identity)
   if (!session?.isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
 
-  // Role Check (Optional strict mode)
-  if (requiredRole && session.role !== requiredRole && session.role !== 'OWNER') {
-    // If an Admin tries to go to a Super-Admin page, kick them to dashboard
-    return <Navigate to="/dashboard" replace />;
+  // 3. Capability Check (Policy)
+  // We parse "TOURNAMENT:CONFIGURE" into resource/action
+  if (requiredCapability) {
+    const [resource, action] = requiredCapability.split(':');
+    
+    // We pass the session role to hasCapability (the hook handles the matrix)
+    const canAccess = hasCapability(session.role, resource, action);
+
+    if (!canAccess) {
+      console.warn(`SECURITY ALERT: Access Denied. Missing ${requiredCapability}`);
+      // Redirect to the safe "Player" zone if they try to access Admin
+      return <Navigate to="/dashboard" replace />;
+    }
   }
 
   return children;
 };
 
-// 🎮 Match Room Wrapper: Hooks into 'react-router-dom' to get the ID
+// 🎮 Helper to grab ID from URL
 const MatchRoomWrapper = () => {
-  const { id } = useParams(); // Gets '123' from '/match/123'
+  const { id } = useParams();
   return <MatchRoom matchId={id} />;
 };
 
 function App() {
   return (
     <BrowserRouter>
+      {/* SessionProvider = The Single Source of Identity Truth */}
       <SessionProvider>
         <Routes>
-          {/* PUBLIC ROUTES */}
+          {/* PUBLIC ZONES */}
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<AdminLogin />} />
           
-          {/* 🛡️ PLAYER DASHBOARD */}
+          {/* 🛡️ PLAYER ZONE (Requires minimal read access) */}
           <Route 
             path="/dashboard" 
             element={
-              <ProtectedRoute>
+              <RouteGuard requiredCapability="PROFILE:EDIT">
                 <PlayerDashboard />
-              </ProtectedRoute>
+              </RouteGuard>
             } 
           />
           
-          {/* 🛡️ MATCH ROOM (Dynamic ID) */}
+          {/* 🛡️ MATCH ZONE (Requires capability to view/play) */}
           <Route 
             path="/match/:id" 
             element={
-              <ProtectedRoute>
-                <MatchRoomWrapper />
-              </ProtectedRoute>
+              <RouteGuard requiredCapability="MATCH:CHECK_IN">
+                 <MatchRoomWrapper />
+              </RouteGuard>
             } 
           />
 
-          {/* 🛡️ ADMIN WAR ROOM */}
+          {/* 🛡️ ADMIN WAR ROOM (Strictly guarded by High-Risk Permission) */}
+          {/* We do NOT ask for "ADMIN" role. We ask for "TOURNAMENT:CONFIGURE" power. */}
           <Route 
             path="/admin/dashboard" 
             element={
-              <ProtectedRoute requiredRole="ADMIN">
+              <RouteGuard requiredCapability="TOURNAMENT:CONFIGURE">
                 <AdminDashboard />
-              </ProtectedRoute>
+              </RouteGuard>
             } 
           />
 
           {/* 404 CATCH ALL */}
           <Route path="*" element={
-            <div className="h-screen bg-black text-white flex flex-col items-center justify-center">
-              <h1 className="text-4xl font-bold font-['Teko']">404</h1>
-              <p className="text-zinc-500">Zone Lost</p>
+            <div className="h-screen bg-black text-white flex flex-col items-center justify-center font-mono">
+              <h1 className="text-4xl font-bold text-red-500">404 // ZONE LOST</h1>
+              <p className="text-zinc-500 mt-2">The requested sector does not exist.</p>
             </div>
           } />
         </Routes>

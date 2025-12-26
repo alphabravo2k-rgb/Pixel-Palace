@@ -1,24 +1,26 @@
 import React from 'react';
 import { Play, RefreshCw, AlertTriangle, Trophy } from 'lucide-react';
 
-// Sibling Imports (Flat structure)
+// 1. Logic Imports
 import { useTournament } from '../tournament/useTournament';
 import { useAdminConsole } from '../hooks/useAdminConsole';
 import { useSession } from '../auth/useSession';
+import { can } from '../lib/permissions'; // 🛡️ Standalone logic
+import { PERM_ACTIONS } from '../lib/permissions.actions'; // 🛡️ Constants
 
 export const TournamentWarRoom = () => {
   const { selectedTournamentId, tournamentData } = useTournament();
   const { generateBracket, syncRegistrations, loading } = useAdminConsole();
-  const { can } = useSession();
+  const { session } = useSession();
 
   if (!selectedTournamentId) return null;
 
-  // 🛡️ CRASH PROTECTION: Default to false if `can` is missing
-  const canManage = typeof can === 'function' 
-      ? can('CAN_MANAGE_BRACKET', { tournamentId: selectedTournamentId })
-      : false;
+  // 🛡️ PERMISSION CHECK: Use the imported 'can' function with the session
+  const canSync = can(PERM_ACTIONS.SYNC_ROSTER, session);
+  const canBracket = can(PERM_ACTIONS.GENERATE_BRACKET, session);
 
-  const isSetupPhase = tournamentData?.status?.toLowerCase() === 'setup';
+  // Status check: Setup phase check
+  const isSetupPhase = tournamentData?.status?.toLowerCase() === 'setup' || tournamentData?.status === 'active';
 
   return (
     <div className="bg-zinc-900 border border-white/10 rounded-lg p-6">
@@ -29,7 +31,7 @@ export const TournamentWarRoom = () => {
             Tournament Operations
           </h3>
           <p className="text-xs text-zinc-500 font-mono">
-             Status: <span className="text-white">{tournamentData?.status || 'UNKNOWN'}</span>
+             Status: <span className="text-white uppercase font-bold">{tournamentData?.status || 'UNKNOWN'}</span>
           </p>
         </div>
       </div>
@@ -43,11 +45,12 @@ export const TournamentWarRoom = () => {
           </p>
           <button
             onClick={() => syncRegistrations(selectedTournamentId)}
-            disabled={!canManage || !isSetupPhase || loading}
+            disabled={!canSync || loading}
             className={`
               flex items-center justify-center gap-2 w-full py-3 rounded uppercase font-bold text-sm transition-all
-              ${!isSetupPhase 
-                ? 'bg-zinc-800 text-zinc-600 cursor-not-allowed' 
+              disabled:opacity-40 disabled:cursor-not-allowed
+              ${!canSync 
+                ? 'bg-zinc-800 text-zinc-600' 
                 : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-900/20'}
             `}
           >
@@ -64,15 +67,16 @@ export const TournamentWarRoom = () => {
           </p>
           <button
             onClick={() => generateBracket(selectedTournamentId)}
-            disabled={!canManage || !isSetupPhase || loading}
+            disabled={!canBracket || loading}
             className={`
               flex items-center justify-center gap-2 w-full py-3 rounded uppercase font-bold text-sm transition-all
-              ${!isSetupPhase 
-                ? 'bg-zinc-800 text-zinc-600 cursor-not-allowed' 
+              disabled:opacity-40 disabled:cursor-not-allowed
+              ${!canBracket 
+                ? 'bg-zinc-800 text-zinc-600' 
                 : 'bg-fuchsia-600 hover:bg-fuchsia-500 text-white shadow-lg shadow-fuchsia-900/20'}
             `}
           >
-            {isSetupPhase ? <Play className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />} 
+            <Play className="w-4 h-4" /> 
             {loading ? 'Processing...' : 'Generate Bracket'}
           </button>
         </div>

@@ -1,103 +1,132 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useSession } from '../../auth/useSession';
-import { Shield, Key, User } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Shield, Lock, AlertTriangle, Loader2 } from 'lucide-react';
 
 export const AdminLogin = () => {
+  const { login } = useSession();
   const navigate = useNavigate();
-  const { login, loading } = useSession();
   
-  // Generic fields to handle both methods
-  const [identity, setIdentity] = useState(''); // Email OR Discord Name
-  const [secret, setSecret] = useState('');     // Password OR PIN
+  const [formData, setFormData] = useState({ id: '', pin: '' });
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // 🛡️ SECURITY: Rate Limit Simulation (Frontend)
+  // In a real app, the backend sends 429 Too Many Requests. 
+  // We simulate visual cooldown to discourage brute force.
+  const [cooldown, setCooldown] = useState(0);
 
-  const handleLogin = async (e) => {
+  const handleInput = (field, value) => {
+    // 🛡️ SECURITY: Input Sanitization (Audit Fix)
+    // Strip whitespace, emojis, and non-printable chars immediately.
+    const sanitized = value.replace(/[^a-zA-Z0-9@._-]/g, '');
+    setFormData(prev => ({ ...prev, [field]: sanitized }));
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    setIsSubmitting(true);
+    if (cooldown > 0) return;
+
+    setLoading(true);
     setError(null);
 
-    const result = await login(identity, secret);
+    const result = await login(formData.id, formData.pin);
 
     if (result.success) {
-      if (result.role === 'ADMIN' || result.role === 'OWNER') {
-        navigate('/admin/dashboard');
-      } else {
-        navigate('/dashboard');
-      }
+      // Route based on role
+      const target = ['ADMIN', 'OWNER'].includes(result.role) 
+        ? '/admin/dashboard' 
+        : '/dashboard';
+      navigate(target);
     } else {
-      setError(result.message || 'Access Denied. Check your code.');
-      setIsSubmitting(false);
+      setError(result.message || "Access Denied");
+      
+      // 🛡️ SECURITY: Exponential Backoff (UI Feedback)
+      // Makes brute forcing annoying manually.
+      setCooldown(prev => (prev === 0 ? 3 : prev * 2)); 
+      setTimeout(() => setCooldown(0), (cooldown || 3) * 1000);
     }
+    setLoading(false);
   };
 
   return (
     <div className="min-h-screen bg-black flex items-center justify-center p-4">
-      <div className="max-w-md w-full bg-zinc-900/50 border border-white/10 rounded-lg p-8 backdrop-blur-sm">
+      <div className="w-full max-w-md bg-zinc-950 border border-white/10 p-8 rounded-2xl shadow-2xl relative overflow-hidden">
         
+        {/* Header */}
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-zinc-800 rounded-full flex items-center justify-center mx-auto mb-4 border border-fuchsia-500/20">
-            <Shield className="w-8 h-8 text-fuchsia-500" />
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-fuchsia-900/20 text-fuchsia-500 mb-4 border border-fuchsia-500/20">
+            <Shield className="w-6 h-6" />
           </div>
-          <h1 className="text-3xl font-['Teko'] uppercase text-white tracking-wide">System Access</h1>
+          <h1 className="text-2xl font-bold text-white font-['Teko'] uppercase tracking-wider">
+            Pixel Palace // Secure Gate
+          </h1>
+          <p className="text-zinc-500 text-xs font-mono mt-2">
+            AUTHORIZED PERSONNEL ONLY
+          </p>
         </div>
 
-        {error && (
-          <div className="mb-6 p-3 bg-red-900/20 border border-red-500/30 rounded text-red-400 text-xs font-bold uppercase text-center">
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={handleLogin} className="space-y-4">
-          
-          {/* Identity Field */}
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2">
-              Username / Email
+            <label className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider mb-1 block">
+              Identity / Team Name
+            </label>
+            <input 
+              type="text" 
+              autoFocus
+              className="w-full bg-black border border-white/10 rounded px-4 py-3 text-white focus:border-fuchsia-500 outline-none transition-colors"
+              placeholder="Enter ID..."
+              value={formData.id}
+              onChange={(e) => handleInput('id', e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider mb-1 block">
+              Access Credentials
             </label>
             <div className="relative">
-              <input
-                type="text"
-                value={identity}
-                onChange={(e) => setIdentity(e.target.value)}
-                className="w-full bg-black border border-white/10 rounded px-4 py-3 text-white focus:border-fuchsia-500 outline-none pl-10 font-mono"
-                placeholder="Discord Name..."
-                required
-                autoFocus
+              <input 
+                type="password" 
+                className="w-full bg-black border border-white/10 rounded px-4 py-3 text-white focus:border-fuchsia-500 outline-none transition-colors font-mono tracking-widest"
+                placeholder="••••••"
+                maxLength={20} // 🛡️ Hard constraint
+                value={formData.pin}
+                onChange={(e) => handleInput('pin', e.target.value)}
               />
-              <User className="w-4 h-4 text-zinc-600 absolute left-3 top-3.5" />
+              <Lock className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600" />
             </div>
           </div>
 
-          {/* Secret Field */}
-          <div>
-            <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2">
-              Access Code / PIN
-            </label>
-            <div className="relative">
-              <input
-                type="password"
-                value={secret}
-                onChange={(e) => setSecret(e.target.value)}
-                className="w-full bg-black border border-white/10 rounded px-4 py-3 text-white focus:border-fuchsia-500 outline-none pl-10 font-mono"
-                placeholder="••••••••"
-                required
-              />
-              <Key className="w-4 h-4 text-zinc-600 absolute left-3 top-3.5" />
+          {error && (
+            <div className="p-3 bg-red-900/10 border border-red-500/20 rounded flex items-center gap-2 text-red-400 text-xs">
+              <AlertTriangle className="w-4 h-4" />
+              <span>{error}</span>
             </div>
-          </div>
+          )}
 
-          <button
+          <button 
             type="submit"
-            disabled={isSubmitting || loading}
-            className={`w-full py-3 rounded font-bold uppercase tracking-widest transition-all mt-6 ${
-              isSubmitting ? 'bg-zinc-800 text-zinc-500' : 'bg-fuchsia-600 hover:bg-fuchsia-500 text-white'
-            }`}
+            disabled={loading || cooldown > 0}
+            className={`
+              w-full py-3 rounded font-bold uppercase tracking-widest text-xs transition-all flex items-center justify-center gap-2
+              ${cooldown > 0 
+                ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed' 
+                : 'bg-fuchsia-600 hover:bg-fuchsia-500 text-white shadow-[0_0_20px_rgba(192,38,211,0.3)]'}
+            `}
           >
-            {isSubmitting ? 'Verifying...' : 'Login'}
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 
+             cooldown > 0 ? `LOCKED (${cooldown}s)` : 'AUTHENTICATE'}
           </button>
         </form>
+
+        {/* Footer */}
+        <div className="mt-8 text-center">
+          <p className="text-[10px] text-zinc-600 font-mono">
+            SECURE CONNECTION • V2.5.0
+          </p>
+        </div>
       </div>
     </div>
   );

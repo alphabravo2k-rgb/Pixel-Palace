@@ -1,13 +1,12 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { RouterProvider } from 'react-router-dom';
-import { router } from './app/router'; // 👈 Check this path!
+import App from './app/App'; // 🟢 Points to our new "Brain"
 import './index.css';
 
-console.log("🔥🔥 APPLICATION STARTING - BUILD V10 (ROUTER RESTORED) 🔥🔥");
+console.log("🔥🔥 APPLICATION STARTING - PIXEL PALACE V2.5 (RBAC ENABLED) 🔥🔥");
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <RouterProvider router={router} />
+    <App />
   </React.StrictMode>,
 );

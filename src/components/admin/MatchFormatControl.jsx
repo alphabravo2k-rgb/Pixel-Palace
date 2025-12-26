@@ -1,107 +1,78 @@
 import React, { useState } from 'react';
-import { Settings, ShieldAlert, Check, Lock, Ban } from 'lucide-react';
 import { supabase } from '../../supabase/client';
 import { useSession } from '../../auth/useSession';
-import { useTournament } from '../../tournament/useTournament';
+import { Settings, ShieldAlert, CheckCircle } from 'lucide-react';
 
 export const MatchFormatControl = ({ match, onUpdate }) => {
-  const { getAuthIdentifier } = useSession(); // ✅ New Helper
-  const { selectedTournamentId } = useTournament();
+  const { session } = useSession();
   const [loading, setLoading] = useState(false);
-
-  // Locked if: Live, Completed, or Veto started
-  const hasVetoStarted = (match.status === 'veto') || (match.vetoes && match.vetoes.length > 0);
-  const isLocked = ['live', 'completed', 'veto'].includes(match.status) || hasVetoStarted;
+  
+  // We use local state to show optimistic UI updates, but we don't block requests based on it
+  const [currentFormat, setCurrentFormat] = useState(match.best_of);
 
   const handleFormatChange = async (newFormat) => {
-    if (isLocked || loading) return;
-    if (newFormat === match.best_of) return;
+    // 🔴 REMOVED: if (newFormat === currentFormat) return;
+    // We send the request regardless. The backend is the source of truth.
 
-    const reason = prompt(
-      `⚠️ CHANGING MATCH FORMAT (BO${match.best_of} -> BO${newFormat})\n\nThis action requires justification for the Audit Log.\n\nEnter Reason:`
-    );
-
-    if (reason === null) return; 
-    if (!reason || reason.trim().length < 3) {
-      alert("Format change blocked: A valid reason is required.");
+    if (!window.confirm(`CONFIRM: Set Match ${match.id.substring(0,8)} to Best of ${newFormat}?`)) {
       return;
     }
 
     setLoading(true);
     try {
-      // ✅ RPC CALL
-      const { data, error } = await supabase.rpc('api_update_match_format', {
+      const { error } = await supabase.rpc('admin_update_match_format', {
         p_match_id: match.id,
-        p_new_format: parseInt(newFormat),
-        p_tournament_id: selectedTournamentId,
-        p_reason: reason.trim(),
-        p_admin_id: getAuthIdentifier() // 🛡️ Audit Key
+        p_best_of: newFormat,
+        p_admin_id: session.user.id,
+        p_reason: `Manual Format Override to BO${newFormat}`
       });
 
       if (error) throw error;
 
-      if (data.success) {
-        if (onUpdate) onUpdate();
-      } else {
-        alert(`Request Rejected: ${data.message}`);
-      }
+      // Success feedback
+      setCurrentFormat(newFormat);
+      if (onUpdate) onUpdate();
+      
     } catch (err) {
-      console.error("Format Update Failed:", err);
-      alert("Failed to update format.");
+      alert(`Format Update Failed: ${err.message}`);
     } finally {
       setLoading(false);
     }
   };
 
-  // ... (UI remains same as your original) ...
   return (
-    <div className={`
-      flex flex-col gap-2 p-3 rounded border 
-      ${isLocked ? 'bg-zinc-950/50 border-zinc-900 opacity-75' : 'bg-zinc-900/50 border-white/5'}
-    `}>
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-bold uppercase text-zinc-500 flex items-center gap-1">
-          <Settings className="w-3 h-3" /> Match Format
-        </span>
-        
-        {isLocked && (
-          <span className="text-[9px] flex items-center gap-1 uppercase font-bold px-1.5 py-0.5 rounded border bg-red-950/30 text-red-500 border-red-900/50">
-            {hasVetoStarted ? <Ban className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
-            {hasVetoStarted ? 'VETO LOCKED' : 'MATCH LIVE'}
-          </span>
-        )}
+    <div className="bg-zinc-900 border border-white/5 rounded-lg p-4">
+      <div className="flex items-center gap-2 mb-3 text-zinc-400">
+        <Settings className="w-4 h-4" />
+        <span className="text-xs font-bold uppercase tracking-wider">Match Format Protocol</span>
       </div>
 
       <div className="grid grid-cols-3 gap-2">
         {[1, 3, 5].map((fmt) => {
-          const isActive = match.best_of === fmt;
+          const isActive = currentFormat === fmt;
           return (
             <button
               key={fmt}
               onClick={() => handleFormatChange(fmt)}
-              disabled={isLocked || loading}
+              disabled={loading}
               className={`
-                relative px-3 py-2 text-sm font-bold uppercase tracking-wider rounded transition-all
+                relative px-3 py-2 rounded text-sm font-bold border transition-all
                 ${isActive 
-                  ? 'bg-fuchsia-600 text-white border-fuchsia-500 shadow-lg shadow-fuchsia-900/20' 
-                  : 'bg-black text-zinc-500 border border-zinc-800'}
-                ${!isLocked && !isActive ? 'hover:border-zinc-600 hover:text-zinc-300' : ''}
-                ${isLocked ? 'cursor-not-allowed opacity-50' : ''}
+                  ? 'bg-fuchsia-900/20 border-fuchsia-500/50 text-fuchsia-400' 
+                  : 'bg-black border-white/10 text-zinc-500 hover:border-white/30 hover:text-zinc-300'}
               `}
             >
               BO{fmt}
-              {isActive && <Check className="w-3 h-3 absolute top-1 right-1 opacity-50" />}
+              {isActive && <CheckCircle className="w-3 h-3 absolute top-1 right-1 text-fuchsia-500" />}
             </button>
           );
         })}
       </div>
       
-      {!isLocked && (
-        <div className="text-[9px] text-zinc-600 flex items-center gap-1 mt-1">
-          <ShieldAlert className="w-3 h-3" />
-          <span>Updates require Audit Log justification</span>
-        </div>
-      )}
+      <div className="mt-3 flex items-center gap-2 text-[10px] text-zinc-600 font-mono">
+        <ShieldAlert className="w-3 h-3" />
+        <span>Audit Log Enabled</span>
+      </div>
     </div>
   );
 };

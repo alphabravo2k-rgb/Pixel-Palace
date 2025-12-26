@@ -1,27 +1,64 @@
 import React, { useState } from 'react';
-import { AlertTriangle, ShieldCheck } from 'lucide-react';
 import { supabase } from '../../supabase/client';
 import { useSession } from '../../auth/useSession';
-import { ROLES } from '../../lib/roles';
+import { ShieldAlert, AlertTriangle, UserCog, UserMinus } from 'lucide-react';
 
-export const RosterIntegrityControl = ({ player, onUpdate }) => {
-  const { getAuthIdentifier } = useSession(); // ✅ Use Helper
+export const RosterIntegrityControl = ({ player, teamId, onUpdate }) => {
+  const { session } = useSession();
   const [loading, setLoading] = useState(false);
 
-  const handleFixRole = async (targetRole) => {
+  const handleForceRole = async (newRole) => {
+    // 1. FRICTION: The Reason Prompt
+    const reason = prompt(
+      `⚠️ FORCE UPDATE WARNING ⚠️\n\nChanging ${player.username} to ${newRole}.\nThis bypasses standard roster limits.\n\nREQUIRED: Enter reason for audit log:`
+    );
+
+    if (!reason || reason.trim().length < 5) {
+      alert("Action Aborted: A valid reason is required for forced roster mutations.");
+      return;
+    }
+
     setLoading(true);
     try {
-      const { data, error } = await supabase.rpc('api_force_update_player_role', {
+      const { error } = await supabase.rpc('admin_force_update_player_role', {
         p_player_id: player.id,
-        p_new_role: targetRole,
-        p_admin_id: getAuthIdentifier() // 🛡️ Audit Key
+        p_team_id: teamId,
+        p_new_role: newRole,
+        p_admin_id: session.user.id,
+        p_reason: reason
       });
 
       if (error) throw error;
-      if (onUpdate) onUpdate(); 
+      if (onUpdate) onUpdate();
+
     } catch (err) {
-      console.error("Role Fix Failed:", err);
-      alert("Failed to update role.");
+      alert(`Force Update Failed: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForceKick = async () => {
+    // 1. FRICTION: Double Confirmation
+    if (!window.confirm(`CRITICAL: Are you sure you want to KICK ${player.username} from the team?`)) return;
+
+    const reason = prompt("Enter reason for ejection (Required):");
+    if (!reason) return;
+
+    setLoading(true);
+    try {
+      const { error } = await supabase.rpc('admin_force_kick_player', {
+        p_player_id: player.id,
+        p_team_id: teamId,
+        p_admin_id: session.user.id,
+        p_reason: reason
+      });
+
+      if (error) throw error;
+      if (onUpdate) onUpdate();
+
+    } catch (err) {
+      alert(`Kick Failed: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -29,29 +66,41 @@ export const RosterIntegrityControl = ({ player, onUpdate }) => {
 
   return (
     <div className="flex items-center gap-2">
-      {player.role === ROLES.CAPTAIN ? (
-        <span className="text-[10px] bg-fuchsia-900/20 text-fuchsia-500 px-2 py-0.5 rounded border border-fuchsia-500/30 flex items-center gap-1">
-          <ShieldCheck className="w-3 h-3" /> CAPTAIN
-        </span>
+      {/* Role Toggle: Visually Distinct "Force" Actions */}
+      {player.role !== 'CAPTAIN' ? (
+        <button
+          onClick={() => handleForceRole('CAPTAIN')}
+          disabled={loading}
+          className="p-1.5 bg-zinc-800 hover:bg-amber-900/30 text-zinc-400 hover:text-amber-500 rounded border border-transparent hover:border-amber-500/50 transition-all group"
+          title="Force Promote to Captain"
+        >
+          <UserCog className="w-4 h-4" />
+        </button>
       ) : (
         <button
-          onClick={() => handleFixRole(ROLES.CAPTAIN)}
+          onClick={() => handleForceRole('PLAYER')}
           disabled={loading}
-          className="text-[10px] bg-zinc-800 text-zinc-400 hover:text-white px-2 py-0.5 rounded border border-zinc-700 hover:border-zinc-500 transition-all flex items-center gap-1"
+          className="p-1.5 bg-zinc-800 hover:bg-zinc-700 text-amber-500 hover:text-zinc-400 rounded border border-amber-500/20 hover:border-transparent transition-all"
+          title="Demote Captain"
         >
-          Promote to CPT
+          <UserCog className="w-4 h-4" />
         </button>
       )}
 
-      {player.role === ROLES.CAPTAIN && (
-        <button
-          onClick={() => handleFixRole(ROLES.PLAYER)}
-          disabled={loading}
-          className="text-[10px] text-red-500 hover:bg-red-900/10 px-1 rounded"
-        >
-          Demote
-        </button>
-      )}
+      {/* The Nuclear Option */}
+      <button
+        onClick={handleForceKick}
+        disabled={loading}
+        className="p-1.5 bg-zinc-800 hover:bg-red-900/30 text-zinc-400 hover:text-red-500 rounded border border-transparent hover:border-red-500/50 transition-all"
+        title="Force Eject Player"
+      >
+        <UserMinus className="w-4 h-4" />
+      </button>
+
+      {/* Hidden Audit Indicator */}
+      <div className="ml-2 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+        <ShieldAlert className="w-3 h-3 text-zinc-600" />
+      </div>
     </div>
   );
 };

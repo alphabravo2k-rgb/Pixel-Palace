@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Zap } from 'lucide-react';
 import { MatchNode } from './MatchNode';
 
@@ -13,7 +13,7 @@ export const Bracket = ({ matches = [], onMatchClick }) => {
     if (!matches.length) return;
 
     const rounds = matches.reduce((acc, match) => {
-      // 🛡️ Safety: Ensure round is a valid number, default to 1
+      // 🛡️ Safety: Ensure round is a valid number, default to 1. Handle 0 or nulls.
       const r = (Number.isInteger(match.round) && match.round > 0) ? match.round : 1;
       if (!acc[r]) acc[r] = [];
       acc[r].push(match);
@@ -71,7 +71,8 @@ export const Bracket = ({ matches = [], onMatchClick }) => {
 
   // 3. OBSERVER: Recalculate lines when window resizes or data changes
   useEffect(() => {
-    const timeout = setTimeout(calculatePaths, 50); // Debounce
+    // Debounce slightly to wait for DOM paint
+    const timeout = setTimeout(calculatePaths, 50); 
     const observer = new ResizeObserver(() => requestAnimationFrame(calculatePaths));
 
     if (containerRef.current) observer.observe(containerRef.current);
@@ -82,7 +83,7 @@ export const Bracket = ({ matches = [], onMatchClick }) => {
     };
   }, [groupedRounds]); 
 
-  // Helper to manage refs safely
+  // 🛡️ REF HYGIENE: Explicitly set and delete refs
   const setRef = (id, el) => {
     if (el) matchRefs.current.set(id, el);
     else matchRefs.current.delete(id);

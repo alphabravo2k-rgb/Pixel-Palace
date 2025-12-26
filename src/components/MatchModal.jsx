@@ -1,95 +1,87 @@
-import React, { useEffect } from 'react';
-import { X, ShieldAlert, Trophy } from 'lucide-react';
+import React from 'react';
+import { X, Clock, AlertTriangle } from 'lucide-react';
 import { useSession } from '../auth/useSession';
-import { ROLES } from '../lib/roles';
+import { TeamCard } from './roster/TeamCard'; // Assuming you have this
+import { RestrictedButton } from './common/RestrictedButton';
 
-// ✅ Correct Import Paths (Assuming they are in same folder or subfolder)
-// Adjust './admin/...' if your file structure is flat or nested
-import { AdminMatchControls } from './AdminMatchControls'; 
-import { AdminAuditLog } from './AdminAuditLog';
-// import { VetoPanel } from './VetoPanel'; // Uncomment when VetoPanel is created
-
-export const MatchModal = ({ match, teams, onClose }) => {
+export const MatchModal = ({ match, isOpen, onClose }) => {
   const { session } = useSession();
-
-  // Prevent background scrolling
-  useEffect(() => {
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = 'unset'; };
-  }, []);
-
-  if (!match) return null;
-
-  // Permissions
-  const isAdmin = [ROLES.ADMIN, ROLES.OWNER, ROLES.REFEREE].includes(session.role);
   
-  // Captain Logic
-  const userTeamId = session.identity?.id; 
-  const isCaptain = session.role === ROLES.CAPTAIN;
-  const isMyMatch = isCaptain && (match.team1_id === userTeamId || match.team2_id === userTeamId);
+  if (!isOpen || !match) return null;
 
-  // Render Logic
-  const showAdminControls = isAdmin;
-  const showVeto = (isCaptain && isMyMatch) || isAdmin;
+  // 🛡️ IDENTITY LOGIC FIX (Audit Section 4)
+  // Don't compare IDs directly. Check if the user's TEAM ID matches.
+  // Assuming session.identity looks like { id: 'user_uuid', team_id: 'team_uuid', ... }
+  const myTeamId = session.identity?.team_id; 
+  
+  const isTeam1 = myTeamId === match.team1_id;
+  const isTeam2 = myTeamId === match.team2_id;
+  const isParticipant = isTeam1 || isTeam2;
+
+  // Is this match actually actionable? (Audit Section 5)
+  // Players can only act if it's scheduled or in veto.
+  const isPlayerActionable = ['scheduled', 'veto'].includes(match.status);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-4">
-      <div className="bg-zinc-950 border border-white/10 w-full max-w-4xl max-h-[90vh] overflow-hidden rounded-lg shadow-2xl flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-200">
+      <div className="w-full max-w-4xl bg-zinc-950 border border-white/10 rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-white/10 bg-zinc-900/50">
-          <div className="flex items-center gap-3">
-            <Trophy className="w-6 h-6 text-fuchsia-500" />
-            <div>
-              <h2 className="font-['Teko'] text-2xl uppercase tracking-wide leading-none text-white">
-                Match Details
-              </h2>
-              <p className="text-xs text-zinc-500 font-mono">
-                {match.team1?.name || 'TBD'} vs {match.team2?.name || 'TBD'} • Round {match.round}
-              </p>
+        <div className="p-6 border-b border-white/5 flex justify-between items-start bg-[url('/grid-pattern.svg')]">
+          <div>
+            <div className="flex items-center gap-2 text-fuchsia-500 font-bold uppercase tracking-widest text-xs mb-1">
+              <Clock className="w-3 h-3" /> Match {match.match_no}
             </div>
+            <h2 className="text-3xl font-['Teko'] text-white uppercase">
+              {match.status} PHASE
+            </h2>
           </div>
-          <button 
-            onClick={onClose}
-            className="p-2 hover:bg-white/10 rounded-full transition-colors text-zinc-400 hover:text-white"
-          >
-            <X className="w-5 h-5" />
+          <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full text-zinc-400 hover:text-white">
+            <X className="w-6 h-6" />
           </button>
         </div>
 
-        {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          
-          {/* 1. ADMIN CONTROLS */}
-          {showAdminControls && (
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 text-red-400 text-sm font-bold uppercase tracking-wider">
-                <ShieldAlert className="w-4 h-4" /> Admin Control Deck
+        {/* Body */}
+        <div className="p-8 overflow-y-auto">
+          <div className="flex justify-between items-center gap-8 mb-12">
+            <TeamCard team={match.team1} isWinner={match.winner_id === match.team1_id} />
+            <div className="text-4xl font-['Teko'] text-zinc-700">VS</div>
+            <TeamCard team={match.team2} isWinner={match.winner_id === match.team2_id} />
+          </div>
+
+          {/* PLAYER ACTIONS */}
+          {isParticipant && isPlayerActionable && (
+            <div className="bg-fuchsia-900/10 border border-fuchsia-500/20 p-6 rounded-lg text-center">
+              <h3 className="text-fuchsia-400 font-bold uppercase tracking-widest text-sm mb-4">
+                Captain Command Link
+              </h3>
+              
+              <div className="flex justify-center gap-4">
+                <RestrictedButton
+                  action="MATCH:CHECK_IN"
+                  resourceId={match.id}
+                  className="px-6 py-2 bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-bold uppercase rounded text-sm"
+                  onClick={() => alert("Check-in logic goes here via useCaptainVeto")}
+                >
+                  Ready Check
+                </RestrictedButton>
+                
+                {match.status === 'veto' && (
+                   <button className="px-6 py-2 border border-fuchsia-500 text-fuchsia-400 font-bold uppercase rounded text-sm hover:bg-fuchsia-500/10">
+                     Enter Veto Chamber
+                   </button>
+                )}
               </div>
-              <AdminMatchControls match={match} teams={teams} onUpdate={onClose} />
             </div>
           )}
 
-          {/* 2. VETO PANEL */}
-          {/* {showVeto ? (
-            <div className="space-y-4">
-              <VetoPanel matchId={match.id} />
-            </div>
-          ) : (
-             <div className="p-10 text-center text-zinc-500 italic border border-dashed border-white/10 rounded">
-               Waiting for teams to be determined or map veto to begin.
-             </div>
-          )}
-          */}
-
-          {/* 3. MATCH AUDIT LOG */}
-          {showAdminControls && (
-            <div className="pt-6 border-t border-white/5">
-              <h3 className="text-xs font-bold text-zinc-500 uppercase mb-3">Match Logs</h3>
-              <AdminAuditLog /> 
+          {!isParticipant && (
+            <div className="text-center text-zinc-500 font-mono text-xs mt-8">
+              SPECTATOR MODE // READ ONLY
             </div>
           )}
         </div>
+
       </div>
     </div>
   );

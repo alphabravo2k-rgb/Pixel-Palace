@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../supabase/client';
-import { normalizeRole } from '../lib/roles'; // 🛡️ Import the role sanitizer
+import { normalizeRole } from '../lib/roles';
 
 const SessionContext = createContext(null);
 
@@ -35,12 +35,12 @@ export const SessionProvider = ({ children }) => {
     return () => subscription.unsubscribe();
   }, []);
 
-  // 2. IDENTITY RESOLVER (Fixing Column Mismatches)
+  // 2. IDENTITY RESOLVER
   const handleSessionUpdate = async (authSession) => {
     if (!authSession?.user) return;
 
     try {
-      // A. Fetch Global Identity (Using 'id' as per your schema)
+      // A. Fetch Global Identity
       const { data: identity } = await supabase
         .from('global_identities')
         .select('*')
@@ -57,7 +57,7 @@ export const SessionProvider = ({ children }) => {
 
       if (adminRecord) rawRole = adminRecord.role;
 
-      // C. NORMALIZE ROLE (Ensures 'Owner' becomes 'OWNER')
+      // C. NORMALIZE ROLE
       const cleanRole = normalizeRole(rawRole);
 
       setSession({
@@ -87,36 +87,37 @@ export const SessionProvider = ({ children }) => {
         });
         
         if (error) throw error;
-        return { success: true }; // handleSessionUpdate takes over
+        return { success: true }; 
       }
 
-      // STRATEGY B: PIN / Access Code (Fixed for your Schema)
-      const { data: adminData } = await supabase
-        .from('app_admins')
-        .select('*')
-        .eq('pin_code', passwordOrPin.trim())
-        .maybeSingle();
+      // STRATEGY B: PIN / Access Code (Secure Bridge)
+      
+      // 1. Check Admin PINs (Via Secure RPC)
+      const { data: adminAuthData, error: adminAuthError } = await supabase
+        .rpc('api_verify_admin_pin', { p_pin: passwordOrPin.trim() });
+      
+      // The RPC returns a row if successful, or empty/null if failed
+      if (adminAuthData && adminAuthData.length > 0 && adminAuthData[0].success) {
+         const adminUser = adminAuthData[0];
+         const cleanRole = normalizeRole(adminUser.role);
 
-      if (adminData) {
-        const cleanRole = normalizeRole(adminData.role);
-        
-        // Ensure identity is fetched for mock sessions too
-        const { data: profile } = await supabase
-          .from('global_identities')
-          .select('*')
-          .eq('id', adminData.id)
-          .maybeSingle();
+         // Fetch profile identity if available
+         const { data: profile } = await supabase
+            .from('global_identities')
+            .select('*')
+            .eq('id', adminUser.id)
+            .maybeSingle();
 
-        setSession({
-          isAuthenticated: true,
-          user: { id: adminData.id, email: 'admin@legacy.com', isMock: true },
-          identity: profile || { id: adminData.id, username: adminData.name },
-          role: cleanRole
-        });
-        return { success: true, role: cleanRole };
+         setSession({
+            isAuthenticated: true,
+            user: { id: adminUser.id, email: 'admin@pixelpalace.gg', isMock: true },
+            identity: profile || { id: adminUser.id, username: adminUser.name, role: cleanRole },
+            role: cleanRole
+         });
+         return { success: true, role: cleanRole };
       }
 
-      // Check Team Captains
+      // 2. Check Team Captains
       const { data: teamData } = await supabase
         .from('teams')
         .select('*')

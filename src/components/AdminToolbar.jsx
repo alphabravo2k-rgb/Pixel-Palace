@@ -1,24 +1,42 @@
 import React from 'react';
-import { useSession } from '../auth/useSession';
-import { useTournament } from '../tournament/useTournament';
-import { ROLE_THEMES, ROLES } from '../lib/roles';
+import { useSession } from '../../auth/useSession';
+import { useTournament } from '../../tournament/useTournament';
+import { ROLE_THEMES, ROLES } from '../../lib/roles';
 import { User, LogOut, Lock, RefreshCw, ChevronDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export const AdminToolbar = () => {
   const { session, logout } = useSession();
-  // ✅ Connected to Global Context
-  const { selectedTournamentId, setSelectedTournamentId, tournaments = [], loading } = useTournament();
+  const { selectedTournamentId, setSelectedTournamentId, tournaments = [], loading, lifecycle } = useTournament();
   const navigate = useNavigate();
 
-  // Hide if not admin (though Route Guard handles this mostly)
+  // Hide if not admin
   if (![ROLES.ADMIN, ROLES.OWNER].includes(session.role)) return null;
 
   const theme = ROLE_THEMES[session.role] || ROLE_THEMES.GUEST;
 
   const handleLogout = () => {
     logout();
-    navigate('/admin/login');
+    navigate('/login');
+  };
+
+  const handleSwitch = (e) => {
+    const newId = e.target.value;
+    
+    // 🛡️ CONTEXT FRICTION
+    // If we are already managing an active tournament, force a confirmation
+    if (selectedTournamentId && newId !== selectedTournamentId) {
+      const confirmSwitch = window.confirm(
+        "⚠️ CONTEXT SWITCH WARNING\n\nYou are changing the active tournament workspace.\nUnsaved actions in the current War Room will be lost.\n\nProceed?"
+      );
+      if (!confirmSwitch) {
+        // Revert the select visually
+        e.target.value = selectedTournamentId;
+        return;
+      }
+    }
+    
+    setSelectedTournamentId(newId);
   };
 
   return (
@@ -31,20 +49,30 @@ export const AdminToolbar = () => {
           <span className="text-[10px] font-bold uppercase tracking-widest">{theme.label} MODE</span>
         </div>
         
-        {/* ✅ Global Tournament Selector */}
+        {/* ✅ Global Tournament Selector with Friction */}
         <div className="relative group">
           <select 
             value={selectedTournamentId || ''}
-            onChange={(e) => setSelectedTournamentId(e.target.value)}
+            onChange={handleSwitch}
             className="appearance-none bg-black border border-white/10 text-white text-xs font-bold uppercase py-1 pl-3 pr-8 rounded focus:border-fuchsia-500 outline-none cursor-pointer hover:bg-white/5 transition-colors"
           >
             <option value="" disabled>-- SELECT EVENT --</option>
             {tournaments && tournaments.map(t => (
-              <option key={t.id} value={t.id}>{t.name}</option>
+              <option key={t.id} value={t.id}>
+                 {t.name} {t.status === 'LIVE' ? '🔴' : ''}
+              </option>
             ))}
           </select>
           <ChevronDown className="w-3 h-3 text-zinc-500 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
         </div>
+
+        {/* Live Indicator */}
+        {lifecycle?.status === 'LIVE' && (
+            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border bg-red-900/20 text-red-400 border-red-500/30 animate-pulse">
+                <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                LIVE
+            </div>
+        )}
       </div>
 
       {/* RIGHT: Actions */}
@@ -58,7 +86,7 @@ export const AdminToolbar = () => {
         <div className="h-4 w-px bg-white/10" />
         <div className="flex items-center gap-2 text-xs text-zinc-500">
           <User className="w-3 h-3" />
-          <span className="font-mono text-zinc-300">{session.identity?.name || 'Unknown'}</span>
+          <span className="font-mono text-zinc-300">{session.identity?.name || session.identity?.username || 'Unknown'}</span>
         </div>
         <button 
           onClick={handleLogout}

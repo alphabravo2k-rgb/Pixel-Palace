@@ -1,22 +1,38 @@
 import React from 'react';
 import { Crown } from 'lucide-react';
-import { SocialIcons } from './SocialIcons'; 
+import { SocialIcons } from '../SocialIcons'; // Adjust path if needed
 import { normalizeRole } from '../../lib/roles';
+
+// 🛡️ ROBUST HELPER: Handles emojis, special chars, and spaces
+const getInitials = (name) => {
+  if (!name) return '??';
+  
+  // 1. Remove emojis and non-alphanumeric chars (keep spaces)
+  const clean = name.replace(/[^\w\s]/gi, '').trim();
+  
+  // 2. Fallback: If regex killed everything (e.g. "👻👻"), use raw string
+  if (!clean) return name.substring(0, 2).toUpperCase(); 
+
+  // 3. Standard: First letter of First and Last word
+  const parts = clean.split(/\s+/);
+  if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+};
 
 export const PlayerRow = ({ player, isHovered }) => {
   const role = normalizeRole(player.role);
   const isCaptain = role === 'CAPTAIN';
   const isSub = role === 'SUBSTITUTE';
 
-  // Aesthetic Initials (e.g., "John Doe" -> "JO")
-  const initials = (player.name || '??').replace(/[^a-zA-Z0-9]/g, '').slice(0, 2).toUpperCase();
+  // ✅ FIXED: Use the robust helper instead of brittle regex
+  const initials = getInitials(player.name || player.username);
   
   // Format ELO if available (Safe check)
   const faceitElo = player.faceit_elo || player.elo || null;
 
   return (
     <div className={`
-      group flex items-center justify-between p-3 transition-colors
+      group flex items-center justify-between p-3 transition-colors rounded
       ${isHovered ? 'bg-white/5' : 'bg-transparent'}
       ${isSub ? 'bg-yellow-900/5' : ''} 
     `}>
@@ -35,7 +51,7 @@ export const PlayerRow = ({ player, isHovered }) => {
         <div className="flex flex-col">
           <div className="flex items-center gap-2">
             <span className={`font-bold uppercase tracking-wide text-sm ${isCaptain ? 'text-fuchsia-400' : 'text-zinc-300'}`}>
-              {player.name}
+              {player.name || player.username || 'Unknown Operator'}
             </span>
             
             {/* SUB BADGE */}

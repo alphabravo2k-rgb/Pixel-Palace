@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useSession } from '../auth/useSession';
+import { useSession } from '../auth/useSession'; // 🟢 Correct (components -> auth)
 
 export const LandingPage = () => {
   const navigate = useNavigate();

@@ -1,43 +1,31 @@
 import React, { useState } from 'react';
-import { supabase } from '../../supabase/client';
-import { useSession } from '../../auth/useSession';
+import { useAdminConsole } from '../../hooks/useAdminConsole'; 
 import { Settings, ShieldAlert, CheckCircle, RefreshCw } from 'lucide-react';
 
 export const MatchFormatControl = ({ match, onUpdate }) => {
-  const { session } = useSession();
-  const [loading, setLoading] = useState(false);
+  const { execute, loading } = useAdminConsole();
   const [currentFormat, setCurrentFormat] = useState(match.best_of);
 
   const handleFormatChange = async (newFormat) => {
-    // 1. UI FEEDBACK: Immediate optimistic update (optional, but feels snappy)
+    // Optimistic update for snapiness, reverted on error
+    const oldFormat = currentFormat;
     setCurrentFormat(newFormat);
-    setLoading(true);
 
-    try {
-      // 2. BACKEND AUTHORITY: We send the request even if it's the same.
-      // The DB decides if an update is needed.
-      const { data, error } = await supabase.rpc('admin_update_match_format', {
-        p_match_id: match.id,
-        p_best_of: newFormat,
-        p_admin_id: session.user.id
-      });
+    // 🚨 IDEMPOTENCY: We send the request even if values match. The DB logs the check.
+    const result = await execute('admin_update_match_format', {
+      p_match_id: match.id,
+      p_best_of: newFormat
+    });
 
-      if (error) throw error;
-
-      // 3. IDEMPOTENCY CHECK: Did the backend actually change anything?
-      if (data?.idempotent) {
+    if (result.success) {
+      if (result.data?.idempotent) {
         console.log("Audit: Admin verified format (No change needed).");
       } else {
-        console.log("Audit: Format updated successfully.");
         if (onUpdate) onUpdate();
       }
-      
-    } catch (err) {
-      // Revert optimistic update on failure
-      setCurrentFormat(match.best_of);
-      alert(`Format Sync Failed: ${err.message}`);
-    } finally {
-      setLoading(false);
+    } else {
+      setCurrentFormat(oldFormat); // Revert on failure
+      alert(`Format Sync Failed: ${result.message}`);
     }
   };
 

@@ -1,68 +1,94 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { Zap } from 'lucide-react';
-import { MatchNode } from './MatchNode'; // Ensure this file exists!
+import { MatchNode } from './MatchNode';
 
-const getStatusLineColor = (status) => {
-  if (status === 'live') return '#10b981';
-  if (status === 'veto') return '#d946ef';
-  if (status === 'completed') return '#3f3f46';
-  return '#27272a';
-};
-
-export const Bracket = ({ matches, onMatchClick }) => {
-  const contentRef = useRef(null);
+export const Bracket = ({ matches = [], onMatchClick }) => {
+  const containerRef = useRef(null);
   const matchRefs = useRef(new Map());
-  const [lines, setLines] = useState("");
+  const [connectors, setConnectors] = useState([]);
+  const [groupedRounds, setGroupedRounds] = useState({});
 
-  // Group by Round
-  const rounds = matches.reduce((acc, match) => {
-    const r = match.round || 1;
-    if (!acc[r]) acc[r] = [];
-    acc[r].push(match);
-    return acc;
-  }, {});
-  
-  const sortedRounds = Object.entries(rounds).sort(([a], [b]) => Number(a) - Number(b));
-
-  // Draw Lines
+  // 1. DATA NORMALIZATION (Safe Round Grouping)
   useEffect(() => {
-    if (!contentRef.current || !matches.length) return;
+    if (!matches.length) return;
 
-    const draw = () => {
-      const parentRect = contentRef.current.getBoundingClientRect();
-      let newPaths = "";
-      
-      matches.forEach((match) => {
-        if (!match.next_match_id) return;
+    const rounds = matches.reduce((acc, match) => {
+      // 🛡️ Safety: Ensure round is a valid number, default to 1
+      const r = (Number.isInteger(match.round) && match.round > 0) ? match.round : 1;
+      if (!acc[r]) acc[r] = [];
+      acc[r].push(match);
+      return acc;
+    }, {});
 
-        const currentEl = matchRefs.current.get(match.id);
-        const nextEl = matchRefs.current.get(match.next_match_id);
-        
-        if (currentEl && nextEl) {
-          const rectA = currentEl.getBoundingClientRect();
-          const rectB = nextEl.getBoundingClientRect();
-          
-          const startX = rectA.right - parentRect.left;
-          const endX = rectB.left - parentRect.left;
-          const startY = (rectA.top + rectA.height / 2) - parentRect.top;
-          const endY = (rectB.top + rectB.height / 2) - parentRect.top;
-          const midX = startX + (endX - startX) / 2;
-          
-          const color = getStatusLineColor(match.status);
-          
-          newPaths += `<path d="M ${startX} ${startY} H ${midX} V ${endY} H ${endX}" stroke="${color}" stroke-width="1.5" fill="none" stroke-opacity="0.4" />`;
-        }
+    // Sort matches within rounds by match_no to ensure visual consistency
+    Object.keys(rounds).forEach(key => {
+        rounds[key].sort((a, b) => (a.match_no || a.id) - (b.match_no || b.id));
+    });
+
+    setGroupedRounds(rounds);
+  }, [matches]);
+
+  // 2. GEOMETRY ENGINE (Calculates Bezier Curves)
+  const calculatePaths = () => {
+    if (!containerRef.current) return;
+    
+    const newPaths = [];
+    const containerRect = containerRef.current.getBoundingClientRect();
+
+    matches.forEach(match => {
+      if (!match.next_match_id) return; // Final match has no outgoing line
+
+      const sourceEl = matchRefs.current.get(match.id);
+      const targetEl = matchRefs.current.get(match.next_match_id);
+
+      if (!sourceEl || !targetEl) return;
+
+      // Get relative coordinates
+      const srcRect = sourceEl.getBoundingClientRect();
+      const tgtRect = targetEl.getBoundingClientRect();
+
+      const startX = srcRect.right - containerRect.left;
+      const startY = srcRect.top + (srcRect.height / 2) - containerRect.top;
+      const endX = tgtRect.left - containerRect.left;
+      const endY = tgtRect.top + (tgtRect.height / 2) - containerRect.top;
+
+      // 🎨 BEZIER LOGIC: Smooth S-Curve
+      const curvature = 0.5; 
+      const cp1x = startX + (endX - startX) * curvature;
+      const cp1y = startY;
+      const cp2x = startX + (endX - startX) * curvature;
+      const cp2y = endY;
+
+      newPaths.push({
+        id: `${match.id}->${match.next_match_id}`,
+        d: `M ${startX} ${startY} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${endX} ${endY}`,
+        status: match.status // 'scheduled', 'live', 'completed'
       });
-      setLines(newPaths);
+    });
+
+    setConnectors(newPaths);
+  };
+
+  // 3. OBSERVER: Recalculate lines when window resizes or data changes
+  useEffect(() => {
+    const timeout = setTimeout(calculatePaths, 50); // Debounce
+    const observer = new ResizeObserver(() => requestAnimationFrame(calculatePaths));
+
+    if (containerRef.current) observer.observe(containerRef.current);
+
+    return () => {
+        clearTimeout(timeout);
+        observer.disconnect();
     };
+  }, [groupedRounds]); 
 
-    draw();
-    const observer = new ResizeObserver(draw);
-    observer.observe(contentRef.current);
-    document.fonts.ready.then(draw);
+  // Helper to manage refs safely
+  const setRef = (id, el) => {
+    if (el) matchRefs.current.set(id, el);
+    else matchRefs.current.delete(id);
+  };
 
-    return () => observer.disconnect();
-  }, [matches, sortedRounds.length]);
+  const sortedRoundKeys = Object.keys(groupedRounds).sort((a, b) => Number(a) - Number(b));
 
   if (matches.length === 0) {
     return (
@@ -73,41 +99,66 @@ export const Bracket = ({ matches, onMatchClick }) => {
   }
 
   return (
-    <div className="space-y-12 animate-in fade-in duration-700">
+    <div className="space-y-8 animate-in fade-in duration-700">
+        
+      {/* Header Stat */}
       <div className="flex items-center gap-3 text-zinc-500 text-[10px] font-mono uppercase tracking-[0.3em] border-b border-zinc-800 pb-4 px-8">
-         <Zap className="w-3.5 h-3.5 text-fuchsia-500" /> {sortedRounds.length} Deployment Sectors Active
+         <Zap className="w-3.5 h-3.5 text-fuchsia-500" /> {matches.length} Combat Nodes Active
       </div>
 
-      <div className="relative min-w-max pb-20 pl-8 pr-8" ref={contentRef}>
-        <svg className="absolute inset-0 w-full h-full pointer-events-none z-0" style={{ overflow: 'visible' }} dangerouslySetInnerHTML={{ __html: lines }} />
-        
-        <div className="relative z-10 flex gap-24">
-          {sortedRounds.map(([roundNum, roundMatches]) => {
-            const isFinal = Number(roundNum) === sortedRounds.length;
-            return (
-              <div key={roundNum} className="flex flex-col gap-12 min-w-[300px]">
-                <div className={`pl-3 border-l-2 ${isFinal ? 'border-emerald-500' : 'border-fuchsia-500'}`}>
-                   <span className={`text-[10px] font-mono uppercase tracking-[0.4em] font-black ${isFinal ? 'text-emerald-500' : 'text-fuchsia-500'}`}>
-                      {isFinal ? 'CHAMPIONSHIP' : `PHASE_${roundNum.padStart(2, '0')}`}
-                   </span>
-                </div>
+      {/* Bracket Container */}
+      <div className="relative w-full overflow-x-auto bg-[#0a0a0a] min-h-[80vh] cursor-grab active:cursor-grabbing">
+        <div 
+            ref={containerRef} 
+            className="relative flex gap-24 p-12 min-w-max items-center justify-start"
+        >
+            
+            {/* LAYER 1: SVG CONNECTIONS (Z-Index 0) */}
+            <svg className="absolute inset-0 w-full h-full pointer-events-none z-0 overflow-visible">
+            {connectors.map(path => (
+                <path
+                key={path.id}
+                d={path.d}
+                fill="none"
+                strokeWidth="2"
+                strokeLinecap="round"
+                className={`transition-all duration-700 ease-in-out ${
+                    path.status === 'live' ? 'stroke-emerald-500 animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.5)]' :
+                    path.status === 'completed' ? 'stroke-zinc-600 opacity-60' :
+                    'stroke-zinc-800'
+                }`}
+                />
+            ))}
+            </svg>
 
-                <div className="flex flex-col justify-around gap-16 flex-grow">
-                  {roundMatches.sort((a,b) => (a.match_no || 0) - (b.match_no || 0)).map((match) => (
-                    <MatchNode 
-                      key={match.id} 
-                      match={match} 
-                      onClick={onMatchClick} 
-                      setRef={(el) => {
-                        if (el) matchRefs.current.set(match.id, el);
-                        else matchRefs.current.delete(match.id);
-                      }}
-                    />
-                  ))}
-                </div>
-              </div>
-            );
-          })}
+            {/* LAYER 2: MATCH NODES (Z-Index 10) */}
+            {sortedRoundKeys.map((roundKey) => {
+                const isFinal = Number(roundKey) === sortedRoundKeys.length;
+                return (
+                    <div key={roundKey} className="flex flex-col justify-around gap-16 z-10 min-w-[280px]">
+                        
+                        {/* Round Header */}
+                        <div className={`pl-3 border-l-2 mb-4 ${isFinal ? 'border-emerald-500' : 'border-fuchsia-500'}`}>
+                            <span className={`text-[10px] font-mono uppercase tracking-[0.4em] font-black ${isFinal ? 'text-emerald-500' : 'text-fuchsia-500'}`}>
+                                {isFinal ? 'CHAMPIONSHIP' : `PHASE_${String(roundKey).padStart(2, '0')}`}
+                            </span>
+                        </div>
+
+                        {groupedRounds[roundKey].map(match => (
+                            <div 
+                                key={match.id} 
+                                ref={(el) => setRef(match.id, el)}
+                                className="relative transition-transform hover:scale-[1.02] duration-200"
+                            >
+                                <MatchNode 
+                                    match={match} 
+                                    onClick={onMatchClick}
+                                />
+                            </div>
+                        ))}
+                    </div>
+                );
+            })}
         </div>
       </div>
     </div>

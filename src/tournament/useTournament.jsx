@@ -1,21 +1,19 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { supabase } from '../supabase/client';
 import { useSession } from '../auth/useSession';
-import { ROLES } from '../lib/roles'; // Ensure this path exists
+import { ROLES } from '../lib/roles';
 
 const TournamentContext = createContext(null);
 
 export const TournamentProvider = ({ children, defaultId }) => {
   const { session } = useSession();
   
-  // STATE
   const [selectedTournamentId, setSelectedTournamentId] = useState(defaultId || null);
   const [tournaments, setTournaments] = useState([]);
   const [tournamentData, setTournamentData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // LIFECYCLE STATE (The New Brain)
   const [lifecycle, setLifecycle] = useState({
     status: 'LOADING',
     isLocked: true,
@@ -23,50 +21,67 @@ export const TournamentProvider = ({ children, defaultId }) => {
     canGenerateBracket: false
   });
 
-  // 1. FETCH LIST & AUTO-SELECT
+  // 1. FETCH LIST (Corrected Column Names)
   useEffect(() => {
     const fetchTournaments = async () => {
-      const { data } = await supabase
+      const { data, error: fetchError } = await supabase
         .from('tournaments')
-        .select('id, name, status, starts_at')
-        .order('starts_at', { ascending: false });
+        .select('id, name, status, start_date') // ✅ Corrected starts_at -> start_date
+        .order('start_date', { ascending: false });
       
+      if (fetchError) {
+        console.error("Tournament List Error:", fetchError);
+        return;
+      }
+
       if (data) {
         setTournaments(data);
-        // Fallback: If no selection, grab the first active one
         if (!selectedTournamentId && data.length > 0 && !defaultId) {
-           // Check local storage preference first
            const lastId = localStorage.getItem('pp_active_tid');
            setSelectedTournamentId(lastId || data[0].id);
         }
       }
     };
     fetchTournaments();
-  }, [defaultId]); // Intentionally removed selectedTournamentId to avoid loops
+  }, [defaultId]);
 
-  // 2. CRITICAL BINDING: Captain -> Tournament (Your Logic Preserved)
+  // 2. CAPTAIN BINDING
   useEffect(() => {
-    if (session.isAuthenticated && session.role === ROLES.CAPTAIN) {
+    if (session?.isAuthenticated && session?.role === ROLES.CAPTAIN) {
       const allowedTournamentId = session.identity?.tournament_id;
-      // If a Captain tries to look at a tournament they don't own, force switch them back
       if (allowedTournamentId && selectedTournamentId !== allowedTournamentId) {
-        console.warn(`🔒 Security: Re-binding Captain to ${allowedTournamentId}`);
         setSelectedTournamentId(allowedTournamentId);
       }
     }
   }, [session, selectedTournamentId]);
 
-  // 3. LOAD DATA + REAL-TIME SYNC (The Upgrade)
+  // 3. LOAD DETAILS & REAL-TIME
   useEffect(() => {
     if (!selectedTournamentId) return;
     
-    // Save preference
     localStorage.setItem('pp_active_tid', selectedTournamentId);
-    
     setLoading(true);
+    
+    const fetchDetails = async (id) => {
+        try {
+          const { data, error: detailError } = await supabase
+            .from('tournaments')
+            .select('*')
+            .eq('id', id)
+            .single();
+          
+          if (detailError) throw detailError;
+          updateLocalState(data);
+        } catch (err) {
+          console.error("Tournament Detail Error:", err);
+          setError(err.message);
+        } finally {
+          setLoading(false);
+        }
+      };
+
     fetchDetails(selectedTournamentId);
 
-    // REAL-TIME: Watch for Lock/Status changes
     const subscription = supabase
       .channel(`tournament_live_${selectedTournamentId}`)
       .on('postgres_changes', { 
@@ -82,54 +97,33 @@ export const TournamentProvider = ({ children, defaultId }) => {
     return () => { supabase.removeChannel(subscription); };
   }, [selectedTournamentId]);
 
-  const fetchDetails = async (id) => {
-    try {
-      const { data, error } = await supabase
-        .from('tournaments')
-        .select('*')
-        .eq('id', id)
-        .single();
-      
-      if (error) throw error;
-      updateLocalState(data);
-    } catch (err) {
-      console.error("Tournament Fetch Error:", err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // 4. STATE MACHINE CALCULATOR
+  // 4. STATE MACHINE (Corrected for start_date)
   const updateLocalState = (data) => {
+    if (!data) return;
     setTournamentData(data);
     
     let status = 'SETUP';
     const now = new Date();
-    const start = data.starts_at ? new Date(data.starts_at) : null;
+    // ✅ Corrected starts_at -> start_date
+    const start = data.start_date ? new Date(data.start_date) : null;
 
     if (data.status === 'COMPLETED') status = 'COMPLETED';
     else if (start && now >= start) status = 'LIVE';
-    else if (data.status === 'REGISTRATION') status = 'REGISTRATION'; // Trust DB flag if set
+    else if (data.status === 'REGISTRATION') status = 'REGISTRATION';
 
     setLifecycle({
       status,
-      // Lock settings if Live or Completed
       isLocked: status === 'LIVE' || status === 'COMPLETED',
       isRegistrationOpen: status === 'REGISTRATION',
-      canGenerateBracket: status === 'REGISTRATION' || status === 'SETUP'
+      canGenerateBracket: (status === 'REGISTRATION' || status === 'SETUP') && !data.bracket_generated
     });
   };
 
-  // 5. THE IRON CURTAIN (Action Validator)
   const validateAction = useCallback((action) => {
     if (!tournamentData) return false;
-
-    if (action === 'EDIT_SETTINGS') {
-      if (lifecycle.status === 'LIVE') {
+    if (action === 'EDIT_SETTINGS' && lifecycle.status === 'LIVE') {
         alert("ACTION BLOCKED: Cannot edit settings while tournament is LIVE.");
         return false;
-      }
     }
     return true;
   }, [lifecycle, tournamentData]);
@@ -140,8 +134,8 @@ export const TournamentProvider = ({ children, defaultId }) => {
       setSelectedTournamentId,
       tournaments,
       tournamentData,
-      lifecycle,      // <--- New State
-      validateAction, // <--- New Enforcer
+      lifecycle,
+      validateAction,
       loading,
       error
     }}>

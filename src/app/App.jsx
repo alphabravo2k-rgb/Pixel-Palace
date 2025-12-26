@@ -1,28 +1,85 @@
 import React from 'react';
-import { Outlet } from 'react-router-dom';
-import ErrorBoundary from '../components/ErrorBoundary';
-import { SessionProvider } from '../auth/useSession';
-import { TournamentProvider } from '../tournament/useTournament';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { SessionProvider, useSession } from './auth/useSession';
 
-const App = () => {
-  // Pull default ID from environment
-  const defaultTournamentId = import.meta.env.VITE_DEFAULT_TOURNAMENT_ID;
+// 1. Import The New Components
+import { AdminDashboard } from './components/admin/AdminDashboard';
+import { PlayerDashboard } from './components/player/PlayerDashboard';
+import { MatchRoom } from './components/match/MatchRoom';
+import { AdminLogin } from './components/admin/AdminLogin'; // Assuming you have a login page
 
-  return (
-    <ErrorBoundary>
-      <SessionProvider>
-        {/* ✅ BACKEND ALIGNMENT: 
-            The Provider loads the tournament state from the DB immediately.
-            If the DB says 'setup', the UI will reflect 'setup'.
-        */}
-        <TournamentProvider defaultId={defaultTournamentId}>
-          <div className="app-shell min-h-screen bg-black text-white font-sans selection:bg-fuchsia-500/30 selection:text-fuchsia-200">
-            <Outlet />
-          </div>
-        </TournamentProvider>
-      </SessionProvider>
-    </ErrorBoundary>
-  );
+// 2. Import Legacy/Existing Components (Placeholders if needed)
+import { LandingPage } from './components/LandingPage'; 
+
+// 🛡️ Route Guard: Ensures user is logged in
+const ProtectedRoute = ({ children, requiredRole = null }) => {
+  const { session, loading } = useSession();
+
+  if (loading) return <div className="h-screen bg-black flex items-center justify-center text-zinc-500">Loading Access...</div>;
+
+  if (!session.isAuthenticated) {
+    return <Navigate to="/admin/login" replace />;
+  }
+
+  // Optional: Role-based redirect (Prevent players from seeing Admin Dashboard)
+  if (requiredRole && session.role !== requiredRole && session.role !== 'OWNER') {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return children;
 };
+
+// 🎮 Match Room Wrapper: Extracts ID from URL
+const MatchRoomWrapper = () => {
+  const matchId = window.location.pathname.split("/").pop(); // Simple extraction
+  return <MatchRoom matchId={matchId} />;
+};
+
+function App() {
+  return (
+    <BrowserRouter>
+      <SessionProvider>
+        <Routes>
+          {/* PUBLIC ROUTES */}
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/admin/login" element={<AdminLogin />} />
+          <Route path="/login" element={<Navigate to="/admin/login" />} /> {/* Unified Login for now */}
+
+          {/* 🛡️ PLAYER ROUTES */}
+          <Route 
+            path="/dashboard" 
+            element={
+              <ProtectedRoute>
+                <PlayerDashboard />
+              </ProtectedRoute>
+            } 
+          />
+          
+          <Route 
+            path="/match/:id" 
+            element={
+              <ProtectedRoute>
+                <MatchRoomWrapper />
+              </ProtectedRoute>
+            } 
+          />
+
+          {/* 🛡️ ADMIN ROUTES */}
+          <Route 
+            path="/admin/dashboard" 
+            element={
+              <ProtectedRoute requiredRole="ADMIN">
+                <AdminDashboard />
+              </ProtectedRoute>
+            } 
+          />
+
+          {/* 404 CATCH ALL */}
+          <Route path="*" element={<div className="h-screen bg-black text-white flex items-center justify-center">404 - Zone Lost</div>} />
+        </Routes>
+      </SessionProvider>
+    </BrowserRouter>
+  );
+}
 
 export default App;

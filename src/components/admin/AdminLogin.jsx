@@ -10,15 +10,10 @@ export const AdminLogin = () => {
   const [formData, setFormData] = useState({ id: '', pin: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  
-  // 🛡️ SECURITY: Rate Limit Simulation (Frontend)
-  // In a real app, the backend sends 429 Too Many Requests. 
-  // We simulate visual cooldown to discourage brute force.
   const [cooldown, setCooldown] = useState(0);
 
   const handleInput = (field, value) => {
-    // 🛡️ SECURITY: Input Sanitization (Audit Fix)
-    // Strip whitespace, emojis, and non-printable chars immediately.
+    // 🛡️ SECURITY: Strip emojis/spaces immediately
     const sanitized = value.replace(/[^a-zA-Z0-9@._-]/g, '');
     setFormData(prev => ({ ...prev, [field]: sanitized }));
   };
@@ -33,16 +28,11 @@ export const AdminLogin = () => {
     const result = await login(formData.id, formData.pin);
 
     if (result.success) {
-      // Route based on role
-      const target = ['ADMIN', 'OWNER'].includes(result.role) 
-        ? '/admin/dashboard' 
-        : '/dashboard';
+      const target = ['ADMIN', 'OWNER'].includes(result.role) ? '/admin/dashboard' : '/dashboard';
       navigate(target);
     } else {
       setError(result.message || "Access Denied");
-      
-      // 🛡️ SECURITY: Exponential Backoff (UI Feedback)
-      // Makes brute forcing annoying manually.
+      // 🛡️ SECURITY: Rate Limit Simulation
       setCooldown(prev => (prev === 0 ? 3 : prev * 2)); 
       setTimeout(() => setCooldown(0), (cooldown || 3) * 1000);
     }
@@ -52,46 +42,32 @@ export const AdminLogin = () => {
   return (
     <div className="min-h-screen bg-black flex items-center justify-center p-4">
       <div className="w-full max-w-md bg-zinc-950 border border-white/10 p-8 rounded-2xl shadow-2xl relative overflow-hidden">
-        
-        {/* Header */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-fuchsia-900/20 text-fuchsia-500 mb-4 border border-fuchsia-500/20">
             <Shield className="w-6 h-6" />
           </div>
-          <h1 className="text-2xl font-bold text-white font-['Teko'] uppercase tracking-wider">
-            Pixel Palace // Secure Gate
-          </h1>
-          <p className="text-zinc-500 text-xs font-mono mt-2">
-            AUTHORIZED PERSONNEL ONLY
-          </p>
+          <h1 className="text-2xl font-bold text-white font-['Teko'] uppercase tracking-wider">Pixel Palace // Secure Gate</h1>
         </div>
 
-        {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider mb-1 block">
-              Identity / Team Name
-            </label>
+            <label className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider mb-1 block">Identity / Team Name</label>
             <input 
-              type="text" 
-              autoFocus
+              type="text" autoFocus
               className="w-full bg-black border border-white/10 rounded px-4 py-3 text-white focus:border-fuchsia-500 outline-none transition-colors"
               placeholder="Enter ID..."
               value={formData.id}
               onChange={(e) => handleInput('id', e.target.value)}
             />
           </div>
-
           <div>
-            <label className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider mb-1 block">
-              Access Credentials
-            </label>
+            <label className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider mb-1 block">Access Credentials</label>
             <div className="relative">
               <input 
                 type="password" 
                 className="w-full bg-black border border-white/10 rounded px-4 py-3 text-white focus:border-fuchsia-500 outline-none transition-colors font-mono tracking-widest"
                 placeholder="••••••"
-                maxLength={20} // 🛡️ Hard constraint
+                maxLength={20}
                 value={formData.pin}
                 onChange={(e) => handleInput('pin', e.target.value)}
               />
@@ -107,26 +83,12 @@ export const AdminLogin = () => {
           )}
 
           <button 
-            type="submit"
-            disabled={loading || cooldown > 0}
-            className={`
-              w-full py-3 rounded font-bold uppercase tracking-widest text-xs transition-all flex items-center justify-center gap-2
-              ${cooldown > 0 
-                ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed' 
-                : 'bg-fuchsia-600 hover:bg-fuchsia-500 text-white shadow-[0_0_20px_rgba(192,38,211,0.3)]'}
-            `}
+            type="submit" disabled={loading || cooldown > 0}
+            className={`w-full py-3 rounded font-bold uppercase tracking-widest text-xs transition-all flex items-center justify-center gap-2 ${cooldown > 0 ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed' : 'bg-fuchsia-600 hover:bg-fuchsia-500 text-white'}`}
           >
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 
-             cooldown > 0 ? `LOCKED (${cooldown}s)` : 'AUTHENTICATE'}
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : cooldown > 0 ? `LOCKED (${cooldown}s)` : 'AUTHENTICATE'}
           </button>
         </form>
-
-        {/* Footer */}
-        <div className="mt-8 text-center">
-          <p className="text-[10px] text-zinc-600 font-mono">
-            SECURE CONNECTION • V2.5.0
-          </p>
-        </div>
       </div>
     </div>
   );

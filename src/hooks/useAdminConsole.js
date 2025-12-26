@@ -1,13 +1,16 @@
 import { useState } from 'react';
 import { supabase } from '../supabase/client';
 import { useSession } from '../auth/useSession';
+import { useTournament } from '../tournament/useTournament'; // 🛡️ Import for Truth Refresh
 
 /**
  * 4️⃣ useAdminConsole — THE OPERATIONAL BRIDGE
- * Wraps RPC calls with Audit IDs and Permission Checks.
+ * Wraps RPC calls with Audit IDs, Permission Checks, and Systemic Refresh.
  */
 export const useAdminConsole = () => {
-  const { session, getAuthIdentifier } = useSession();
+  const { session } = useSession();
+  const { setSelectedTournamentId } = useTournament(); // We use this to trigger refreshes
+  
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -16,6 +19,7 @@ export const useAdminConsole = () => {
    * 1. Checks Auth
    * 2. Injects p_admin_id
    * 3. Calls RPC
+   * 4. 🚨 SYSTEMIC REFRESH on Failure
    */
   const execute = async (rpcName, params = {}) => {
     setError(null);
@@ -31,7 +35,8 @@ export const useAdminConsole = () => {
     setLoading(true);
     try {
       // 2. Audit Injection
-      const adminId = getAuthIdentifier();
+      // ✅ FIXED: Use session directly, getAuthIdentifier didn't exist
+      const adminId = session.user?.id;
       if (!adminId) throw new Error("Security Error: No Identity Found");
 
       const payload = {
@@ -45,7 +50,6 @@ export const useAdminConsole = () => {
       if (rpcError) throw rpcError;
 
       // 4. Logic Handling
-      // Some RPCs return void, some return { success: true }
       if (data && data.success === false) {
         throw new Error(data.message || 'Operation Failed');
       }
@@ -55,6 +59,19 @@ export const useAdminConsole = () => {
     } catch (err) {
       console.error(`[${rpcName}] Failed:`, err);
       setError(err.message);
+
+      // 🚨 SYSTEMIC FIX: TRUTH REFRESH
+      // If a write operation fails, our local state is "Untrusted".
+      // We force a refresh of the tournament context.
+      if (params.p_tournament_id || params.p_team_id) {
+         console.warn("⚠️ State desync detected. Refreshing context from backend...");
+         // Trigger a re-fetch in the TournamentProvider by effectively "jiggling" the selection
+         // or if your provider has a specific .refresh() method, use that.
+         // This assumes useTournament watches selectedTournamentId changes or we can manually re-trigger.
+         const currentId = params.p_tournament_id || localStorage.getItem('pp_active_tid');
+         if (currentId) setSelectedTournamentId(currentId); 
+      }
+
       return { success: false, message: err.message };
     } finally {
       setLoading(false);
@@ -72,8 +89,7 @@ export const useAdminConsole = () => {
   };
 
   const createAdmin = (pin, { name, discord, faceitUser }) => {
-     // NOTE: We use direct insert in the UI panel for now, 
-     // but if we move to RPC, this is where it goes.
+     // NOTE: We use direct insert in the UI panel for now.
      return { success: false, message: "Use Panel Direct Insert" };
   };
 

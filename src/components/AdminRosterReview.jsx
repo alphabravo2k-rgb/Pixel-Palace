@@ -1,14 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabase/client';
+import { useTournament } from '../tournament/useTournament'; // ✅ Fixes Scope
 import { Shield, ShieldAlert, CheckCircle, XCircle, RefreshCw } from 'lucide-react';
 
 const AdminRosterReview = () => {
+  const { selectedTournamentId } = useTournament(); // ✅ Context Context Context
   const [data, setData] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   const fetchTruth = async () => {
+    if (!selectedTournamentId) return;
+
     setLoading(true);
-    // Direct SQL fetch - No helpers, no translation layer
+    // 🛡️ SCOPED FETCH
     const { data: teams, error } = await supabase
       .from('teams')
       .select(`
@@ -19,6 +23,7 @@ const AdminRosterReview = () => {
           id, display_name, role, is_captain, is_substitute, faceit_url, discord_handle
         )
       `)
+      .eq('tournament_id', selectedTournamentId) // ✅ No global leakage
       .order('name');
     
     if (!error) setData(teams || []);
@@ -27,9 +32,10 @@ const AdminRosterReview = () => {
 
   useEffect(() => {
     fetchTruth();
-  }, []);
+  }, [selectedTournamentId]);
 
-  if (loading && data.length === 0) return <div className="p-8 text-zinc-500 font-mono text-xs animate-pulse">LOADING CORE TRUTH...</div>;
+  if (!selectedTournamentId) return <div className="p-8 text-zinc-500 italic">Select a tournament to audit rosters.</div>;
+  if (loading) return <div className="p-8 text-zinc-500 font-mono text-xs animate-pulse">LOADING CORE TRUTH...</div>;
 
   return (
     <div className="p-8 bg-[#060709] min-h-screen font-mono text-xs">
@@ -82,9 +88,9 @@ const AdminRosterReview = () => {
                 ))}
                 {(!team.players || team.players.length === 0) && (
                    <tr>
-                     <td colSpan="5" className="py-4 text-center text-red-900 font-bold uppercase tracking-widest">
-                       ⚠️ No Players Registered
-                     </td>
+                      <td colSpan="5" className="py-4 text-center text-red-900 font-bold uppercase tracking-widest">
+                        ⚠️ No Players Registered
+                      </td>
                    </tr>
                 )}
               </tbody>

@@ -1,122 +1,151 @@
 import React, { useState } from 'react';
-import { X, ShieldAlert, Trophy, Save } from 'lucide-react';
+import { X, Trophy, RefreshCw, AlertTriangle, ShieldAlert } from 'lucide-react';
 import { supabase } from '../../supabase/client';
-import { useSession } from '../../auth/useSession';
-import { MatchFormatControl } from './MatchFormatControl';
+import { useCapabilities } from '../../auth/useCapabilities'; // 👈 The New Brain
+import { RestrictedButton } from '../common/RestrictedButton'; // 👈 The Enforcer
 
-export const AdminMatchModal = ({ match, isOpen, onClose, onUpdate }) => {
-  const { session, getAuthIdentifier } = useSession(); // ✅ Use new helper
+export const AdminMatchModal = ({ match, onClose, onUpdate }) => {
+  const { can } = useCapabilities(); // We no longer look at session.role directly
   const [loading, setLoading] = useState(false);
 
-  if (!isOpen || !match) return null;
+  if (!match) return null;
 
-  // 1. Permission Check (Simplified)
-  // Backend handles real security. Frontend just hides it for guests.
-  if (session.role !== 'ADMIN' && session.role !== 'OWNER' && session.role !== 'REFEREE') {
-    return null; 
-  }
-
-  const handleScoreUpdate = async (e) => {
-    e.preventDefault();
-    const t1Score = e.target.t1.value;
-    const t2Score = e.target.t2.value;
-    
+  // 1. ACTION: Force Win
+  const handleForceWin = async (winnerTeamId) => {
+    if (!window.confirm("CRITICAL: Are you sure you want to FORCE a result? This overrides all game data.")) return;
     setLoading(true);
+    
     try {
-      // ✅ USE NEW RPC (Code 43)
-      // This ensures the update is logged and triggers winner propagation
-      const { data, error } = await supabase.rpc('api_report_match_score', {
+      // Call the Secure RPC (Database enforces the permission too)
+      const { error } = await supabase.rpc('admin_force_match_result', {
         p_match_id: match.id,
-        p_team1_score: parseInt(t1Score),
-        p_team2_score: parseInt(t2Score),
-        p_winner_id: null, // Let backend calculate based on score
-        p_admin_id: getAuthIdentifier() // 🛡️ Audit Key
+        p_winner_id: winnerTeamId,
+        p_reason: "Admin Override via Console"
       });
 
       if (error) throw error;
-      if (!data.success) throw new Error(data.message);
-
       onUpdate();
       onClose();
     } catch (err) {
-      alert("Update failed: " + err.message);
+      alert(`Error: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 2. ACTION: Reset Match
+  const handleReset = async () => {
+    if (!window.confirm("WARNING: This will wipe all scores, logs, and vetoes. Proceed?")) return;
+    setLoading(true);
+
+    try {
+      const { error } = await supabase.rpc('admin_reset_match', {
+        p_match_id: match.id
+      });
+
+      if (error) throw error;
+      onUpdate();
+      onClose();
+    } catch (err) {
+      alert(`Error: ${err.message}`);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="w-full max-w-lg bg-zinc-900 border border-white/10 rounded-lg shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+      <div className="bg-zinc-900 border border-white/10 w-full max-w-lg rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         
         {/* Header */}
-        <div className="bg-zinc-950 px-6 py-4 border-b border-white/5 flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-bold font-['Teko'] uppercase tracking-wider text-white">
-              Tactical Command
-            </h2>
-            <span className="text-[10px] text-zinc-500 font-mono">MATCH ID: {match.id.split('-')[0]}</span>
+        <div className="bg-zinc-950 p-4 border-b border-white/5 flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <ShieldAlert className="w-5 h-5 text-fuchsia-500" />
+            <h3 className="text-white font-['Teko'] text-xl tracking-wide uppercase">
+              Match Authority Console
+            </h3>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full text-zinc-400 hover:text-white">
+          <button onClick={onClose} className="text-zinc-500 hover:text-white transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Content */}
-        <div className="p-6 space-y-6">
+        {/* Match Context */}
+        <div className="p-6 text-center border-b border-white/5 bg-zinc-900/50">
+          <div className="text-xs font-mono text-zinc-500 uppercase mb-2">Target Match ID: {match.id.substring(0,8)}</div>
+          <div className="flex justify-between items-center px-4">
+            <div className="text-right">
+              <div className="text-lg font-bold text-white">{match.team1?.name || 'TBD'}</div>
+              <div className="text-xs text-zinc-500 uppercase">Team A</div>
+            </div>
+            <div className="font-['Teko'] text-3xl px-4 text-zinc-600">VS</div>
+            <div className="text-left">
+              <div className="text-lg font-bold text-white">{match.team2?.name || 'TBD'}</div>
+              <div className="text-xs text-zinc-500 uppercase">Team B</div>
+            </div>
+          </div>
+        </div>
+
+        {/* CONTROLS: Strictly Permission Gated */}
+        <div className="p-6 space-y-4">
           
-          {/* 1. Format Control */}
-          <MatchFormatControl match={match} onUpdate={onUpdate} />
+          {/* SECTION: Winner Declaration */}
+          <div>
+            <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2 block">
+              Force Result Override
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <RestrictedButton
+                action="MATCH:FORCE_WIN" // 👈 The Guard Rail
+                resourceId={match.id}
+                onClick={() => handleForceWin(match.team1_id)}
+                disabled={loading || !match.team1_id}
+                className="py-3 bg-zinc-800 hover:bg-green-900/30 hover:text-green-400 hover:border-green-500/50 border border-transparent rounded transition-all text-xs font-bold uppercase flex flex-col items-center justify-center gap-1"
+              >
+                <Trophy className="w-4 h-4" />
+                {match.team1?.name} Wins
+              </RestrictedButton>
 
-          {/* 2. Score Override (Quick Edit) */}
-          <form onSubmit={handleScoreUpdate} className="bg-black/40 p-4 rounded border border-white/5">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold uppercase text-zinc-500 flex items-center gap-1">
-                <Trophy className="w-3 h-3" /> Manual Score Override
-              </span>
+              <RestrictedButton
+                action="MATCH:FORCE_WIN" // 👈 The Guard Rail
+                resourceId={match.id}
+                onClick={() => handleForceWin(match.team2_id)}
+                disabled={loading || !match.team2_id}
+                className="py-3 bg-zinc-800 hover:bg-green-900/30 hover:text-green-400 hover:border-green-500/50 border border-transparent rounded transition-all text-xs font-bold uppercase flex flex-col items-center justify-center gap-1"
+              >
+                <Trophy className="w-4 h-4" />
+                {match.team2?.name} Wins
+              </RestrictedButton>
             </div>
+          </div>
+
+          {/* SECTION: Danger Zone */}
+          <div className="pt-4 border-t border-white/5">
+            <label className="text-xs font-bold text-red-900/70 uppercase tracking-wider mb-2 flex items-center gap-2">
+              <AlertTriangle className="w-3 h-3" /> Danger Zone
+            </label>
             
-            <div className="flex items-center gap-4">
-              <div className="flex-1">
-                <label className="text-[10px] text-zinc-500 block mb-1 truncate">{match.team1?.name || 'TBD'}</label>
-                <input 
-                  name="t1" 
-                  defaultValue={match.team1_score} 
-                  type="number" 
-                  className="w-full bg-zinc-800 border border-zinc-700 text-white p-2 rounded text-center font-mono font-bold"
-                />
-              </div>
-              <span className="text-zinc-600 font-bold">:</span>
-              <div className="flex-1">
-                <label className="text-[10px] text-zinc-500 block mb-1 truncate">{match.team2?.name || 'TBD'}</label>
-                <input 
-                  name="t2" 
-                  defaultValue={match.team2_score} 
-                  type="number" 
-                  className="w-full bg-zinc-800 border border-zinc-700 text-white p-2 rounded text-center font-mono font-bold"
-                />
-              </div>
-            </div>
-            
-            <button 
-              type="submit" 
+            <RestrictedButton
+              action="MATCH:RESET" // 👈 High-Level Permission Only
+              resourceId={match.id}
+              onClick={handleReset}
               disabled={loading}
-              className="w-full mt-4 bg-zinc-800 hover:bg-zinc-700 text-white py-2 rounded text-xs font-bold uppercase transition-colors flex items-center justify-center gap-2"
+              className="w-full py-3 bg-red-950/10 hover:bg-red-950/40 text-red-500 border border-red-900/20 rounded transition-all text-xs font-bold uppercase flex items-center justify-center gap-2"
             >
-              <Save className="w-3 h-3" /> Update Scoreboard
-            </button>
-          </form>
-
-          {/* 3. Audit Note */}
-          <div className="flex items-start gap-2 text-[10px] text-zinc-500 bg-blue-900/10 p-3 rounded border border-blue-900/30">
-            <ShieldAlert className="w-4 h-4 text-blue-500 mt-0.5" />
-            <p>
-              <strong>COMMANDER NOTE:</strong> Any changes made here are logged against your Admin ID ({session.identity?.name}). 
-              Changing team slots triggers a full data reset (Vetoes/Scores wiped).
-            </p>
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              Hard Reset Match State
+            </RestrictedButton>
           </div>
 
         </div>
+        
+        {/* Footer Audit */}
+        <div className="bg-black/40 p-2 text-center">
+           <span className="text-[10px] text-zinc-600 font-mono">
+             Action Authorized via Capability Protocol v2.5
+           </span>
+        </div>
+
       </div>
     </div>
   );

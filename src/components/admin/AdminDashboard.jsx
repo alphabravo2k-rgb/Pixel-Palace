@@ -13,7 +13,8 @@ import {
 // Components
 import { TournamentWarRoom } from '../TournamentWarRoom';
 import { AdminAuditLog } from '../AdminAuditLog'; 
-import { StaffManagement } from '../StaffManagement'; // ✅ Now actively used
+// ✅ CORRECT (Looks in src/components/admin/)
+import { StaffManagement } from './StaffManagement';
 
 export const AdminDashboard = () => {
   const { logout, session } = useSession();

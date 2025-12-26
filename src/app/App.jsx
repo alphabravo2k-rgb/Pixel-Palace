@@ -1,22 +1,20 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useParams, useLocation } from 'react-router-dom';
 
 // 1. Auth & Governance
 import { SessionProvider, useSession } from '../auth/useSession';
 import { useCapabilities } from '../auth/useCapabilities';
-// ✅ IMPORT THE MISSING PROVIDER
 import { TournamentProvider } from '../tournament/useTournament'; 
 
 // 2. Components
 import { PlayerDashboard } from '../components/player/PlayerDashboard';
 import { MatchRoom } from '../components/match/MatchRoom';
-import { AdminDashboard } from '../components/admin/AdminDashboard'; 
+import { AdminDashboard } from '../components/admin'; // ✅ Using the Index Barrel we made
 import { AdminLogin } from '../components/admin/AdminLogin'; 
 import { LandingPage } from '../components/LandingPage'; 
+import ErrorBoundary from '../components/ErrorBoundary'; // ✅ Import ErrorBoundary
 
-/**
- * 🛡️ CAPABILITY GUARD
- */
+// 🛡️ CAPABILITY GUARD
 const RouteGuard = ({ children, requiredCapability = null }) => {
   const { session, loading } = useSession();
   const { hasCapability } = useCapabilities();
@@ -53,50 +51,61 @@ const MatchRoomWrapper = () => {
   return <MatchRoom matchId={id} />;
 };
 
+// 🛡️ ERROR BOUNDARY WRAPPER
+// This component listens to the route. If the route changes, it resets the error boundary.
+const AppContent = () => {
+  const location = useLocation(); 
+
+  return (
+    <ErrorBoundary key={location.pathname}>
+      <Routes>
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/login" element={<AdminLogin />} />
+        
+        <Route 
+          path="/dashboard" 
+          element={
+            <RouteGuard requiredCapability="PROFILE:EDIT">
+              <PlayerDashboard />
+            </RouteGuard>
+          } 
+        />
+        
+        <Route 
+          path="/match/:id" 
+          element={
+            <RouteGuard requiredCapability="MATCH:CHECK_IN">
+               <MatchRoomWrapper />
+            </RouteGuard>
+          } 
+        />
+
+        <Route 
+          path="/admin/dashboard" 
+          element={
+            <RouteGuard requiredCapability="TOURNAMENT:CONFIGURE">
+              <AdminDashboard />
+            </RouteGuard>
+          } 
+        />
+
+        <Route path="*" element={
+          <div className="h-screen bg-black text-white flex flex-col items-center justify-center font-mono">
+            <h1 className="text-4xl font-bold text-red-500">404 // ZONE LOST</h1>
+            <p className="text-zinc-500 mt-2">The requested sector does not exist.</p>
+          </div>
+        } />
+      </Routes>
+    </ErrorBoundary>
+  );
+};
+
 function App() {
   return (
     <BrowserRouter>
       <SessionProvider>
-        {/* ✅ WRAP EVERYTHING HERE */}
         <TournamentProvider>
-          <Routes>
-            <Route path="/" element={<LandingPage />} />
-            <Route path="/login" element={<AdminLogin />} />
-            
-            <Route 
-              path="/dashboard" 
-              element={
-                <RouteGuard requiredCapability="PROFILE:EDIT">
-                  <PlayerDashboard />
-                </RouteGuard>
-              } 
-            />
-            
-            <Route 
-              path="/match/:id" 
-              element={
-                <RouteGuard requiredCapability="MATCH:CHECK_IN">
-                   <MatchRoomWrapper />
-                </RouteGuard>
-              } 
-            />
-
-            <Route 
-              path="/admin/dashboard" 
-              element={
-                <RouteGuard requiredCapability="TOURNAMENT:CONFIGURE">
-                  <AdminDashboard />
-                </RouteGuard>
-              } 
-            />
-
-            <Route path="*" element={
-              <div className="h-screen bg-black text-white flex flex-col items-center justify-center font-mono">
-                <h1 className="text-4xl font-bold text-red-500">404 // ZONE LOST</h1>
-                <p className="text-zinc-500 mt-2">The requested sector does not exist.</p>
-              </div>
-            } />
-          </Routes>
+           <AppContent />
         </TournamentProvider>
       </SessionProvider>
     </BrowserRouter>

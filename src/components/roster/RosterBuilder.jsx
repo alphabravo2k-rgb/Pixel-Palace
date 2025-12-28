@@ -35,12 +35,13 @@ export const RosterBuilder = () => {
           team:teams (
             id, name, access_code,
             members:team_members (
-              id, role, player:players(ingame_name, avatar_url)
+              id, role, 
+              player:global_identities (username, avatar_url)
             )
           )
         `)
-        .eq('user_id', session.identity.id)
-        .eq('team.tournament_id', selectedTournamentId) // Ensure scope
+        .eq('global_id', session.identity.id) // Corrected link
+        .eq('team.tournament_id', selectedTournamentId)
         .single();
 
       if (data) setMyTeam(data.team);
@@ -53,8 +54,7 @@ export const RosterBuilder = () => {
 
   const handleJoinSolo = async () => {
     if (isLocked) return;
-    // Logic to auto-create a "Team of 1" for the user
-    // In backend, 1v1 is treated as a 1-man team for bracket compatibility
+    // RPC Logic
     const { error } = await supabase.rpc('register_solo_player', {
       p_tournament_id: selectedTournamentId,
       p_user_id: session.identity.id
@@ -64,7 +64,6 @@ export const RosterBuilder = () => {
 
   const handleInvite = async () => {
     if (isLocked || !inviteEmail) return;
-    // Real implementation would send an email or generate a link
     alert(`Invite system would send link to: ${inviteEmail}`);
     setInviteEmail("");
   };
@@ -138,11 +137,11 @@ export const RosterBuilder = () => {
           <div key={member.id} className="flex items-center justify-between p-2 bg-black/20 rounded border border-white/5">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 bg-zinc-800 rounded-full flex items-center justify-center text-xs font-bold text-zinc-500">
-                {member.player?.ingame_name?.substring(0,2).toUpperCase() || '??'}
+                {member.player?.username?.substring(0,2).toUpperCase() || '??'}
               </div>
               <div>
                 <div className="text-sm text-white font-bold">
-                  {member.player?.ingame_name || 'Unknown'}
+                  {member.player?.username || 'Unknown'}
                 </div>
                 <div className="text-[10px] text-zinc-500 uppercase tracking-wider">
                   {member.role}

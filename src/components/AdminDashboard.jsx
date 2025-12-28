@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useSession } from '../auth/useSession'; // ✅ Up one level to src/auth
+import { useSession } from '../../auth/useSession';
 import { 
   ShieldAlert, 
   Trophy, 
@@ -9,9 +9,9 @@ import {
   LogOut 
 } from 'lucide-react';
 
-// ✅ SIBLING IMPORTS (Same Folder)
-import { TournamentWarRoom } from './TournamentWarRoom';
+import { TournamentWarRoom } from '../TournamentWarRoom';
 import { AdminAuditLog } from './AdminAuditLog';
+import { StaffManagement } from './StaffManagement';
 
 export const AdminDashboard = () => {
   const { logout, session } = useSession();
@@ -20,7 +20,7 @@ export const AdminDashboard = () => {
 
   const handleLogout = async () => {
     await logout();
-    navigate('/admin/login');
+    navigate('/login');
   };
 
   const renderTab = (id, label, Icon) => {
@@ -74,11 +74,7 @@ export const AdminDashboard = () => {
       <main className="max-w-7xl mx-auto p-6">
         {activeTab === 'OPS' && <TournamentWarRoom />}
         {activeTab === 'LOGS' && <AdminAuditLog />}
-        {activeTab === 'USERS' && (
-          <div className="p-12 text-center border border-dashed border-zinc-800 rounded text-zinc-500 font-mono">
-            User Management Module: Offline
-          </div>
-        )}
+        {activeTab === 'USERS' && <StaffManagement />}
       </main>
     </div>
   );

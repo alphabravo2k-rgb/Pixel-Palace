@@ -2,7 +2,7 @@ import { PERM_CAPABILITIES } from './permissions.actions';
 
 /**
  * ROLE CAPABILITY MATRIX (RBAC)
- * Single Source of Truth for who can do what.
+ * The ONLY place where roles are assigned permissions.
  */
 
 export const ROLES = {
@@ -29,8 +29,7 @@ export const ROLE_CAPABILITIES = {
   ],
   [ROLES.REFEREE]: [
     PERM_CAPABILITIES.MANAGE_MATCH, // Can report score/pause
-    // Note: No OVERRIDE_MATCH (Cannot force win/unlock)
-    // Note: No MANAGE_TOURNAMENT (Cannot gen bracket)
+    // NOTE: Referees do NOT have OVERRIDE_MATCH (Cannot unlock/force win)
   ],
   [ROLES.CAPTAIN]: [
     PERM_CAPABILITIES.ACT_AS_CAPTAIN,

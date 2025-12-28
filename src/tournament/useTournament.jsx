@@ -36,10 +36,8 @@ export const TournamentProvider = ({ children, defaultId }) => {
 
       if (data) {
         setTournaments(data);
-        // Auto-select logic
         if (!selectedTournamentId && data.length > 0 && !defaultId) {
            const lastId = localStorage.getItem('pp_active_tid');
-           // Validate lastId exists in data
            const isValid = data.find(t => t.id === lastId);
            setSelectedTournamentId(isValid ? lastId : data[0].id);
         }
@@ -50,10 +48,8 @@ export const TournamentProvider = ({ children, defaultId }) => {
 
   // 2. CAPTAIN BINDING (Security UX Fix)
   useEffect(() => {
-    // If user is a Captain, they are bound to their team's tournament.
-    // We enforce this in UI to prevent confusion, while RLS enforces it in data.
     if (session?.isAuthenticated && session?.role === ROLES.CAPTAIN) {
-      // Assuming 'session.tournament_id' is populated by your Auth Provider via team_members join
+      // Assuming session.team_id maps to a tournament, or session has explicit tournament_id
       const allowedTournamentId = session.tournament_id; 
       
       if (allowedTournamentId && selectedTournamentId !== allowedTournamentId) {

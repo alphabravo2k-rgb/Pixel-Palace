@@ -2,9 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../../supabase/client';
 import { X, Shield, Trophy, RefreshCw, AlertTriangle, Activity } from 'lucide-react';
 import { useSession } from '../../auth/useSession'; 
-// We use relative imports since we are ensuring AdminMatchControls is in this folder too
 import { AdminMatchControls } from './AdminMatchControls'; 
-import { RestrictedButton } from '../common/RestrictedButton';
+import { RestrictedButton } from '../common/RestrictedButton'; // Make sure this exists!
 
 export const AdminMatchModal = ({ match, isOpen, onClose, onUpdate }) => {
   const { session } = useSession();
@@ -37,6 +36,7 @@ export const AdminMatchModal = ({ match, isOpen, onClose, onUpdate }) => {
     if (!window.confirm("WARNING: This wipes scores and logs. Proceed?")) return;
     setLoading(true);
     try {
+      // Ensure admin_reset_match RPC exists or define it
       const { error } = await supabase.rpc('admin_reset_match', { p_match_id: match.id, p_admin_id: session.user.id, p_reason: "Hard Reset" });
       if (error) throw error;
       onUpdate(); onClose();
@@ -61,7 +61,6 @@ export const AdminMatchModal = ({ match, isOpen, onClose, onUpdate }) => {
                 <div className="flex items-center gap-2 text-zinc-400 text-xs font-bold uppercase tracking-wider mb-3">
                     <Activity className="w-3 h-3" /> Standard Protocol
                 </div>
-                {/* Reusing the controls we built */}
                 <AdminMatchControls match={match} teams={teams} onUpdate={onUpdate} />
             </section>
 

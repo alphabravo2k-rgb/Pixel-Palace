@@ -1,172 +1,116 @@
-import React, { useMemo } from 'react';
-import { Zap } from 'lucide-react';
-import { MatchNode } from './MatchNode';
+import React, { useEffect, useState, useRef } from 'react';
+import { supabase } from '../supabase/client';
+import { useTournament } from '../tournament/useTournament';
+import { Bracket } from './Bracket';
+import { RefreshCw, Loader2, WifiOff } from 'lucide-react';
+import { AdminMatchModal } from './admin/AdminMatchModal'; 
 
-// --- CONFIGURATION (The "Grid" Settings) ---
-const CARD_WIDTH = 280;   // Width of a match card
-const CARD_HEIGHT = 100;  // Height of a match card
-const GAP_X = 80;         // Horizontal space between rounds
-const BASE_GAP_Y = 40;    // Vertical space between matches in Round 1
+export const BracketView = () => {
+  const { selectedTournamentId, tournamentData, loading: contextLoading } = useTournament();
+  
+  const [matches, setMatches] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [selectedMatch, setSelectedMatch] = useState(null);
+  const channelRef = useRef(null);
 
-export const Bracket = ({ matches = [], onMatchClick }) => {
+  // 1. Initial Fetch
+  const fetchBracket = async () => {
+    if (!selectedTournamentId) return;
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('matches')
+        .select(`
+          *,
+          team1:team1_id(id, name, logo_url),
+          team2:team2_id(id, name, logo_url)
+        `)
+        .eq('tournament_id', selectedTournamentId)
+        .order('match_no', { ascending: true });
 
-  // 1. GRID ENGINE: Calculates coordinates without touching the DOM
-  const { nodes, paths, totalWidth, totalHeight } = useMemo(() => {
-    if (!matches.length) return { nodes: [], paths: [], totalWidth: 0, totalHeight: 0 };
+      if (error) throw error;
+      setMatches(data || []);
+    } catch (err) {
+      console.error(err);
+      setError("Failed to load bracket.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    // A. Group by Round
-    const rounds = {};
-    matches.forEach(m => {
-      const r = m.round || 1;
-      if (!rounds[r]) rounds[r] = [];
-      rounds[r].push(m);
-    });
+  // 2. Realtime Listener (Surgical)
+  useEffect(() => {
+    if (!selectedTournamentId) return;
 
-    // B. Sort within rounds (Critical for layout)
-    Object.keys(rounds).forEach(r => {
-      rounds[r].sort((a, b) => (a.match_no || 0) - (b.match_no || 0));
-    });
+    fetchBracket();
 
-    const roundKeys = Object.keys(rounds).sort((a, b) => Number(a) - Number(b));
-    const calculatedNodes = [];
-    const calculatedPaths = [];
-    
-    // Store Y positions to calculate parents/children
-    // Map<MatchID, {x, y}>
-    const positions = new Map(); 
+    if (channelRef.current) supabase.removeChannel(channelRef.current);
 
-    // C. Calculate Positions (The Math)
-    roundKeys.forEach((rKey, rIndex) => {
-      const roundMatches = rounds[rKey];
-      const x = rIndex * (CARD_WIDTH + GAP_X);
-
-      roundMatches.forEach((match, mIndex) => {
-        let y;
-
-        // If Round 1, stack them with base gap
-        if (rIndex === 0) {
-          y = mIndex * (CARD_HEIGHT + BASE_GAP_Y);
-        } else {
-          // If Round 2+, center between sources (Feeders)
-          // Find the two matches from the previous round that feed into this one
-          // Logic: In a standard bracket, NextMatchID links them.
-          // Optimization: We assume standard seeding order (Match 1 & 2 -> Match 1 of next round)
-          // Ideally, we look up by `next_match_id`.
+    const channel = supabase
+      .channel(`bracket-${selectedTournamentId}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'matches', filter: `tournament_id=eq.${selectedTournamentId}` },
+        (payload) => {
+          // ⚡ SURGICAL UPDATE: Update only the specific match that changed
+          // We assume 'team1' and 'team2' foreign objects might not be in the payload,
+          // so for structural changes (team swaps), we might still need to refetch.
+          // But for scores/status, we can patch.
           
-          const feeders = matches.filter(m => m.next_match_id === match.id);
-          if (feeders.length === 2) {
-             const y1 = positions.get(feeders[0].id)?.y || 0;
-             const y2 = positions.get(feeders[1].id)?.y || 0;
-             y = (y1 + y2) / 2;
-          } else {
-             // Fallback for weird structures: Just offset based on index
-             // This keeps it from crashing if data is incomplete
-             y = mIndex * (CARD_HEIGHT + BASE_GAP_Y) * Math.pow(2, rIndex); 
-          }
+          setMatches(prevMatches => prevMatches.map(m => {
+             if (m.id === payload.new.id) {
+                // Merge new data while keeping existing relations (teams)
+                return { ...m, ...payload.new };
+             }
+             return m;
+          }));
         }
-
-        positions.set(match.id, { x, y });
-
-        calculatedNodes.push({
-          match,
-          style: {
-            position: 'absolute',
-            left: `${x}px`,
-            top: `${y}px`,
-            width: `${CARD_WIDTH}px`,
-            height: `${CARD_HEIGHT}px`
-          }
-        });
+      )
+      .subscribe((status) => {
+        if (status === 'CHANNEL_ERROR') setError("Live updates disconnected.");
       });
-    });
 
-    // D. Draw Lines (Now that we have positions)
-    matches.forEach(match => {
-      if (!match.next_match_id) return;
+    channelRef.current = channel;
 
-      const start = positions.get(match.id);
-      const end = positions.get(match.next_match_id);
+    return () => { if (channelRef.current) supabase.removeChannel(channelRef.current); };
+  }, [selectedTournamentId]);
 
-      if (!start || !end) return;
-
-      // Anchor Points
-      const startX = start.x + CARD_WIDTH;
-      const startY = start.y + (CARD_HEIGHT / 2);
-      const endX = end.x;
-      const endY = end.y + (CARD_HEIGHT / 2);
-
-      // Bezier Math
-      const cp1x = startX + (endX - startX) * 0.5;
-      const cp1y = startY;
-      const cp2x = startX + (endX - startX) * 0.5;
-      const cp2y = endY;
-
-      calculatedPaths.push({
-        id: `${match.id}->${match.next_match_id}`,
-        d: `M ${startX} ${startY} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${endX} ${endY}`,
-        status: match.status
-      });
-    });
-
-    // E. Calculate Container Size
-    const totalWidth = roundKeys.length * (CARD_WIDTH + GAP_X);
-    const maxY = Math.max(...Array.from(positions.values()).map(p => p.y)) + CARD_HEIGHT;
-
-    return { nodes: calculatedNodes, paths: calculatedPaths, totalWidth, totalHeight: maxY };
-
-  }, [matches]);
-
-  if (matches.length === 0) {
-    return (
-      <div className="p-12 text-center text-zinc-600 border border-zinc-800 border-dashed uppercase text-xs tracking-widest font-mono">
-         Waiting for Bracket Generation...
-      </div>
-    );
-  }
+  if (contextLoading) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-zinc-500" /></div>;
+  if (!selectedTournamentId) return <div className="h-screen flex items-center justify-center text-zinc-600 font-mono">SELECT TOURNAMENT</div>;
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-700">
-       {/* Header */}
-       <div className="flex items-center gap-3 text-zinc-500 text-[10px] font-mono uppercase tracking-[0.3em] border-b border-zinc-800 pb-4 px-8">
-         <Zap className="w-3.5 h-3.5 text-fuchsia-500" /> {matches.length} Combat Nodes Active
-       </div>
+    <div className="min-h-screen bg-black text-white relative flex flex-col">
+      {/* Header */}
+      <div className="p-6 border-b border-white/5 flex items-center justify-between bg-zinc-950/80 backdrop-blur-md sticky top-0 z-50">
+        <div>
+           <h1 className="text-3xl font-['Teko'] uppercase font-bold tracking-wider text-white">
+             {tournamentData?.name || 'Bracket'}
+           </h1>
+           <div className="flex items-center gap-2 text-xs text-zinc-500 font-mono">
+             <span className={`w-2 h-2 rounded-full ${!error ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-red-500'}`} />
+             {error ? 'OFFLINE' : 'LIVE FEED ACTIVE'}
+           </div>
+        </div>
+        <button onClick={fetchBracket} disabled={loading} className="p-2 hover:bg-white/10 rounded-full transition-colors">
+          <RefreshCw className={`w-5 h-5 text-zinc-400 ${loading ? 'animate-spin' : ''}`} />
+        </button>
+      </div>
 
-       {/* The Stage */}
-       <div className="relative w-full overflow-auto bg-[#0a0a0a] min-h-[80vh] cursor-grab active:cursor-grabbing custom-scrollbar">
-         
-         {/* The Grid Canvas */}
-         <div style={{ width: totalWidth + 100, height: totalHeight + 100, position: 'relative', padding: '50px' }}>
-            
-            {/* Layer 1: Lines */}
-            <svg className="absolute inset-0 w-full h-full pointer-events-none overflow-visible z-0">
-              {paths.map(path => (
-                <path
-                  key={path.id}
-                  d={path.d}
-                  fill="none"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  className={`transition-all duration-700 ${
-                    path.status === 'live' ? 'stroke-emerald-500 animate-pulse' :
-                    path.status === 'completed' ? 'stroke-zinc-700' :
-                    'stroke-zinc-800'
-                  }`}
-                />
-              ))}
-            </svg>
+      {error && <div className="bg-red-900/20 p-2 text-center text-red-400 text-xs font-bold"><WifiOff size={14} className="inline mr-2"/>{error}</div>}
 
-            {/* Layer 2: Cards */}
-            {nodes.map(({ match, style }) => (
-              <div key={match.id} style={style} className="z-10">
-                <MatchNode 
-                  match={match} 
-                  onClick={onMatchClick} 
-                />
-              </div>
-            ))}
+      <div className="flex-1 bg-[url('/grid-pattern.svg')] bg-fixed">
+        <Bracket matches={matches} onMatchClick={setSelectedMatch} />
+      </div>
 
-         </div>
-       </div>
+      {selectedMatch && (
+        <AdminMatchModal 
+          match={selectedMatch} 
+          isOpen={!!selectedMatch} 
+          onClose={() => setSelectedMatch(null)}
+          onUpdate={fetchBracket} // Full refresh on manual admin save is safer
+        />
+      )}
     </div>
   );
 };

@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../supabase/client';
 import { normalizeRole, ROLES } from '../lib/roles';
-import { can } from '../lib/permissions'; // ✅ INTEGRATED PERMISSIONS
+import { can } from '../lib/permissions'; 
 
 const SessionContext = createContext(null);
 
@@ -16,13 +16,11 @@ export const SessionProvider = ({ children }) => {
 
   // 1. BOOTSTRAP
   useEffect(() => {
-    // Initial Load
     supabase.auth.getSession().then(({ data: { session: authSession } }) => {
       if (authSession?.user) hydrateUser(authSession.user);
       else setSession(prev => ({...prev, loading: false}));
     });
 
-    // Realtime Listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, authSession) => {
       if (authSession?.user) {
         hydrateUser(authSession.user);
@@ -43,7 +41,7 @@ export const SessionProvider = ({ children }) => {
   const hydrateUser = async (user) => {
     try {
       // 🛡️ SECURITY: Fetch from the 'session_profiles' SQL View
-      // This view automatically determines if they are Admin, Captain, or Player
+      // This view joins Admins, Players, and Teams into one secure profile.
       const { data: profile, error } = await supabase
         .from('session_profiles') 
         .select('*')
@@ -57,7 +55,7 @@ export const SessionProvider = ({ children }) => {
         isAuthenticated: true,
         user: user,
         role: cleanRole,
-        team_id: profile?.team_id || null, 
+        team_id: profile?.team_id || null, // ✅ Correctly populated from View
         identity: profile, 
         loading: false
       });

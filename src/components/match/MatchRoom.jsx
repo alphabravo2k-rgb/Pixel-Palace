@@ -33,18 +33,28 @@ export const MatchRoom = ({ matchId }) => {
   }, [matchId]);
 
   const fetchMatch = async () => {
-    const { data } = await supabase.from('matches').select('*').eq('id', matchId).single();
-    setMatch(data);
+    // 🛡️ JOIN Teams to get names
+    const { data, error } = await supabase
+      .from('matches')
+      .select(`
+        *,
+        team1:team1_id(name),
+        team2:team2_id(name)
+      `)
+      .eq('id', matchId)
+      .single();
+      
+    if (!error) setMatch(data);
     setLoading(false);
   };
 
   const handleDispute = async () => {
     if (!disputeReason) return;
     
-    // Call the Secure SQL Function we built in Block 56
+    // Call Secure RPC
     const { error } = await supabase.rpc('api_file_dispute', {
       p_match_id: matchId,
-      p_team_id: session.identity.team_id, // Assuming session has this context
+      p_team_id: session.team_id, // Use explicit team_id from secure session
       p_reason: disputeReason
     });
 
@@ -79,7 +89,7 @@ export const MatchRoom = ({ matchId }) => {
     <div className="max-w-6xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-3 gap-6 text-white">
       
       {/* LEFT: Team A */}
-      <TeamCard name={match.team1_name || 'Team 1'} isReady={match.team1_ready} />
+      <TeamCard name={match.team1?.name || 'Team 1'} isReady={false} />
 
       {/* CENTER: The Action Board */}
       <div className="space-y-6">
@@ -87,47 +97,47 @@ export const MatchRoom = ({ matchId }) => {
         {/* Status Header */}
         <div className="text-center">
           <div className="text-xs font-mono text-zinc-500 uppercase tracking-widest mb-1">
-            {match.round_name || 'Tournament Match'}
+            Match #{match.match_no}
           </div>
           <div className="text-4xl font-['Teko'] font-bold text-white">
              {match.team1_score} - {match.team2_score}
           </div>
           <div className="inline-flex items-center gap-2 px-3 py-1 bg-fuchsia-900/20 border border-fuchsia-500/30 rounded-full text-xs text-fuchsia-400 mt-2">
             <div className="w-1.5 h-1.5 rounded-full bg-fuchsia-500 animate-pulse" />
-            {match.state || 'SCHEDULED'}
+            {match.status?.toUpperCase() || 'SCHEDULED'}
           </div>
         </div>
 
-        {/* VETO BOARD (Placeholder for Veto Logic) */}
+        {/* VETO BOARD */}
         <div className="bg-zinc-900 border border-white/10 rounded-lg p-6 min-h-[200px] flex flex-col items-center justify-center text-center">
            <MapIcon className="w-8 h-8 text-zinc-700 mb-2" />
            <h3 className="text-zinc-400 font-bold">Map Veto Phase</h3>
            <p className="text-zinc-600 text-xs mt-1 max-w-[200px]">
-             Waiting for captains to ban maps. Current Map Pool: Dust2, Mirage, Inferno.
+             Waiting for captains to ban maps.
            </p>
            {/* Example Veto Action Button */}
            <RestrictedButton
-              action="MATCH:VETO"
-              resourceId={matchId}
-              className="mt-4 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-bold uppercase tracking-wider rounded"
+             action="MATCH:VETO" // Maps to CAP_ACT_AS_CAPTAIN
+             resourceId={matchId}
+             className="mt-4 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-bold uppercase tracking-wider rounded"
            >
-             Ban Map (Demo)
+             Ban Map
            </RestrictedButton>
         </div>
 
-        {/* INTEGRITY TOOLS (The "Standard" Features) */}
+        {/* INTEGRITY TOOLS */}
         <div className="grid grid-cols-2 gap-2">
            <RestrictedButton 
-              action="MATCH:CHECK_IN" 
-              resourceId={matchId}
-              className="p-3 bg-green-900/20 border border-green-500/30 hover:bg-green-900/40 text-green-400 font-bold uppercase text-xs rounded flex items-center justify-center gap-2"
+             action="MATCH:CHECK_IN" 
+             resourceId={matchId}
+             className="p-3 bg-green-900/20 border border-green-500/30 hover:bg-green-900/40 text-green-400 font-bold uppercase text-xs rounded flex items-center justify-center gap-2"
            >
              <CheckCircle className="w-4 h-4" /> Ready Up
            </RestrictedButton>
 
            <button 
-              onClick={() => setIsDisputing(!isDisputing)}
-              className="p-3 bg-red-900/20 border border-red-500/30 hover:bg-red-900/40 text-red-400 font-bold uppercase text-xs rounded flex items-center justify-center gap-2"
+             onClick={() => setIsDisputing(!isDisputing)}
+             className="p-3 bg-red-900/20 border border-red-500/30 hover:bg-red-900/40 text-red-400 font-bold uppercase text-xs rounded flex items-center justify-center gap-2"
            >
              <AlertTriangle className="w-4 h-4" /> Report Issue
            </button>
@@ -160,7 +170,7 @@ export const MatchRoom = ({ matchId }) => {
       </div>
 
       {/* RIGHT: Team B */}
-      <TeamCard name={match.team2_name || 'Team 2'} isReady={match.team2_ready} align="right" />
+      <TeamCard name={match.team2?.name || 'Team 2'} isReady={false} align="right" />
     </div>
   );
 };

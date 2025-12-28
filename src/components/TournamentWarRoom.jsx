@@ -1,85 +1,72 @@
 import React from 'react';
-import { Play, RefreshCw, AlertTriangle, Trophy } from 'lucide-react';
-
-// 1. Logic Imports
+import { useSession } from '../auth/useSession';
 import { useTournament } from '../tournament/useTournament';
 import { useAdminConsole } from '../hooks/useAdminConsole';
-import { useSession } from '../auth/useSession';
-import { can } from '../lib/permissions'; // 🛡️ Standalone logic
-import { PERM_ACTIONS } from '../lib/permissions.actions'; // 🛡️ Constants
+import { BracketView } from './BracketView';
+import { ShieldAlert, Loader2, Play, RefreshCw, Trophy } from 'lucide-react';
+
+// You can keep AdminToolbar separated, or embed controls directly if simpler
+import { AdminToolbar } from './admin/AdminToolbar'; 
 
 export const TournamentWarRoom = () => {
+  const { session, can, loading: authLoading } = useSession();
   const { selectedTournamentId, tournamentData } = useTournament();
-  const { generateBracket, syncRegistrations, loading } = useAdminConsole();
-  const { session } = useSession();
+  const { syncRegistrations, generateBracket, loading: opsLoading } = useAdminConsole();
 
-  if (!selectedTournamentId) return null;
+  // 1. Loading State
+  if (authLoading) return <div className="h-screen flex items-center justify-center bg-black"><Loader2 className="animate-spin text-fuchsia-500" /></div>;
 
-  // 🛡️ PERMISSION CHECK: Use the imported 'can' function with the session
-  const canSync = can(PERM_ACTIONS.SYNC_ROSTER, session);
-  const canBracket = can(PERM_ACTIONS.GENERATE_BRACKET, session);
+  // 2. PERMISSION CHECK: Explicit & Loud
+  // Don't just disable buttons. If they can't manage, they shouldn't see the War Room.
+  const hasAccess = can && can('MANAGE_TOURNAMENT', { tournamentId: selectedTournamentId });
 
-  // Status check: Setup phase check
-  const isSetupPhase = tournamentData?.status?.toLowerCase() === 'setup' || tournamentData?.status === 'active';
-
-  return (
-    <div className="bg-zinc-900 border border-white/10 rounded-lg p-6">
-      <div className="flex items-center gap-3 mb-6 border-b border-white/5 pb-4">
-        <Trophy className="w-6 h-6 text-yellow-500" />
-        <div>
-          <h3 className="font-['Teko'] text-2xl uppercase tracking-wide text-white leading-none">
-            Tournament Operations
-          </h3>
-          <p className="text-xs text-zinc-500 font-mono">
-             Status: <span className="text-white uppercase font-bold">{tournamentData?.status || 'UNKNOWN'}</span>
-          </p>
-        </div>
+  if (!hasAccess) {
+    return (
+      <div className="h-screen flex flex-col items-center justify-center bg-black text-red-500 p-8 text-center">
+        <ShieldAlert className="w-16 h-16 mb-4 animate-pulse" />
+        <h1 className="text-3xl font-black uppercase tracking-widest mb-2">Unauthorized Access</h1>
+        <p className="text-zinc-500 font-mono text-sm max-w-md">
+          Your credentials do not grant access to the War Room for Tournament ID: {selectedTournamentId || 'Unknown'}.
+        </p>
       </div>
+    );
+  }
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Sync Controls */}
-        <div className="p-4 bg-black/40 rounded border border-white/5">
-          <h4 className="font-bold text-zinc-300 mb-2 uppercase text-xs tracking-wider">Roster Sync</h4>
-          <p className="text-[10px] text-zinc-500 mb-4">
-            Pulls raw registration data and normalizes it into Teams/Players tables.
-          </p>
-          <button
-            onClick={() => syncRegistrations(selectedTournamentId)}
-            disabled={!canSync || loading}
-            className={`
-              flex items-center justify-center gap-2 w-full py-3 rounded uppercase font-bold text-sm transition-all
-              disabled:opacity-40 disabled:cursor-not-allowed
-              ${!canSync 
-                ? 'bg-zinc-800 text-zinc-600' 
-                : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-900/20'}
-            `}
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> 
-            {loading ? 'Syncing...' : 'Sync Rosters'}
-          </button>
-        </div>
+  // 3. Render The Control Center
+  return (
+    <div className="flex flex-col h-screen bg-zinc-950 text-white overflow-hidden">
+      
+      {/* Top Bar: Operations */}
+      <div className="p-4 border-b border-white/5 bg-black/60 flex items-center justify-between">
+         <div className="flex items-center gap-3">
+            <Trophy className="text-yellow-500 w-5 h-5" />
+            <div>
+               <h2 className="text-lg font-['Teko'] uppercase font-bold tracking-wide leading-none">{tournamentData?.name}</h2>
+               <span className="text-[10px] text-zinc-500 font-mono">STATUS: {tournamentData?.status}</span>
+            </div>
+         </div>
 
-        {/* Bracket Controls */}
-        <div className="p-4 bg-black/40 rounded border border-white/5">
-          <h4 className="font-bold text-zinc-300 mb-2 uppercase text-xs tracking-wider">Bracket Logic</h4>
-           <p className="text-[10px] text-zinc-500 mb-4">
-            Generates the seeding and match nodes based on current roster.
-          </p>
-          <button
-            onClick={() => generateBracket(selectedTournamentId)}
-            disabled={!canBracket || loading}
-            className={`
-              flex items-center justify-center gap-2 w-full py-3 rounded uppercase font-bold text-sm transition-all
-              disabled:opacity-40 disabled:cursor-not-allowed
-              ${!canBracket 
-                ? 'bg-zinc-800 text-zinc-600' 
-                : 'bg-fuchsia-600 hover:bg-fuchsia-500 text-white shadow-lg shadow-fuchsia-900/20'}
-            `}
-          >
-            <Play className="w-4 h-4" /> 
-            {loading ? 'Processing...' : 'Generate Bracket'}
-          </button>
-        </div>
+         <div className="flex gap-2">
+            <button 
+                onClick={() => syncRegistrations(selectedTournamentId)}
+                disabled={opsLoading}
+                className="px-4 py-2 bg-blue-600/20 text-blue-400 border border-blue-600/50 rounded text-xs font-bold uppercase hover:bg-blue-600/40 transition-all flex items-center gap-2"
+            >
+                <RefreshCw size={14} className={opsLoading ? 'animate-spin' : ''} /> Sync Roster
+            </button>
+            <button 
+                onClick={() => generateBracket(selectedTournamentId)}
+                disabled={opsLoading}
+                className="px-4 py-2 bg-fuchsia-600/20 text-fuchsia-400 border border-fuchsia-600/50 rounded text-xs font-bold uppercase hover:bg-fuchsia-600/40 transition-all flex items-center gap-2"
+            >
+                <Play size={14} /> Generate Bracket
+            </button>
+         </div>
+      </div>
+      
+      {/* Main View */}
+      <div className="flex-1 relative">
+        <BracketView />
       </div>
     </div>
   );

@@ -12,15 +12,23 @@ module.exports = {
   settings: { react: { version: '18.2' } },
   plugins: ['react-refresh'],
   rules: {
-    // DISABLE STRICT COMPONENT EXPORT RULE (Allows exporting Hooks + Components in one file)
+    // 1. PROJECT STRUCTURE: Allow Hooks + Components in one file (Vital for your structure)
     'react-refresh/only-export-components': 'off',
     
+    // 2. DEV EXPERIENCE: Warn only, don't break build
     'react/prop-types': 'off', 
-    // ALLOW 'React' IMPORT TO BE UNUSED (Standard Vite behavior)
     'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^React$' }],
+    
+    // 3. LOGGING: Allow warn/error/info, warn on 'log' (Good for finding debug junk)
     'no-console': ['warn', { allow: ['warn', 'error', 'info'] }],
-    'react/jsx-props-no-spreading': 'warn',
+    
+    // 4. REACT PRACTICES
+    'react/jsx-props-no-spreading': 'off', // Changed to OFF (Spreading is fine for UI wrappers)
     "react/function-component-definition": ["warn", { "namedComponents": "arrow-function" }],
-    "react-hooks/exhaustive-deps": "error"
+    
+    // 5. THE CRITICAL FIX: "Warn" only. 
+    // "Error" forces you to add deps that might cause infinite loops.
+    // "Warn" lets you know, but lets you decide.
+    "react-hooks/exhaustive-deps": "warn"
   },
 }

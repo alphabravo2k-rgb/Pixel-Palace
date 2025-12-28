@@ -1,6 +1,6 @@
 /**
- * PERMISSION DICTIONARY
- * Splits "What you can do" (Capabilities) from "What you are doing" (Operations).
+ * PERMISSION DICTIONARY (STRICT)
+ * Single Source of Truth for Action Keys.
  */
 
 // 1. CAPABILITIES (Used in checks: can(CAPABILITY))
@@ -11,14 +11,14 @@ export const PERM_CAPABILITIES = {
 
   // Match Level
   MANAGE_MATCH: 'CAP_MANAGE_MATCH',          // Reset, Force Win, Update Score
-  OVERRIDE_MATCH: 'CAP_OVERRIDE_MATCH',      // Unlock, Force State Change
+  OVERRIDE_MATCH: 'CAP_OVERRIDE_MATCH',      // Unlock, Force State Change (Admins Only)
   
   // Participant Level
   ACT_AS_CAPTAIN: 'CAP_ACT_AS_CAPTAIN',      // Veto, Dispute
-  REPORT_SCORE: 'CAP_REPORT_SCORE'           // Self-reporting (if enabled)
+  REPORT_SCORE: 'CAP_REPORT_SCORE'           // Self-reporting
 };
 
-// 2. OPERATIONS (Used in logs/RPC calls)
+// 2. OPERATIONS (Used in logs/RPC calls only)
 export const PERM_OPERATIONS = {
   SYNC_ROSTER: 'OP_SYNC_ROSTER',
   GENERATE_BRACKET: 'OP_GENERATE_BRACKET',

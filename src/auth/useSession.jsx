@@ -1,33 +1,38 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../supabase/client';
-import { normalizeRole } from '../lib/roles';
+import { normalizeRole, ROLES } from '../lib/roles';
 
 const SessionContext = createContext(null);
 
 export const SessionProvider = ({ children }) => {
   const [session, setSession] = useState({
     isAuthenticated: false,
-    user: null,    
-    identity: null, 
-    role: 'GUEST'   
+    user: null,
+    role: ROLES.GUEST,
+    team_id: null, // 🛡️ CRITICAL: The Anchor for Permissions
+    loading: true
   });
-  const [loading, setLoading] = useState(true);
 
   // 1. BOOTSTRAP: Listen for Auth Changes
   useEffect(() => {
+    // Initial Load
     supabase.auth.getSession().then(({ data: { session: authSession } }) => {
-      if (authSession) handleSessionUpdate(authSession);
+      if (authSession?.user) hydrateUser(authSession.user);
       else setLoading(false);
     });
 
+    // Realtime Listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, authSession) => {
-      if (authSession) handleSessionUpdate(authSession);
-      else {
-        setSession(prev => prev.user?.isMock ? prev : { 
-          isAuthenticated: false, 
-          user: null, 
-          identity: null, 
-          role: 'GUEST' 
+      if (authSession?.user) {
+        hydrateUser(authSession.user);
+      } else {
+        // Reset to Guest
+        setSession({
+          isAuthenticated: false,
+          user: null,
+          role: ROLES.GUEST,
+          team_id: null,
+          loading: false
         });
       }
     });
@@ -35,118 +40,63 @@ export const SessionProvider = ({ children }) => {
     return () => subscription.unsubscribe();
   }, []);
 
-  // 2. IDENTITY RESOLVER
-  const handleSessionUpdate = async (authSession) => {
-    if (!authSession?.user) return;
-
+  // 2. IDENTITY RESOLVER (The "One Truth" Model)
+  const hydrateUser = async (user) => {
     try {
-      // A. Fetch Global Identity
-      const { data: identity } = await supabase
-        .from('global_identities')
-        .select('*')
-        .eq('id', authSession.user.id)
-        .maybeSingle();
+      // 🛡️ SECURITY: Fetch from Safe View, not raw tables
+      // This view should join app_admins, team_members, etc.
+      // For now, we query the 'global_identities' table/view we established.
+      const { data: profile, error } = await supabase
+        .from('global_identities') 
+        .select('role, team_id, username, avatar_url')
+        .eq('id', user.id)
+        .single();
 
-      // B. Determine Role
-      let rawRole = 'PLAYER';
-      const { data: adminRecord } = await supabase
-        .from('app_admins')
-        .select('role')
-        .eq('id', authSession.user.id)
-        .maybeSingle();
+      if (error && error.code !== 'PGRST116') {
+        console.error("Auth Hydration Error:", error);
+      }
 
-      if (adminRecord) rawRole = adminRecord.role;
-
-      // C. NORMALIZE ROLE
-      const cleanRole = normalizeRole(rawRole);
+      // Normalize Role (Safety Net)
+      const cleanRole = normalizeRole(profile?.role || ROLES.PLAYER);
 
       setSession({
         isAuthenticated: true,
-        user: authSession.user,
-        identity: identity || { username: authSession.user.email?.split('@')[0] || 'Agent' },
-        role: cleanRole
+        user: user,
+        role: cleanRole,
+        team_id: profile?.team_id || null, // 🛡️ Binds Identity to Team
+        identity: profile, 
+        loading: false
       });
 
     } catch (err) {
-      console.error("Identity Verification Failed:", err);
+      console.error("Critical Session Failure:", err);
+      setSession(prev => ({ ...prev, loading: false }));
     } finally {
       setLoading(false);
     }
   };
 
-  // 3. EXPOSED ACTIONS
-  const login = async (credential, passwordOrPin) => {
+  // 3. SECURE LOGIN
+  const login = async (email, password) => {
     setLoading(true);
-
     try {
-      // STRATEGY A: Email/Password
-      if (credential.includes('@')) {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: credential.trim(),
-          password: passwordOrPin.trim(),
+        const { error } = await supabase.auth.signInWithPassword({
+            email: email.trim(),
+            password: password.trim(),
         });
         
         if (error) throw error;
-        return { success: true }; 
-      }
-
-      // STRATEGY B: PIN / Access Code (Secure Bridge)
-      
-      // 1. Check Admin PINs (Via Secure RPC)
-      const { data: adminAuthData, error: adminAuthError } = await supabase
-        .rpc('api_verify_admin_pin', { p_pin: passwordOrPin.trim() });
-      
-      // The RPC returns a row if successful, or empty/null if failed
-      if (adminAuthData && adminAuthData.length > 0 && adminAuthData[0].success) {
-         const adminUser = adminAuthData[0];
-         const cleanRole = normalizeRole(adminUser.role);
-
-         // Fetch profile identity if available
-         const { data: profile } = await supabase
-            .from('global_identities')
-            .select('*')
-            .eq('id', adminUser.id)
-            .maybeSingle();
-
-         setSession({
-            isAuthenticated: true,
-            user: { id: adminUser.id, email: 'admin@pixelpalace.gg', isMock: true },
-            identity: profile || { id: adminUser.id, username: adminUser.name, role: cleanRole },
-            role: cleanRole
-         });
-         return { success: true, role: cleanRole };
-      }
-
-      // 2. Check Team Captains
-      const { data: teamData } = await supabase
-        .from('teams')
-        .select('*')
-        .eq('access_code', passwordOrPin.trim())
-        .maybeSingle();
-
-      if (teamData) {
-        setSession({
-          isAuthenticated: true,
-          user: { id: teamData.id, isMock: true },
-          identity: { id: teamData.id, username: credential || teamData.name, team_id: teamData.id },
-          role: 'CAPTAIN'
-        });
-        return { success: true, role: 'CAPTAIN' };
-      }
-
-      return { success: false, message: 'Invalid Access Code or Email' };
-
+        return { success: true };
     } catch (err) {
-      console.error("Login Error:", err);
-      return { success: false, message: err.message || 'Auth System Error' };
+        console.error("Login Failed:", err);
+        return { success: false, message: err.message };
     } finally {
-      setLoading(false);
+        setLoading(false);
     }
   };
 
   const logout = async () => {
     await supabase.auth.signOut();
-    setSession({ isAuthenticated: false, user: null, identity: null, role: 'GUEST' });
   };
 
   return (

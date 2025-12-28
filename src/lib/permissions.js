@@ -43,8 +43,6 @@ export const can = (capability, session, context = null) => {
   // 3. SCOPE CHECK (The "Identity" Fix)
   if (capability === PERM_CAPABILITIES.ACT_AS_CAPTAIN) {
       // 🛡️ CRITICAL FIX: Explicit Team ID Check
-      // We do NOT compare user_id to team_id.
-      // The session MUST provide 'team_id' (from team_members table).
       const userTeamId = session.team_id; 
       
       if (!userTeamId || !context) return false;

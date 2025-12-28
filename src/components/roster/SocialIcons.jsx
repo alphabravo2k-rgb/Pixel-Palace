@@ -25,8 +25,6 @@ export const SocialIcons = ({ discord, steam, twitter }) => {
       if (isCopyable) {
         e.preventDefault();
         navigator.clipboard.writeText(url);
-        // Optional: You could trigger a toast here if you have a UI library
-        // alert(`Copied: ${url}`); 
       }
     };
 

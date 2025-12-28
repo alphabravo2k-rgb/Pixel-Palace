@@ -1,8 +1,8 @@
 import React from 'react';
-import { X, Clock, AlertTriangle } from 'lucide-react';
-import { useSession } from '../auth/useSession';
-import { TeamCard } from './roster/TeamCard'; // Assuming you have this
-import { RestrictedButton } from './common/RestrictedButton';
+import { X, Clock } from 'lucide-react';
+import { useSession } from '../../auth/useSession';
+import { TeamCard } from '../roster/TeamCard'; // Assuming you have this
+import { RestrictedButton } from '../common/RestrictedButton';
 
 export const MatchModal = ({ match, isOpen, onClose }) => {
   const { session } = useSession();
@@ -11,7 +11,6 @@ export const MatchModal = ({ match, isOpen, onClose }) => {
 
   // 🛡️ IDENTITY LOGIC FIX (Audit Section 4)
   // Don't compare IDs directly. Check if the user's TEAM ID matches.
-  // Assuming session.identity looks like { id: 'user_uuid', team_id: 'team_uuid', ... }
   const myTeamId = session.identity?.team_id; 
   
   const isTeam1 = myTeamId === match.team1_id;

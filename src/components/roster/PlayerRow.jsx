@@ -1,7 +1,6 @@
 import React from 'react';
 import { Crown } from 'lucide-react';
-// ✅ FIX: Changed "../SocialIcons" to "./SocialIcons" (Same Folder)
-import { SocialIcons } from './SocialIcons'; 
+import { SocialIcons } from './SocialIcons'; // Adjusted Path
 import { normalizeRole } from '../../lib/roles';
 
 // 🛡️ ROBUST INITIALS HELPER

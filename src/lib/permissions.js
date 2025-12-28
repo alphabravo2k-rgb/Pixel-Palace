@@ -8,7 +8,7 @@ import { PERM_CAPABILITIES } from './permissions.actions';
  */
 const STATE_GUARDS = {
   [PERM_CAPABILITIES.ACT_AS_CAPTAIN]: (match) => {
-    // Strict Phase Check
+    // Strict Phase Check: Veto only allowed in VETO status
     return match?.status === MATCH_STATUS.VETO;
   },
   [PERM_CAPABILITIES.REPORT_SCORE]: (match) => {
@@ -17,6 +17,7 @@ const STATE_GUARDS = {
   },
   [PERM_CAPABILITIES.MANAGE_MATCH]: (match) => {
     // Admins cannot touch locked matches without unlocking them first
+    // (Unless they have OVERRIDE_MATCH, handled in logic below)
     return !match?.is_locked; 
   }
 };
@@ -24,7 +25,7 @@ const STATE_GUARDS = {
 /**
  * THE ENFORCER
  * @param {string} capability - One of PERM_CAPABILITIES
- * @param {object} session - The user session object
+ * @param {object} session - Must contain { role, team_id }
  * @param {object} context - (Optional) The match or tournament object
  */
 export const can = (capability, session, context = null) => {
@@ -40,26 +41,30 @@ export const can = (capability, session, context = null) => {
   if (!hasPermission) return false;
 
   // 3. SCOPE CHECK (The "Identity" Fix)
-  // If the action is Team-Scoped (e.g., Veto), we MUST check team ownership.
   if (capability === PERM_CAPABILITIES.ACT_AS_CAPTAIN) {
-      // 🛡️ CRITICAL FIX: Do not assume identity.id is team_id.
-      // The session MUST provide a 'team_id' (resolved from team_members table).
+      // 🛡️ CRITICAL FIX: Explicit Team ID Check
+      // We do NOT compare user_id to team_id.
+      // The session MUST provide 'team_id' (from team_members table).
       const userTeamId = session.team_id; 
       
       if (!userTeamId || !context) return false;
 
       const isParticipant = userTeamId === context.team1_id || userTeamId === context.team2_id;
       
-      // If not a participant, check if they have OVERRIDE capability (Admins)
+      // Explicit Override Check (No hardcoded 'ADMIN' string)
       const hasOverride = userCapabilities.includes(PERM_CAPABILITIES.OVERRIDE_MATCH);
 
       if (!isParticipant && !hasOverride) return false;
   }
 
-  // 4. STATE GUARD CHECK: Is the action valid for the current state?
+  // 4. STATE GUARD CHECK
   const guard = STATE_GUARDS[capability];
   if (guard && context) {
-    return guard(context);
+    // Admins with OVERRIDE capability bypass State Guards (e.g., can edit locked match)
+    const hasOverride = userCapabilities.includes(PERM_CAPABILITIES.OVERRIDE_MATCH);
+    if (!hasOverride) {
+       return guard(context);
+    }
   }
 
   return true;

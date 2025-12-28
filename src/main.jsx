@@ -1,8 +1,10 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-// ✅ FIX: Path is now ./app/App because we are in /src/
+
+// ✅ FIX: Path is now direct (sibling folder)
 import App from './app/App'
-// ✅ FIX: Path is now ./index.css
+
+// ✅ FIX: CSS is now a sibling file
 import './index.css'
 
 ReactDOM.createRoot(document.getElementById('root')).render(

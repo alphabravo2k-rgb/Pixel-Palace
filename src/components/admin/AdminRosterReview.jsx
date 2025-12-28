@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-// ✅ FIX: Correct imports for the 'admin' folder depth
 import { useAdminConsole } from '../../hooks/useAdminConsole'; 
 import { supabase } from '../../supabase/client';
-import { RosterIntegrityControl } from './RosterIntegrityControl';
+// You might need to adjust this import based on where RosterIntegrityControl lives
+import { RosterIntegrityControl } from './RosterIntegrityControl'; 
 import { PlayerRow } from '../roster/PlayerRow';
 import { Users, AlertTriangle } from 'lucide-react';
 
@@ -22,14 +22,33 @@ export const AdminRosterReview = ({ tournamentId }) => {
         id, 
         name, 
         logo_url,
-        players (
-          id, username, role, faceit_elo, discord_id
+        players:team_members (
+           id, role,
+           profile:global_identities (
+             id, username, discord_id
+           )
         )
       `)
       .eq('tournament_id', tournamentId)
       .order('name');
+      
+    // NOTE: The above query assumes the SQL relations match (team_members -> global_identities).
+    // If your SQL has `team_members` linked to `global_identities` via `global_id`, this is correct.
 
-    if (!error) setTeams(data || []);
+    if (!error) {
+        // Flatten data if needed by PlayerRow
+        const formattedTeams = data?.map(team => ({
+            ...team,
+            players: team.players?.map(tm => ({
+                id: tm.id,
+                role: tm.role,
+                username: tm.profile?.username,
+                discord_id: tm.profile?.discord_id,
+                // Add any other profile fields needed
+            }))
+        }));
+        setTeams(formattedTeams || []);
+    }
     setViewLoading(false);
   };
 
@@ -64,23 +83,24 @@ export const AdminRosterReview = ({ tournamentId }) => {
                   <div key={player.id} className="p-2 flex items-center justify-between group hover:bg-white/5 transition-colors">
                     {/* Reusing PlayerRow for consistent visuals */}
                     <div className="flex-1 min-w-0">
-                       <PlayerRow player={player} isHovered={false} />
+                        {/* Ensure PlayerRow accepts this data structure */}
+                        <PlayerRow player={player} isHovered={false} />
                     </div>
                     
                     {/* 🛡️ ADMIN CONTROLS: Only visible here */}
                     <div className="opacity-0 group-hover:opacity-100 transition-opacity pl-2 border-l border-white/5">
-                       <RosterIntegrityControl 
-                          player={player} 
-                          teamId={team.id} 
-                          onUpdate={fetchRosters} 
-                       />
+                        <RosterIntegrityControl 
+                           player={player} 
+                           teamId={team.id} 
+                           onUpdate={fetchRosters} 
+                        />
                     </div>
                   </div>
                 ))
               ) : (
                 <div className="p-4 text-center text-red-500/50 text-xs font-mono flex flex-col items-center gap-2">
-                   <AlertTriangle className="w-4 h-4" />
-                   EMPTY ROSTER
+                    <AlertTriangle className="w-4 h-4" />
+                    EMPTY ROSTER
                 </div>
               )}
             </div>

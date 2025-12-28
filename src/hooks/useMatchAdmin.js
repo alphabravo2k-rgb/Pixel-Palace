@@ -1,18 +1,17 @@
 import { useAdminConsole } from './useAdminConsole';
-import { PERM_CAPABILITIES } from '../lib/permissions.actions'; // Corrected import
+import { PERM_CAPABILITIES } from '../lib/permissions.actions';
 
 export const useMatchAdmin = (match) => {
   const { execute, loading, error } = useAdminConsole();
 
-  // Helper to ensure we have context
-  const context = { tournamentId: match?.tournament_id };
-
-  // 🔄 SWAP TEAMS (Uses Strict RPC)
-  const swapTeams = (team1Id, team2Id, reason) => {
+  // 🔄 SWAP SLOTS (Corrected)
+  // We don't pass Team IDs because the RPC swaps whatever is in slot A/B.
+  const swapMatchSlots = (reason) => {
     return execute('api_swap_match_slots', {
         p_match_a_id: match.id,
         p_slot_a: 1, 
         p_match_b_id: match.id, 
+        p_slot_b: 2, // Swapping 1 and 2 within the same match
         p_tournament_id: match.tournament_id,
         p_reason: reason
     });
@@ -35,5 +34,5 @@ export const useMatchAdmin = (match) => {
     });
   };
 
-  return { updateScore, resetMatch, loading, error };
+  return { updateScore, resetMatch, swapMatchSlots, loading, error };
 };

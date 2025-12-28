@@ -2,13 +2,13 @@ import React, { useEffect } from 'react';
 import { X } from 'lucide-react';
 
 // 1. CONFIG: Load Env Vars safely
-const DISCORD_URL = import.meta.env.VITE_DISCORD_URL || 'https://discord.gg/JdXheQbvec'; // Fallback allowed for UI
+const DISCORD_URL = import.meta.env.VITE_DISCORD_URL || 'https://discord.gg/JdXheQbvec';
 
 // 🆕 Skewed Action Button (Safe)
 export const SkewButton = ({ children, onClick, className = "", disabled = false, type = "button" }) => (
   <button 
     type={type}
-    onClick={disabled ? undefined : onClick} // 🛡️ FIX: Prevents keyboard activation when disabled
+    onClick={disabled ? undefined : onClick} // 🛡️ FIX: Prevents keyboard activation
     disabled={disabled}
     className={`
       relative transform -skew-x-[10deg] px-8 py-3 
@@ -23,7 +23,7 @@ export const SkewButton = ({ children, onClick, className = "", disabled = false
   </button>
 );
 
-// 🆕 HUD Panel (Visual Container)
+// 🆕 HUD Panel
 export const HudPanel = ({ children, className = "" }) => (
   <div className={`
     relative bg-[#141419]/70 backdrop-blur-md 
@@ -34,13 +34,12 @@ export const HudPanel = ({ children, className = "" }) => (
   `}
   style={{ clipPath: 'polygon(0 0, 100% 0, 100% 95%, 95% 100%, 0 100%)' }}
   >
-    {/* Left Accent Line */}
     <div className="absolute top-0 left-0 w-[3px] h-full bg-gradient-to-b from-fuchsia-500 to-purple-600 opacity-80" />
     {children}
   </div>
 );
 
-// 🆕 Breathing Logo (Linked to Env)
+// 🆕 Breathing Logo
 export const BreathingLogo = ({ size = "w-40 h-40", className = "" }) => (
   <a 
     href={DISCORD_URL} 
@@ -94,19 +93,13 @@ export const Badge = ({ children, color = 'blue' }) => {
 
 // 🛡️ ACCESSIBLE MODAL (Locks Scroll + Esc Key)
 export const Modal = ({ isOpen, onClose, title, children }) => {
-  
   useEffect(() => {
     if (!isOpen) return;
-
-    // 1. Lock Body Scroll
     document.body.style.overflow = 'hidden';
-
-    // 2. Handle ESC Key
     const handleEsc = (e) => {
         if (e.key === 'Escape') onClose();
     };
     window.addEventListener('keydown', handleEsc);
-
     return () => {
         document.body.style.overflow = 'unset';
         window.removeEventListener('keydown', handleEsc);
@@ -125,16 +118,9 @@ export const Modal = ({ isOpen, onClose, title, children }) => {
           <h3 className="text-xl font-black text-white italic tracking-tighter uppercase brand-font">
             {title}
           </h3>
-          <button 
-            onClick={onClose} 
-            className="text-zinc-500 hover:text-white p-2 hover:bg-white/5 rounded-full transition-colors"
-          >
-            <X size={20} />
-          </button>
+          <button onClick={onClose} className="text-zinc-500 hover:text-white p-2 hover:bg-white/5 rounded-full"><X size={20} /></button>
         </div>
-        <div className="p-6 overflow-y-auto custom-scrollbar">
-            {children}
-        </div>
+        <div className="p-6 overflow-y-auto custom-scrollbar">{children}</div>
       </div>
     </div>
   );

@@ -3,7 +3,7 @@ import { supabase } from '../supabase/client';
 import { useTournament } from '../tournament/useTournament';
 import { Bracket } from './Bracket';
 import { RefreshCw, Loader2, WifiOff } from 'lucide-react';
-import { AdminMatchModal } from './admin/AdminMatchModal'; 
+import { AdminMatchModal } from './admin/AdminMatchModal'; // Verified Path
 
 export const BracketView = () => {
   const { selectedTournamentId, tournamentData, loading: contextLoading } = useTournament();
@@ -39,7 +39,7 @@ export const BracketView = () => {
     }
   };
 
-  // 2. Realtime Listener (Surgical)
+  // 2. Realtime Listener
   useEffect(() => {
     if (!selectedTournamentId) return;
 
@@ -54,13 +54,8 @@ export const BracketView = () => {
         { event: 'UPDATE', schema: 'public', table: 'matches', filter: `tournament_id=eq.${selectedTournamentId}` },
         (payload) => {
           // ⚡ SURGICAL UPDATE: Update only the specific match that changed
-          // We assume 'team1' and 'team2' foreign objects might not be in the payload,
-          // so for structural changes (team swaps), we might still need to refetch.
-          // But for scores/status, we can patch.
-          
           setMatches(prevMatches => prevMatches.map(m => {
              if (m.id === payload.new.id) {
-                // Merge new data while keeping existing relations (teams)
                 return { ...m, ...payload.new };
              }
              return m;

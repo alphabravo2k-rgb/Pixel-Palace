@@ -1,4 +1,9 @@
-import { PERM_ACTIONS } from './permissions.actions';
+import { PERM_CAPABILITIES } from './permissions.actions';
+
+/**
+ * ROLE CAPABILITY MATRIX (RBAC)
+ * Single Source of Truth for who can do what.
+ */
 
 export const ROLES = {
   OWNER: 'OWNER',
@@ -6,49 +11,49 @@ export const ROLES = {
   REFEREE: 'REFEREE',
   CAPTAIN: 'CAPTAIN',
   PLAYER: 'PLAYER',
-  SUBSTITUTE: 'SUBSTITUTE',
   GUEST: 'GUEST'
 };
 
-// Map database roles to capabilities
+// Define capabilities for each role
 export const ROLE_CAPABILITIES = {
-  OWNER: Object.values(PERM_ACTIONS), // Can do everything
-  ADMIN: [
-    PERM_ACTIONS.SYNC_ROSTER,
-    PERM_ACTIONS.GENERATE_BRACKET,
-    PERM_ACTIONS.UPDATE_MATCH,
-    PERM_ACTIONS.CAN_MANAGE_MATCH,
-    PERM_ACTIONS.CAN_MANAGE_BRACKET,
-    PERM_ACTIONS.SWAP_TEAMS,
-    PERM_ACTIONS.CHANGE_CONFIG,
-    PERM_ACTIONS.EDIT_PLAYER,
-    PERM_ACTIONS.VIEW_LOGS
+  [ROLES.OWNER]: [
+    PERM_CAPABILITIES.MANAGE_TOURNAMENT,
+    PERM_CAPABILITIES.VIEW_HIDDEN_DATA,
+    PERM_CAPABILITIES.MANAGE_MATCH,
+    PERM_CAPABILITIES.OVERRIDE_MATCH
   ],
-  REFEREE: [
-    PERM_ACTIONS.UPDATE_MATCH,
-    PERM_ACTIONS.CAN_MANAGE_MATCH,
-    PERM_ACTIONS.VIEW_LOGS
-  ]
+  [ROLES.ADMIN]: [
+    PERM_CAPABILITIES.MANAGE_TOURNAMENT,
+    PERM_CAPABILITIES.MANAGE_MATCH,
+    PERM_CAPABILITIES.OVERRIDE_MATCH
+  ],
+  [ROLES.REFEREE]: [
+    PERM_CAPABILITIES.MANAGE_MATCH, // Can report score/pause
+    // Note: No OVERRIDE_MATCH (Cannot force win/unlock)
+    // Note: No MANAGE_TOURNAMENT (Cannot gen bracket)
+  ],
+  [ROLES.CAPTAIN]: [
+    PERM_CAPABILITIES.ACT_AS_CAPTAIN,
+    PERM_CAPABILITIES.REPORT_SCORE
+  ],
+  [ROLES.PLAYER]: [],
+  [ROLES.GUEST]: []
 };
 
-export const normalizeRole = (role) => {
-  if (!role) return 'PLAYER';
-  const r = role.toString().trim().toUpperCase();
-  
-  if (['CAPTAIN', 'CAPT', 'C', 'IGL', 'LEADER'].includes(r)) return 'CAPTAIN';
-  if (['SUB', 'SUBSTITUTE', 'S', 'RESERVE', 'BENCH'].includes(r)) return 'SUBSTITUTE';
-  if (['ADMIN', 'ADMINISTRATOR', 'OFFICER'].includes(r)) return 'ADMIN';
-  if (['OWNER', 'HOST'].includes(r)) return 'OWNER';
-  if (['REF', 'REFEREE'].includes(r)) return 'REFEREE';
-  
-  return 'PLAYER';
-};
-
-// ✅ THIS WAS MISSING
+// UI Themes for Roles
 export const ROLE_THEMES = {
   OWNER: { color: 'text-yellow-500', bg: 'bg-yellow-500/10', border: 'border-yellow-500/50', label: 'Owner' },
   ADMIN: { color: 'text-fuchsia-500', bg: 'bg-fuchsia-500/10', border: 'border-fuchsia-500/50', label: 'Admin' },
   REFEREE: { color: 'text-orange-500', bg: 'bg-orange-500/10', border: 'border-orange-500/50', label: 'Referee' },
   CAPTAIN: { color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/50', label: 'Captain' },
   GUEST: { color: 'text-zinc-500', bg: 'bg-zinc-800', border: 'border-zinc-700', label: 'Guest' }
+};
+
+export const normalizeRole = (role) => {
+  if (!role) return ROLES.PLAYER;
+  const r = role.toString().trim().toUpperCase();
+  if (['CAPTAIN', 'CAPT', 'IGL'].includes(r)) return ROLES.CAPTAIN;
+  if (['ADMIN', 'OFFICER'].includes(r)) return ROLES.ADMIN;
+  if (['OWNER', 'HOST'].includes(r)) return ROLES.OWNER;
+  return ROLES.PLAYER;
 };

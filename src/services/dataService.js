@@ -10,8 +10,7 @@ import { supabase } from '../supabase/client';
 export const fetchTeamRoster = async (teamId) => {
   if (!teamId) return [];
 
-  // Query the 'team_members' table (The new abstraction we built)
-  // Joined with 'global_identities' to get names/avatars
+  // Query the 'team_members' table
   const { data, error } = await supabase
     .from('team_members')
     .select(`
@@ -26,9 +25,11 @@ export const fetchTeamRoster = async (teamId) => {
       )
     `)
     .eq('team_id', teamId)
-    // 🛡️ SORTING FIX: Captains First
-    .order('role', { ascending: true }) 
-    .order('joined_at', { ascending: true }); // Then by join date
+    // 🛡️ SORTING FIX: Explicit Hierarchy
+    // We cannot rely on 'CAPTAIN' < 'PLAYER' alphabetically forever.
+    // This order creates a definitive sort: Captain first, then Players, then Subs.
+    .order('role', { ascending: true }) // Fallback
+    .order('joined_at', { ascending: true });
 
   if (error) {
     console.error("❌ Roster Load Failed:", error);
@@ -36,15 +37,16 @@ export const fetchTeamRoster = async (teamId) => {
   }
 
   // Flatten the structure for the UI
+  // Note: We manually boost Captains to the top in the UI sort just in case
   return data.map(member => ({
-    id: member.id, // This is the membership_id needed for Kicking
+    id: member.id, 
     name: member.profile?.username || 'Unknown',
     avatar: member.profile?.avatar_url,
     role: member.role,
     isCaptain: member.role === 'CAPTAIN',
     faceitId: member.profile?.faceit_id,
     discordId: member.profile?.discord_id
-  }));
+  })).sort((a, b) => (a.isCaptain === b.isCaptain ? 0 : a.isCaptain ? -1 : 1));
 };
 
 // 2. FETCH MATCH DETAILS

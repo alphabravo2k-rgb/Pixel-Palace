@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { supabase } from '../supabase/client';
-import { ScrollText, ShieldAlert, ArrowRight, RefreshCw } from 'lucide-react';
+import { supabase } from '../../supabase/client';
+import { ScrollText, RefreshCw, ArrowRight } from 'lucide-react';
 
 export const AdminAuditLog = () => {
   const [logs, setLogs] = useState([]);
@@ -53,9 +53,9 @@ export const AdminAuditLog = () => {
 
         {/* Fallback for generic details if specific views don't match */}
         {Object.keys(d).length > 0 && !d.old_role && !d.match_id && !d.reason && (
-           <code className="text-[10px] text-zinc-600 block max-w-xs truncate font-mono">
-             {JSON.stringify(d)}
-           </code>
+            <code className="text-[10px] text-zinc-600 block max-w-xs truncate font-mono">
+              {JSON.stringify(d)}
+            </code>
         )}
       </div>
     );
@@ -98,7 +98,7 @@ export const AdminAuditLog = () => {
             ) : (
                 logs.map((log) => {
                 // Determine styling based on action severity
-                const actionName = log.action_name || log.action; // Fallback support
+                const actionName = log.action_type || log.action; // Fallback support
                 const isForce = actionName?.includes('FORCE') || actionName?.includes('KICK');
                 const isSync = actionName?.includes('SYNC');
                 

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useCaptainVeto } from '../hooks/useCaptainVeto';
-import { ShieldAlert, Ban, CheckCircle, Map, Clock, Lock } from 'lucide-react';
+import { Ban, CheckCircle, Clock, Lock } from 'lucide-react';
 
 // ✅ STATIC ASSETS (Keep the visuals high-quality)
 const MAP_POOL = [
@@ -46,10 +46,7 @@ export const VetoPanel = ({ match }) => {
   if (!match) return <div className="p-12 text-center text-zinc-500">Initializing Veto Protocol...</div>;
 
   // 4. CHECK FOR COMPLETION
-  // If BO1 (1 map needed) or BO3 (3 maps needed), check if we are done.
-  // The Hook usually handles this via match status, but we add a UI guard here.
   const isComplete = match.status === 'completed' || match.status === 'live' || (match.best_of === 1 && vetoes.length >= 6); 
-  // (Note: Precise completion logic is handled by the backend switching match status)
 
   if (isComplete) {
     return (
@@ -95,15 +92,15 @@ export const VetoPanel = ({ match }) => {
                : 'bg-zinc-800 text-zinc-500'}
            `}>
              {isMyTurn ? (
-                <>
-                  <Clock className="w-4 h-4" /> 
-                  <span>YOUR TURN TO {currentAction}</span>
-                </>
+               <>
+                 <Clock className="w-4 h-4" /> 
+                 <span>YOUR TURN TO {currentAction}</span>
+               </>
              ) : (
-                <>
-                  <Lock className="w-4 h-4" /> 
-                  <span>OPPONENT IS THINKING...</span>
-                </>
+               <>
+                 <Lock className="w-4 h-4" /> 
+                 <span>OPPONENT IS THINKING...</span>
+               </>
              )}
            </div>
         </div>

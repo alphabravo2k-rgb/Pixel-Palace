@@ -24,7 +24,6 @@ export const AdminToolbar = () => {
     const newId = e.target.value;
     
     // 🛡️ CONTEXT FRICTION (Audit Fix)
-    // Prevents accidental switching if you are already focused on an event
     if (selectedTournamentId && newId !== selectedTournamentId) {
       const confirmSwitch = window.confirm(
         "⚠️ CONTEXT SWITCH WARNING\n\nYou are changing the active tournament workspace.\nUnsaved actions in the current War Room will be lost.\n\nProceed?"

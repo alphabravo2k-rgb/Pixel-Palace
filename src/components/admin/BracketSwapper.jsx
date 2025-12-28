@@ -1,13 +1,11 @@
 import React, { useState } from 'react';
-import { ArrowLeftRight, ShieldAlert, X, AlertTriangle } from 'lucide-react';
-import { supabase } from '../../supabase/client';
-import { useSession } from '../../auth/useSession';
+import { ArrowLeftRight, ShieldAlert, X, AlertTriangle, Loader2 } from 'lucide-react';
+import { useAdminConsole } from '../../hooks/useAdminConsole'; // ✅ Use the secure hook
 
 export const BracketSwapper = ({ matches, onSwapComplete }) => {
-  const { session } = useSession(); // Simplified: session object has identity
+  const { execute, loading } = useAdminConsole(); // ✅ Handles admin context securely
   const [source, setSource] = useState(null); 
   const [target, setTarget] = useState(null);
-  const [loading, setLoading] = useState(false);
 
   const reset = () => {
     setSource(null);
@@ -17,7 +15,7 @@ export const BracketSwapper = ({ matches, onSwapComplete }) => {
   const handleSwap = async () => {
     if (!source || !target) return;
     
-    // Integrity Check (Frontend)
+    // Integrity Check (Frontend Advisory)
     if (['live', 'completed', 'veto'].includes(source.status) || 
         ['live', 'completed', 'veto'].includes(target.status)) {
       alert("Integrity Error: One of the selected matches is already locked.");
@@ -33,33 +31,23 @@ export const BracketSwapper = ({ matches, onSwapComplete }) => {
       return;
     }
 
-    setLoading(true);
-    try {
-      // ✅ Call RPC with proper signature
-      const { data, error } = await supabase.rpc('api_swap_match_slots', {
-        p_match_a_id: source.matchId,
-        p_slot_a: source.slot,
-        p_match_b_id: target.matchId,
-        p_slot_b: target.slot,
-        p_tournament_id: session.identity.tournament_id || 'e42d6e9f-a84f-47b5-b26c-48b2cab0d5ca', // Fallback or from Context
-        p_reason: reason,
-        p_admin_id: session.user.id // 🛡️ Audit Key from Session
-      });
+    // ✅ SECURE RPC CALL
+    // We do NOT pass admin_id or tournament_id blindly.
+    // The backend derives context from the match IDs.
+    const result = await execute('api_swap_match_slots', {
+      p_match_a_id: source.matchId,
+      p_slot_a: source.slot,
+      p_match_b_id: target.matchId,
+      p_slot_b: target.slot,
+      p_reason: reason
+    });
 
-      if (error) throw error;
-      
-      if (data.success) {
-        alert("Swap Successful.");
-        reset();
-        if (onSwapComplete) onSwapComplete();
-      } else {
-        alert(`Swap Rejected: ${data.message}`);
-      }
-    } catch (err) {
-      console.error("Swap Error:", err);
-      alert("Swap failed. Server rejected the request.");
-    } finally {
-      setLoading(false);
+    if (result.success) {
+      alert("Swap Successful.");
+      reset();
+      if (onSwapComplete) onSwapComplete();
+    } else {
+      alert(`Swap Rejected: ${result.message}`);
     }
   };
 
@@ -117,8 +105,9 @@ export const BracketSwapper = ({ matches, onSwapComplete }) => {
           <button 
             onClick={handleSwap}
             disabled={!target || loading}
-            className="bg-fuchsia-600 text-white px-4 py-2 rounded font-bold uppercase text-sm hover:bg-fuchsia-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="bg-fuchsia-600 text-white px-4 py-2 rounded font-bold uppercase text-sm hover:bg-fuchsia-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
+            {loading && <Loader2 className="w-3 h-3 animate-spin" />}
             {loading ? "Swapping..." : "Confirm Swap"}
           </button>
         )}

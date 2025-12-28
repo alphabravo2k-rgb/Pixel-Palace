@@ -46,17 +46,14 @@ export const TournamentProvider = ({ children, defaultId }) => {
     fetchTournaments();
   }, [defaultId]);
 
-  // 2. CAPTAIN BINDING (Security UX Fix)
+  // 2. CAPTAIN CONTEXT BINDING
+  // If user is a captain, auto-select their tournament for UX.
+  // Security is handled by RLS on the backend.
   useEffect(() => {
     if (session?.isAuthenticated && session?.role === ROLES.CAPTAIN) {
-      // Assuming session.team_id maps to a tournament, or session has explicit tournament_id
-      const allowedTournamentId = session.tournament_id; 
-      
-      if (allowedTournamentId && selectedTournamentId !== allowedTournamentId) {
-        console.warn("🔒 SECURITY: Redirecting Captain to assigned tournament.");
-        // UX FIX: Loud Notification
-        alert("SECURITY ALERT: You are restricted to your registered tournament context.");
-        setSelectedTournamentId(allowedTournamentId);
+      const assignedTournamentId = session.identity?.tournament_id;
+      if (assignedTournamentId && selectedTournamentId !== assignedTournamentId) {
+        setSelectedTournamentId(assignedTournamentId);
       }
     }
   }, [session, selectedTournamentId]);
@@ -108,24 +105,20 @@ export const TournamentProvider = ({ children, defaultId }) => {
     if (!data) return;
     setTournamentData(data);
     
-    // Backend Enum: 'setup', 'seeding', 'active', 'completed'
     const status = data.status || 'setup';
 
     setLifecycle({
       status: status.toUpperCase(),
-      // Locked = Active or Completed (No settings changes allowed)
       isLocked: ['active', 'completed'].includes(status),
-      // Registration = Setup only
       isRegistrationOpen: status === 'setup',
-      // Bracket Gen = Seeding phase
       canGenerateBracket: status === 'seeding'
     });
   };
 
   const validateAction = useCallback((action) => {
     if (!tournamentData) return false;
-    // Example: Block editing settings if tournament is live
     if (action === 'EDIT_SETTINGS' && lifecycle.isLocked) {
+        // Just a UI helper. Real check is in SQL Trigger.
         alert("ACTION BLOCKED: Tournament is LIVE/LOCKED.");
         return false;
     }

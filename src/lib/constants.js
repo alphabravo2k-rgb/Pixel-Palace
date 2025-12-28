@@ -1,5 +1,6 @@
 /**
  * PIXEL PALACE - SOURCE OF TRUTH
+ * Alignment: V2 Backend Standard
  */
 
 // 1. MATCH STATUS (Must match Postgres Enum exactly)

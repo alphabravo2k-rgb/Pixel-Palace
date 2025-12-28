@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../../supabase/client';
 import { useSession } from '../../auth/useSession';
 import { SkewButton, Badge } from '../../ui/Components';
-import { ShieldAlert, Trash2, RefreshCw, Loader2, UserPlus, Lock, Shield } from 'lucide-react';
+import { ShieldAlert, Trash2, RefreshCw, Loader2, Lock, Shield } from 'lucide-react';
 import { can } from '../../lib/permissions';
 import { PERM_CAPABILITIES } from '../../lib/permissions.actions';
 
@@ -12,7 +12,6 @@ export const StaffManagement = () => {
   const [loading, setLoading] = useState(true);
 
   // 1. PERMISSION GATE: Fail Fast
-  // If they can't manage the tournament, they definitely can't manage staff.
   if (!can(PERM_CAPABILITIES.MANAGE_TOURNAMENT, session)) {
     return (
       <div className="p-8 text-center border border-red-900/50 bg-red-900/10 rounded">
@@ -28,11 +27,10 @@ export const StaffManagement = () => {
     const fetchStaff = async () => {
       try {
         // 🛡️ SECURITY: We do NOT select 'pin_code' or 'password_hash'
-        // We only fetch what is necessary for the UI list.
         const { data, error } = await supabase
           .from('app_admins')
           .select('id, username, role, last_login_at, is_active')
-          .order('role', { ascending: true }); // Owners first usually
+          .order('role', { ascending: true });
 
         if (error) throw error;
         setAdmins(data || []);
@@ -47,7 +45,6 @@ export const StaffManagement = () => {
 
   const handleRevoke = async (id) => {
     if (!confirm("Are you sure you want to revoke this admin's access?")) return;
-    // Call RPC to deactivate (Logic handled in useAdminConsole usually)
     alert("Please use the CLI or Console to revoke access for ID: " + id);
   };
 
@@ -83,7 +80,6 @@ export const StaffManagement = () => {
                 </div>
 
                 <div className="flex gap-2">
-                {/* 🛡️ ACTIONS: RPC triggers, not state mutations */}
                 <button 
                     className="p-2 hover:bg-white/5 rounded text-zinc-400 hover:text-white"
                     title="Reset Credentials"
@@ -106,7 +102,7 @@ export const StaffManagement = () => {
         </div>
       </section>
       
-      {/* 2. NOTE: TEAM SECRETS REMOVED */}
+      {/* 2. SECURITY NOTICE: TEAM SECRETS REMOVED */}
       <div className="p-4 border border-zinc-800 rounded bg-zinc-900/30 text-center">
           <p className="text-zinc-500 text-xs font-mono">
               <Lock size={12} className="inline mr-1" />

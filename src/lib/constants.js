@@ -25,29 +25,7 @@ export const MAP_POOL = {
   de_train: { id: 'de_train', name: 'Train', image: '/maps/train.jpg' }
 };
 
-// 3. VETO FLOWS (Explicit Actors)
-export const VETO_FLOWS = {
-  1: [ // BO1
-    { actor: 'TEAM_1', action: 'BAN' },
-    { actor: 'TEAM_2', action: 'BAN' },
-    { actor: 'TEAM_1', action: 'BAN' },
-    { actor: 'TEAM_2', action: 'BAN' },
-    { actor: 'TEAM_1', action: 'BAN' },
-    { actor: 'TEAM_2', action: 'BAN' },
-    { actor: 'TEAM_1', action: 'PICK' }
-  ],
-  3: [ // BO3
-    { actor: 'TEAM_1', action: 'BAN' },
-    { actor: 'TEAM_2', action: 'BAN' },
-    { actor: 'TEAM_1', action: 'PICK' },
-    { actor: 'TEAM_2', action: 'PICK' },
-    { actor: 'TEAM_1', action: 'BAN' },
-    { actor: 'TEAM_2', action: 'BAN' },
-    { actor: 'DECIDER', action: 'PICK' }
-  ]
-};
-
-// 4. MATCH FORMATS
+// 3. MATCH FORMATS
 export const MATCH_FORMATS = {
   BO1: {
     id: 1, // Must match DB 'best_of' INT
@@ -72,7 +50,7 @@ export const MATCH_FORMATS = {
   }
 };
 
-// 5. ROLE TAXONOMY
+// 4. ROLE TAXONOMY
 export const ROLE_TAXONOMY = {
   OWNER: { id: 'OWNER', priority: -1, label: 'Tournament Owner' },
   ADMIN: { id: 'ADMIN', priority: 0, label: 'Administrator' },
@@ -81,20 +59,4 @@ export const ROLE_TAXONOMY = {
   PLAYER: { id: 'PLAYER', priority: 3, label: 'Operator' },
   SUBSTITUTE: { id: 'SUBSTITUTE', priority: 4, label: 'Reserve / Sub' },
   GUEST: { id: 'GUEST', priority: 99, label: 'Spectator' }
-};
-
-// 6. TOURNAMENT RULES
-export const TOURNAMENT_RULES = {
-  ROSTER: {
-    MIN_SIZE: 5,
-    MAX_SIZE: 7,
-    REQUIRES_CAPTAIN: true
-  },
-  PHASES: {
-    REGISTRATION: 'REGISTRATION',
-    CHECK_IN: 'CHECK_IN',
-    GROUP_STAGE: 'GROUP_STAGE',
-    PLAYOFFS: 'PLAYOFFS',
-    COMPLETED: 'COMPLETED'
-  }
 };

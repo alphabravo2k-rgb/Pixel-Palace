@@ -5,9 +5,10 @@ import { RefreshCw, Clock, ShieldAlert, Settings, Save, ArrowRightLeft } from 'l
 export const AdminMatchControls = ({ match, teams, onUpdate }) => {
   const { execute, loading } = useAdminConsole();
   
+  // Use correct column names from your schema
   const [selectedT1, setSelectedT1] = useState(match?.team1_id || ''); 
   const [selectedT2, setSelectedT2] = useState(match?.team2_id || ''); 
-  const [scheduleTime, setScheduleTime] = useState(match?.started_at || ''); // Use started_at column
+  const [scheduleTime, setScheduleTime] = useState(match?.started_at || ''); 
   const [selectedFormat, setSelectedFormat] = useState(match?.best_of || 1);
 
   const [isSwapModalOpen, setIsSwapModalOpen] = useState(false);
@@ -24,10 +25,7 @@ export const AdminMatchControls = ({ match, teams, onUpdate }) => {
     }
     
     // Call RPC to swap teams
-    // Note: Ensure api_set_match_teams exists in your SQL or use standard update
-    // For now, we assume standard update via RPC wrapper if direct update is blocked by RLS
-    // or use direct update if RLS allows Admins.
-    const result = await execute('api_set_match_teams', {
+    const result = await execute('api_swap_match_slots', {
       p_match_id: match.id,
       p_team1_id: selectedT1,
       p_team2_id: selectedT2,
@@ -48,7 +46,6 @@ export const AdminMatchControls = ({ match, teams, onUpdate }) => {
     const newFormat = parseInt(e.target.value);
     setSelectedFormat(newFormat);
 
-    // Ensure this RPC exists or use direct update
     const result = await execute('admin_update_match_format', {
         p_match_id: match.id,
         p_best_of: newFormat

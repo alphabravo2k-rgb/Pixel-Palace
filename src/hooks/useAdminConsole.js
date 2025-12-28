@@ -1,61 +1,52 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '../supabase/client';
-import { useSession } from '../auth/useSession'; // ✅ FIXED: Use Session, not localStorage
+import { useSession } from '../auth/useSession';
 
 export const useAdminConsole = () => {
-  const { session } = useSession(); // ✅ FIXED: Get ID from secure session
+  const { session } = useSession();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  /**
-   * UNIFIED EXECUTION API
-   * 1. Automatically grabs the Admin ID from session (Context-aware).
-   * 2. Enforces consistent error handling.
-   */
   const execute = useCallback(async (rpcName, params = {}) => {
     setLoading(true);
     setError(null);
 
     try {
-      // 1. Get Admin Context
-      // We rely on the session hook now, not localStorage (safer)
-      const adminId = session?.user?.id; 
-      
-      if (!adminId) {
-        throw new Error("SECURITY_CONTEXT_MISSING: No Admin ID found. Please relogin.");
+      if (!session?.isAuthenticated) {
+        throw new Error("UNAUTHORIZED: Session invalid.");
       }
 
-      // 2. Inject Admin ID into payload
-      // Your backend functions ALL expect 'p_admin_id' for security checks.
+      // 🛡️ SECURITY NOTE: 
+      // We pass p_admin_id for audit logging context, but the 
+      // Database (SQL) MUST verify it matches auth.uid().
       const payload = {
-        p_admin_id: adminId,
+        p_admin_id: session.user.id, 
         ...params
       };
 
-      console.log(`[AdminConsole] Invoking ${rpcName}`, payload);
+      console.log(`[AdminConsole] Executing ${rpcName}`, payload);
 
-      // 3. Execute RPC
       const { data, error: rpcError } = await supabase.rpc(rpcName, payload);
 
       if (rpcError) throw rpcError;
 
-      // 4. Handle logical errors returned as JSON success: false
+      // Handle "Soft Errors" returned as JSON
       if (data && data.success === false) {
-        throw new Error(data.message || 'Operation rejected by server logic.');
+        throw new Error(data.message || 'Operation denied by server rules.');
       }
 
       return { success: true, data };
 
     } catch (err) {
-      console.error(`[AdminConsole] Failed:`, err);
-      setError(err.message || 'Execution Failed');
-      return { success: false, error: err.message };
+      console.error(`[AdminConsole] Error:`, err);
+      setError(err.message);
+      return { success: false, message: err.message };
     } finally {
       setLoading(false);
     }
   }, [session]);
 
-  // Wrappers for common actions
+  // Convenience Wrappers
   const syncRegistrations = (tId) => execute('admin_sync_rosters', { p_tournament_id: tId });
   const generateBracket = (tId) => execute('admin_generate_bracket', { p_tournament_id: tId });
 

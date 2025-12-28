@@ -52,10 +52,10 @@ export const AdminDashboard = () => {
                 {activeView === 'rosters' && <div className="p-8"><AdminRosterReview tournamentId={selectedTournamentId} /></div>}
                 {activeView === 'staff' && <div className="p-8"><StaffManagement /></div>}
                 
-                {/* ✅ RESTORED: SETTINGS / OPS VIEW */}
+                {/* OPS VIEW */}
                 {activeView === 'settings' && <TournamentOpsView tournamentId={selectedTournamentId} />}
                 
-                {/* ✅ RESTORED: AUDIT LOG VIEW */}
+                {/* AUDIT LOG VIEW */}
                 {activeView === 'audit' && <div className="p-8"><AdminAuditLogViewer /></div>}
               </>
             )}
@@ -66,7 +66,7 @@ export const AdminDashboard = () => {
   );
 };
 
-// --- RESTORED SUB-COMPONENTS ---
+// --- SUB-COMPONENTS ---
 
 const TournamentOpsView = ({ tournamentId }) => {
   const { execute, loading } = useAdminConsole();
@@ -132,7 +132,7 @@ const AdminAuditLogViewer = () => {
             {logs.map(log => (
               <tr key={log.id} className="hover:bg-white/5">
                 <td className="p-3 text-zinc-600">{new Date(log.created_at).toLocaleTimeString()}</td>
-                <td className="p-3 text-fuchsia-400">{log.admin_id.substring(0,8)}</td>
+                <td className="p-3 text-fuchsia-400">{log.admin_id?.substring(0,8)}</td>
                 <td className="p-3 font-bold text-white">{log.action_type}</td>
                 <td className="p-3 max-w-md truncate" title={JSON.stringify(log.details)}>{JSON.stringify(log.details)}</td>
               </tr>
@@ -145,7 +145,6 @@ const AdminAuditLogViewer = () => {
   );
 };
 
-// Sidebar Helper
 const NavButton = ({ active, onClick, icon, label, desc }) => (
   <button onClick={onClick} className={`w-full flex items-center gap-3 p-3 rounded-lg text-left transition-all group ${active ? 'bg-fuchsia-900/20 border border-fuchsia-500/30 text-white shadow-[0_0_15px_rgba(192,38,211,0.15)]' : 'hover:bg-white/5 border border-transparent text-zinc-400 hover:text-white'}`}>
     <div className={`w-8 h-8 rounded flex items-center justify-center transition-colors shrink-0 ${active ? 'bg-fuchsia-600 text-white' : 'bg-zinc-800 group-hover:bg-zinc-700'}`}>{icon}</div>

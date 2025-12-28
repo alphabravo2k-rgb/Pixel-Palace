@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../supabase/client';
 import { normalizeRole, ROLES } from '../lib/roles';
+import { can } from '../lib/permissions'; // ✅ INTEGRATED PERMISSIONS
 
 const SessionContext = createContext(null);
 
@@ -9,17 +10,19 @@ export const SessionProvider = ({ children }) => {
     isAuthenticated: false,
     user: null,
     role: ROLES.GUEST,
-    team_id: null, // 🛡️ CRITICAL: The Anchor for Permissions
+    team_id: null,
     loading: true
   });
 
   // 1. BOOTSTRAP
   useEffect(() => {
+    // Initial Load
     supabase.auth.getSession().then(({ data: { session: authSession } }) => {
       if (authSession?.user) hydrateUser(authSession.user);
       else setSession(prev => ({...prev, loading: false}));
     });
 
+    // Realtime Listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, authSession) => {
       if (authSession?.user) {
         hydrateUser(authSession.user);
@@ -39,15 +42,15 @@ export const SessionProvider = ({ children }) => {
   // 2. IDENTITY RESOLVER
   const hydrateUser = async (user) => {
     try {
-      // 🛡️ SECURITY: Fetch from Safe View, not raw tables
+      // 🛡️ SECURITY: Fetch from the 'session_profiles' SQL View
+      // This view automatically determines if they are Admin, Captain, or Player
       const { data: profile, error } = await supabase
-        .from('global_identities') 
-        .select('role, team_id, username, avatar_url')
-        .eq('id', user.id)
+        .from('session_profiles') 
+        .select('*')
+        .eq('auth_user_id', user.id)
         .single();
 
-      if (error && error.code !== 'PGRST116') console.error("Auth Hydration Error:", error);
-
+      // Normalize Role (Safety Net)
       const cleanRole = normalizeRole(profile?.role || ROLES.PLAYER);
 
       setSession({
@@ -59,7 +62,7 @@ export const SessionProvider = ({ children }) => {
         loading: false
       });
     } catch (err) {
-      console.error("Critical Session Failure:", err);
+      console.error("Session Hydration Error:", err);
       setSession(prev => ({ ...prev, loading: false }));
     }
   };
@@ -77,7 +80,7 @@ export const SessionProvider = ({ children }) => {
   const logout = async () => await supabase.auth.signOut();
 
   return (
-    <SessionContext.Provider value={{ session, login, logout, loading: session.loading }}>
+    <SessionContext.Provider value={{ session, login, logout, loading: session.loading, can }}>
       {children}
     </SessionContext.Provider>
   );

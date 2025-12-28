@@ -12,23 +12,20 @@ module.exports = {
   settings: { react: { version: '18.2' } },
   plugins: ['react-refresh'],
   rules: {
-    // 1. PROJECT STRUCTURE: Allow Hooks + Components in one file (Vital for your structure)
+    // 1. PROJECT STRUCTURE: Allow Hooks + Components in one file
     'react-refresh/only-export-components': 'off',
     
     // 2. DEV EXPERIENCE: Warn only, don't break build
     'react/prop-types': 'off', 
     'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^React$' }],
-    
-    // 3. LOGGING: Allow warn/error/info, warn on 'log' (Good for finding debug junk)
     'no-console': ['warn', { allow: ['warn', 'error', 'info'] }],
     
-    // 4. REACT PRACTICES
-    'react/jsx-props-no-spreading': 'off', // Changed to OFF (Spreading is fine for UI wrappers)
+    // 3. REACT PRACTICES
+    'react/jsx-props-no-spreading': 'off', 
     "react/function-component-definition": ["warn", { "namedComponents": "arrow-function" }],
     
-    // 5. THE CRITICAL FIX: "Warn" only. 
-    // "Error" forces you to add deps that might cause infinite loops.
-    // "Warn" lets you know, but lets you decide.
+    // 4. THE CRITICAL FIX: "Warn" only. 
+    // Stops the infinite loop trap where linter forces bad deps.
     "react-hooks/exhaustive-deps": "warn"
   },
 }

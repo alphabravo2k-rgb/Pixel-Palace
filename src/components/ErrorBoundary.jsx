@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
+import { AlertTriangle, RefreshCw, Copy, Home } from 'lucide-react';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -8,19 +8,14 @@ class ErrorBoundary extends React.Component {
         hasError: false, 
         error: null,
         errorInfo: null,
-        resetKey: props.resetKey // Track key to reset state
+        resetKey: props.resetKey 
     };
   }
 
-  // 🛡️ AUTO-RECOVERY: If the key changes (route change), reset the error.
   static getDerivedStateFromProps(props, state) {
+    // Auto-reset if the user navigates (resetKey changes)
     if (props.resetKey !== state.resetKey) {
-      return { 
-          hasError: false, 
-          error: null, 
-          errorInfo: null,
-          resetKey: props.resetKey 
-      };
+      return { hasError: false, error: null, errorInfo: null, resetKey: props.resetKey };
     }
     return null;
   }
@@ -30,8 +25,7 @@ class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    console.error("❌ CRITICAL UI FAILURE:", error);
-    console.error("📍 STACK TRACE:", errorInfo.componentStack);
+    console.error("🔥 UI FAILURE:", error, errorInfo);
     this.setState({ errorInfo });
   }
 
@@ -39,40 +33,60 @@ class ErrorBoundary extends React.Component {
       this.setState({ hasError: false, error: null, errorInfo: null });
   };
 
+  copyError = () => {
+      if (this.state.error) {
+          navigator.clipboard.writeText(this.state.error.toString());
+          alert("Error copied to clipboard");
+      }
+  };
+
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen bg-[#060709] flex flex-col items-center justify-center p-4 text-center font-sans">
-          <div className="bg-[#0b0c0f] border border-red-900/50 p-8 max-w-lg shadow-2xl relative overflow-hidden">
-             {/* Red Warning Stripe */}
-             <div className="absolute top-0 left-0 w-full h-1 bg-red-600 shadow-[0_0_15px_#dc2626]" />
+        <div className="min-h-[50vh] flex flex-col items-center justify-center p-8 text-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-[#09090b] border border-red-500/30 p-8 rounded-lg max-w-md w-full shadow-2xl relative overflow-hidden group">
              
-             <div className="flex flex-col items-center mb-6">
-                <AlertTriangle className="w-12 h-12 text-red-600 mb-4" />
-                <h2 className="text-xl font-black text-white uppercase tracking-widest">
-                    System Critical
-                </h2>
-                <p className="text-red-500 font-mono text-xs mt-1">RENDER_PROCESS_TERMINATED</p>
+             {/* Animated Warning Icon */}
+             <div className="flex justify-center mb-6">
+                <div className="p-4 bg-red-500/10 rounded-full animate-pulse">
+                    <AlertTriangle className="w-10 h-10 text-red-500" />
+                </div>
              </div>
              
-             <div className="bg-black/40 p-3 rounded border border-white/5 text-left mb-6 max-h-32 overflow-auto">
-                 <code className="text-[10px] text-zinc-500 font-mono">
-                     {this.state.error?.toString()}
+             <h2 className="text-xl font-['Teko'] uppercase font-bold tracking-widest text-white mb-2">
+                 Interface Interrupted
+             </h2>
+             <p className="text-zinc-500 font-mono text-xs mb-6">
+                 The display layer encountered an exception. Core data is safe.
+             </p>
+             
+             {/* Error Code */}
+             <div className="bg-black p-3 rounded border border-white/5 text-left mb-6 relative group/code">
+                 <code className="text-[10px] text-red-400 font-mono block overflow-hidden text-ellipsis whitespace-nowrap">
+                     {this.state.error?.toString() || 'Unknown Error'}
                  </code>
+                 <button 
+                    onClick={this.copyError}
+                    className="absolute right-2 top-2 p-1 hover:bg-white/10 rounded text-zinc-500 hover:text-white"
+                    title="Copy Error"
+                 >
+                    <Copy size={12} />
+                 </button>
              </div>
              
-             <div className="flex gap-3 justify-center">
+             {/* Actions */}
+             <div className="grid grid-cols-2 gap-3">
                 <button 
                     onClick={() => window.location.href = '/'}
-                    className="bg-zinc-800 hover:bg-zinc-700 text-white px-5 py-3 rounded-sm font-black uppercase tracking-[0.1em] text-[10px] flex items-center gap-2"
+                    className="flex items-center justify-center gap-2 px-4 py-3 bg-zinc-800 hover:bg-zinc-700 text-white rounded text-[10px] font-bold uppercase tracking-widest transition-colors"
                 >
-                    <Home size={14} /> Base
+                    <Home size={14} /> Dashboard
                 </button>
                 <button 
                     onClick={this.handleManualReset}
-                    className="bg-red-600 hover:bg-red-700 text-white px-5 py-3 rounded-sm font-black uppercase tracking-[0.1em] text-[10px] flex items-center gap-2 shadow-lg shadow-red-900/20"
+                    className="flex items-center justify-center gap-2 px-4 py-3 bg-red-600 hover:bg-red-500 text-white rounded text-[10px] font-bold uppercase tracking-widest transition-colors shadow-[0_0_15px_rgba(220,38,38,0.4)]"
                 >
-                    <RefreshCw size={14} /> Reboot
+                    <RefreshCw size={14} /> Reload UI
                 </button>
              </div>
           </div>

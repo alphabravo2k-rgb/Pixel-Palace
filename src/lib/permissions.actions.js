@@ -1,17 +1,29 @@
-export const PERM_ACTIONS = {
-  SYNC_ROSTER: 'SYNC_ROSTER',
-  GENERATE_BRACKET: 'GENERATE_BRACKET',
-  RESET_TOURNAMENT: 'RESET_TOURNAMENT',
-  CAN_MANAGE_MATCH: 'UPDATE_MATCH',
-  CAN_MANAGE_BRACKET: 'GENERATE_BRACKET',
-  UPDATE_MATCH: 'UPDATE_MATCH',
-  SWAP_TEAMS: 'SWAP_TEAMS',
-  CHANGE_CONFIG: 'CHANGE_CONFIG',
-  EDIT_PLAYER: 'EDIT_PLAYER',
-  VIEW_LOGS: 'VIEW_LOGS',
-  MANAGE_ADMINS: 'MANAGE_ADMINS',
-  VETO_ACT: 'VETO_ACT',
-  VIEW_SERVER_IP: 'VIEW_SERVER_IP',
-  VETO_OVERRIDE: 'VETO_OVERRIDE',
-  VIEW_SENSITIVE: 'VIEW_SENSITIVE'
+/**
+ * PERMISSION DICTIONARY
+ * Splits "What you can do" (Capabilities) from "What you are doing" (Operations).
+ */
+
+// 1. CAPABILITIES (Used in checks: can(CAPABILITY))
+export const PERM_CAPABILITIES = {
+  // Tournament Level
+  MANAGE_TOURNAMENT: 'CAP_MANAGE_TOURNAMENT', // Sync, Bracket, Settings
+  VIEW_HIDDEN_DATA: 'CAP_VIEW_HIDDEN',       // IP logs, raw roster data
+
+  // Match Level
+  MANAGE_MATCH: 'CAP_MANAGE_MATCH',          // Reset, Force Win, Update Score
+  OVERRIDE_MATCH: 'CAP_OVERRIDE_MATCH',      // Unlock, Force State Change
+  
+  // Participant Level
+  ACT_AS_CAPTAIN: 'CAP_ACT_AS_CAPTAIN',      // Veto, Dispute
+  REPORT_SCORE: 'CAP_REPORT_SCORE'           // Self-reporting (if enabled)
+};
+
+// 2. OPERATIONS (Used in logs/RPC calls)
+export const PERM_OPERATIONS = {
+  SYNC_ROSTER: 'OP_SYNC_ROSTER',
+  GENERATE_BRACKET: 'OP_GENERATE_BRACKET',
+  FORCE_WIN: 'OP_FORCE_WIN',
+  UPDATE_SCORE: 'OP_UPDATE_SCORE',
+  SUBMIT_VETO: 'OP_SUBMIT_VETO',
+  FILE_DISPUTE: 'OP_FILE_DISPUTE'
 };

@@ -1,47 +1,60 @@
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-let supabaseClient;
+let client;
+let isMockMode = false;
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error("⚠️ SYSTEM WARNING: Supabase keys are missing! App running in UI-Only Mode.");
+// 🛡️ CONFIG CHECK: Fail Loudly but Safely
+if (!supabaseUrl || !supabaseKey) {
+  console.error("🔥 CRITICAL: Supabase keys are missing from .env");
+  console.error("   The app is running in DISCONNECTED MODE.");
+  
+  isMockMode = true;
 
-  // ✅ SAFE MOCK: Returns empty arrays to prevent crashes
-  const safeList = { data: [], error: null };
-  const safeObj = { data: {}, error: null };
+  // ✅ PROXY MOCK: The "Catch-All" Safety Net
+  // This prevents crashes even if you use features you haven't explicitly mocked yet.
+  client = new Proxy({}, {
+    get: (target, prop) => {
+      // 1. Handle Realtime (Prevent BracketView Crash)
+      if (prop === 'channel') {
+        console.warn(`⚠️ [MOCK] Realtime disabled.`);
+        return () => ({ 
+            on: () => ({ subscribe: () => {} }),
+            unsubscribe: () => {} 
+        });
+      }
+      
+      // 2. Handle Auth/DB Calls
+      if (typeof prop === 'string') {
+        return () => {
+          console.warn(`⚠️ [MOCK] Supabase call '${String(prop)}' blocked. Missing Keys.`);
+          return Promise.resolve({ 
+            data: null, 
+            error: { message: "Supabase Disconnected (Missing Keys)" } 
+          });
+        };
+      }
+      
+      return undefined;
+    }
+  });
 
-  supabaseClient = {
-    auth: {
-      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
-      getSession: async () => ({ data: { session: null }, error: null }),
-      signInWithPassword: async () => ({ data: null, error: { message: "Mock Auth Failed" } }),
-      signOut: async () => {},
-      getUser: async () => ({ data: { user: null }, error: null }),
-    },
-    from: () => ({
-      select: () => ({
-        eq: () => ({
-          single: () => safeObj,
-          maybeSingle: () => safeObj,
-          order: () => safeList,
-          data: []
-        }),
-        order: () => safeList,
-        data: []
-      }),
-      insert: () => ({ select: () => safeObj }),
-      update: () => ({ eq: () => ({ select: () => safeObj }) }),
-    }),
-    rpc: async (fnName) => {
-        console.warn(`⚠️ MOCK RPC: "${fnName}" called in UI-Only Mode. Returning empty data.`);
-        return { data: { success: false, message: "Mock Mode" }, error: null };
-    } 
-  };
 } else {
-  console.log("✅ Supabase Client Initialized Successfully");
-  supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
+  // ✅ REAL CLIENT
+  client = createClient(supabaseUrl, supabaseKey, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+    },
+    realtime: {
+      params: {
+        eventsPerSecond: 10,
+      },
+    },
+  });
 }
 
-export const supabase = supabaseClient;
+export const supabase = client;
+export const isSupabaseConfigured = !isMockMode;

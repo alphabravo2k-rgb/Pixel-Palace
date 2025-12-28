@@ -1,27 +1,21 @@
 import React, { useState } from 'react';
-// ⚠️ IMPORT FIX: Added extra "../" because we are now deep in the admin folder
 import { useAdminConsole } from '../../hooks/useAdminConsole'; 
 import { RefreshCw, Clock, ShieldAlert, Settings, Save, ArrowRightLeft } from 'lucide-react';
 
 export const AdminMatchControls = ({ match, teams, onUpdate }) => {
   const { execute, loading } = useAdminConsole();
   
-  // Local State
-  const [selectedT1, setSelectedT1] = useState(match?.team1_id || ''); // Fix: use team1_id
-  const [selectedT2, setSelectedT2] = useState(match?.team2_id || ''); // Fix: use team2_id
-  const [scheduleTime, setScheduleTime] = useState(match?.start_time || '');
+  const [selectedT1, setSelectedT1] = useState(match?.team1_id || ''); 
+  const [selectedT2, setSelectedT2] = useState(match?.team2_id || ''); 
+  const [scheduleTime, setScheduleTime] = useState(match?.started_at || ''); // Use started_at column
   const [selectedFormat, setSelectedFormat] = useState(match?.best_of || 1);
 
-  // Modal State
   const [isSwapModalOpen, setIsSwapModalOpen] = useState(false);
   const [reason, setReason] = useState('');
   const [localError, setLocalError] = useState(null);
   const [successMsg, setSuccessMsg] = useState('');
 
-  // 1. ADVISORY CHECK
-  const isLocked = ['live', 'completed'].includes(match.status);
-
-  // --- ACTIONS ---
+  const isLocked = ['active', 'completed'].includes(match.status);
 
   const handleSwapRequest = async () => {
     if (reason.length < 5) {
@@ -29,7 +23,10 @@ export const AdminMatchControls = ({ match, teams, onUpdate }) => {
         return;
     }
     
-    // 2. SINGLE AUTHORITY PATH
+    // Call RPC to swap teams
+    // Note: Ensure api_set_match_teams exists in your SQL or use standard update
+    // For now, we assume standard update via RPC wrapper if direct update is blocked by RLS
+    // or use direct update if RLS allows Admins.
     const result = await execute('api_set_match_teams', {
       p_match_id: match.id,
       p_team1_id: selectedT1,
@@ -51,6 +48,7 @@ export const AdminMatchControls = ({ match, teams, onUpdate }) => {
     const newFormat = parseInt(e.target.value);
     setSelectedFormat(newFormat);
 
+    // Ensure this RPC exists or use direct update
     const result = await execute('admin_update_match_format', {
         p_match_id: match.id,
         p_best_of: newFormat
@@ -117,7 +115,7 @@ export const AdminMatchControls = ({ match, teams, onUpdate }) => {
         </div>
       </div>
 
-      {/* 🛡️ INTEGRITY MODAL */}
+      {/* INTEGRITY MODAL */}
       {isSwapModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-4">
           <div className="bg-zinc-950 border border-white/10 p-6 rounded-lg max-w-sm w-full shadow-2xl">

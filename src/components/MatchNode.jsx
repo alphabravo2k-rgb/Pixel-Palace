@@ -31,13 +31,13 @@ export const MatchNode = ({ match, onClick }) => {
   const theme = getStatusStyles(match.status);
   
   // 🛡️ LOGIC GUARD: The UI now respects the Backend Integrity Lock
-  // 1. Teams must be present
-  // 2. Status must not be 'completed' (unless admin overrides, handled in modal)
-  // 3. Match must NOT be locked by a dispute
   const hasTeams = match.team1 && match.team2;
-  const isLocked = match.is_locked; // New Backend Field
+  const isLocked = match.is_locked;
   
-  const isActionable = hasTeams && !isLocked;
+  // Naming Fix: Can we open the modal? Yes, if teams exist.
+  const canOpen = hasTeams; 
+  // Naming Fix: Is it actionable? Only if unlocked and active.
+  const isActionable = hasTeams && !isLocked && match.status !== 'completed';
 
   return (
     <div className={`
@@ -62,12 +62,12 @@ export const MatchNode = ({ match, onClick }) => {
 
       {/* Action Footer */}
       <button 
-        onClick={() => isActionable && onClick(match)}
-        disabled={!isActionable}
+        onClick={() => canOpen && onClick(match)}
+        disabled={!canOpen}
         className={`
           px-3 py-1.5 border-t border-white/5 flex items-center justify-between w-full
           text-[9px] font-bold tracking-wider uppercase transition-colors
-          ${isActionable ? 'hover:bg-white/5 text-zinc-400 hover:text-white' : 'cursor-not-allowed text-zinc-700'}
+          ${canOpen ? 'hover:bg-white/5 text-zinc-400 hover:text-white' : 'cursor-not-allowed text-zinc-700'}
         `}
       >
         <span className="flex items-center gap-2">

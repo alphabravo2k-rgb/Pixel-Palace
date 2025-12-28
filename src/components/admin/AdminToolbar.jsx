@@ -24,6 +24,7 @@ export const AdminToolbar = () => {
     const newId = e.target.value;
     
     // 🛡️ CONTEXT FRICTION (Audit Fix)
+    // Prevents accidental switching if you are already focused on an event
     if (selectedTournamentId && newId !== selectedTournamentId) {
       const confirmSwitch = window.confirm(
         "⚠️ CONTEXT SWITCH WARNING\n\nYou are changing the active tournament workspace.\nUnsaved actions in the current War Room will be lost.\n\nProceed?"
@@ -83,7 +84,7 @@ export const AdminToolbar = () => {
         <div className="h-4 w-px bg-white/10" />
         <div className="flex items-center gap-2 text-xs text-zinc-500">
           <User className="w-3 h-3" />
-          <span className="font-mono text-zinc-300">{session.identity?.name || 'Unknown'}</span>
+          <span className="font-mono text-zinc-300">{session.identity?.username || 'Unknown'}</span>
         </div>
         <button 
           onClick={handleLogout}

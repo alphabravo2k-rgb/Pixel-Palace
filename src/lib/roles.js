@@ -28,8 +28,8 @@ export const ROLE_CAPABILITIES = {
     PERM_CAPABILITIES.OVERRIDE_MATCH
   ],
   [ROLES.REFEREE]: [
-    PERM_CAPABILITIES.MANAGE_MATCH, // Can report score/pause
-    // NOTE: Referees do NOT have OVERRIDE_MATCH (Cannot unlock/force win)
+    PERM_CAPABILITIES.MANAGE_MATCH, 
+    // NOTE: Referees do NOT have OVERRIDE_MATCH
   ],
   [ROLES.CAPTAIN]: [
     PERM_CAPABILITIES.ACT_AS_CAPTAIN,

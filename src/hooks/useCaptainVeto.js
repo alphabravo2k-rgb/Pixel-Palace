@@ -1,95 +1,104 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../supabase/client';
-import { useSession } from '../auth/useSession';
 
-export const useCaptainVeto = (match) => {
-  const { session } = useSession();
+export const useCaptainVeto = (match, session) => {
   const [vetoes, setVetoes] = useState([]);
   const [loading, setLoading] = useState(false);
+  
+  // 1. HOOK RULES: Always define state/effects at top level. No early returns.
+  const matchId = match?.id;
+  const teamId = session?.identity?.team_id; 
 
-  // 1. Validate Inputs
-  if (!match?.id || !session) {
-    return { vetoes: [], isMyTurn: false, loading: false, currentAction: 'WAITING' };
-  }
-
-  // 2. Realtime Subscription
+  // 2. Load Veto History
   useEffect(() => {
+    if (!matchId) return; // Guard inside effect
+
     const fetchVetoes = async () => {
       const { data } = await supabase
         .from('match_vetoes')
         .select('*')
-        .eq('match_id', match.id)
+        .eq('match_id', matchId)
         .order('pick_order', { ascending: true });
+      
       if (data) setVetoes(data);
     };
+
     fetchVetoes();
 
+    // Subscribe to changes
     const channel = supabase
-      .channel(`veto-${match.id}`)
+      .channel(`veto-${matchId}`)
       .on('postgres_changes', { 
         event: 'INSERT', 
         schema: 'public', 
         table: 'match_vetoes', 
-        filter: `match_id=eq.${match.id}` 
+        filter: `match_id=eq.${matchId}` 
       }, (payload) => {
-          setVetoes((prev) => [...prev, payload.new].sort((a,b) => a.pick_order - b.pick_order));
+        setVetoes(prev => [...prev, payload.new]);
       })
-      .on('postgres_changes', { 
-        event: 'DELETE', 
-        schema: 'public', 
-        table: 'match_vetoes', 
-        filter: `match_id=eq.${match.id}` 
-      }, () => setVetoes([])) 
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [match.id]);
+  }, [matchId]);
 
-  // 3. Turn Calculation Logic
-  const isTeam1 = session.identity?.id === match.team1_id;
-  const isTeam2 = session.identity?.id === match.team2_id;
-  const turnCount = vetoes.length;
-  
-  let isMyTurn = false;
-  let currentAction = 'WAITING';
+  // 3. LOGIC: Derive State from Data (Not DOM/UI)
+  const vetoState = useMemo(() => {
+    if (!match) return { isMyTurn: false, phase: 'IDLE' };
 
-  if (match.best_of === 1) {
-    // BO1: Strict Alternating Bans (Team 1 Starts)
-    const isTeam1Turn = (turnCount % 2) === 0;
-    isMyTurn = (isTeam1 && isTeam1Turn) || (isTeam2 && !isTeam1Turn);
-    currentAction = 'BAN';
-  } else if (match.best_of === 3) {
-    // BO3: Ban(1), Ban(2), Pick(1), Pick(2), Ban(1), Ban(2)...
-    // 0: T1 Ban, 1: T2 Ban, 2: T1 Pick, 3: T2 Pick, 4: T1 Ban, 5: T2 Ban
-    const isTeam1Turn = [0, 2, 4].includes(turnCount);
-    isMyTurn = (isTeam1 && isTeam1Turn) || (isTeam2 && !isTeam1Turn);
-    currentAction = [2, 3].includes(turnCount) ? 'PICK' : 'BAN';
-  }
+    // Authority: Database Status
+    // If backend says match is LIVE or SCHEDULED, vetoes are done/paused.
+    if (match.status !== 'veto') {
+      return { isMyTurn: false, phase: 'CLOSED', isComplete: true };
+    }
 
-  // 4. Submit Action
+    const totalVetoes = vetoes.length;
+    // Standard BO1 Logic: Ban-Ban-Ban-Ban-Ban-Ban-Pick
+    const turnOrder = match.best_of === 3 
+        ? ['Ban', 'Ban', 'Pick', 'Pick', 'Ban', 'Ban', 'Decider'] 
+        : ['Ban', 'Ban', 'Ban', 'Ban', 'Ban', 'Ban', 'Pick'];
+
+    const currentTurnType = turnOrder[totalVetoes] || 'Complete';
+    
+    // Determine whose turn it is (A-B-A-B...)
+    const isTeam1Turn = totalVetoes % 2 === 0; 
+    const activeTeamId = isTeam1Turn ? match.team1_id : match.team2_id;
+    
+    const isMyTurn = teamId === activeTeamId;
+
+    return {
+      isMyTurn,
+      currentTurnType,
+      activeTeamId,
+      isComplete: totalVetoes >= turnOrder.length
+    };
+  }, [match, vetoes, teamId]);
+
+  // 4. ACTION: Submit Veto
   const submitVeto = async (mapName) => {
-    if (!isMyTurn || loading) return;
+    if (!matchId || !teamId || !vetoState.isMyTurn) return;
     
     setLoading(true);
     try {
-      const { data, error } = await supabase.rpc('api_submit_veto', {
-        p_match_id: match.id,
-        p_team_id: session.identity.id, // 🛡️ Identity Check
+      const { error } = await supabase.rpc('api_submit_veto', {
+        p_match_id: matchId,
+        p_team_id: teamId,
         p_map_name: mapName,
-        p_format: match.best_of
+        p_type: vetoState.currentTurnType.toUpperCase() // 'PICK' or 'BAN'
       });
 
       if (error) throw error;
-      if (data && !data.success) {
-        alert(data.message);
-      }
     } catch (err) {
       console.error("Veto Error:", err);
-      alert("Veto Failed: Server rejected request.");
+      alert("Failed to submit veto. " + err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  return { vetoes, isMyTurn, currentAction, submitVeto, loading };
+  return {
+    vetoes,
+    ...vetoState,
+    submitVeto,
+    loading
+  };
 };

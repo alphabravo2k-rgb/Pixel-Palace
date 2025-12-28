@@ -1,30 +1,25 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import path from 'path'
 
 // https://vitejs.dev/config/
-export default defineConfig(({ mode }) => ({
+export default defineConfig({
   plugins: [react()],
-  
-  // ✅ Critical for routing
-  base: '/', 
-  
-  server: {
-    port: 3000,
-    strictPort: true, 
-  },
-  esbuild: {
-    drop: mode === 'production' ? ['debugger'] : [],
-  },
-  build: {
-    outDir: 'dist',
-    sourcemap: false,
-    cssCodeSplit: true,
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom', 'lucide-react', '@supabase/supabase-js', 'react-router-dom'],
-        },
-      },
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
     },
   },
-}))
+  build: {
+    rollupOptions: {
+      output: {
+        // ⚡ SMART CHUNKING: Splits huge libraries into cacheable files
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          'supabase-vendor': ['@supabase/supabase-js'],
+          'ui-vendor': ['lucide-react']
+        }
+      }
+    }
+  }
+})

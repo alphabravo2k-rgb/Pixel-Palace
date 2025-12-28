@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAdminConsole } from '../../hooks/useAdminConsole'; 
 import { supabase } from '../../supabase/client';
-// You might need to adjust this import based on where RosterIntegrityControl lives
 import { RosterIntegrityControl } from './RosterIntegrityControl'; 
 import { PlayerRow } from '../roster/PlayerRow';
 import { Users, AlertTriangle } from 'lucide-react';
@@ -32,9 +31,6 @@ export const AdminRosterReview = ({ tournamentId }) => {
       .eq('tournament_id', tournamentId)
       .order('name');
       
-    // NOTE: The above query assumes the SQL relations match (team_members -> global_identities).
-    // If your SQL has `team_members` linked to `global_identities` via `global_id`, this is correct.
-
     if (!error) {
         // Flatten data if needed by PlayerRow
         const formattedTeams = data?.map(team => ({
@@ -83,7 +79,6 @@ export const AdminRosterReview = ({ tournamentId }) => {
                   <div key={player.id} className="p-2 flex items-center justify-between group hover:bg-white/5 transition-colors">
                     {/* Reusing PlayerRow for consistent visuals */}
                     <div className="flex-1 min-w-0">
-                        {/* Ensure PlayerRow accepts this data structure */}
                         <PlayerRow player={player} isHovered={false} />
                     </div>
                     

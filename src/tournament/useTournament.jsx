@@ -21,12 +21,12 @@ export const TournamentProvider = ({ children, defaultId }) => {
     canGenerateBracket: false
   });
 
-  // 1. FETCH LIST (Corrected Column Names)
+  // 1. FETCH LIST
   useEffect(() => {
     const fetchTournaments = async () => {
       const { data, error: fetchError } = await supabase
         .from('tournaments')
-        .select('id, name, status, start_date') // ✅ Corrected starts_at -> start_date
+        .select('id, name, status, start_date')
         .order('start_date', { ascending: false });
       
       if (fetchError) {
@@ -36,20 +36,30 @@ export const TournamentProvider = ({ children, defaultId }) => {
 
       if (data) {
         setTournaments(data);
+        // Auto-select logic
         if (!selectedTournamentId && data.length > 0 && !defaultId) {
            const lastId = localStorage.getItem('pp_active_tid');
-           setSelectedTournamentId(lastId || data[0].id);
+           // Validate lastId exists in data
+           const isValid = data.find(t => t.id === lastId);
+           setSelectedTournamentId(isValid ? lastId : data[0].id);
         }
       }
     };
     fetchTournaments();
   }, [defaultId]);
 
-  // 2. CAPTAIN BINDING
+  // 2. CAPTAIN BINDING (Security UX Fix)
   useEffect(() => {
+    // If user is a Captain, they are bound to their team's tournament.
+    // We enforce this in UI to prevent confusion, while RLS enforces it in data.
     if (session?.isAuthenticated && session?.role === ROLES.CAPTAIN) {
-      const allowedTournamentId = session.identity?.tournament_id;
+      // Assuming 'session.tournament_id' is populated by your Auth Provider via team_members join
+      const allowedTournamentId = session.tournament_id; 
+      
       if (allowedTournamentId && selectedTournamentId !== allowedTournamentId) {
+        console.warn("🔒 SECURITY: Redirecting Captain to assigned tournament.");
+        // UX FIX: Loud Notification
+        alert("SECURITY ALERT: You are restricted to your registered tournament context.");
         setSelectedTournamentId(allowedTournamentId);
       }
     }
@@ -97,32 +107,30 @@ export const TournamentProvider = ({ children, defaultId }) => {
     return () => { supabase.removeChannel(subscription); };
   }, [selectedTournamentId]);
 
-  // 4. STATE MACHINE (Corrected for start_date)
+  // 4. STATE MACHINE (Aligned with Backend Enums)
   const updateLocalState = (data) => {
     if (!data) return;
     setTournamentData(data);
     
-    let status = 'SETUP';
-    const now = new Date();
-    // ✅ Corrected starts_at -> start_date
-    const start = data.start_date ? new Date(data.start_date) : null;
-
-    if (data.status === 'COMPLETED') status = 'COMPLETED';
-    else if (start && now >= start) status = 'LIVE';
-    else if (data.status === 'REGISTRATION') status = 'REGISTRATION';
+    // Backend Enum: 'setup', 'seeding', 'active', 'completed'
+    const status = data.status || 'setup';
 
     setLifecycle({
-      status,
-      isLocked: status === 'LIVE' || status === 'COMPLETED',
-      isRegistrationOpen: status === 'REGISTRATION',
-      canGenerateBracket: (status === 'REGISTRATION' || status === 'SETUP') && !data.bracket_generated
+      status: status.toUpperCase(),
+      // Locked = Active or Completed (No settings changes allowed)
+      isLocked: ['active', 'completed'].includes(status),
+      // Registration = Setup only
+      isRegistrationOpen: status === 'setup',
+      // Bracket Gen = Seeding phase
+      canGenerateBracket: status === 'seeding'
     });
   };
 
   const validateAction = useCallback((action) => {
     if (!tournamentData) return false;
-    if (action === 'EDIT_SETTINGS' && lifecycle.status === 'LIVE') {
-        alert("ACTION BLOCKED: Cannot edit settings while tournament is LIVE.");
+    // Example: Block editing settings if tournament is live
+    if (action === 'EDIT_SETTINGS' && lifecycle.isLocked) {
+        alert("ACTION BLOCKED: Tournament is LIVE/LOCKED.");
         return false;
     }
     return true;

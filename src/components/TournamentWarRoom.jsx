@@ -15,7 +15,6 @@ export const TournamentWarRoom = () => {
   if (authLoading) return <div className="h-screen flex items-center justify-center bg-black"><Loader2 className="animate-spin text-fuchsia-500" /></div>;
 
   // 1. PERMISSION CHECK
-  // Gate entire view behind MANAGE_TOURNAMENT capability
   if (!can(PERM_CAPABILITIES.MANAGE_TOURNAMENT, session)) {
     return (
       <div className="h-screen flex flex-col items-center justify-center bg-black text-red-500 p-8 text-center">
@@ -28,7 +27,6 @@ export const TournamentWarRoom = () => {
 
   // 2. LIFECYCLE GATES
   // 🛡️ Strict: Only allowed in SETUP or SEEDING. Never in LIVE.
-  // Using explicit lists prevents "fuzzy" logic matches.
   const isSetupPhase = ['SETUP', 'SEEDING', 'REGISTRATION'].includes(lifecycle?.status);
   const isLive = ['ACTIVE', 'LIVE', 'PLAYOFFS'].includes(lifecycle?.status);
 
@@ -50,7 +48,6 @@ export const TournamentWarRoom = () => {
          </div>
 
          <div className="flex gap-2">
-            {/* 🛡️ GATE: Roster Sync */}
             <button 
                 onClick={() => syncRegistrations(selectedTournamentId)}
                 disabled={!isSetupPhase || opsLoading}
@@ -64,8 +61,6 @@ export const TournamentWarRoom = () => {
             >
                 <RefreshCw size={14} className={opsLoading ? 'animate-spin' : ''} /> Sync Roster
             </button>
-            
-            {/* 🛡️ GATE: Bracket Gen */}
             <button 
                 onClick={() => generateBracket(selectedTournamentId)}
                 disabled={!isSetupPhase || opsLoading}
@@ -81,7 +76,6 @@ export const TournamentWarRoom = () => {
             </button>
          </div>
       </div>
-      
       <div className="flex-1 relative">
         <BracketView />
       </div>

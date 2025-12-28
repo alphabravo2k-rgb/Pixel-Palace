@@ -1,7 +1,7 @@
 import React from 'react';
-import { X, Clock } from 'lucide-react';
+import { X, Clock, AlertTriangle } from 'lucide-react';
 import { useSession } from '../../auth/useSession';
-import { TeamCard } from '../roster/TeamCard'; // Assuming you have this
+import { TeamCard } from '../roster/TeamCard'; 
 import { RestrictedButton } from '../common/RestrictedButton';
 
 export const MatchModal = ({ match, isOpen, onClose }) => {
@@ -17,9 +17,10 @@ export const MatchModal = ({ match, isOpen, onClose }) => {
   const isTeam2 = myTeamId === match.team2_id;
   const isParticipant = isTeam1 || isTeam2;
 
-  // Is this match actually actionable? (Audit Section 5)
-  // Players can only act if it's scheduled or in veto.
-  const isPlayerActionable = ['scheduled', 'veto'].includes(match.status);
+  // 🛡️ ACTIONABILITY GUARD (Audit Fix)
+  // The UI should only show actions if the match is unlocked AND in a playable state.
+  // Backend enforces this, but UI should match.
+  const isPlayerActionable = !match.is_locked && ['scheduled', 'veto', 'live'].includes(match.status);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-200">
@@ -49,7 +50,7 @@ export const MatchModal = ({ match, isOpen, onClose }) => {
           </div>
 
           {/* PLAYER ACTIONS */}
-          {isParticipant && isPlayerActionable && (
+          {isParticipant && isPlayerActionable ? (
             <div className="bg-fuchsia-900/10 border border-fuchsia-500/20 p-6 rounded-lg text-center">
               <h3 className="text-fuchsia-400 font-bold uppercase tracking-widest text-sm mb-4">
                 Captain Command Link
@@ -72,7 +73,11 @@ export const MatchModal = ({ match, isOpen, onClose }) => {
                 )}
               </div>
             </div>
-          )}
+          ) : isParticipant && match.is_locked ? (
+             <div className="bg-red-900/10 border border-red-500/20 p-4 rounded-lg text-center flex items-center justify-center gap-2 text-red-400 font-bold">
+                <AlertTriangle size={16} /> MATCH LOCKED BY ADMIN
+             </div>
+          ) : null}
 
           {!isParticipant && (
             <div className="text-center text-zinc-500 font-mono text-xs mt-8">

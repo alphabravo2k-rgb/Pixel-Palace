@@ -4,7 +4,7 @@ import { supabase } from '../../supabase/client';
 import { useSession } from '../../auth/useSession';
 
 export const BracketSwapper = ({ matches, onSwapComplete }) => {
-  const { getAuthIdentifier, session } = useSession(); // ✅ Use new helper
+  const { session } = useSession(); // Simplified: session object has identity
   const [source, setSource] = useState(null); 
   const [target, setTarget] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -43,7 +43,7 @@ export const BracketSwapper = ({ matches, onSwapComplete }) => {
         p_slot_b: target.slot,
         p_tournament_id: session.identity.tournament_id || 'e42d6e9f-a84f-47b5-b26c-48b2cab0d5ca', // Fallback or from Context
         p_reason: reason,
-        p_admin_id: getAuthIdentifier() // 🛡️ Audit Key
+        p_admin_id: session.user.id // 🛡️ Audit Key from Session
       });
 
       if (error) throw error;
@@ -63,8 +63,6 @@ export const BracketSwapper = ({ matches, onSwapComplete }) => {
     }
   };
 
-  // ... (Rest of UI remains identical) ...
-  // Keeping the same UI code you shared because it is correct.
   // 🎮 SELECTION UI (Floating Action Bar)
   if (!source) return null; 
 

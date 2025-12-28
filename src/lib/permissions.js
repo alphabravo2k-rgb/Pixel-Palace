@@ -17,7 +17,6 @@ export const can = (capability, session, context = null) => {
 
   // 2. OWNER OVERRIDE
   if (session.role === 'OWNER') return true;
-
   if (!hasPermission) return false;
 
   // 3. SCOPE CHECK

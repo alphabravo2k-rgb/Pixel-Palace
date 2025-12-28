@@ -9,7 +9,7 @@ let isMockMode = false;
 // 🛡️ CONFIG CHECK: Fail Loudly but Safely
 if (!supabaseUrl || !supabaseKey) {
   console.error("🔥 CRITICAL: Supabase keys are missing from .env");
-  console.error("   The app is running in DISCONNECTED MODE.");
+  console.error("    The app is running in DISCONNECTED MODE.");
   
   isMockMode = true;
 

@@ -11,7 +11,6 @@ export const AdminUsersPanel = () => {
   
   const [form, setForm] = useState({ 
     name: '', 
-    discord: '', 
     newPin: '',
     role: 'ADMIN' // Default
   });
@@ -36,20 +35,18 @@ export const AdminUsersPanel = () => {
     try {
         // ✅ Direct DB Insert (Allowed by RLS for OWNER)
         const { error: dbError } = await supabase
-            .from('admin_profiles')
+            .from('app_admins') // Correct Table Name
             .insert({
-                display_name: form.name,
-                discord_handle: form.discord,
+                name: form.name,
                 pin_code: form.newPin,
                 role: form.role,
-                can_manage_ops: true, // Defaulting permissions for now
-                can_manage_money: false
+                is_active: true
             });
 
         if (dbError) throw dbError;
 
         setSuccess(`Created Admin: ${form.name}`);
-        setForm({ name: '', discord: '', newPin: '', role: 'ADMIN' });
+        setForm({ name: '', newPin: '', role: 'ADMIN' });
 
     } catch (err) {
         console.error(err);
@@ -80,16 +77,7 @@ export const AdminUsersPanel = () => {
             onChange={e => setForm({...form, name: e.target.value})} 
             required
           />
-          <input 
-            type="text" 
-            placeholder="Discord ID (Optional)" 
-            className="bg-black border border-white/10 p-2 rounded text-white text-sm" 
-            value={form.discord} 
-            onChange={e => setForm({...form, discord: e.target.value})} 
-          />
-        </div>
-        
-        <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-2">
              <select 
                 className="bg-black border border-white/10 p-2 rounded text-white text-sm"
                 value={form.role}
@@ -107,6 +95,7 @@ export const AdminUsersPanel = () => {
                 onChange={e => setForm({...form, newPin: e.target.value})} 
                 required
               />
+          </div>
         </div>
 
         <div className="border-t border-white/10 pt-4 mt-4 flex justify-end">

@@ -24,6 +24,7 @@ export const AdminMatchModal = ({ match, isOpen, onClose, onUpdate }) => {
     if (!window.confirm("CRITICAL: Force this result? This overrides game data.")) return;
     setLoading(true);
     try {
+      // NOTE: useAdminConsole is preferred, but raw RPC works here too since we are in a modal
       const { error } = await supabase.rpc('admin_force_match_result', {
         p_match_id: match.id, p_winner_id: winnerId, p_admin_id: session.user.id, p_reason: "Admin Override"
       });
@@ -36,7 +37,6 @@ export const AdminMatchModal = ({ match, isOpen, onClose, onUpdate }) => {
     if (!window.confirm("WARNING: This wipes scores and logs. Proceed?")) return;
     setLoading(true);
     try {
-      // Ensure admin_reset_match RPC exists or define it
       const { error } = await supabase.rpc('admin_reset_match', { p_match_id: match.id, p_admin_id: session.user.id, p_reason: "Hard Reset" });
       if (error) throw error;
       onUpdate(); onClose();

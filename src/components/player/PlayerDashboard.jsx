@@ -104,18 +104,18 @@ export const PlayerDashboard = () => {
             </div>
           )}
 
-          {/* TAB: MATCHES (Placeholder for next step) */}
+          {/* TAB: MATCHES */}
           {activeTab === 'MATCHES' && (
             <div className="p-12 text-center bg-zinc-900 border border-white/10 rounded-lg">
               <Swords className="w-12 h-12 text-zinc-700 mx-auto mb-4" />
               <h3 className="text-xl font-['Teko'] uppercase text-zinc-500">No Active Matches</h3>
               <p className="text-zinc-600 text-sm font-mono mt-2">
-                When the bracket goes live, your games will appear here for Veto & Check-in.
+                When the bracket goes live, your games will appear here.
               </p>
             </div>
           )}
 
-          {/* TAB: STATS (Placeholder) */}
+          {/* TAB: STATS */}
           {activeTab === 'STATS' && (
              <div className="p-12 text-center bg-zinc-900 border border-white/10 rounded-lg">
                <Trophy className="w-12 h-12 text-yellow-500/20 mx-auto mb-4" />
@@ -132,7 +132,6 @@ export const PlayerDashboard = () => {
   );
 };
 
-// Simple UI Helper for the buttons
 const NavButton = ({ active, onClick, icon: Icon, label, badge }) => (
   <button
     onClick={onClick}

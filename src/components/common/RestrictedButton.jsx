@@ -1,7 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { useCapabilities } from '../../auth/useCapabilities'; // Adjusted path
+import { useCapabilities } from '../../auth/useCapabilities'; 
 import { Lock } from 'lucide-react';
 
+/**
+ * 🛡️ RestrictedButton
+ * UX Gating Component. 
+ * NOTE: Does NOT provide security. Backend RPCs must re-verify capability.
+ */
 export const RestrictedButton = ({ 
   action, 
   resourceId, 

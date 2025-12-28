@@ -1,11 +1,14 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { X } from 'lucide-react';
 
-// 🆕 Skewed Action Button
+// 1. CONFIG: Load Env Vars safely
+const DISCORD_URL = import.meta.env.VITE_DISCORD_URL || 'https://discord.gg/JdXheQbvec'; // Fallback allowed for UI
+
+// 🆕 Skewed Action Button (Safe)
 export const SkewButton = ({ children, onClick, className = "", disabled = false, type = "button" }) => (
   <button 
     type={type}
-    onClick={onClick}
+    onClick={disabled ? undefined : onClick} // 🛡️ FIX: Prevents keyboard activation when disabled
     disabled={disabled}
     className={`
       relative transform -skew-x-[10deg] px-8 py-3 
@@ -20,7 +23,7 @@ export const SkewButton = ({ children, onClick, className = "", disabled = false
   </button>
 );
 
-// 🆕 HUD Panel
+// 🆕 HUD Panel (Visual Container)
 export const HudPanel = ({ children, className = "" }) => (
   <div className={`
     relative bg-[#141419]/70 backdrop-blur-md 
@@ -37,10 +40,10 @@ export const HudPanel = ({ children, className = "" }) => (
   </div>
 );
 
-// 🆕 Breathing Logo
+// 🆕 Breathing Logo (Linked to Env)
 export const BreathingLogo = ({ size = "w-40 h-40", className = "" }) => (
   <a 
-    href="https://discord.gg/JdXheQbvec" 
+    href={DISCORD_URL} 
     target="_blank" 
     rel="noopener noreferrer"
     className={`relative block group cursor-pointer ${className}`}
@@ -54,15 +57,28 @@ export const BreathingLogo = ({ size = "w-40 h-40", className = "" }) => (
   </a>
 );
 
-// --- Compatibility Components ---
-export const Button = ({ children, variant = 'primary', className = '', ...props }) => {
+// --- COMPATIBILITY COMPONENTS (Safe versions) ---
+
+export const Button = ({ children, variant = 'primary', className = '', onClick, disabled, ...props }) => {
   const baseStyle = "px-4 py-2 rounded-sm font-black uppercase tracking-widest text-[10px] transition-all";
   const variants = {
     primary: "bg-zinc-800 text-zinc-300 hover:bg-[#ff5500] hover:text-black border border-zinc-700",
     danger: "bg-red-900/20 text-red-500 border border-red-900/50 hover:bg-red-900/40",
     success: "bg-emerald-900/20 text-emerald-500 border border-emerald-900/50 hover:bg-emerald-900/40"
   };
-  return <button className={`${baseStyle} ${variants[variant] || variants.primary} ${className}`} {...props}>{children}</button>;
+  
+  const finalVariant = disabled ? "bg-zinc-900 text-zinc-600 cursor-not-allowed border-zinc-800" : (variants[variant] || variants.primary);
+
+  return (
+    <button 
+        className={`${baseStyle} ${finalVariant} ${className}`} 
+        onClick={disabled ? undefined : onClick}
+        disabled={disabled}
+        {...props}
+    >
+        {children}
+    </button>
+  );
 };
 
 export const Badge = ({ children, color = 'blue' }) => {
@@ -76,16 +92,49 @@ export const Badge = ({ children, color = 'blue' }) => {
   return <span className={`px-2 py-0.5 rounded-sm text-[9px] font-black uppercase tracking-widest border ${colors[color]}`}>{children}</span>;
 };
 
+// 🛡️ ACCESSIBLE MODAL (Locks Scroll + Esc Key)
 export const Modal = ({ isOpen, onClose, title, children }) => {
+  
+  useEffect(() => {
+    if (!isOpen) return;
+
+    // 1. Lock Body Scroll
+    document.body.style.overflow = 'hidden';
+
+    // 2. Handle ESC Key
+    const handleEsc = (e) => {
+        if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleEsc);
+
+    return () => {
+        document.body.style.overflow = 'unset';
+        window.removeEventListener('keydown', handleEsc);
+    };
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/95 backdrop-blur-xl animate-in fade-in">
-      <div className="relative w-full max-w-lg bg-[#0b0c0f] border border-white/10 shadow-2xl flex flex-col max-h-[90vh]" style={{ clipPath: 'polygon(0 0, 100% 0, 100% 95%, 95% 100%, 0 100%)' }}>
+      <div 
+        className="relative w-full max-w-lg bg-[#0b0c0f] border border-white/10 shadow-2xl flex flex-col max-h-[90vh]" 
+        style={{ clipPath: 'polygon(0 0, 100% 0, 100% 95%, 95% 100%, 0 100%)' }}
+      >
         <div className="flex justify-between items-center p-6 border-b border-white/10 bg-[#15191f]/50">
-          <h3 className="text-xl font-black text-white italic tracking-tighter uppercase brand-font">{title}</h3>
-          <button onClick={onClose} className="text-zinc-500 hover:text-white"><X size={20} /></button>
+          <h3 className="text-xl font-black text-white italic tracking-tighter uppercase brand-font">
+            {title}
+          </h3>
+          <button 
+            onClick={onClose} 
+            className="text-zinc-500 hover:text-white p-2 hover:bg-white/5 rounded-full transition-colors"
+          >
+            <X size={20} />
+          </button>
         </div>
-        <div className="p-6 overflow-y-auto custom-scrollbar">{children}</div>
+        <div className="p-6 overflow-y-auto custom-scrollbar">
+            {children}
+        </div>
       </div>
     </div>
   );

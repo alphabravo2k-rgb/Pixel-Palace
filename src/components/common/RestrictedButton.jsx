@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useCapabilities } from '../../auth/useCapabilities';
+import { useCapabilities } from '../../auth/useCapabilities'; // Adjusted path
 import { Lock } from 'lucide-react';
 
 export const RestrictedButton = ({ 
@@ -32,7 +32,6 @@ export const RestrictedButton = ({
   }
 
   if (!allowed) {
-    // If fallback is provided (like a Lock icon), show it. Otherwise render nothing.
     return fallback ? (
       <button disabled className={`opacity-50 cursor-not-allowed flex items-center gap-2 ${className}`}>
         <Lock className="w-3 h-3" />

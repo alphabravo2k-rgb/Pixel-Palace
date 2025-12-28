@@ -20,10 +20,9 @@ export const can = (capability, session, context = null) => {
 
   if (!hasPermission) return false;
 
-  // 3. SCOPE CHECK (The Fix)
+  // 3. SCOPE CHECK
   if (capability === PERM_CAPABILITIES.ACT_AS_CAPTAIN) {
       // 🛡️ SECURITY: Use explicit team_id from session (joined from backend)
-      // Never use user_id or identity.id for team logic.
       const userTeamId = session.team_id; 
       
       if (!userTeamId || !context) return false;

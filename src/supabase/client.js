@@ -1,23 +1,23 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+// ⚠️ FORCE KEYS (Bypassing .env to fix the 400 Error immediately)
+const supabaseUrl = 'https://mbejyfwiuphpktospkga.supabase.co';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1iZWp5ZndpdXBocGt0b3Nwa2dhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU2MTY1ODQsImV4cCI6MjA4MTE5MjU4NH0.Nmqmc0zjYcT2O6u21zz4PGzMiO5cDvQHvTbucAdqdpA';
 
 let client;
 let isMockMode = false;
 
 // 🛡️ CONFIG CHECK: Fail Loudly but Safely
 if (!supabaseUrl || !supabaseKey) {
-  console.error("🔥 CRITICAL: Supabase keys are missing from .env");
+  console.error("🔥 CRITICAL: Supabase keys are missing.");
   console.error("    The app is running in DISCONNECTED MODE.");
   
   isMockMode = true;
 
   // ✅ PROXY MOCK: The "Catch-All" Safety Net
-  // This prevents crashes even if you use features you haven't explicitly mocked yet.
   client = new Proxy({}, {
     get: (target, prop) => {
-      // 1. Handle Realtime (Prevent BracketView Crash)
+      // 1. Handle Realtime
       if (prop === 'channel') {
         console.warn(`⚠️ [MOCK] Realtime disabled.`);
         return () => ({ 

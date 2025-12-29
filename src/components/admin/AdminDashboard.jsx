@@ -19,7 +19,7 @@ import { TeamRosterView } from './TeamRosterView'; // 👈 NEW IMPORT
 export const AdminDashboard = () => {
   const { logout, session } = useSession();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('TEAMS'); // 👈 Default to TEAMS for now
+  const [activeTab, setActiveTab] = useState('TEAMS'); // 👈 Default to TEAMS
 
   const handleLogout = async () => {
     await logout();

@@ -13,7 +13,7 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        // ⚡ SMART CHUNKING: Splits huge libraries into cacheable files
+        // ⚡ SMART CHUNKING: Optimizes loading speed
         manualChunks: {
           'react-vendor': ['react', 'react-dom', 'react-router-dom'],
           'supabase-vendor': ['@supabase/supabase-js'],

@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../supabase/client';
 import { X, Shield, Trophy, RefreshCw, AlertTriangle, Activity } from 'lucide-react';
-import { useSession } from '../../auth/useSession'; 
-import { AdminMatchControls } from './AdminMatchControls'; 
-import { RestrictedButton } from '../common/RestrictedButton'; // Make sure this exists!
+import { useSession } from '../../auth/useSession';
+import { AdminMatchControls } from './AdminMatchControls';
 
 export const AdminMatchModal = ({ match, isOpen, onClose, onUpdate }) => {
   const { session } = useSession();
@@ -24,22 +23,16 @@ export const AdminMatchModal = ({ match, isOpen, onClose, onUpdate }) => {
     if (!window.confirm("CRITICAL: Force this result? This overrides game data.")) return;
     setLoading(true);
     try {
-      // NOTE: useAdminConsole is preferred, but raw RPC works here too since we are in a modal
-      const { error } = await supabase.rpc('admin_force_match_result', {
-        p_match_id: match.id, p_winner_id: winnerId, p_admin_id: session.user.id, p_reason: "Admin Override"
+      // ⚠️ NOTE: 'admin_force_match_result' was NOT created in backend audit.
+      // This is a placeholder alert until that RPC is added.
+      alert("Feature Locked: SQL RPC 'admin_force_match_result' missing. Contact Lead Dev.");
+      
+      /* const { error } = await supabase.rpc('admin_force_match_result', {
+        p_match_id: match.id, p_winner_id: winnerId, p_reason: "Admin Override"
       });
       if (error) throw error;
       onUpdate(); onClose();
-    } catch (err) { alert(err.message); } finally { setLoading(false); }
-  };
-
-  const handleReset = async () => {
-    if (!window.confirm("WARNING: This wipes scores and logs. Proceed?")) return;
-    setLoading(true);
-    try {
-      const { error } = await supabase.rpc('admin_reset_match', { p_match_id: match.id, p_admin_id: session.user.id, p_reason: "Hard Reset" });
-      if (error) throw error;
-      onUpdate(); onClose();
+      */
     } catch (err) { alert(err.message); } finally { setLoading(false); }
   };
 
@@ -69,16 +62,13 @@ export const AdminMatchModal = ({ match, isOpen, onClose, onUpdate }) => {
                     <AlertTriangle className="w-3 h-3" /> Danger Zone
                 </div>
                 <div className="grid grid-cols-2 gap-3 mb-4">
-                    <RestrictedButton action="MATCH:FORCE_WIN" resourceId={match.id} disabled={loading || !match.team1_id} onClick={() => handleForceWin(match.team1_id)} className="py-3 bg-zinc-900 border border-zinc-800 hover:text-green-400 rounded text-xs font-bold uppercase flex flex-col items-center gap-1">
+                    <button disabled={loading || !match.team1_id} onClick={() => handleForceWin(match.team1_id)} className="py-3 bg-zinc-900 border border-zinc-800 hover:text-green-400 rounded text-xs font-bold uppercase flex flex-col items-center gap-1 transition-colors">
                         <Trophy className="w-4 h-4" /> {match.team1?.name || 'Team A'} Wins
-                    </RestrictedButton>
-                    <RestrictedButton action="MATCH:FORCE_WIN" resourceId={match.id} disabled={loading || !match.team2_id} onClick={() => handleForceWin(match.team2_id)} className="py-3 bg-zinc-900 border border-zinc-800 hover:text-green-400 rounded text-xs font-bold uppercase flex flex-col items-center gap-1">
+                    </button>
+                    <button disabled={loading || !match.team2_id} onClick={() => handleForceWin(match.team2_id)} className="py-3 bg-zinc-900 border border-zinc-800 hover:text-green-400 rounded text-xs font-bold uppercase flex flex-col items-center gap-1 transition-colors">
                         <Trophy className="w-4 h-4" /> {match.team2?.name || 'Team B'} Wins
-                    </RestrictedButton>
+                    </button>
                 </div>
-                <RestrictedButton action="MATCH:RESET" resourceId={match.id} disabled={loading} onClick={handleReset} className="w-full py-3 bg-red-950/10 border border-red-900/20 text-red-500 rounded text-xs font-bold uppercase flex items-center justify-center gap-2">
-                    <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} /> Hard Reset Match
-                </RestrictedButton>
             </section>
         </div>
       </div>

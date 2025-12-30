@@ -11,7 +11,7 @@ export const PERM_CAPABILITIES = {
   OVERRIDE_MATCH: 'CAP_OVERRIDE_MATCH',       
   ACT_AS_CAPTAIN: 'CAP_ACT_AS_CAPTAIN',       
   REPORT_SCORE: 'CAP_REPORT_SCORE',
-  EDIT_ROSTER: 'CAP_EDIT_ROSTER'            
+  EDIT_ROSTER: 'CAP_EDIT_ROSTER'              
 };
 
 // 2. OPERATIONS (Action types for Audit Logs)

@@ -18,6 +18,12 @@ export const AdminDashboard = () => {
     navigate('/login');
   };
 
+  // 🛡️ SAFETY FALLBACK: Handle missing identity/user data
+  const operatorLabel = 
+    session?.identity?.display_name ?? 
+    session?.user?.id?.substring(0, 6) ?? 
+    'SYSTEM ONLINE';
+
   const renderTab = (id, label, Icon) => {
     const isActive = activeTab === id;
     return (
@@ -49,7 +55,7 @@ export const AdminDashboard = () => {
               <h1 className="font-['Teko'] text-2xl font-bold leading-none text-white tracking-wide">OVERWATCH</h1>
               <span className="text-[10px] font-mono text-zinc-500 uppercase flex items-center gap-1">
                 <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
-                {session?.identity?.display_name ? `OP: ${session.identity.display_name}` : 'SYSTEM ONLINE'}
+                OP: {operatorLabel}
               </span>
             </div>
           </div>

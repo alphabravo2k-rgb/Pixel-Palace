@@ -4,7 +4,7 @@ import { SessionProvider } from '../auth/useSession';
 import { TournamentProvider } from '../tournament/useTournament';
 import ErrorBoundary from '../components/common/ErrorBoundary'; 
 import { router } from './router';
-import '../index.css'; // Ensure Tailwind is here
+import '../index.css'; 
 
 function App() {
   return (

@@ -1,5 +1,5 @@
 import React from 'react';
-import { useCapabilities } from '../../auth/useCapabilities'; 
+import { useCapabilities } from '../../auth/useCapabilities';
 import { Lock } from 'lucide-react';
 
 /**
@@ -9,7 +9,7 @@ import { Lock } from 'lucide-react';
  */
 export const RestrictedButton = ({ 
   action, 
-  resourceId = null, // Added to support context checks (e.g. Captain owning a match)
+  context = null, // 🔄 CHANGED: Accepts full object (e.g. match) instead of just ID
   children, 
   fallback = null, 
   className = "", 
@@ -19,7 +19,8 @@ export const RestrictedButton = ({
   const { can } = useCapabilities();
   
   // Synchronous check - Instant result
-  const allowed = can(action, { id: resourceId }); 
+  // We pass the full context so permissions.js can check fields like team1_id
+  const allowed = can(action, context); 
 
   if (!allowed) {
     if (fallback) return fallback;

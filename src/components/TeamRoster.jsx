@@ -5,7 +5,6 @@ import { Users, Loader2, Shield, Crown } from 'lucide-react';
 
 export const TeamRoster = () => {
   const { selectedTournamentId, loading: contextLoading } = useTournament();
-  
   const [teams, setTeams] = useState([]);
   const [loading, setLoading] = useState(false);
 
@@ -15,46 +14,40 @@ export const TeamRoster = () => {
     const fetchRosterData = async () => {
       setLoading(true);
       try {
-        // 1. Fetch Teams (The Containers)
-        const { data: teamsData, error: teamsError } = await supabase
+        // 1. Fetch Teams + Members + Identity (3-Level Join)
+        const { data, error } = await supabase
           .from('teams')
-          .select('id, name, logo_url, seed_number')
+          .select(`
+            id, name, logo_url, seed_number,
+            members:team_members (
+                id, role,
+                identity:global_identities (
+                    display_name, avatar_url
+                )
+            )
+          `)
           .eq('tournament_id', selectedTournamentId)
           .order('name', { ascending: true });
 
-        if (teamsError) throw teamsError;
+        if (error) throw error;
 
-        if (!teamsData || teamsData.length === 0) {
-            setTeams([]);
-            return;
-        }
+        // 2. Format & Sort
+        const formatted = data.map(team => {
+            const roster = team.members.map(m => ({
+                membership_id: m.id,
+                role: m.role,
+                is_captain: m.role === 'CAPTAIN',
+                display_name: m.identity?.display_name,
+                avatar_url: m.identity?.avatar_url
+            }));
 
-        // 2. Fetch Members (The Safe View)
-        // We query the VIEW, not the raw table, to respect Privacy RLS.
-        const teamIds = teamsData.map(t => t.id);
-        const { data: membersData, error: membersError } = await supabase
-          .from('public_player_profiles') // ✅ Using the Safe View
-          .select('*')
-          .in('team_id', teamIds);
+            // Sort: Captains first
+            roster.sort((a, b) => (a.is_captain === b.is_captain) ? 0 : a.is_captain ? -1 : 1);
 
-        if (membersError) throw membersError;
-
-        // 3. Merge & Sort Logic (JavaScript Level)
-        const mergedTeams = teamsData.map(team => {
-            const teamMembers = membersData.filter(m => m.team_id === team.id);
-            
-            // 🛡️ SORTING: Captains First, then Alphabetical
-            teamMembers.sort((a, b) => {
-                if (a.is_captain === b.is_captain) {
-                    return (a.display_name || '').localeCompare(b.display_name || '');
-                }
-                return a.is_captain ? -1 : 1; // Captain (true) comes first
-            });
-
-            return { ...team, roster: teamMembers };
+            return { ...team, roster };
         });
 
-        setTeams(mergedTeams);
+        setTeams(formatted);
 
       } catch (err) {
         console.error("Roster Fetch Error:", err);
@@ -65,8 +58,6 @@ export const TeamRoster = () => {
 
     fetchRosterData();
   }, [selectedTournamentId]);
-
-  // --- RENDER ---
 
   if (contextLoading || loading) {
     return (
@@ -130,7 +121,6 @@ export const TeamRoster = () => {
                 team.roster.map((player) => (
                   <div key={player.membership_id} className="flex items-center justify-between text-xs group/player">
                     <div className="flex items-center gap-3">
-                        {/* Avatar */}
                         <div className="w-6 h-6 rounded-full bg-zinc-800 flex items-center justify-center overflow-hidden">
                             {player.avatar_url ? (
                                 <img src={player.avatar_url} className="w-full h-full object-cover" />

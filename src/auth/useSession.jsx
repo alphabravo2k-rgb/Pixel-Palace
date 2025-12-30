@@ -11,6 +11,7 @@ export const SessionProvider = ({ children }) => {
     user: null,
     role: ROLES.GUEST,
     team_id: null,
+    identity: null,
     loading: true
   });
 
@@ -30,6 +31,7 @@ export const SessionProvider = ({ children }) => {
           user: null,
           role: ROLES.GUEST,
           team_id: null,
+          identity: null,
           loading: false
         });
       }
@@ -55,7 +57,7 @@ export const SessionProvider = ({ children }) => {
         isAuthenticated: true,
         user: user,
         role: cleanRole,
-        team_id: profile?.team_id || null, // ✅ Correctly populated from View
+        team_id: profile?.team_id || null, // ✅ CRITICAL: Used for Captain checks
         identity: profile, 
         loading: false
       });

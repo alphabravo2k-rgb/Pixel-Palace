@@ -1,12 +1,14 @@
 import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../supabase/client';
+import { useSession } from '../auth/useSession'; // Need session to know who "I" am
 
-export const useCaptainVeto = (match, session) => {
+export const useCaptainVeto = (match) => {
+  const { session } = useSession();
   const [vetoes, setVetoes] = useState([]);
   const [loading, setLoading] = useState(false);
   
   const matchId = match?.id;
-  const teamId = session?.identity?.team_id; 
+  const myTeamId = session?.team_id; 
 
   // 1. Live Data Sync
   useEffect(() => {
@@ -42,42 +44,42 @@ export const useCaptainVeto = (match, session) => {
   const vetoState = useMemo(() => {
     if (!match) return { isMyTurn: false, currentAction: 'WAIT' };
 
-    // If backend says match is not in veto, we stop.
     if (match.status !== 'veto') {
       return { isMyTurn: false, currentAction: 'LOCKED', isComplete: true };
     }
 
     const totalVetoes = vetoes.length;
-    // Hardcoded Logic for BO1/BO3 - ideally this comes from DB rules
+    // Standard Logic (To be moved to DB rules later)
+    // Team A Bans, Team B Bans, Team A Picks, Team B Picks...
     const turnOrder = match.best_of === 3 
         ? ['BAN', 'BAN', 'PICK', 'PICK', 'BAN', 'BAN', 'DECIDER'] 
         : ['BAN', 'BAN', 'BAN', 'BAN', 'BAN', 'BAN', 'PICK'];
 
     const currentAction = turnOrder[totalVetoes] || 'COMPLETE';
     
-    // Team 1 acts on even indexes (0, 2, 4...), Team 2 on odd
+    // Team 1 acts on even indexes (0, 2...), Team 2 on odd
     const isTeam1Turn = totalVetoes % 2 === 0; 
     const activeTeamId = isTeam1Turn ? match.team1_id : match.team2_id;
     
     return {
-      isMyTurn: teamId === activeTeamId,
+      isMyTurn: myTeamId === activeTeamId,
       currentAction,
       activeTeamId,
       isComplete: totalVetoes >= turnOrder.length
     };
-  }, [match, vetoes, teamId]);
+  }, [match, vetoes, myTeamId]);
 
   // 3. Secure Submission
   const submitVeto = async (mapName) => {
-    if (!matchId || !teamId || !vetoState.isMyTurn) return;
+    if (!matchId || !myTeamId || !vetoState.isMyTurn) return;
     
     setLoading(true);
     try {
       const { error } = await supabase.rpc('api_submit_veto', {
         p_match_id: matchId,
-        p_team_id: teamId,
+        p_team_id: myTeamId,
         p_map_name: mapName,
-        p_type: vetoState.currentAction // Pass the derived action
+        p_type: vetoState.currentAction // Auto-detects BAN vs PICK
       });
 
       if (error) throw error;

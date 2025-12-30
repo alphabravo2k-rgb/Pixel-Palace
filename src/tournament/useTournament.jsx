@@ -47,8 +47,6 @@ export const TournamentProvider = ({ children, defaultId }) => {
   }, [defaultId]);
 
   // 2. CAPTAIN CONTEXT BINDING
-  // If user is a captain, auto-select their tournament for UX.
-  // Security is handled by RLS on the backend.
   useEffect(() => {
     if (session?.isAuthenticated && session?.role === ROLES.CAPTAIN) {
       const assignedTournamentId = session.identity?.tournament_id;
@@ -100,7 +98,7 @@ export const TournamentProvider = ({ children, defaultId }) => {
     return () => { supabase.removeChannel(subscription); };
   }, [selectedTournamentId]);
 
-  // 4. STATE MACHINE (Aligned with Backend Enums)
+  // 4. STATE MACHINE
   const updateLocalState = (data) => {
     if (!data) return;
     setTournamentData(data);
@@ -118,7 +116,6 @@ export const TournamentProvider = ({ children, defaultId }) => {
   const validateAction = useCallback((action) => {
     if (!tournamentData) return false;
     if (action === 'EDIT_SETTINGS' && lifecycle.isLocked) {
-        // Just a UI helper. Real check is in SQL Trigger.
         alert("ACTION BLOCKED: Tournament is LIVE/LOCKED.");
         return false;
     }

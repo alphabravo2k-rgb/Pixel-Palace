@@ -5,12 +5,12 @@ import { supabase } from '../supabase/client';
  * Centralized data fetching to keep components clean.
  */
 
-// 1. FETCH TEAM ROSTER (The Correct Way)
+// 1. FETCH TEAM ROSTER
 // Enforces hierarchy: Captains -> Players -> Substitutes
 export const fetchTeamRoster = async (teamId) => {
   if (!teamId) return [];
 
-  // Query the 'team_members' table (The new abstraction we built)
+  // Query the 'team_members' table
   // Joined with 'global_identities' to get names/avatars
   const { data, error } = await supabase
     .from('team_members')
@@ -19,17 +19,15 @@ export const fetchTeamRoster = async (teamId) => {
       role,
       joined_at,
       profile:global_identities (
-        username,
-        avatar_url,
-        faceit_id,
+        username:display_name, 
+        avatar_url:discord_handle, 
         discord_id
       )
     `)
+    // Note: Adjusted field mapping based on Schema (display_name, discord_handle)
     .eq('team_id', teamId)
-    // 🛡️ SORTING FIX: Captains First
-    // 'CAPTAIN' comes before 'PLAYER' alphabetically, so this puts Captains on top.
     .order('role', { ascending: true }) 
-    .order('joined_at', { ascending: true }); // Then by join date
+    .order('joined_at', { ascending: true });
 
   if (error) {
     console.error("❌ Roster Load Failed:", error);
@@ -38,17 +36,16 @@ export const fetchTeamRoster = async (teamId) => {
 
   // Flatten the structure for the UI
   return data.map(member => ({
-    id: member.id, // This is the membership_id needed for Kicking
+    id: member.id,
     name: member.profile?.username || 'Unknown',
-    avatar: member.profile?.avatar_url,
+    avatar: null, // Schema doesn't have avatar_url yet, using placeholder in UI
     role: member.role,
     isCaptain: member.role === 'CAPTAIN',
-    faceitId: member.profile?.faceit_id,
     discordId: member.profile?.discord_id
   }));
 };
 
-// 2. FETCH MATCH DETAILS (For Admin Modal)
+// 2. FETCH MATCH DETAILS
 export const fetchMatchDetails = async (matchId) => {
   const { data, error } = await supabase
     .from('matches')

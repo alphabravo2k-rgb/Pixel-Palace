@@ -16,11 +16,10 @@ export const useAdminConsole = () => {
         throw new Error("UNAUTHORIZED: Session invalid.");
       }
 
-      // 🛡️ SECURITY: Inject Admin ID for Audit Logging
-      const payload = {
-        p_admin_id: session.user.id, 
-        ...params
-      };
+      // 🛡️ SECURITY UPDATE: 
+      // We do NOT send p_admin_id anymore. 
+      // The backend calculates it securely from auth.uid().
+      const payload = { ...params };
 
       console.log(`[AdminConsole] Executing ${rpcName}`, payload);
 
@@ -44,7 +43,9 @@ export const useAdminConsole = () => {
     }
   }, [session]);
 
-  // Convenience Wrappers
+  // Convenience Wrappers (Updated to match Backend v1.0 RPCs)
+  // Note: admin_sync_rosters / generate_bracket were not in the core audit, 
+  // ensure these exist or add them if needed.
   const syncRegistrations = (tId) => execute('admin_sync_rosters', { p_tournament_id: tId });
   const generateBracket = (tId) => execute('admin_generate_bracket', { p_tournament_id: tId });
 

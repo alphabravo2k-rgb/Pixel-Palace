@@ -1,29 +1,29 @@
 import React, { useState } from 'react';
 import { ArrowLeftRight, ShieldAlert, X, AlertTriangle, Loader2 } from 'lucide-react';
-import { useAdminConsole } from '../../hooks/useAdminConsole'; // ✅ Use the secure hook
+import { useAdminConsole } from '../../hooks/useAdminConsole';
 
 export const BracketSwapper = ({ matches, onSwapComplete }) => {
-  const { execute, loading } = useAdminConsole(); // ✅ Handles admin context securely
-  const [source, setSource] = useState(null); 
-  const [target, setTarget] = useState(null);
+  const { execute, loading } = useAdminConsole();
+  const [selectedMatch, setSelectedMatch] = useState(null);
+
+  // NOTE: In v1.0, we only support swapping sides within a single match.
+  // Cross-match swapping requires a complex 'admin_update_seeding' RPC we haven't built yet.
 
   const reset = () => {
-    setSource(null);
-    setTarget(null);
+    setSelectedMatch(null);
   };
 
   const handleSwap = async () => {
-    if (!source || !target) return;
+    if (!selectedMatch) return;
     
-    // Integrity Check (Frontend Advisory)
-    if (['live', 'completed', 'veto'].includes(source.status) || 
-        ['live', 'completed', 'veto'].includes(target.status)) {
-      alert("Integrity Error: One of the selected matches is already locked.");
+    // Integrity Check
+    if (['live', 'completed', 'veto'].includes(selectedMatch.status)) {
+      alert("Integrity Error: This match is already active/locked.");
       return;
     }
 
     const reason = prompt(
-      `⚖️ INTEGRITY CHECK \n\nSwapping ${source.teamName} <-> ${target.teamName}.\n\nREQUIRED: Why is this swap necessary?`
+      `⚖️ INTEGRITY CHECK \n\nSwapping Sides for Match #${selectedMatch.matchNo}.\n(Team 1 <-> Team 2)\n\nREQUIRED: Why is this swap necessary?`
     );
 
     if (!reason || reason.trim().length < 5) {
@@ -31,19 +31,14 @@ export const BracketSwapper = ({ matches, onSwapComplete }) => {
       return;
     }
 
-    // ✅ SECURE RPC CALL
-    // We do NOT pass admin_id or tournament_id blindly.
-    // The backend derives context from the match IDs.
+    // ✅ SECURE RPC CALL (Code 7)
     const result = await execute('api_swap_match_slots', {
-      p_match_a_id: source.matchId,
-      p_slot_a: source.slot,
-      p_match_b_id: target.matchId,
-      p_slot_b: target.slot,
+      p_match_id: selectedMatch.id,
       p_reason: reason
     });
 
     if (result.success) {
-      alert("Swap Successful.");
+      alert("Sides Swapped Successfully.");
       reset();
       if (onSwapComplete) onSwapComplete();
     } else {
@@ -51,81 +46,10 @@ export const BracketSwapper = ({ matches, onSwapComplete }) => {
     }
   };
 
-  // 🎮 SELECTION UI (Floating Action Bar)
-  if (!source) return null; 
+  // If used in a parent that passes 'source' prop, we adapt:
+  if (!matches) return null; // Or handle selection logic here
 
-  const isSourceLocked = ['live', 'completed', 'veto'].includes(source.status);
-  const isTargetLocked = target && ['live', 'completed', 'veto'].includes(target.status);
-  const hasError = isSourceLocked || isTargetLocked;
-
-  return (
-    <div className={`
-      fixed bottom-6 left-1/2 -translate-x-1/2 p-4 rounded-lg shadow-2xl z-50 
-      flex items-center gap-6 animate-in slide-in-from-bottom-5 border
-      ${hasError ? 'bg-red-950 border-red-500' : 'bg-zinc-900 border-fuchsia-500/50'}
-    `}>
-      
-      <div className="flex items-center gap-4">
-        {/* Source */}
-        <div className="flex flex-col">
-          <span className={`text-[10px] uppercase font-bold ${hasError ? 'text-red-400' : 'text-fuchsia-400'}`}>
-            Swap From
-          </span>
-          <span className="font-mono text-white font-bold">{source.teamName}</span>
-          {isSourceLocked && <span className="text-[9px] text-red-500 font-bold uppercase">LOCKED ({source.status})</span>}
-        </div>
-
-        <ArrowLeftRight className={`w-5 h-5 ${hasError ? 'text-red-500' : 'text-zinc-500'} ${target && !hasError ? 'animate-pulse text-white' : ''}`} />
-
-        {/* Target */}
-        <div className="flex flex-col">
-          <span className={`text-[10px] uppercase font-bold ${hasError ? 'text-red-400' : 'text-fuchsia-400'}`}>
-            Swap With
-          </span>
-          {target ? (
-            <>
-              <span className="font-mono text-white font-bold">{target.teamName}</span>
-              {isTargetLocked && <span className="text-[9px] text-red-500 font-bold uppercase">LOCKED ({target.status})</span>}
-            </>
-          ) : (
-            <span className="text-zinc-500 italic text-sm">Select Target...</span>
-          )}
-        </div>
-      </div>
-
-      <div className={`h-8 w-px ${hasError ? 'bg-red-500/30' : 'bg-white/10'}`} />
-
-      <div className="flex items-center gap-2">
-        {hasError ? (
-           <div className="flex items-center gap-2 text-red-200 text-xs font-bold uppercase">
-             <AlertTriangle className="w-4 h-4" />
-             Cannot Swap Locked Teams
-           </div>
-        ) : (
-          <button 
-            onClick={handleSwap}
-            disabled={!target || loading}
-            className="bg-fuchsia-600 text-white px-4 py-2 rounded font-bold uppercase text-sm hover:bg-fuchsia-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-          >
-            {loading && <Loader2 className="w-3 h-3 animate-spin" />}
-            {loading ? "Swapping..." : "Confirm Swap"}
-          </button>
-        )}
-        
-        <button 
-          onClick={reset}
-          className="p-2 hover:bg-white/10 rounded text-zinc-400 hover:text-white"
-        >
-          <X className="w-5 h-5" />
-        </button>
-      </div>
-
-      {!hasError && (
-        <div className="absolute -top-3 left-4 bg-black px-2 text-[10px] text-zinc-400 flex items-center gap-1 border border-zinc-800 rounded">
-          <ShieldAlert className="w-3 h-3 text-fuchsia-500" />
-          <span>Action will be logged</span>
-        </div>
-      )}
-    </div>
-  );
+  // Simplified UI for v1
+  return null; // ⚠️ Hiding this component for now as it was designed for Drag-n-Drop which isn't ready.
+  // Using AdminMatchControls inside the Modal is the preferred way to swap in v1.
 };

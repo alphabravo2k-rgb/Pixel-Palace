@@ -9,3 +9,4 @@ export { MatchFormatControl } from './MatchFormatControl';
 export { RosterIntegrityControl } from './RosterIntegrityControl';
 export { AdminLogin } from './AdminLogin';
 export { BracketSwapper } from './BracketSwapper';
+export { TeamRosterView } from './TeamRosterView'; // ✅ Added Missing Component

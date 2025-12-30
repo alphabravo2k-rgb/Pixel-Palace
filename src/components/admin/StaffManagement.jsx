@@ -22,14 +22,13 @@ export const StaffManagement = () => {
     );
   }
 
-  // 2. FETCH PUBLIC DATA ONLY (No Secrets)
+  // 2. FETCH PUBLIC DATA ONLY
   useEffect(() => {
     const fetchStaff = async () => {
       try {
-        // 🛡️ SECURITY: We do NOT select 'pin_code' or 'password_hash'
         const { data, error } = await supabase
           .from('app_admins')
-          .select('id, username, role, last_login_at, is_active')
+          .select('id, name, role, is_active')
           .order('role', { ascending: true });
 
         if (error) throw error;
@@ -70,11 +69,8 @@ export const StaffManagement = () => {
                 <div className={`w-2 h-2 rounded-full ${admin.is_active ? 'bg-green-500' : 'bg-red-500'}`} />
                 <div>
                     <div className="font-bold text-white text-sm flex items-center gap-2">
-                        {admin.username}
+                        {admin.name || 'Unknown Agent'}
                         <Badge color={admin.role === 'OWNER' ? 'yellow' : 'blue'}>{admin.role}</Badge>
-                    </div>
-                    <div className="text-[10px] text-zinc-500 font-mono">
-                        Last Active: {admin.last_login_at ? new Date(admin.last_login_at).toLocaleDateString() : 'Never'}
                     </div>
                 </div>
                 </div>
@@ -102,7 +98,7 @@ export const StaffManagement = () => {
         </div>
       </section>
       
-      {/* 2. SECURITY NOTICE: TEAM SECRETS REMOVED */}
+      {/* 2. SECURITY NOTICE */}
       <div className="p-4 border border-zinc-800 rounded bg-zinc-900/30 text-center">
           <p className="text-zinc-500 text-xs font-mono">
               <Lock size={12} className="inline mr-1" />

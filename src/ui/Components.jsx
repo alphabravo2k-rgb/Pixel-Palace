@@ -1,14 +1,13 @@
 import React, { useEffect } from 'react';
 import { X } from 'lucide-react';
 
-// 1. CONFIG: Load Env Vars safely
-const DISCORD_URL = import.meta.env.VITE_DISCORD_URL || 'https://discord.gg/JdXheQbvec';
+const DISCORD_URL = 'https://discord.gg/JdXheQbvec';
 
-// 🆕 Skewed Action Button (Safe)
+// 🆕 Skewed Action Button
 export const SkewButton = ({ children, onClick, className = "", disabled = false, type = "button" }) => (
   <button 
     type={type}
-    onClick={disabled ? undefined : onClick} // 🛡️ FIX: Prevents keyboard activation
+    onClick={disabled ? undefined : onClick} 
     disabled={disabled}
     className={`
       relative transform -skew-x-[10deg] px-8 py-3 
@@ -56,7 +55,7 @@ export const BreathingLogo = ({ size = "w-40 h-40", className = "" }) => (
   </a>
 );
 
-// --- COMPATIBILITY COMPONENTS (Safe versions) ---
+// --- COMPATIBILITY COMPONENTS ---
 
 export const Button = ({ children, variant = 'primary', className = '', onClick, disabled, ...props }) => {
   const baseStyle = "px-4 py-2 rounded-sm font-black uppercase tracking-widest text-[10px] transition-all";
@@ -91,18 +90,18 @@ export const Badge = ({ children, color = 'blue' }) => {
   return <span className={`px-2 py-0.5 rounded-sm text-[9px] font-black uppercase tracking-widest border ${colors[color]}`}>{children}</span>;
 };
 
-// 🛡️ ACCESSIBLE MODAL (Locks Scroll + Esc Key)
+// 🛡️ ACCESSIBLE MODAL
 export const Modal = ({ isOpen, onClose, title, children }) => {
   useEffect(() => {
     if (!isOpen) return;
     document.body.style.overflow = 'hidden';
     const handleEsc = (e) => {
-        if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') onClose();
     };
     window.addEventListener('keydown', handleEsc);
     return () => {
-        document.body.style.overflow = 'unset';
-        window.removeEventListener('keydown', handleEsc);
+      document.body.style.overflow = 'unset';
+      window.removeEventListener('keydown', handleEsc);
     };
   }, [isOpen, onClose]);
 

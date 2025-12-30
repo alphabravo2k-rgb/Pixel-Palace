@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Users, Trophy, AlertCircle } from 'lucide-react';
-import { PlayerRow } from './PlayerRow'; 
+import { PlayerRow } from './PlayerRow';
 import { normalizeRole } from '../../lib/roles';
 
 const ROLE_ORDER = {

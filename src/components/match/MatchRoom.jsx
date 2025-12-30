@@ -27,7 +27,6 @@ export const MatchRoom = ({ matchId }) => {
         filter: `id=eq.${matchId}` 
       }, (payload) => {
         // ⚡ SAFETY: Always refetch to get Team Names (Foreign Keys)
-        // Using payload.new directly would delete the team names from the UI
         fetchMatch(); 
       })
       .subscribe();
@@ -36,7 +35,6 @@ export const MatchRoom = ({ matchId }) => {
   }, [matchId]);
 
   const fetchMatch = async () => {
-    // 🛡️ JOIN Teams to get names
     const { data, error } = await supabase
       .from('matches')
       .select(`
@@ -54,10 +52,10 @@ export const MatchRoom = ({ matchId }) => {
   const handleDispute = async () => {
     if (!disputeReason) return;
     
-    // Call Secure RPC
+    // Call Secure RPC (Code 8)
+    // 🛡️ REMOVED p_team_id - Backend resolves it securely now.
     const { error } = await supabase.rpc('api_file_dispute', {
       p_match_id: matchId,
-      p_team_id: session.team_id, 
       p_reason: disputeReason
     });
 
@@ -122,9 +120,9 @@ export const MatchRoom = ({ matchId }) => {
               Waiting for captains to initialize ban phase.
             </p>
             
-            <RestrictedButton
+            <RestrictedButton 
               action={PERM_CAPABILITIES.MANAGE_MATCH} // Captains & Admins
-              resourceId={matchId}
+              context={match} // Pass full match for scope check
               className="mt-4 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-bold uppercase tracking-wider rounded border border-white/5 hover:border-white/20 transition-all relative z-10"
             >
               Start Veto
@@ -135,7 +133,7 @@ export const MatchRoom = ({ matchId }) => {
         <div className="grid grid-cols-2 gap-2">
            <RestrictedButton 
              action={PERM_CAPABILITIES.MANAGE_MATCH} 
-             resourceId={matchId}
+             context={match}
              className="p-3 bg-green-900/20 border border-green-500/30 hover:bg-green-900/40 text-green-400 font-bold uppercase text-xs rounded flex items-center justify-center gap-2 transition-colors"
            >
              <CheckCircle className="w-4 h-4" /> Ready Up
@@ -165,7 +163,7 @@ export const MatchRoom = ({ matchId }) => {
               
               <RestrictedButton 
                 action={PERM_CAPABILITIES.MANAGE_MATCH}
-                resourceId={matchId}
+                context={match}
                 onClick={handleDispute}
                 className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded uppercase tracking-wider transition-colors shadow-lg shadow-red-900/20"
               >

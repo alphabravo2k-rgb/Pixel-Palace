@@ -3,24 +3,19 @@ import { useSession } from '../auth/useSession';
 import { ROLES } from '../lib/roles';
 import { Loader2 } from 'lucide-react';
 
-// 1. PUBLIC PAGES
+// COMPONENTS
 import { LandingPage } from '../components/LandingPage'; 
 import { AdminLogin } from '../components/admin/AdminLogin';
 import { BracketView } from '../components/BracketView';
-
-// 2. MATCH ENGINE
 import { MatchRoom } from '../components/match/MatchRoom'; 
-
-// 3. DASHBOARDS
 import { AdminDashboard } from '../components/admin/AdminDashboard';
 import { PlayerDashboard } from '../components/player/PlayerDashboard'; 
 import { AdminToolbar } from '../components/admin/AdminToolbar';
 
-// 🛡️ SECURITY GUARD: CLIENT-SIDE RBAC
-const ProtectedRoute = ({ allowedRoles = [], children }) => {
+// 🚧 UX GUARD 1: Authentication (Is user logged in?)
+const RequireAuth = ({ children }) => {
   const { session } = useSession();
   
-  // A. Loading State (Prevents flicker)
   if (session.loading) {
     return (
         <div className="h-screen w-full flex items-center justify-center bg-[#050505]">
@@ -29,17 +24,22 @@ const ProtectedRoute = ({ allowedRoles = [], children }) => {
     );
   }
 
-  // B. Auth Check
   if (!session.isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
   
-  // C. Role Check (Strict)
+  return children ? children : <Outlet />;
+};
+
+// 🚧 UX GUARD 2: Authorization (Does user have the right role?)
+const RequireRole = ({ allowedRoles = [], children }) => {
+  const { session } = useSession();
+
   if (allowedRoles.length > 0 && !allowedRoles.includes(session.role)) {
     console.warn(`⛔ ACCESS DENIED: Role ${session.role} attempted to access protected route.`);
     return <Navigate to="/" replace />; 
   }
-  
+
   return children ? children : <Outlet />;
 };
 
@@ -58,27 +58,39 @@ export const router = createBrowserRouter([
   {
     path: '/',
     children: [
-      // PUBLIC
+      // PUBLIC ROUTES
       { index: true, element: <LandingPage /> },
       { path: 'login', element: <AdminLogin /> },
       { path: 'bracket', element: <BracketView /> },
       
-      // 🏟️ MATCH ROOM (Hybrid Access - Read Public / Write Protected via Components)
+      // HYBRID ROUTE (Read Public / Write Protected by Component Logic)
       { path: 'match/:matchId', element: <MatchRoom /> },
 
-      // 🛡️ ADMIN AREA (Owner / Admin / Referee)
+      // 🛡️ ADMIN AREA
       {
         path: 'admin',
-        element: <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.OWNER, ROLES.REFEREE]}><AdminLayout /></ProtectedRoute>,
+        element: (
+          <RequireAuth>
+            <RequireRole allowedRoles={[ROLES.ADMIN, ROLES.OWNER, ROLES.REFEREE]}>
+              <AdminLayout />
+            </RequireRole>
+          </RequireAuth>
+        ),
         children: [
-          { path: 'dashboard', element: <AdminDashboard /> }, 
+          { path: 'dashboard', element: <AdminDashboard /> },
         ]
       },
       
-      // 🛡️ PLAYER AREA (Captain / Player / Owner)
+      // 🛡️ PLAYER AREA
       {
         path: 'dashboard',
-        element: <ProtectedRoute allowedRoles={[ROLES.CAPTAIN, ROLES.PLAYER, ROLES.OWNER]}><PlayerDashboard /></ProtectedRoute>
+        element: (
+          <RequireAuth>
+            <RequireRole allowedRoles={[ROLES.CAPTAIN, ROLES.PLAYER, ROLES.OWNER]}>
+              <PlayerDashboard />
+            </RequireRole>
+          </RequireAuth>
+        )
       },
       
       // 404 CATCH-ALL

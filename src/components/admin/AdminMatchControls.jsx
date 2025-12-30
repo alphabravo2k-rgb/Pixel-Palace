@@ -1,14 +1,13 @@
 import React, { useState } from 'react';
-import { useAdminConsole } from '../../hooks/useAdminConsole'; 
+import { useAdminConsole } from '../../hooks/useAdminConsole';
 import { RefreshCw, Clock, ShieldAlert, Settings, Save, ArrowRightLeft } from 'lucide-react';
 
 export const AdminMatchControls = ({ match, teams, onUpdate }) => {
   const { execute, loading } = useAdminConsole();
   
-  // Use correct column names from your schema
   const [selectedT1, setSelectedT1] = useState(match?.team1_id || ''); 
   const [selectedT2, setSelectedT2] = useState(match?.team2_id || ''); 
-  const [scheduleTime, setScheduleTime] = useState(match?.started_at || ''); 
+  const [scheduleTime, setScheduleTime] = useState(match?.start_time || ''); // Fixed: match.start_time
   const [selectedFormat, setSelectedFormat] = useState(match?.best_of || 1);
 
   const [isSwapModalOpen, setIsSwapModalOpen] = useState(false);
@@ -16,7 +15,7 @@ export const AdminMatchControls = ({ match, teams, onUpdate }) => {
   const [localError, setLocalError] = useState(null);
   const [successMsg, setSuccessMsg] = useState('');
 
-  const isLocked = ['active', 'completed'].includes(match.status);
+  const isLocked = ['live', 'completed'].includes(match.status);
 
   const handleSwapRequest = async () => {
     if (reason.length < 5) {
@@ -24,12 +23,11 @@ export const AdminMatchControls = ({ match, teams, onUpdate }) => {
         return;
     }
     
-    // Call RPC to swap teams
+    // 🛡️ SECURITY: Params must match SQL RPC signature EXACTLY
     const result = await execute('api_swap_match_slots', {
       p_match_id: match.id,
-      p_team1_id: selectedT1,
-      p_team2_id: selectedT2,
-      p_reason: reason
+      p_reason: reason 
+      // Note: Swap Logic just flips them. It doesn't take specific team IDs in the current secure RPC.
     });
 
     if (result.success) {
@@ -58,7 +56,7 @@ export const AdminMatchControls = ({ match, teams, onUpdate }) => {
   };
 
   return (
-    <div className="bg-zinc-900 border border-white/10 rounded p-4 space-y-6 relative overflow-hidden">
+    <div className="bg-zinc-900 border border-white/10 rounded-lg p-4 space-y-6 relative overflow-hidden">
       
       {(localError || successMsg) && (
         <div className={`flex items-center gap-2 p-2 text-xs rounded border ${localError ? 'bg-red-900/20 text-red-400 border-red-900/50' : 'bg-green-900/20 text-green-400 border-green-900/50'}`}>
@@ -72,9 +70,12 @@ export const AdminMatchControls = ({ match, teams, onUpdate }) => {
         <div className="flex items-center gap-2 text-zinc-400 text-xs font-bold uppercase tracking-wider">
           <RefreshCw className="w-3 h-3" /> <span>Roster & Seeding</span>
         </div>
-        <div className="grid grid-cols-2 gap-4">
-          <TeamSelector label="Team 1 (Blue)" value={selectedT1} onChange={setSelectedT1} teams={teams} />
-          <TeamSelector label="Team 2 (Red)" value={selectedT2} onChange={setSelectedT2} teams={teams} />
+        
+        {/* Visual Only - Swap happens via RPC flipping */}
+        <div className="flex justify-between items-center bg-black/40 p-3 rounded border border-white/5">
+            <div className="text-sm font-bold text-blue-400">{match.team1?.name || 'TBD'}</div>
+            <ArrowRightLeft className="w-4 h-4 text-zinc-600" />
+            <div className="text-sm font-bold text-red-400">{match.team2?.name || 'TBD'}</div>
         </div>
         
         <button
@@ -87,29 +88,23 @@ export const AdminMatchControls = ({ match, teams, onUpdate }) => {
                 : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white'}
           `}
         >
-          {loading ? 'Processing...' : isLocked ? 'Locked (Live Match)' : <><ArrowRightLeft size={14}/> Request Team Swap</>}
+          {loading ? 'Processing...' : isLocked ? 'Locked (Live Match)' : 'Swap Sides'}
         </button>
       </div>
 
-      {/* SCHEDULE & FORMAT */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <label className="text-xs text-zinc-500 uppercase flex items-center gap-1"><Clock className="w-3 h-3" /> Start Time</label>
-          <input 
-            type="datetime-local" 
-            className="w-full bg-black border border-white/10 p-2 text-xs text-white rounded focus:border-fuchsia-500 outline-none" 
-            value={scheduleTime ? new Date(scheduleTime).toISOString().slice(0, 16) : ''} 
-            onChange={(e) => setScheduleTime(e.target.value)} 
-          />
-        </div>
-        <div className="space-y-2">
+      {/* FORMAT */}
+      <div className="space-y-2">
           <label className="text-xs text-zinc-500 uppercase flex items-center gap-1"><Settings className="w-3 h-3" /> Match Format</label>
-          <select className="w-full bg-black border border-white/10 p-2 text-xs text-white rounded" value={selectedFormat} onChange={handleFormatChange}>
+          <select 
+            className="w-full bg-black border border-white/10 p-2 text-xs text-white rounded focus:border-fuchsia-500 outline-none" 
+            value={selectedFormat} 
+            onChange={handleFormatChange}
+            disabled={isLocked}
+          >
             <option value="1">Best of 1</option>
             <option value="3">Best of 3</option>
             <option value="5">Best of 5</option>
           </select>
-        </div>
       </div>
 
       {/* INTEGRITY MODAL */}
@@ -125,7 +120,7 @@ export const AdminMatchControls = ({ match, teams, onUpdate }) => {
             </div>
             
             <p className="text-sm text-zinc-300 mb-4 bg-blue-900/10 border border-blue-500/20 p-3 rounded">
-                You are requesting to manually set the teams for this match. This action will be audited.
+                You are requesting to manually swap the teams for this match. This action will be audited.
             </p>
 
             <label className="text-[10px] uppercase text-zinc-500 font-bold mb-1 block">Required Justification</label>
@@ -153,13 +148,3 @@ export const AdminMatchControls = ({ match, teams, onUpdate }) => {
     </div>
   );
 };
-
-const TeamSelector = ({ label, value, onChange, teams }) => (
-  <div className="flex flex-col gap-1">
-    <label className="text-[10px] text-zinc-500 uppercase">{label}</label>
-    <select value={value} onChange={(e) => onChange(e.target.value)} className="bg-black border border-white/10 text-white text-xs p-2 rounded focus:border-fuchsia-500 outline-none">
-      <option value="">-- Select Team --</option>
-      {teams && teams.map(team => <option key={team.id} value={team.id}>{team.name} (#{team.seed_number || '-'})</option>)}
-    </select>
-  </div>
-);

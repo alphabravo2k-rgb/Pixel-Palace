@@ -1,25 +1,17 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSession } from '../../auth/useSession';
-import { 
-  ShieldAlert, 
-  Trophy, 
-  ScrollText, 
-  Users, 
-  LogOut,
-  Gamepad2 
-} from 'lucide-react';
+import { ShieldAlert, Trophy, ScrollText, Users, LogOut } from 'lucide-react';
 
 // Unified Imports
 import { TournamentWarRoom } from '../TournamentWarRoom';
 import { AdminAuditLog } from './AdminAuditLog';
-import { StaffManagement } from './StaffManagement';
-import { TeamRosterView } from './TeamRosterView'; // 👈 NEW IMPORT
+import { TeamRosterView } from './TeamRosterView'; 
 
 export const AdminDashboard = () => {
   const { logout, session } = useSession();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('TEAMS'); // 👈 Default to TEAMS
+  const [activeTab, setActiveTab] = useState('TEAMS'); 
 
   const handleLogout = async () => {
     await logout();
@@ -57,16 +49,15 @@ export const AdminDashboard = () => {
               <h1 className="font-['Teko'] text-2xl font-bold leading-none text-white tracking-wide">OVERWATCH</h1>
               <span className="text-[10px] font-mono text-zinc-500 uppercase flex items-center gap-1">
                 <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
-                {session?.identity?.id ? `OP: ${session.identity.id.substring(0,8)}` : 'SYSTEM ONLINE'}
+                {session?.identity?.display_name ? `OP: ${session.identity.display_name}` : 'SYSTEM ONLINE'}
               </span>
             </div>
           </div>
 
           <div className="flex items-center gap-2 bg-black/40 p-1 rounded-lg border border-white/5 overflow-x-auto">
-            {renderTab('TEAMS', 'Roster', Users)}       {/* 👈 NEW TAB */}
+            {renderTab('TEAMS', 'Roster', Users)}
             {renderTab('OPS', 'War Room', Trophy)}
             {renderTab('LOGS', 'Audit', ScrollText)}
-            {renderTab('STAFF', 'Staff', Gamepad2)}
           </div>
 
           <button onClick={handleLogout} className="text-red-400 hover:text-red-300 text-xs font-bold uppercase flex items-center gap-2 transition-colors">
@@ -77,10 +68,9 @@ export const AdminDashboard = () => {
 
       {/* Content */}
       <main className="max-w-7xl mx-auto p-6">
-        {activeTab === 'TEAMS' && <TeamRosterView />}   {/* 👈 NEW VIEW */}
+        {activeTab === 'TEAMS' && <TeamRosterView />}
         {activeTab === 'OPS' && <TournamentWarRoom />}
         {activeTab === 'LOGS' && <AdminAuditLog />}
-        {activeTab === 'STAFF' && <StaffManagement />}
       </main>
     </div>
   );

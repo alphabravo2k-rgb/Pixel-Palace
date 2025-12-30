@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MessageCircle, Tv, Trophy, Check, AlertTriangle, Map, Leaf, Sun, Flame, Building2, Radiation, Gauge, TrainFront } from 'lucide-react';
+import { MessageCircle, Trophy, Check, AlertTriangle, Map, Leaf, Sun, Flame, Building2, Radiation, Gauge, TrainFront } from 'lucide-react';
 import { useSession } from '../auth/useSession';
 
 export const LandingPage = () => {
@@ -84,7 +84,7 @@ export const LandingPage = () => {
                 >
                   Enter System
                 </button>
-                <a href="https://discord.gg/JdXheQbvec" target="_blank" className="px-8 py-3 border border-purple-500/50 text-purple-300 hover:bg-purple-500/10 font-bold text-lg uppercase tracking-wider flex items-center justify-center gap-2 transition-all">
+                <a href="https://discord.gg/JdXheQbvec" target="_blank" rel="noreferrer" className="px-8 py-3 border border-purple-500/50 text-purple-300 hover:bg-purple-500/10 font-bold text-lg uppercase tracking-wider flex items-center justify-center gap-2 transition-all">
                     <MessageCircle className="w-5 h-5" /> Join Discord
                 </a>
             </div>
@@ -96,7 +96,7 @@ export const LandingPage = () => {
             {/* LEFT COLUMN */}
             <div className="space-y-6">
                 <HudPanel title="TOURNAMENT INTEL" icon={<Trophy className="w-5 h-5 text-cyan-400" />}>
-                     <div className="space-y-4">
+                      <div className="space-y-4">
                         <div>
                             <p className="text-[10px] uppercase text-zinc-500 font-bold tracking-widest">Operation Start</p>
                             <p className="text-xl font-bold text-white">January 09, 2026</p>
@@ -106,7 +106,7 @@ export const LandingPage = () => {
                             <p className="text-[10px] uppercase text-zinc-500 font-bold tracking-widest">Registration Cutoff</p>
                             <p className="text-xl font-bold text-white">Dec 31, 2025 <span className="text-sm font-normal text-zinc-500">(23:59 CET)</span></p>
                         </div>
-                     </div>
+                      </div>
                 </HudPanel>
 
                 <div className="bg-black/40 border-l-4 border-fuchsia-500 p-6 backdrop-blur-md border-y border-r border-white/5">
@@ -119,7 +119,7 @@ export const LandingPage = () => {
                         <li className="flex gap-2"><Check className="w-4 h-4 text-green-500" /> <span><strong>Akros Anti-Cheat</strong> required.</span></li>
                         <li className="flex gap-2"><AlertTriangle className="w-4 h-4 text-yellow-500" /> <span>Admins reserve right to DQ.</span></li>
                     </ul>
-                    <a href="https://akros.ac/#downloadSteps" target="_blank" className="mt-4 block w-full py-2 bg-red-900/30 border border-red-500/30 hover:bg-red-500/20 text-center text-red-300 text-sm font-bold uppercase tracking-wider transition-colors">
+                    <a href="https://akros.ac/#downloadSteps" target="_blank" rel="noreferrer" className="mt-4 block w-full py-2 bg-red-900/30 border border-red-500/30 hover:bg-red-500/20 text-center text-red-300 text-sm font-bold uppercase tracking-wider transition-colors">
                         Get Akros Client
                     </a>
                 </HudPanel>
@@ -141,9 +141,9 @@ export const LandingPage = () => {
                  
                  <div className="mt-6 p-8 bg-zinc-900/50 border border-white/10 text-center rounded-lg">
                     <p className="text-zinc-500 font-mono text-sm mb-4">READY TO DEPLOY?</p>
-                    <a href="registration.html" className="inline-block px-8 py-4 bg-white text-black font-black uppercase tracking-widest hover:bg-zinc-200 transition-colors">
+                    <button onClick={handleEnter} className="inline-block px-8 py-4 bg-white text-black font-black uppercase tracking-widest hover:bg-zinc-200 transition-colors">
                         Access Registration Terminal
-                    </a>
+                    </button>
                  </div>
             </div>
 

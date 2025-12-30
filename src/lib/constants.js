@@ -12,23 +12,23 @@ export const MATCH_STATUS = {
   ARCHIVED: 'archived'
 };
 
-// 2. MAP POOL
-export const MAP_POOL = {
-  de_mirage: { id: 'de_mirage', name: 'Mirage', image: '/maps/mirage.jpg' },
-  de_inferno: { id: 'de_inferno', name: 'Inferno', image: '/maps/inferno.jpg' },
-  de_nuke: { id: 'de_nuke', name: 'Nuke', image: '/maps/nuke.jpg' },
-  de_overpass: { id: 'de_overpass', name: 'Overpass', image: '/maps/overpass.jpg' },
-  de_vertigo: { id: 'de_vertigo', name: 'Vertigo', image: '/maps/vertigo.jpg' },
-  de_ancient: { id: 'de_ancient', name: 'Ancient', image: '/maps/ancient.jpg' },
-  de_anubis: { id: 'de_anubis', name: 'Anubis', image: '/maps/anubis.jpg' },
-  de_dust2: { id: 'de_dust2', name: 'Dust 2', image: '/maps/dust2.jpg' },
-  de_train: { id: 'de_train', name: 'Train', image: '/maps/train.jpg' }
-};
+// 2. MAP POOL (Array format for easy UI mapping)
+export const MAP_POOL = [
+  { id: 'MIRAGE', name: 'Mirage', image: 'https://img.youtube.com/vi/F91V3V6Qh6U/maxresdefault.jpg' },
+  { id: 'INFERNO', name: 'Inferno', image: 'https://blob.faceit.com/static/img/maps/cs2/inferno_bg.jpg' },
+  { id: 'NUKE', name: 'Nuke', image: 'https://blob.faceit.com/static/img/maps/cs2/nuke_bg.jpg' },
+  { id: 'OVERPASS', name: 'Overpass', image: 'https://blob.faceit.com/static/img/maps/cs2/overpass_bg.jpg' },
+  { id: 'VERTIGO', name: 'Vertigo', image: 'https://blob.faceit.com/static/img/maps/cs2/vertigo_bg.jpg' },
+  { id: 'ANCIENT', name: 'Ancient', image: 'https://blob.faceit.com/static/img/maps/cs2/ancient_bg.jpg' },
+  { id: 'ANUBIS', name: 'Anubis', image: 'https://blob.faceit.com/static/img/maps/cs2/anubis_bg.jpg' },
+  { id: 'DUST2', name: 'Dust 2', image: 'https://blob.faceit.com/static/img/maps/cs2/dust2_bg.jpg' },
+  { id: 'TRAIN', name: 'Train', image: 'https://blob.faceit.com/static/img/maps/cs2/train_bg.jpg' }
+];
 
 // 3. MATCH FORMATS
 export const MATCH_FORMATS = {
   BO1: {
-    id: 1, // Must match DB 'best_of' INT
+    id: 1, // Matches DB INT
     label: 'Best of 1',
     mapsNeeded: 1,
     vetoCount: 6,
@@ -50,7 +50,7 @@ export const MATCH_FORMATS = {
   }
 };
 
-// 4. ROLE TAXONOMY
+// 4. ROLE TAXONOMY (Expanded for V2)
 export const ROLE_TAXONOMY = {
   OWNER: { id: 'OWNER', priority: -1, label: 'Tournament Owner' },
   ADMIN: { id: 'ADMIN', priority: 0, label: 'Administrator' },

@@ -7,35 +7,41 @@ export default {
   theme: {
     extend: {
       colors: {
+        // 🎨 THEME ALIGNMENT: Matches your 'Manifesto' visuals
+        bg: {
+          DEFAULT: '#050505', // Deep Void
+          panel: '#121214',   // Glass Panel Base
+        },
         brand: {
-          DEFAULT: '#ff5500', 
-          hover: '#ff7733',
-          glow: 'rgba(255, 85, 0, 0.5)'
+          DEFAULT: '#c026d3', // Fuchsia 600
+          glow: '#e879f9',    // Fuchsia 400
+          dark: '#701a75',    // Fuchsia 900
         },
         tactical: {
           surface: '#0b0c0f', 
-          raised: '#15191f',  
           border: '#27272a'   
-        },
-        ui: {
-          bg: '#060709',
-          border: 'rgba(255, 255, 255, 0.1)'
         }
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
         mono: ['JetBrains Mono', 'Menlo', 'monospace'],
-        // ✅ ADDED: Official support for your headings
-        teko: ['Teko', 'sans-serif'], 
+        // ✅ TYPOGRAPHY: Your signature fonts
+        teko: ['Teko', 'sans-serif'],
+        rajdhani: ['Rajdhani', 'sans-serif'],
       },
       boxShadow: {
-        'glow': '0 0 20px rgba(255, 85, 0, 0.35)',
-        'glow-sm': '0 0 10px rgba(255, 85, 0, 0.25)',
-        'tactical': '0 10px 30px -10px rgba(0, 0, 0, 0.5)'
+        'neon': '0 0 20px rgba(192, 38, 211, 0.4)', // Purple Glow
+        'glass': '0 8px 32px 0 rgba(0, 0, 0, 0.37)',
       },
       animation: {
-        'spin-slow': 'spin 3s linear infinite',
-        'breathe': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+        'breathe': 'breathe 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+        'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+      },
+      keyframes: {
+        breathe: {
+          '0%, 100%': { transform: 'scale(1)', filter: 'drop-shadow(0 0 15px rgba(168, 85, 247, 0.5))' },
+          '50%': { transform: 'scale(1.03)', filter: 'drop-shadow(0 0 25px rgba(236, 72, 153, 0.7))' },
+        }
       }
     },
   },

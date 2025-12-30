@@ -16,9 +16,7 @@ export const useAdminConsole = () => {
         throw new Error("UNAUTHORIZED: Session invalid.");
       }
 
-      // 🛡️ SECURITY NOTE: 
-      // We pass p_admin_id for audit logging context, but the 
-      // Database (SQL) MUST verify it matches auth.uid().
+      // 🛡️ SECURITY: Inject Admin ID for Audit Logging
       const payload = {
         p_admin_id: session.user.id, 
         ...params
@@ -30,9 +28,9 @@ export const useAdminConsole = () => {
 
       if (rpcError) throw rpcError;
 
-      // Handle "Soft Errors" returned as JSON
+      // Handle "Soft Errors" returned as JSON { success: false }
       if (data && data.success === false) {
-        throw new Error(data.message || 'Operation denied by server rules.');
+        throw new Error(data.message || 'Operation denied by server logic.');
       }
 
       return { success: true, data };

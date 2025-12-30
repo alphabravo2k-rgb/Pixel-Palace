@@ -1,21 +1,26 @@
 import React, { useState } from 'react';
 import { useAdminConsole } from '../../hooks/useAdminConsole';
-import { RefreshCw, Clock, ShieldAlert, Settings, Save, ArrowRightLeft } from 'lucide-react';
+import { useCapabilities } from '../../auth/useCapabilities';
+import { PERM_CAPABILITIES } from '../../lib/permissions.actions';
+import { RefreshCw, ShieldAlert, Settings, Save, ArrowRightLeft } from 'lucide-react';
 
-export const AdminMatchControls = ({ match, teams, onUpdate }) => {
+export const AdminMatchControls = ({ match, onUpdate }) => {
   const { execute, loading } = useAdminConsole();
+  const { can } = useCapabilities();
   
-  const [selectedT1, setSelectedT1] = useState(match?.team1_id || ''); 
-  const [selectedT2, setSelectedT2] = useState(match?.team2_id || ''); 
-  const [scheduleTime, setScheduleTime] = useState(match?.start_time || ''); // Fixed: match.start_time
-  const [selectedFormat, setSelectedFormat] = useState(match?.best_of || 1);
+  // 🛡️ PERMISSION CHECK: Must have MANAGE_MATCH capability
+  const hasPermission = can(PERM_CAPABILITIES.MANAGE_MATCH, match);
 
+  const [selectedFormat, setSelectedFormat] = useState(match?.best_of || 1);
   const [isSwapModalOpen, setIsSwapModalOpen] = useState(false);
   const [reason, setReason] = useState('');
   const [localError, setLocalError] = useState(null);
   const [successMsg, setSuccessMsg] = useState('');
 
   const isLocked = ['live', 'completed'].includes(match.status);
+
+  // If user cannot manage match, hide controls or show locked state
+  if (!hasPermission) return null; 
 
   const handleSwapRequest = async () => {
     if (reason.length < 5) {
@@ -27,7 +32,6 @@ export const AdminMatchControls = ({ match, teams, onUpdate }) => {
     const result = await execute('api_swap_match_slots', {
       p_match_id: match.id,
       p_reason: reason 
-      // Note: Swap Logic just flips them. It doesn't take specific team IDs in the current secure RPC.
     });
 
     if (result.success) {
@@ -44,6 +48,7 @@ export const AdminMatchControls = ({ match, teams, onUpdate }) => {
     const newFormat = parseInt(e.target.value);
     setSelectedFormat(newFormat);
 
+    // This matches Backend Code 7 (Secure RPC)
     const result = await execute('admin_update_match_format', {
         p_match_id: match.id,
         p_best_of: newFormat

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Crown } from 'lucide-react';
-import { SocialIcons } from './SocialIcons'; // Adjusted Path
+import { SocialIcons } from './SocialIcons';
 import { normalizeRole } from '../../lib/roles';
 
 // 🛡️ ROBUST INITIALS HELPER

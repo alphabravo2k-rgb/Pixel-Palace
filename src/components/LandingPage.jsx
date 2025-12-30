@@ -1,103 +1,84 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSession } from '../auth/useSession';
-import { Shield, ChevronRight, Loader2, Terminal } from 'lucide-react';
+import { Shield, ChevronRight } from 'lucide-react';
 
 export const LandingPage = () => {
   const navigate = useNavigate();
   const { session } = useSession();
-  const [isConnecting, setIsConnecting] = useState(false);
 
   const handleEnter = () => {
-    // 🎨 UX: Fake "Connection" delay to feel like a secure system handshake
-    setIsConnecting(true);
-    setTimeout(() => {
-        if (session?.isAuthenticated) {
-            navigate('/admin/dashboard');
-        } else {
-            navigate('/login');
-        }
-    }, 1500);
+    if (session?.isAuthenticated) {
+        navigate('/admin/dashboard');
+    } else {
+        navigate('/login');
+    }
   };
 
   return (
-    <div className="relative min-h-screen w-full bg-[#050505] overflow-hidden flex flex-col items-center justify-center selection:bg-fuchsia-500/30 font-sans">
+    <div className="relative min-h-screen w-full bg-[#050505] overflow-hidden flex flex-col items-center justify-center selection:bg-fuchsia-500/30">
       
-      {/* 1. TEXTURE LAYER (Scanlines + Vignette) */}
-      <div className="scanlines"></div>
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,#000_100%)] z-40 pointer-events-none"></div>
+      {/* 1. ATMOSPHERE (The "Vibe") */}
+      {/* Background Grid */}
+      <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-5"></div>
+      
+      {/* Ambient Glows (Your Color Scheme) */}
+      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-900/20 rounded-full blur-[128px] animate-pulse"></div>
+      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-fuchsia-900/20 rounded-full blur-[128px] animate-pulse" style={{ animationDelay: '1s' }}></div>
 
-      {/* 2. ATMOSPHERE */}
-      <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-5 z-0"></div>
-      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-900/20 rounded-full blur-[128px] animate-pulse z-0"></div>
-      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-fuchsia-900/20 rounded-full blur-[128px] animate-pulse z-0" style={{ animationDelay: '1s' }}></div>
-
-      {/* 3. CENTERPIECE */}
-      <div className="relative z-50 flex flex-col items-center">
+      {/* 2. THE BRAND (Centerpiece) */}
+      <div className="relative z-10 flex flex-col items-center">
         
-        {/* Logo */}
-        <div className="relative group cursor-default mb-10">
-            <div className="absolute inset-0 bg-gradient-to-tr from-fuchsia-600 to-purple-600 rounded-full blur-3xl opacity-20 group-hover:opacity-50 transition-opacity duration-1000"></div>
+        {/* Logo Container with Neon Backlight */}
+        <div className="relative group cursor-default">
+            <div className="absolute inset-0 bg-gradient-to-tr from-fuchsia-600 to-purple-600 rounded-full blur-2xl opacity-20 group-hover:opacity-40 transition-opacity duration-1000"></div>
             <img 
                 src="https://raw.githubusercontent.com/alphabravo2k-rgb/pixel-palace-registration/1a7d90c43796fd037316bdaf4f3b4de9a485d615/image_4379f9.png" 
                 alt="Pixel Palace" 
-                className="relative w-40 h-40 md:w-56 md:h-56 object-contain drop-shadow-2xl transition-transform duration-700 group-hover:scale-105"
+                className="relative w-48 h-48 md:w-64 md:h-64 object-contain drop-shadow-2xl transition-transform duration-700 group-hover:scale-105"
             />
         </div>
 
-        {/* Glitch Typography */}
-        <div className="text-center relative">
-            <h1 className="text-6xl md:text-9xl font-black text-white italic tracking-tighter leading-none font-['Teko'] uppercase glitch-wrapper" data-text="PIXEL PALACE">
-                PIXEL <span className="text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-500 to-purple-600">PALACE</span>
-            </h1>
-            
-            <div className="flex items-center justify-center gap-4 mt-4">
-                <div className="h-px w-8 bg-zinc-800"></div>
-                <p className="text-zinc-500 font-mono text-xs tracking-[0.4em] uppercase">
-                    Competitive OS // v2.0
-                </p>
-                <div className="h-px w-8 bg-zinc-800"></div>
-            </div>
-        </div>
+        {/* Title Typography */}
+        <h1 className="mt-8 text-5xl md:text-8xl font-black text-white italic tracking-tighter leading-none font-['Teko'] uppercase">
+            PIXEL <span className="text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-500 to-purple-600">PALACE</span>
+        </h1>
+        
+        <p className="mt-2 text-zinc-500 font-mono text-xs md:text-sm tracking-[0.3em] uppercase">
+            Competitive Operating System // v1.0
+        </p>
 
-        {/* 4. THE INTERFACE (Button) */}
-        <div className="mt-16 w-full max-w-xs relative group">
-            {/* Button Glow */}
-            <div className="absolute -inset-1 bg-gradient-to-r from-fuchsia-600 to-purple-600 rounded blur opacity-20 group-hover:opacity-60 transition duration-500"></div>
-            
+        {/* 3. THE ACTION (Minimal Entry) */}
+        <div className="mt-12 flex flex-col items-center gap-4 w-full max-w-xs">
             <button 
                 onClick={handleEnter}
-                disabled={isConnecting}
-                className="relative w-full py-4 bg-white text-black font-black text-lg uppercase tracking-widest hover:bg-zinc-100 transition-all duration-100 clip-path-slant flex items-center justify-center gap-3 disabled:opacity-80 disabled:cursor-wait"
+                className="group relative w-full py-4 bg-white text-black font-black text-lg uppercase tracking-widest hover:bg-fuchsia-500 hover:text-white transition-all duration-300 clip-path-slant"
                 style={{ clipPath: 'polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px)' }}
             >
-                {isConnecting ? (
-                    <>
-                        <Loader2 className="w-5 h-5 animate-spin text-fuchsia-600" />
-                        <span className="animate-pulse">Connecting...</span>
-                    </>
-                ) : (
-                    <>
-                        <span>Initialize</span> 
-                        <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform text-fuchsia-600" />
-                    </>
-                )}
+                <span className="flex items-center justify-center gap-2">
+                    Enter System <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                </span>
             </button>
-        </div>
 
-        {/* 5. STATUS FOOTER */}
-        <div className="mt-8 flex items-center gap-6 text-[10px] text-zinc-600 font-mono uppercase tracking-wider">
-            <span className="flex items-center gap-2">
-                <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse shadow-[0_0_5px_#22c55e]"></div>
-                System Online
-            </span>
-            <span className="flex items-center gap-2">
-                <Terminal size={10} />
-                Secure Connection
-            </span>
+            {!session?.isAuthenticated && (
+                <button 
+                    onClick={() => navigate('/login')}
+                    className="text-xs text-zinc-600 hover:text-zinc-400 uppercase tracking-widest font-bold transition-colors flex items-center gap-2"
+                >
+                    <Shield className="w-3 h-3" /> Secure Login
+                </button>
+            )}
         </div>
-
       </div>
+
+      {/* 4. FOOTER (Subtle) */}
+      <div className="absolute bottom-8 text-center">
+        <div className="h-px w-24 bg-gradient-to-r from-transparent via-zinc-800 to-transparent mx-auto mb-4"></div>
+        <p className="text-[10px] text-zinc-700 font-mono uppercase">
+            Standardized Competitive Infrastructure
+        </p>
+      </div>
+
     </div>
   );
 };

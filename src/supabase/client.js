@@ -1,60 +1,27 @@
 import { createClient } from '@supabase/supabase-js';
 
-// ⚠️ FORCE KEYS (Bypassing .env to fix the 400 Error immediately)
-const supabaseUrl = 'https://mbejyfwiuphpktospkga.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1iZWp5ZndpdXBocGt0b3Nwa2dhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU2MTY1ODQsImV4cCI6MjA4MTE5MjU4NH0.Nmqmc0zjYcT2O6u21zz4PGzMiO5cDvQHvTbucAdqdpA';
+// 1. LOAD ENV VARS
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-let client;
-let isMockMode = false;
-
-// 🛡️ CONFIG CHECK: Fail Loudly but Safely
+// 2. VALIDATE CONFIG
 if (!supabaseUrl || !supabaseKey) {
-  console.error("🔥 CRITICAL: Supabase keys are missing.");
-  console.error("    The app is running in DISCONNECTED MODE.");
-  
-  isMockMode = true;
-
-  // ✅ PROXY MOCK: The "Catch-All" Safety Net
-  client = new Proxy({}, {
-    get: (target, prop) => {
-      // 1. Handle Realtime
-      if (prop === 'channel') {
-        console.warn(`⚠️ [MOCK] Realtime disabled.`);
-        return () => ({ 
-            on: () => ({ subscribe: () => {} }),
-            unsubscribe: () => {} 
-        });
-      }
-      
-      // 2. Handle Auth/DB Calls
-      if (typeof prop === 'string') {
-        return () => {
-          console.warn(`⚠️ [MOCK] Supabase call '${String(prop)}' blocked. Missing Keys.`);
-          return Promise.resolve({ 
-            data: null, 
-            error: { message: "Supabase Disconnected (Missing Keys)" } 
-          });
-        };
-      }
-      
-      return undefined;
-    }
-  });
-
-} else {
-  // ✅ REAL CLIENT
-  client = createClient(supabaseUrl, supabaseKey, {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-    },
-    realtime: {
-      params: {
-        eventsPerSecond: 10,
-      },
-    },
-  });
+  console.error("🔥 CRITICAL: Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY.");
+  throw new Error("Supabase Configuration Missing. Check .env file.");
 }
 
-export const supabase = client;
-export const isSupabaseConfigured = !isMockMode;
+// 3. INITIALIZE CLIENT
+export const supabase = createClient(supabaseUrl, supabaseKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true
+  },
+  realtime: {
+    params: {
+      eventsPerSecond: 10,
+    },
+  },
+});
+
+export const isSupabaseConfigured = true;

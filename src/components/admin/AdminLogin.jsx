@@ -13,8 +13,11 @@ export const AdminLogin = () => {
   const [cooldown, setCooldown] = useState(0);
 
   const handleInput = (field, value) => {
-    // 🛡️ SECURITY: Strip emojis/spaces immediately
-    const sanitized = value.replace(/[^a-zA-Z0-9@._-]/g, '');
+    // 🛡️ SANITIZATION: Allow standard email chars, strip weird stuff
+    if (field === 'pin' && value.length > 20) return; // Hard stop length
+    
+    // For email (id), just trim spaces. Supabase validates format.
+    const sanitized = value.trim(); 
     setFormData(prev => ({ ...prev, [field]: sanitized }));
   };
 
@@ -30,11 +33,10 @@ export const AdminLogin = () => {
 
     if (result.success) {
       const target = '/admin/dashboard'; 
-      // Note: We direct everyone to dashboard; Router protects based on role
       navigate(target);
     } else {
       setError(result.message || "Access Denied");
-      // 🛡️ SECURITY: Rate Limit Simulation
+      // 🚧 UX GUARD: Client-side rate limit (Real protection is backend)
       setCooldown(prev => (prev === 0 ? 3 : prev * 2)); 
       setTimeout(() => setCooldown(0), (cooldown || 3) * 1000);
     }

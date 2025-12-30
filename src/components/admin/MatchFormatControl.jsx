@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useAdminConsole } from '../../hooks/useAdminConsole'; 
+import { useAdminConsole } from '../../hooks/useAdminConsole';
 import { Settings, ShieldAlert, CheckCircle, RefreshCw } from 'lucide-react';
 
 export const MatchFormatControl = ({ match, onUpdate }) => {
@@ -7,11 +7,9 @@ export const MatchFormatControl = ({ match, onUpdate }) => {
   const [currentFormat, setCurrentFormat] = useState(match.best_of);
 
   const handleFormatChange = async (newFormat) => {
-    // Optimistic update for snapiness, reverted on error
     const oldFormat = currentFormat;
     setCurrentFormat(newFormat);
 
-    // 🚨 IDEMPOTENCY: We send the request even if values match. The DB logs the check.
     const result = await execute('admin_update_match_format', {
       p_match_id: match.id,
       p_best_of: newFormat
@@ -24,7 +22,7 @@ export const MatchFormatControl = ({ match, onUpdate }) => {
         if (onUpdate) onUpdate();
       }
     } else {
-      setCurrentFormat(oldFormat); // Revert on failure
+      setCurrentFormat(oldFormat);
       alert(`Format Sync Failed: ${result.message}`);
     }
   };

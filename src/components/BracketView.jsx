@@ -3,7 +3,7 @@ import { supabase } from '../supabase/client';
 import { useTournament } from '../tournament/useTournament';
 import { Bracket } from './Bracket';
 import { RefreshCw, Loader2, WifiOff } from 'lucide-react';
-import { AdminMatchModal } from './admin/AdminMatchModal'; // Verified Path
+import { AdminMatchModal } from './admin/AdminMatchModal';
 
 export const BracketView = () => {
   const { selectedTournamentId, tournamentData, loading: contextLoading } = useTournament();
@@ -53,7 +53,6 @@ export const BracketView = () => {
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'matches', filter: `tournament_id=eq.${selectedTournamentId}` },
         (payload) => {
-          // ⚡ SURGICAL UPDATE: Update only the specific match that changed
           setMatches(prevMatches => prevMatches.map(m => {
              if (m.id === payload.new.id) {
                 return { ...m, ...payload.new };
@@ -103,7 +102,7 @@ export const BracketView = () => {
           match={selectedMatch} 
           isOpen={!!selectedMatch} 
           onClose={() => setSelectedMatch(null)}
-          onUpdate={fetchBracket} // Full refresh on manual admin save is safer
+          onUpdate={fetchBracket}
         />
       )}
     </div>

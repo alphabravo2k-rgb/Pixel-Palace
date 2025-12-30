@@ -1,47 +1,71 @@
 import React, { useState } from 'react';
-import { useAdminConsole } from '../../hooks/useAdminConsole';
-import { ShieldAlert, UserCog, UserMinus } from 'lucide-react';
+import { useSession } from '../../auth/useSession'; // Need session for manual audit log
+import { supabase } from '../../supabase/client';
+import { ShieldAlert, UserCog, UserMinus, Loader2 } from 'lucide-react';
 
 export const RosterIntegrityControl = ({ player, teamId, onUpdate }) => {
-  const { execute, loading } = useAdminConsole();
+  const { session } = useSession();
   
   // Modal State
   const [showModal, setShowModal] = useState(false);
   const [pendingAction, setPendingAction] = useState(null); 
   const [reason, setReason] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  // 1. TRIGGER: Opens the friction modal
+  // 1. TRIGGER
   const initiateForceAction = (type, payload) => {
     setPendingAction({ type, payload });
     setShowModal(true);
     setReason('');
   };
 
-  // 2. EXECUTE: The actual RPC call via our Hook
+  // 2. EXECUTE (Direct DB Edit + Manual Audit Log)
   const executeAction = async () => {
-    if (reason.length < 5) return; // Frontend validation
-    
-    let rpcName = '';
-    let params = { 
-        p_player_id: player.id, 
-        p_team_id: teamId, 
-        p_reason: reason // ✅ Audit trail enforced
-    };
+    if (reason.length < 5) return; 
+    setLoading(true);
 
-    if (pendingAction.type === 'ROLE') {
-        rpcName = 'admin_force_update_player_role';
-        params.p_new_role = pendingAction.payload;
-    } else if (pendingAction.type === 'KICK') {
-        rpcName = 'admin_force_kick_player';
-    }
+    try {
+      let error = null;
 
-    const result = await execute(rpcName, params);
+      // A. Perform Action
+      if (pendingAction.type === 'ROLE') {
+        const { error: roleError } = await supabase
+          .from('team_members')
+          .update({ role: pendingAction.payload })
+          .eq('id', player.id); // player.id here is the team_member row ID
+        error = roleError;
+      } 
+      else if (pendingAction.type === 'KICK') {
+        const { error: kickError } = await supabase
+          .from('team_members')
+          .delete()
+          .eq('id', player.id);
+        error = kickError;
+      }
 
-    if (result.success) {
-        setShowModal(false);
-        if (onUpdate) onUpdate();
-    } else {
-        alert(`Action Rejected: ${result.message}`);
+      if (error) throw error;
+
+      // B. Manual Audit Log (Since we aren't using an RPC)
+      await supabase.from('admin_audit_logs').insert({
+        admin_id: session.identity.id, // Using mapped ID from session view
+        action_type: `FORCE_${pendingAction.type}`,
+        target_resource: 'team_members',
+        target_id: player.id,
+        details: {
+            team_id: teamId,
+            reason: reason,
+            target_user: player.username,
+            new_role: pendingAction.payload || 'NONE'
+        }
+      });
+
+      setShowModal(false);
+      if (onUpdate) onUpdate();
+
+    } catch (err) {
+      alert(`Action Failed: ${err.message}`);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -81,6 +105,9 @@ export const RosterIntegrityControl = ({ player, teamId, onUpdate }) => {
               <div className="bg-red-500/5 p-3 rounded border border-red-500/10">
                 <p className="text-zinc-300 text-sm">
                   You are about to force <span className="text-white font-bold">{pendingAction.type}</span> on 
+
+[Image of Warning Icon]
+
                   <span className="text-white font-bold ml-1">{player.username || 'Player'}</span>.
                 </p>
               </div>
@@ -106,8 +133,9 @@ export const RosterIntegrityControl = ({ player, teamId, onUpdate }) => {
                 <button
                   onClick={executeAction}
                   disabled={reason.length < 5 || loading}
-                  className="flex-1 py-3 bg-red-600 hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold uppercase rounded shadow-lg shadow-red-900/20"
+                  className="flex-1 py-3 bg-red-600 hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold uppercase rounded shadow-lg shadow-red-900/20 flex items-center justify-center gap-2"
                 >
+                  {loading && <Loader2 className="animate-spin w-3 h-3" />}
                   {loading ? 'Processing...' : 'Confirm Override'}
                 </button>
               </div>

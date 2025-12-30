@@ -60,3 +60,19 @@ export const ROLE_TAXONOMY = {
   SUBSTITUTE: { id: 'SUBSTITUTE', priority: 4, label: 'Reserve / Sub' },
   GUEST: { id: 'GUEST', priority: 99, label: 'Spectator' }
 };
+
+// 5. TOURNAMENT RULES
+export const TOURNAMENT_RULES = {
+  ROSTER: {
+    MIN_SIZE: 5,
+    MAX_SIZE: 7,
+    REQUIRES_CAPTAIN: true
+  },
+  PHASES: {
+    REGISTRATION: 'REGISTRATION',
+    CHECK_IN: 'CHECK_IN',
+    GROUP_STAGE: 'GROUP_STAGE',
+    PLAYOFFS: 'PLAYOFFS',
+    COMPLETED: 'COMPLETED'
+  }
+};

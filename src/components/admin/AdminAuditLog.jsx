@@ -1,21 +1,28 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../supabase/client';
-import { ScrollText, RefreshCw, ArrowRight } from 'lucide-react';
+import { ScrollText, RefreshCw, ArrowRight, ShieldAlert } from 'lucide-react';
+import { useCapabilities } from '../../auth/useCapabilities';
+import { PERM_CAPABILITIES } from '../../lib/permissions.actions';
 
 export const AdminAuditLog = () => {
+  const { can } = useCapabilities();
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(false);
+  
+  // 🛡️ SECURITY GUARD: Frontend Capability Check
+  // RLS is the real guard, but this prevents UI flickering for unauthorized users.
+  const canViewLogs = can(PERM_CAPABILITIES.VIEW_HIDDEN_DATA);
 
   useEffect(() => {
-    fetchLogs();
-  }, []);
+    if (canViewLogs) fetchLogs();
+  }, [canViewLogs]);
 
   const fetchLogs = async () => {
     setLoading(true);
-    // Fetch logs - ordering by most recent first
+    // 🛡️ EXPLICIT SELECT: Decouple from DB schema changes
     const { data } = await supabase
       .from('admin_audit_logs') 
-      .select('*')
+      .select('id, created_at, admin_id, action_type, details, target_resource')
       .order('created_at', { ascending: false })
       .limit(50);
       
@@ -23,19 +30,26 @@ export const AdminAuditLog = () => {
     setLoading(false);
   };
 
+  if (!canViewLogs) {
+      return (
+          <div className="p-8 text-center border border-red-900/50 bg-red-900/10 rounded flex flex-col items-center gap-2">
+              <ShieldAlert className="w-8 h-8 text-red-500" />
+              <span className="text-red-400 font-bold text-xs uppercase tracking-widest">Audit Access Denied</span>
+          </div>
+      );
+  }
+
   // 🛡️ SMART PARSER: Turns raw JSON into human-readable context
   const renderDetails = (log) => {
     const d = log.details || {};
-    const reason = log.reason || d.reason; 
+    const reason = d.reason || "No justification provided."; 
 
     return (
       <div className="space-y-1">
         {/* 1. The "Why" */}
-        {reason && (
-          <div className="text-amber-500 text-[10px] font-mono uppercase border-l-2 border-amber-500/50 pl-2 mb-1 flex items-center gap-2">
-            <span className="font-bold">REASON:</span> {reason}
-          </div>
-        )}
+        <div className="text-amber-500 text-[10px] font-mono uppercase border-l-2 border-amber-500/50 pl-2 mb-1 flex items-center gap-2">
+           <span className="font-bold">REASON:</span> {reason}
+        </div>
 
         {/* 2. The "What" (Diff View) */}
         {d.old_role && d.new_role && (
@@ -92,8 +106,8 @@ export const AdminAuditLog = () => {
                 <tr><td colSpan="4" className="text-center text-zinc-600 py-12 italic">No records found.</td></tr>
             ) : (
                 logs.map((log) => {
-                const actionName = log.action_type || log.action;
-                const isForce = actionName?.includes('FORCE') || actionName?.includes('KICK');
+                const actionName = log.action_type || 'UNKNOWN';
+                const isForce = actionName.includes('FORCE') || actionName.includes('KICK');
                 
                 return (
                     <tr key={log.id} className="hover:bg-white/5 transition-colors group">
@@ -107,7 +121,7 @@ export const AdminAuditLog = () => {
                     </td>
                     <td className="p-3 align-top">
                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${isForce ? 'bg-red-900/20 text-red-500 border-red-500/30' : 'bg-zinc-800 text-zinc-400 border-zinc-700'}`}>
-                        {actionName?.replace(/_/g, ' ') || 'UNKNOWN'}
+                        {actionName.replace(/_/g, ' ')}
                         </span>
                     </td>
                     <td className="p-3 align-top text-zinc-300">{renderDetails(log)}</td>

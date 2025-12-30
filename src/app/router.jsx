@@ -4,25 +4,23 @@ import { ROLES } from '../lib/roles';
 import { Loader2 } from 'lucide-react';
 
 // COMPONENTS
-// Ensure all these files exist in your src/components folder!
 import { LandingPage } from '../components/LandingPage'; 
 import { AdminLogin } from '../components/admin/AdminLogin';
-import { TournamentWarRoom } from '../components/TournamentWarRoom';
-import { StaffManagement } from '../components/admin/StaffManagement';
+import { AdminDashboard } from '../components/admin/AdminDashboard'; // The Main Hub
 import { BracketView } from '../components/BracketView';
-import { TeamRoster } from '../components/TeamRoster';
+import { MatchRoom } from '../components/match/MatchRoom'; 
+import { PlayerDashboard } from '../components/player/PlayerDashboard'; 
 import { AdminToolbar } from '../components/admin/AdminToolbar';
 
-// 🛡️ GUARD: Protects Routes based on Role
+// 🛡️ GUARD
 const ProtectedRoute = ({ allowedRoles = [], children }) => {
-  const { session, loading } = useSession();
+  const { session } = useSession();
   
-  if (loading) return <div className="h-screen flex items-center justify-center bg-zinc-950"><Loader2 className="animate-spin text-fuchsia-500"/></div>;
-  
+  if (session.loading) return <div className="h-screen flex items-center justify-center bg-zinc-950"><Loader2 className="animate-spin text-fuchsia-500"/></div>;
   if (!session.isAuthenticated) return <Navigate to="/login" replace />;
   
   if (allowedRoles.length > 0 && !allowedRoles.includes(session.role)) {
-    return <Navigate to="/" replace />; // Unauthorized -> Home
+    return <Navigate to="/" replace />; 
   }
   
   return children ? children : <Outlet />;
@@ -43,20 +41,22 @@ export const router = createBrowserRouter([
       { path: 'login', element: <AdminLogin /> },
       { path: 'bracket', element: <BracketView /> },
       
+      // 🏟️ MATCH ROOM (Public Read / Private Write)
+      { path: 'match/:matchId', element: <MatchRoom /> },
+
       // 🛡️ ADMIN AREA
       {
         path: 'admin',
         element: <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.OWNER, ROLES.REFEREE]}><AdminLayout /></ProtectedRoute>,
         children: [
-          { path: 'war-room', element: <TournamentWarRoom /> },
-          { path: 'staff', element: <StaffManagement /> },
+          { path: 'dashboard', element: <AdminDashboard /> }, // The Unified Dashboard
         ]
       },
       
-      // 🛡️ CAPTAIN AREA
+      // 🛡️ PLAYER AREA
       {
-        path: 'roster',
-        element: <ProtectedRoute allowedRoles={[ROLES.CAPTAIN, ROLES.OWNER]}><TeamRoster /></ProtectedRoute>
+        path: 'dashboard',
+        element: <ProtectedRoute allowedRoles={[ROLES.CAPTAIN, ROLES.PLAYER, ROLES.OWNER]}><PlayerDashboard /></ProtectedRoute>
       },
       
       // 404 CATCH-ALL

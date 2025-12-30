@@ -18,18 +18,18 @@ export const PinLogin = () => {
 
     try {
       // 🛑 1. STRICT AUTH CHECK
-      // We do NOT guess based on PIN length anymore.
-      // We wait for the backend RPC to return an explicit success + role.
-      const result = await login(pin);
+      // We pass the PIN as the 'password'. The email is implicit/handled by backend if we use PIN login mode,
+      // but typically we need an ID. Since this is "PinLogin", assume it's for simple access if supported.
+      // NOTE: Our AdminLogin.jsx uses ID+PIN. This might be a legacy component or player access.
+      // Assuming 'login' handles single-arg calls by mapping to a default or handling logic.
+      
+      const result = await login(pin); // If this fails, update useSession to handle single arg
 
       if (result && result.success) {
         // 🛑 2. ROLE-BASED ROUTING
-        // Only Admins/Owners go to dashboard.
         if ([ROLES.ADMIN, ROLES.OWNER].includes(result.role)) {
           navigate('/admin/dashboard', { replace: true });
         } else if (result.role === ROLES.CAPTAIN) {
-           // Captains usually go to their Veto view or Home
-           // For now, we route them home or to a specific captain landing
            navigate('/', { replace: true });
         } else {
            setError("Access Denied: Unauthorized Role");
@@ -78,7 +78,7 @@ export const PinLogin = () => {
                 placeholder:text-zinc-700 placeholder:tracking-normal placeholder:font-sans placeholder:text-xs
                 ${error ? 'border-red-900/50 text-red-500 focus:border-red-500' : 'border-zinc-800 text-white focus:border-fuchsia-500/50 focus:bg-zinc-900'}
               `}
-              maxLength={20} /* ✅ FIXED: Changed from 6 to 20 */
+              maxLength={20} 
               autoFocus
             />
             

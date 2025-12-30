@@ -25,10 +25,12 @@ export const AdminLogin = () => {
     setLoading(true);
     setError(null);
 
+    // Note: formData.id maps to 'email' in Supabase Auth
     const result = await login(formData.id, formData.pin);
 
     if (result.success) {
-      const target = ['ADMIN', 'OWNER'].includes(result.role) ? '/admin/dashboard' : '/dashboard';
+      const target = '/admin/dashboard'; 
+      // Note: We direct everyone to dashboard; Router protects based on role
       navigate(target);
     } else {
       setError(result.message || "Access Denied");
@@ -51,11 +53,11 @@ export const AdminLogin = () => {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider mb-1 block">Identity / Team Name</label>
+            <label className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider mb-1 block">Operator Email</label>
             <input 
               type="text" autoFocus
               className="w-full bg-black border border-white/10 rounded px-4 py-3 text-white focus:border-fuchsia-500 outline-none transition-colors"
-              placeholder="Enter ID..."
+              placeholder="admin@pixelpalace.gg"
               value={formData.id}
               onChange={(e) => handleInput('id', e.target.value)}
             />

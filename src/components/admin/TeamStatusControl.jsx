@@ -16,8 +16,13 @@ export const TeamStatusControl = ({ team, onUpdate }) => {
       return;
     }
 
+    // ⚠️ SAFETY: RPC Check
+    // Since 'admin_update_team_status' wasn't in the strict backend audit, we block it here.
+    alert("Feature Locked: Backend RPC 'admin_update_team_status' is not deployed in v1.0.");
+    return;
+
+    /* // TODO: Uncomment when backend adds this RPC
     const newValue = !currentValue;
-    
     const result = await execute('admin_update_team_status', {
       p_team_id: team.id,
       p_field: field, 
@@ -26,6 +31,7 @@ export const TeamStatusControl = ({ team, onUpdate }) => {
     });
 
     if (result.success && onUpdate) onUpdate();
+    */
   };
 
   return (

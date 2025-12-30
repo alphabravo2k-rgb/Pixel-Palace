@@ -20,26 +20,29 @@ export const ROLE_CAPABILITIES = {
     PERM_CAPABILITIES.MANAGE_TOURNAMENT,
     PERM_CAPABILITIES.VIEW_HIDDEN_DATA,
     PERM_CAPABILITIES.MANAGE_MATCH,
-    PERM_CAPABILITIES.OVERRIDE_MATCH
+    PERM_CAPABILITIES.OVERRIDE_MATCH,
+    PERM_CAPABILITIES.EDIT_ROSTER
   ],
   [ROLES.ADMIN]: [
     PERM_CAPABILITIES.MANAGE_TOURNAMENT,
     PERM_CAPABILITIES.MANAGE_MATCH,
-    PERM_CAPABILITIES.OVERRIDE_MATCH
+    PERM_CAPABILITIES.OVERRIDE_MATCH,
+    PERM_CAPABILITIES.VIEW_HIDDEN_DATA
   ],
   [ROLES.REFEREE]: [
     PERM_CAPABILITIES.MANAGE_MATCH, 
-    // NOTE: Referees do NOT have OVERRIDE_MATCH
+    PERM_CAPABILITIES.VIEW_ADMIN_DASHBOARD
   ],
   [ROLES.CAPTAIN]: [
     PERM_CAPABILITIES.ACT_AS_CAPTAIN,
-    PERM_CAPABILITIES.REPORT_SCORE
+    PERM_CAPABILITIES.REPORT_SCORE,
+    PERM_CAPABILITIES.EDIT_ROSTER
   ],
   [ROLES.PLAYER]: [],
   [ROLES.GUEST]: []
 };
 
-// UI Themes for Roles
+// UI Themes for Roles (Used by AdminToolbar)
 export const ROLE_THEMES = {
   OWNER: { color: 'text-yellow-500', bg: 'bg-yellow-500/10', border: 'border-yellow-500/50', label: 'Owner' },
   ADMIN: { color: 'text-fuchsia-500', bg: 'bg-fuchsia-500/10', border: 'border-fuchsia-500/50', label: 'Admin' },
@@ -54,5 +57,6 @@ export const normalizeRole = (role) => {
   if (['CAPTAIN', 'CAPT', 'IGL'].includes(r)) return ROLES.CAPTAIN;
   if (['ADMIN', 'OFFICER'].includes(r)) return ROLES.ADMIN;
   if (['OWNER', 'HOST'].includes(r)) return ROLES.OWNER;
+  if (['REFEREE', 'REF'].includes(r)) return ROLES.REFEREE;
   return ROLES.PLAYER;
 };

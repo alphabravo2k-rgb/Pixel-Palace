@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ShieldAlert, UserPlus, CheckCircle } from 'lucide-react';
-import { supabase } from '../../supabase/client';
-import { useSession } from '../../auth/useSession';
+import { supabase } from '../supabase/client';
+import { useSession } from '../auth/useSession';
 
 export const AdminUsersPanel = () => {
   const { session } = useSession();
@@ -33,9 +33,9 @@ export const AdminUsersPanel = () => {
 
     setLoading(true);
     try {
-        // ✅ Direct DB Insert (Allowed by RLS for OWNER)
+        // ✅ Direct DB Insert 
         const { error: dbError } = await supabase
-            .from('app_admins') // Correct Table Name
+            .from('app_admins') 
             .insert({
                 name: form.name,
                 pin_code: form.newPin,
@@ -51,6 +51,7 @@ export const AdminUsersPanel = () => {
     } catch (err) {
         console.error(err);
         if (err.code === '23505') setError("PIN Code already exists. Choose another.");
+        else if (err.code === '42501') setError("RLS Violation: Database Policy blocked this action. Check Owner Permissions.");
         else setError("Failed to create admin.");
     } finally {
         setLoading(false);

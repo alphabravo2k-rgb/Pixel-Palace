@@ -31,20 +31,16 @@ export const MatchNode = ({ match, onClick }) => {
   const theme = getStatusStyles(match.status);
   
   // 🛡️ LOGIC GUARD: The UI now respects the Backend Integrity Lock
-  const hasTeams = match.team1 && match.team2;
+  // We check if at least one team is present to allow admin inspection
+  const hasTeams = match.team1 || match.team2; 
   const isLocked = match.is_locked;
   
-  // Naming Fix: Can we open the modal? Yes, if teams exist.
+  // Interaction Logic
   const canOpen = hasTeams; 
-  // Naming Fix: Is it actionable? Only if unlocked and active.
   const isActionable = hasTeams && !isLocked && match.status !== 'completed';
 
   return (
-    <div className={`
-        relative w-full h-full flex flex-col rounded border backdrop-blur-md transition-all duration-300
-        ${theme.border} ${theme.bg} ${theme.glow}
-      `}
-    >
+    <div className={`relative w-full h-full flex flex-col rounded border backdrop-blur-md transition-all duration-300 ${theme.border} ${theme.bg} ${theme.glow}`}>
       {/* Header */}
       <div className="px-3 py-1.5 border-b border-white/5 flex items-center justify-between bg-black/20">
         <div className="flex items-center gap-2">

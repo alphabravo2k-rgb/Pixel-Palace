@@ -1,52 +1,41 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { useCapabilities } from '../../auth/useCapabilities'; 
 import { Lock } from 'lucide-react';
 
 /**
  * 🛡️ RestrictedButton
  * UX Gating Component. 
- * NOTE: Does NOT provide security. Backend RPCs must re-verify capability.
+ * Instantly checks permissions without layout shift.
  */
 export const RestrictedButton = ({ 
   action, 
-  resourceId, 
+  resourceId = null, // Added to support context checks (e.g. Captain owning a match)
   children, 
-  fallback = null,
-  className = "",
+  fallback = null, 
+  className = "", 
+  disabled = false,
   ...props 
 }) => {
   const { can } = useCapabilities();
-  const [allowed, setAllowed] = useState(false);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let mounted = true;
-    const check = async () => {
-      const result = await can(action, resourceId);
-      if (mounted) {
-        setAllowed(result);
-        setLoading(false);
-      }
-    };
-    check();
-    return () => { mounted = false; };
-  }, [action, resourceId, can]);
-
-  if (loading) {
-    return <div className="w-8 h-4 bg-white/5 animate-pulse rounded" />;
-  }
+  
+  // Synchronous check - Instant result
+  const allowed = can(action, { id: resourceId }); 
 
   if (!allowed) {
-    return fallback ? (
-      <button disabled className={`opacity-50 cursor-not-allowed flex items-center gap-2 ${className}`}>
+    if (fallback) return fallback;
+
+    // Default fallback: A disabled, locked button
+    return (
+      <button disabled className={`opacity-50 cursor-not-allowed flex items-center gap-2 ${className}`} title="Access Denied">
         <Lock className="w-3 h-3" />
         {children}
       </button>
-    ) : null;
+    );
   }
 
+  // Render the actual button
   return (
-    <button className={className} {...props}>
+    <button className={className} disabled={disabled} {...props}>
       {children}
     </button>
   );

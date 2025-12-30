@@ -8,20 +8,21 @@ export const useCapabilities = () => {
   /**
    * CHECK PERMISSION (The Core Function)
    * Wraps the centralized RBAC logic from src/lib/permissions.js
+   * * @param {string} capability - The PERM_CAPABILITY key
+   * @param {object} context - Optional data (e.g., the match object) for scope checks
    */
   const can = useCallback((capability, context = null) => {
+    // We pass the WHOLE session object because permissions.js needs session.team_id
     return checkPermission(capability, session, context);
   }, [session]);
 
   /**
    * LEGACY COMPATIBILITY
-   * Use this if you have old components checking 'resource', 'action'
+   * Maps old UI calls (resource:action) to new Permission Keys
    */
   const hasCapability = (role, resource, action) => {
-    // Maps old style checks to new RBAC keys
-    // Example: 'MATCH:VETO' -> 'CAP_ACT_AS_CAPTAIN'
+    // Maps 'MATCH:VETO' -> 'CAP_MANAGE_MATCH' or similar
     const key = `CAP_${resource}_${action}`.toUpperCase();
-    // Ideally, update your components to use PERM_CAPABILITIES directly.
     return can(key);
   };
 

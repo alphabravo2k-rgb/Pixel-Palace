@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../supabase/client';
 import StatsCard from '../StatsCard';
-import { Search, RefreshCw, ShieldCheck, ShieldAlert, Users } from 'lucide-react';
+import { Search, RefreshCw, ShieldAlert, Users } from 'lucide-react';
+import { RosterIntegrityControl } from './RosterIntegrityControl';
+import { PlayerRow } from '../roster/PlayerRow';
 
 export const TeamRosterView = () => {
   const [teams, setTeams] = useState([]);
@@ -10,19 +12,33 @@ export const TeamRosterView = () => {
 
   const fetchTeams = async () => {
     setLoading(true);
-    // ⚡ Fetch Teams and just COUNT the members ID
+    
+    // Fetch Teams with nested members
     const { data, error } = await supabase
       .from('teams')
       .select(`
-        *,
-        team_members (id) 
+        id, name, logo_url, region, access_code,
+        team_members (
+            id, role,
+            global_identities (id, display_name, discord_handle)
+        )
       `)
       .order('name', { ascending: true });
 
     if (error) {
       console.error('Error fetching teams:', error);
     } else {
-      setTeams(data || []);
+      // Flatten for UI
+      const processed = data?.map(t => ({
+          ...t,
+          members: t.team_members.map(tm => ({
+              id: tm.id, // This is the team_member ID needed for RosterIntegrityControl
+              role: tm.role,
+              username: tm.global_identities?.display_name,
+              discord: tm.global_identities?.discord_handle
+          }))
+      }));
+      setTeams(processed || []);
     }
     setLoading(false);
   };
@@ -31,19 +47,17 @@ export const TeamRosterView = () => {
     fetchTeams();
   }, []);
 
-  // Filter Logic
   const filteredTeams = teams.filter(team => 
     team.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Stats Logic
-  const totalPlayers = teams.reduce((acc, team) => acc + (team.team_members?.length || 0), 0);
-  const fullRosters = teams.filter(t => (t.team_members?.length || 0) >= 5).length;
+  const totalPlayers = teams.reduce((acc, team) => acc + (team.members?.length || 0), 0);
+  const fullRosters = teams.filter(t => (t.members?.length || 0) >= 5).length;
 
   return (
     <div className="space-y-6">
       
-      {/* STATS ROW */}
+      {/* STATS */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <StatsCard title="Total Teams" value={teams.length} type="teams" />
         <StatsCard title="Active Operators" value={totalPlayers} type="players" />
@@ -70,95 +84,47 @@ export const TeamRosterView = () => {
         </button>
       </div>
 
-      {/* TABLE */}
-      <div className="bg-zinc-900/50 border border-white/5 rounded-xl overflow-hidden backdrop-blur-md">
-        <table className="w-full text-left">
-          <thead className="bg-black/40 border-b border-white/5 text-[10px] uppercase tracking-widest text-zinc-500 font-mono">
-            <tr>
-              <th className="p-4">Identity</th>
-              <th className="p-4">Region</th>
-              <th className="p-4">Squad Size</th>
-              <th className="p-4">Access Protocol</th>
-              <th className="p-4">Readiness</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-white/5">
-            {filteredTeams.map((team) => {
-               const rosterCount = team.team_members?.length || 0;
-               const isReady = rosterCount >= 5;
-
-               return (
-              <tr key={team.id} className="hover:bg-white/5 transition-colors group">
-                
-                {/* Team Name & Logo */}
-                <td className="p-4 flex items-center gap-3">
-                  <div className="w-10 h-10 rounded bg-black flex items-center justify-center border border-zinc-700 overflow-hidden">
-                    <img 
-                        src={team.logo_url} 
-                        alt={team.name} 
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                            e.target.onerror = null; 
-                            e.target.src = `https://ui-avatars.com/api/?name=${team.name}&background=18181b&color=71717a`;
-                        }}
-                    />
-                  </div>
-                  <span className="font-bold text-white font-['Teko'] text-xl tracking-wide">{team.name}</span>
-                </td>
-
-                {/* Region */}
-                <td className="p-4">
-                  <span className="px-2 py-1 bg-zinc-800 border border-zinc-700 rounded text-[10px] font-bold text-zinc-400 uppercase tracking-wider">
-                    {team.region || 'GLOBAL'}
-                  </span>
-                </td>
-
-                {/* Roster Count */}
-                <td className="p-4">
-                  <div className="flex items-center gap-2">
-                    <Users className={`w-4 h-4 ${isReady ? 'text-zinc-500' : 'text-red-500'}`} />
-                    <span className={`text-lg font-bold font-['Teko'] ${!isReady ? 'text-red-500' : 'text-white'}`}>
-                      {rosterCount} <span className="text-zinc-600 text-sm">/ 6</span>
+      {/* GRID */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        {filteredTeams.map((team) => (
+            <div key={team.id} className="bg-zinc-900/50 border border-white/5 rounded-lg overflow-hidden">
+                <div className="bg-black/40 p-3 border-b border-white/5 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <img src={team.logo_url || 'https://via.placeholder.com/40'} className="w-8 h-8 rounded bg-black object-cover"/>
+                        <span className="font-bold text-sm text-zinc-200">{team.name}</span>
+                    </div>
+                    <span className="text-[10px] bg-zinc-800 text-zinc-500 px-1.5 py-0.5 rounded font-mono">
+                        {team.members?.length || 0} / 6
                     </span>
-                  </div>
-                </td>
+                </div>
 
-                {/* Access Code (Shows Badge if VIP) */}
-                <td className="p-4">
-                  {team.access_code ? (
-                    <span className="flex items-center gap-2 text-yellow-500 text-[10px] uppercase font-bold px-2 py-1 bg-yellow-500/10 border border-yellow-500/20 rounded w-fit">
-                      <ShieldCheck className="w-3 h-3" />
-                      VIP: {team.access_code}
-                    </span>
-                  ) : (
-                    <span className="text-zinc-600 text-xs italic font-mono">Public Slot</span>
-                  )}
-                </td>
-
-                {/* Status */}
-                <td className="p-4">
-                   {isReady ? (
-                     <div className="flex items-center gap-2 text-green-400 text-xs uppercase font-bold tracking-wider">
-                       <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)]"></div>
-                       Deployed
-                     </div>
-                   ) : (
-                     <div className="flex items-center gap-2 text-red-500 text-xs uppercase font-bold tracking-wider">
-                       <ShieldAlert className="w-3 h-3" />
-                       Incomplete
-                     </div>
-                   )}
-                </td>
-              </tr>
-            )})}
-          </tbody>
-        </table>
-        
-        {filteredTeams.length === 0 && !loading && (
-          <div className="p-12 text-center text-zinc-500 font-mono text-sm">
-            NO SIGNALS DETECTED.
-          </div>
-        )}
+                <div className="divide-y divide-white/5">
+                    {team.members && team.members.length > 0 ? (
+                        team.members.map(player => (
+                            <div key={player.id} className="p-2 flex items-center justify-between group hover:bg-white/5 transition-colors">
+                                <div className="flex items-center gap-2 text-sm">
+                                    <div className={`w-1.5 h-1.5 rounded-full ${player.role === 'CAPTAIN' ? 'bg-yellow-500' : 'bg-zinc-600'}`}></div>
+                                    <span className="text-zinc-300">{player.username}</span>
+                                </div>
+                                
+                                {/* Controls appear on hover */}
+                                <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <RosterIntegrityControl 
+                                        player={player} 
+                                        teamId={team.id} 
+                                        onUpdate={fetchTeams} 
+                                    />
+                                </div>
+                            </div>
+                        ))
+                    ) : (
+                        <div className="p-4 text-center text-red-500/50 text-xs font-mono flex flex-col items-center gap-2">
+                            <ShieldAlert className="w-4 h-4" /> EMPTY SQUAD
+                        </div>
+                    )}
+                </div>
+            </div>
+        ))}
       </div>
     </div>
   );

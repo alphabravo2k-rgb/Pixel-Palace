@@ -36,15 +36,26 @@ export const RosterBuilder = () => {
             id, name, access_code,
             members:team_members (
               id, role, 
-              player:global_identities (username, avatar_url)
+              player:global_identities (display_name, discord_handle) 
             )
           )
         `)
-        .eq('global_id', session.identity.id) // Corrected link
+        .eq('global_id', session.identity.id)
         .eq('team.tournament_id', selectedTournamentId)
         .single();
 
-      if (data) setMyTeam(data.team);
+      // Note: 'player' alias above must match what your view returns or table relations
+      if (data) {
+          // Normalize structure
+          const normalizedTeam = {
+              ...data.team,
+              members: data.team.members.map(m => ({
+                  ...m,
+                  username: m.player?.display_name // map display_name to username for UI
+              }))
+          };
+          setMyTeam(normalizedTeam);
+      }
     } catch (err) {
       // No team found is normal for new users
     } finally {
@@ -54,12 +65,18 @@ export const RosterBuilder = () => {
 
   const handleJoinSolo = async () => {
     if (isLocked) return;
-    // RPC Logic
-    const { error } = await supabase.rpc('register_solo_player', {
+    
+    // ⚠️ SAFETY: RPC Check
+    // 'register_solo_player' was not in the core backend audit.
+    alert("Solo Registration is disabled in v1.0. Please contact an admin to be added.");
+    return;
+
+    /* const { error } = await supabase.rpc('register_solo_player', {
       p_tournament_id: selectedTournamentId,
       p_user_id: session.identity.id
     });
     if (!error) fetchMyStatus();
+    */
   };
 
   const handleInvite = async () => {
@@ -137,11 +154,11 @@ export const RosterBuilder = () => {
           <div key={member.id} className="flex items-center justify-between p-2 bg-black/20 rounded border border-white/5">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 bg-zinc-800 rounded-full flex items-center justify-center text-xs font-bold text-zinc-500">
-                {member.player?.username?.substring(0,2).toUpperCase() || '??'}
+                {member.username?.substring(0,2).toUpperCase() || '??'}
               </div>
               <div>
                 <div className="text-sm text-white font-bold">
-                  {member.player?.username || 'Unknown'}
+                  {member.username || 'Unknown'}
                 </div>
                 <div className="text-[10px] text-zinc-500 uppercase tracking-wider">
                   {member.role}

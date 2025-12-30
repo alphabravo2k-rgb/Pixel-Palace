@@ -16,27 +16,21 @@ export const PlayerDashboard = () => {
     navigate('/login');
   };
 
-  // Safe check for identity data
   const identity = session?.identity || {};
-  const username = identity.username || 'Unknown Player';
-  const reputation = identity.reputation_score || 1000;
+  const username = identity.display_name || 'Unknown Player'; // Fixed field name
+  const reputation = identity.faceit_elo || 1000; // Fixed field name
 
   return (
     <div className="min-h-screen bg-black text-white selection:bg-fuchsia-500/30">
       
-      {/* 1. TOP NAV (Identity Layer) */}
+      {/* 1. TOP NAV */}
       <div className="sticky top-0 z-50 bg-zinc-950/80 backdrop-blur border-b border-white/10">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
           
           <div className="flex items-center gap-4">
-            {/* Avatar / Reputation */}
             <div className="relative group cursor-pointer">
               <div className="w-10 h-10 rounded-full bg-zinc-800 border-2 border-fuchsia-600 flex items-center justify-center overflow-hidden">
-                 {identity.avatar_url ? (
-                   <img src={identity.avatar_url} alt="Profile" className="w-full h-full object-cover" />
-                 ) : (
-                   <User className="w-5 h-5 text-zinc-400" />
-                 )}
+                 <User className="w-5 h-5 text-zinc-400" />
               </div>
               <div className="absolute -bottom-1 -right-1 bg-black rounded-full px-1.5 py-0.5 border border-white/10 text-[10px] font-mono text-fuchsia-400 font-bold">
                 {reputation}
@@ -88,7 +82,7 @@ export const PlayerDashboard = () => {
           />
         </div>
 
-        {/* RIGHT COLUMN: The Action Area */}
+        {/* RIGHT COLUMN */}
         <div className="lg:col-span-3">
           
           {/* TAB: ROSTER MANAGEMENT */}

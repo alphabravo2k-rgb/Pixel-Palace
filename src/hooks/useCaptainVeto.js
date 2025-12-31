@@ -8,10 +8,8 @@ export const useCaptainVeto = (match) => {
   const [loading, setLoading] = useState(false);
   
   const matchId = match?.id;
-  // We use session.team_id for UI logic only. Backend verifies independently.
-  const myTeamId = session?.team_id; 
+  const myTeamId = session?.team_id;
 
-  // 1. Live Data Sync
   useEffect(() => {
     if (!matchId) return;
 
@@ -41,7 +39,6 @@ export const useCaptainVeto = (match) => {
     return () => { supabase.removeChannel(channel); };
   }, [matchId]);
 
-  // 2. Server-Authoritative State
   const vetoState = useMemo(() => {
     if (!match) return { isMyTurn: false, currentAction: 'WAIT' };
 
@@ -49,12 +46,9 @@ export const useCaptainVeto = (match) => {
       return { isMyTurn: false, currentAction: 'LOCKED', isComplete: true };
     }
 
-    // 🛡️ Source of Truth: The Database Column 'current_veto_team_id'
-    // This was added in Backend Code 6. Trust it.
     const activeTeamId = match.current_veto_team_id;
     const isMyTurn = activeTeamId === myTeamId;
     
-    // Calculate Action Type (Fallback logic if not in DB)
     const totalVetoes = vetoes.length;
     const turnOrder = match.best_of === 3 
         ? ['BAN', 'BAN', 'PICK', 'PICK', 'BAN', 'BAN', 'DECIDER'] 
@@ -70,13 +64,11 @@ export const useCaptainVeto = (match) => {
     };
   }, [match, vetoes, myTeamId]);
 
-  // 3. Secure Submission
   const submitVeto = async (mapName) => {
     if (!matchId || !myTeamId || !vetoState.isMyTurn) return;
     
     setLoading(true);
     try {
-      // 🛡️ SECURITY UPDATE: Removed p_team_id
       const { error } = await supabase.rpc('api_submit_veto', {
         p_match_id: matchId,
         p_map_name: mapName,

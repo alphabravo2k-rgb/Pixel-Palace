@@ -1,10 +1,3 @@
-import React, { useState } from 'react';
-import { useSession } from '../../auth/useSession';
-import { useTournament } from '../../tournament/useTournament';
-import { RosterBuilder } from '../roster/RosterBuilder';
-import { Shield, Swords, User, LogOut, Trophy } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-
 export const PlayerDashboard = () => {
   const { session, logout } = useSession();
   const { selectedTournamentId } = useTournament();
@@ -17,16 +10,14 @@ export const PlayerDashboard = () => {
   };
 
   const identity = session?.identity || {};
-  const username = identity.display_name || 'Unknown Player'; // Fixed field name
-  const reputation = identity.faceit_elo || 1000; // Fixed field name
+  const username = identity.display_name || 'Unknown Player'; 
+  const reputation = identity.faceit_elo || 1000; 
 
   return (
     <div className="min-h-screen bg-black text-white selection:bg-fuchsia-500/30">
-      
-      {/* 1. TOP NAV */}
+      {/* Top Navigation */}
       <div className="sticky top-0 z-50 bg-zinc-950/80 backdrop-blur border-b border-white/10">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-          
           <div className="flex items-center gap-4">
             <div className="relative group cursor-pointer">
               <div className="w-10 h-10 rounded-full bg-zinc-800 border-2 border-fuchsia-600 flex items-center justify-center overflow-hidden">
@@ -56,10 +47,9 @@ export const PlayerDashboard = () => {
         </div>
       </div>
 
-      {/* 2. MAIN CONTENT */}
+      {/* Main Content */}
       <main className="max-w-6xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-4 gap-6">
-        
-        {/* LEFT COLUMN: Navigation */}
+        {/* Left Column: Navigation */}
         <div className="lg:col-span-1 space-y-2">
           <NavButton 
             active={activeTab === 'ROSTER'} 
@@ -82,10 +72,9 @@ export const PlayerDashboard = () => {
           />
         </div>
 
-        {/* RIGHT COLUMN */}
+        {/* Right Column */}
         <div className="lg:col-span-3">
-          
-          {/* TAB: ROSTER MANAGEMENT */}
+          {/* Tab: Roster Management */}
           {activeTab === 'ROSTER' && (
             <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
                {!selectedTournamentId ? (
@@ -98,7 +87,7 @@ export const PlayerDashboard = () => {
             </div>
           )}
 
-          {/* TAB: MATCHES */}
+          {/* Tab: Matches */}
           {activeTab === 'MATCHES' && (
             <div className="p-12 text-center bg-zinc-900 border border-white/10 rounded-lg">
               <Swords className="w-12 h-12 text-zinc-700 mx-auto mb-4" />
@@ -109,7 +98,7 @@ export const PlayerDashboard = () => {
             </div>
           )}
 
-          {/* TAB: STATS */}
+          {/* Tab: Stats */}
           {activeTab === 'STATS' && (
              <div className="p-12 text-center bg-zinc-900 border border-white/10 rounded-lg">
                <Trophy className="w-12 h-12 text-yellow-500/20 mx-auto mb-4" />
@@ -119,7 +108,6 @@ export const PlayerDashboard = () => {
                </p>
              </div>
           )}
-
         </div>
       </main>
     </div>
@@ -129,12 +117,10 @@ export const PlayerDashboard = () => {
 const NavButton = ({ active, onClick, icon: Icon, label, badge }) => (
   <button
     onClick={onClick}
-    className={`
-      w-full flex items-center justify-between p-3 rounded-lg transition-all border
+    className={`w-full flex items-center justify-between p-3 rounded-lg transition-all border
       ${active 
         ? 'bg-zinc-800 border-fuchsia-600 text-white shadow-lg shadow-fuchsia-900/10' 
-        : 'bg-transparent border-transparent text-zinc-500 hover:bg-white/5 hover:text-zinc-300'}
-    `}
+        : 'bg-transparent border-transparent text-zinc-500 hover:bg-white/5 hover:text-zinc-300'}`}
   >
     <div className="flex items-center gap-3">
       <Icon className={`w-4 h-4 ${active ? 'text-fuchsia-500' : 'text-zinc-600'}`} />

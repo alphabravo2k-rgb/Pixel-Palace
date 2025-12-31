@@ -1,25 +1,13 @@
-import React from 'react';
-import { X, Clock, AlertTriangle } from 'lucide-react';
-import { useSession } from '../../auth/useSession';
-import { TeamCard } from '../roster/TeamCard'; 
-import { RestrictedButton } from '../common/RestrictedButton';
-
 export const MatchModal = ({ match, isOpen, onClose }) => {
   const { session } = useSession();
   
   if (!isOpen || !match) return null;
 
-  // 🛡️ IDENTITY LOGIC FIX (Audit Section 4)
-  // Don't compare IDs directly. Check if the user's TEAM ID matches.
   const myTeamId = session.identity?.team_id; 
-  
   const isTeam1 = myTeamId === match.team1_id;
   const isTeam2 = myTeamId === match.team2_id;
   const isParticipant = isTeam1 || isTeam2;
 
-  // 🛡️ ACTIONABILITY GUARD (Audit Fix)
-  // The UI should only show actions if the match is unlocked AND in a playable state.
-  // Backend enforces this, but UI should match.
   const isPlayerActionable = !match.is_locked && ['scheduled', 'veto', 'live'].includes(match.status);
 
   return (
@@ -55,7 +43,6 @@ export const MatchModal = ({ match, isOpen, onClose }) => {
               <h3 className="text-fuchsia-400 font-bold uppercase tracking-widest text-sm mb-4">
                 Captain Command Link
               </h3>
-              
               <div className="flex justify-center gap-4">
                 <RestrictedButton
                   action="MATCH:CHECK_IN"

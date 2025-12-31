@@ -1,3 +1,30 @@
+import React, { useState } from 'react';
+import { useSession } from '../../auth/useSession';
+import { useTournament } from '../../tournament/useTournament'; // ✅ Added
+import { useNavigate } from 'react-router-dom';
+import { User, LogOut, Shield, Swords, Trophy } from 'lucide-react';
+import { RosterBuilder } from '../roster/RosterBuilder'; // ✅ Added (Assumed path)
+
+const NavButton = ({ active, onClick, icon: Icon, label, badge }) => (
+  <button
+    onClick={onClick}
+    className={`w-full flex items-center justify-between p-3 rounded-lg transition-all border
+      ${active 
+        ? 'bg-zinc-800 border-fuchsia-600 text-white shadow-lg shadow-fuchsia-900/10' 
+        : 'bg-transparent border-transparent text-zinc-500 hover:bg-white/5 hover:text-zinc-300'}`}
+  >
+    <div className="flex items-center gap-3">
+      <Icon className={`w-4 h-4 ${active ? 'text-fuchsia-500' : 'text-zinc-600'}`} />
+      <span className="font-bold uppercase tracking-wider text-sm">{label}</span>
+    </div>
+    {badge && (
+      <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 rounded-full">
+        {badge}
+      </span>
+    )}
+  </button>
+);
+
 export const PlayerDashboard = () => {
   const { session, logout } = useSession();
   const { selectedTournamentId } = useTournament();
@@ -62,7 +89,7 @@ export const PlayerDashboard = () => {
             onClick={() => setActiveTab('MATCHES')} 
             icon={Swords} 
             label="Matches" 
-            badge="0"
+            badge="0" 
           />
            <NavButton 
             active={activeTab === 'STATS'} 
@@ -113,23 +140,3 @@ export const PlayerDashboard = () => {
     </div>
   );
 };
-
-const NavButton = ({ active, onClick, icon: Icon, label, badge }) => (
-  <button
-    onClick={onClick}
-    className={`w-full flex items-center justify-between p-3 rounded-lg transition-all border
-      ${active 
-        ? 'bg-zinc-800 border-fuchsia-600 text-white shadow-lg shadow-fuchsia-900/10' 
-        : 'bg-transparent border-transparent text-zinc-500 hover:bg-white/5 hover:text-zinc-300'}`}
-  >
-    <div className="flex items-center gap-3">
-      <Icon className={`w-4 h-4 ${active ? 'text-fuchsia-500' : 'text-zinc-600'}`} />
-      <span className="font-bold uppercase tracking-wider text-sm">{label}</span>
-    </div>
-    {badge && (
-      <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 rounded-full">
-        {badge}
-      </span>
-    )}
-  </button>
-);

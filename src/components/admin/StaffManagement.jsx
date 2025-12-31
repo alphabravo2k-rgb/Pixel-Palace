@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../../supabase/client';
 import { useSession } from '../../auth/useSession';
 import { SkewButton, Badge } from '../../ui/Components';
-import { ShieldAlert, Trash2, RefreshCw, Loader2, Lock, Shield } from 'lucide-react';
+import { ShieldAlert, Trash2, RefreshCw, Loader2, Shield } from 'lucide-react';
 import { can } from '../../lib/permissions';
 import { PERM_CAPABILITIES } from '../../lib/permissions.actions';
 
@@ -97,7 +97,7 @@ export const StaffManagement = () => {
       
       <div className="p-4 border border-zinc-800 rounded bg-zinc-900/30 text-center">
           <p className="text-zinc-500 text-xs font-mono">
-              <Lock size={12} className="inline mr-1" />
+              <Shield size={12} className="inline mr-1" />
               Team Access Codes are vaulted. Use "Roster Management" to reset team credentials individually.
           </p>
       </div>

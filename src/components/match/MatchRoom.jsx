@@ -14,7 +14,6 @@ export const MatchRoom = ({ matchId }) => {
   const [disputeReason, setDisputeReason] = useState("");
   const [isDisputing, setIsDisputing] = useState(false);
 
-  // 1. REAL-TIME SUBSCRIPTION
   useEffect(() => {
     fetchMatch();
 
@@ -26,7 +25,6 @@ export const MatchRoom = ({ matchId }) => {
         table: 'matches', 
         filter: `id=eq.${matchId}` 
       }, (payload) => {
-        // ⚡ SAFETY: Always refetch to get Team Names (Foreign Keys)
         fetchMatch(); 
       })
       .subscribe();
@@ -52,8 +50,6 @@ export const MatchRoom = ({ matchId }) => {
   const handleDispute = async () => {
     if (!disputeReason) return;
     
-    // Call Secure RPC (Code 8)
-    // 🛡️ REMOVED p_team_id - Backend resolves it securely now.
     const { error } = await supabase.rpc('api_file_dispute', {
       p_match_id: matchId,
       p_reason: disputeReason
@@ -72,7 +68,6 @@ export const MatchRoom = ({ matchId }) => {
 
   if (!match) return <div className="text-red-500 text-center p-10">Match data unavailable.</div>;
 
-  // 🔒 LOCKED STATE (Dispute Active)
   if (match.is_locked) {
     return (
       <div className="max-w-4xl mx-auto mt-8 p-8 bg-red-950/20 border border-red-500/50 rounded-lg text-center animate-in fade-in">
@@ -90,14 +85,9 @@ export const MatchRoom = ({ matchId }) => {
 
   return (
     <div className="max-w-6xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-3 gap-6 text-white animate-in slide-in-from-bottom-4">
-      
-      {/* LEFT: Team A */}
       <TeamCard name={match.team1?.name || 'TBD'} isReady={false} />
 
-      {/* CENTER: The Action Board */}
       <div className="space-y-6">
-        
-        {/* Status Header */}
         <div className="text-center">
           <div className="text-xs font-mono text-zinc-500 uppercase tracking-widest mb-1">
             Match #{match.match_no}
@@ -111,7 +101,6 @@ export const MatchRoom = ({ matchId }) => {
           </div>
         </div>
 
-        {/* VETO BOARD */}
         <div className="bg-zinc-900 border border-white/10 rounded-lg p-6 min-h-[200px] flex flex-col items-center justify-center text-center relative overflow-hidden group">
             <div className="absolute inset-0 bg-gradient-to-br from-zinc-800/20 to-transparent pointer-events-none" />
             <MapIcon className="w-8 h-8 text-zinc-700 mb-2 relative z-10" />
@@ -119,20 +108,19 @@ export const MatchRoom = ({ matchId }) => {
             <p className="text-zinc-600 text-xs mt-1 max-w-[200px] relative z-10">
               Waiting for captains to initialize ban phase.
             </p>
-            
+
             <RestrictedButton 
-              action={PERM_CAPABILITIES.MANAGE_MATCH} // Captains & Admins
-              context={match} // Pass full match for scope check
+              action={PERM_CAPABILITIES.MANAGE_MATCH}
+              context={match}
               className="mt-4 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-bold uppercase tracking-wider rounded border border-white/5 hover:border-white/20 transition-all relative z-10"
             >
               Start Veto
             </RestrictedButton>
         </div>
 
-        {/* INTEGRITY TOOLS */}
         <div className="grid grid-cols-2 gap-2">
            <RestrictedButton 
-             action={PERM_CAPABILITIES.MANAGE_MATCH} 
+             action={PERM_CAPABILITIES.MANAGE_MATCH}
              context={match}
              className="p-3 bg-green-900/20 border border-green-500/30 hover:bg-green-900/40 text-green-400 font-bold uppercase text-xs rounded flex items-center justify-center gap-2 transition-colors"
            >
@@ -147,7 +135,6 @@ export const MatchRoom = ({ matchId }) => {
            </button>
         </div>
 
-        {/* DISPUTE FORM */}
         {isDisputing && (
           <div className="p-4 bg-black/60 backdrop-blur-md border border-red-500/50 rounded-lg animate-in slide-in-from-top-2 shadow-2xl">
             <h4 className="text-red-400 font-bold uppercase text-xs mb-2">File Official Dispute</h4>
@@ -160,7 +147,7 @@ export const MatchRoom = ({ matchId }) => {
             />
             <div className="flex justify-end gap-2">
               <button onClick={() => setIsDisputing(false)} className="px-3 py-2 text-xs text-zinc-400 hover:text-white transition-colors">Cancel</button>
-              
+
               <RestrictedButton 
                 action={PERM_CAPABILITIES.MANAGE_MATCH}
                 context={match}
@@ -172,22 +159,9 @@ export const MatchRoom = ({ matchId }) => {
             </div>
           </div>
         )}
-
       </div>
 
-      {/* RIGHT: Team B */}
       <TeamCard name={match.team2?.name || 'TBD'} isReady={false} align="right" />
     </div>
   );
 };
-
-// Sub-component for Team Display
-const TeamCard = ({ name, isReady, align = "left" }) => (
-  <div className={`flex flex-col ${align === "right" ? "items-end text-right" : "items-start text-left"} p-6 bg-zinc-900/50 border border-white/5 rounded-lg h-full justify-center`}>
-    <Shield className={`w-12 h-12 mb-4 ${isReady ? 'text-green-500' : 'text-zinc-700'}`} />
-    <h3 className="text-3xl font-bold font-['Teko'] uppercase tracking-wide text-zinc-200">{name}</h3>
-    <span className={`text-[10px] font-mono uppercase mt-2 px-2 py-0.5 rounded ${isReady ? 'bg-green-500/20 text-green-400' : 'bg-zinc-800 text-zinc-500'}`}>
-      {isReady ? 'READY' : 'NOT READY'}
-    </span>
-  </div>
-);

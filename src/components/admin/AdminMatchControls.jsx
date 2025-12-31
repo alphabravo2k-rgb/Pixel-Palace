@@ -24,11 +24,11 @@ export const AdminMatchControls = ({ match, onUpdate }) => {
 
   const handleSwapRequest = async () => {
     if (reason.length < 5) {
-        setLocalError("Audit Reason requires at least 5 characters.");
-        return;
+      setLocalError("Audit Reason requires at least 5 characters.");
+      return;
     }
     
-    // 🛡️ SECURITY: Params must match SQL RPC signature EXACTLY
+    // 🛡️ SECURITY: Ensure parameters match RPC signature exactly
     const result = await execute('api_swap_match_slots', {
       p_match_id: match.id,
       p_reason: reason 
@@ -57,12 +57,13 @@ export const AdminMatchControls = ({ match, onUpdate }) => {
     if (result.success) {
         setSuccessMsg(`Format set to BO${newFormat}`);
         if (onUpdate) onUpdate();
+    } else {
+        setLocalError('Error updating match format');
     }
   };
 
   return (
     <div className="bg-zinc-900 border border-white/10 rounded-lg p-4 space-y-6 relative overflow-hidden">
-      
       {(localError || successMsg) && (
         <div className={`flex items-center gap-2 p-2 text-xs rounded border ${localError ? 'bg-red-900/20 text-red-400 border-red-900/50' : 'bg-green-900/20 text-green-400 border-green-900/50'}`}>
           {localError ? <ShieldAlert className="w-4 h-4" /> : <Save className="w-4 h-4" />}
@@ -76,7 +77,6 @@ export const AdminMatchControls = ({ match, onUpdate }) => {
           <RefreshCw className="w-3 h-3" /> <span>Roster & Seeding</span>
         </div>
         
-        {/* Visual Only - Swap happens via RPC flipping */}
         <div className="flex justify-between items-center bg-black/40 p-3 rounded border border-white/5">
             <div className="text-sm font-bold text-blue-400">{match.team1?.name || 'TBD'}</div>
             <ArrowRightLeft className="w-4 h-4 text-zinc-600" />
@@ -86,12 +86,7 @@ export const AdminMatchControls = ({ match, onUpdate }) => {
         <button
           onClick={() => setIsSwapModalOpen(true)}
           disabled={isLocked || loading}
-          className={`
-            w-full py-2 text-xs font-bold uppercase rounded transition-colors flex items-center justify-center gap-2
-            ${isLocked 
-                ? 'bg-zinc-900 text-zinc-600 cursor-not-allowed border border-white/5' 
-                : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white'}
-          `}
+          className={`w-full py-2 text-xs font-bold uppercase rounded transition-colors flex items-center justify-center gap-2 ${isLocked ? 'bg-zinc-900 text-zinc-600 cursor-not-allowed border border-white/5' : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white'}`}
         >
           {loading ? 'Processing...' : isLocked ? 'Locked (Live Match)' : 'Swap Sides'}
         </button>
@@ -99,17 +94,17 @@ export const AdminMatchControls = ({ match, onUpdate }) => {
 
       {/* FORMAT */}
       <div className="space-y-2">
-          <label className="text-xs text-zinc-500 uppercase flex items-center gap-1"><Settings className="w-3 h-3" /> Match Format</label>
-          <select 
-            className="w-full bg-black border border-white/10 p-2 text-xs text-white rounded focus:border-fuchsia-500 outline-none" 
-            value={selectedFormat} 
-            onChange={handleFormatChange}
-            disabled={isLocked}
-          >
-            <option value="1">Best of 1</option>
-            <option value="3">Best of 3</option>
-            <option value="5">Best of 5</option>
-          </select>
+        <label className="text-xs text-zinc-500 uppercase flex items-center gap-1"><Settings className="w-3 h-3" /> Match Format</label>
+        <select 
+          className="w-full bg-black border border-white/10 p-2 text-xs text-white rounded focus:border-fuchsia-500 outline-none" 
+          value={selectedFormat} 
+          onChange={handleFormatChange}
+          disabled={isLocked}
+        >
+          <option value="1">Best of 1</option>
+          <option value="3">Best of 3</option>
+          <option value="5">Best of 5</option>
+        </select>
       </div>
 
       {/* INTEGRITY MODAL */}

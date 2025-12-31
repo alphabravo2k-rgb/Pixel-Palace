@@ -1,3 +1,13 @@
+import React, { useMemo } from 'react';
+import { MatchNode } from './MatchNode'; // ✅ Dependency
+import { Zap } from 'lucide-react'; // ✅ Dependency
+
+// 🎨 LAYOUT CONSTANTS (Fixed "Undefined" Error)
+const CARD_WIDTH = 220;
+const CARD_HEIGHT = 100;
+const GAP_X = 80;
+const BASE_GAP_Y = 40;
+
 export const Bracket = ({ matches = [], onMatchClick }) => {
   const { nodes, paths, totalWidth, totalHeight } = useMemo(() => {
     if (!matches.length) return { nodes: [], paths: [], totalWidth: 0, totalHeight: 0 };
@@ -33,6 +43,7 @@ export const Bracket = ({ matches = [], onMatchClick }) => {
              const y2 = positions.get(feeders[1].id)?.y || 0;
              y = (y1 + y2) / 2;
           } else {
+             // Fallback if bracket data is partial
              y = mIndex * (CARD_HEIGHT + BASE_GAP_Y) * Math.pow(2, rIndex); 
           }
         }

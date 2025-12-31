@@ -1,7 +1,16 @@
+import React from 'react';
+import { useSession } from '../auth/useSession';
+import { useTournament } from '../tournament/useTournament';
+import { useAdminConsole } from '../hooks/useAdminConsole';
+import { Loader2, ShieldAlert, Trophy, RefreshCw, Play } from 'lucide-react';
+import { can } from '../lib/permissions'; // ✅ Added
+import { PERM_CAPABILITIES } from '../lib/permissions.actions'; // ✅ Added
+import { BracketView } from './BracketView'; // ✅ Added
+
 export const TournamentWarRoom = () => {
   const { session, loading: authLoading } = useSession();
   const { selectedTournamentId, tournamentData, lifecycle } = useTournament();
-  const { syncRegistrations, generateBracket, loading: opsLoading } = useAdminConsole();
+  const { execute, loading: opsLoading } = useAdminConsole(); // Use execute directly
 
   if (authLoading) return <div className="h-screen flex items-center justify-center bg-black"><Loader2 className="animate-spin text-fuchsia-500" /></div>;
 
@@ -19,6 +28,10 @@ export const TournamentWarRoom = () => {
   const isSetupPhase = ['SETUP', 'SEEDING', 'REGISTRATION'].includes(lifecycle?.status);
   const isLive = ['ACTIVE', 'LIVE', 'PLAYOFFS'].includes(lifecycle?.status);
 
+  // Temporary handlers for missing RPCs
+  const handleSync = () => alert("Sync Logic requires 'admin_sync_rosters' RPC (Currently disabled).");
+  const handleGenerate = () => alert("Bracket Logic requires 'admin_generate_bracket' RPC (Currently disabled).");
+
   return (
     <div className="flex flex-col h-screen bg-zinc-950 text-white overflow-hidden">
       <div className="p-4 border-b border-white/5 bg-black/60 flex items-center justify-between">
@@ -35,18 +48,18 @@ export const TournamentWarRoom = () => {
 
          <div className="flex gap-2">
             <button 
-                onClick={() => syncRegistrations(selectedTournamentId)}
-                disabled={!isSetupPhase || opsLoading}
-                className={`px-4 py-2 border rounded text-xs font-bold uppercase flex items-center gap-2 transition-all ${isSetupPhase ? 'bg-blue-600/20 text-blue-400 border-blue-600/50 hover:bg-blue-600/40' : 'bg-zinc-900 text-zinc-600 border-zinc-800 cursor-not-allowed opacity-50'}`}
+               onClick={handleSync}
+               disabled={!isSetupPhase || opsLoading}
+               className={`px-4 py-2 border rounded text-xs font-bold uppercase flex items-center gap-2 transition-all ${isSetupPhase ? 'bg-blue-600/20 text-blue-400 border-blue-600/50 hover:bg-blue-600/40' : 'bg-zinc-900 text-zinc-600 border-zinc-800 cursor-not-allowed opacity-50'}`}
             >
-                <RefreshCw size={14} className={opsLoading ? 'animate-spin' : ''} /> Sync Roster
+               <RefreshCw size={14} className={opsLoading ? 'animate-spin' : ''} /> Sync Roster
             </button>
             <button 
-                onClick={() => generateBracket(selectedTournamentId)}
-                disabled={!isSetupPhase || opsLoading}
-                className={`px-4 py-2 border rounded text-xs font-bold uppercase flex items-center gap-2 transition-all ${isSetupPhase ? 'bg-fuchsia-600/20 text-fuchsia-400 border-fuchsia-600/50 hover:bg-fuchsia-600/40' : 'bg-zinc-900 text-zinc-600 border-zinc-800 cursor-not-allowed opacity-50'}`}
+               onClick={handleGenerate}
+               disabled={!isSetupPhase || opsLoading}
+               className={`px-4 py-2 border rounded text-xs font-bold uppercase flex items-center gap-2 transition-all ${isSetupPhase ? 'bg-fuchsia-600/20 text-fuchsia-400 border-fuchsia-600/50 hover:bg-fuchsia-600/40' : 'bg-zinc-900 text-zinc-600 border-zinc-800 cursor-not-allowed opacity-50'}`}
             >
-                <Play size={14} /> Generate Bracket
+               <Play size={14} /> Generate Bracket
             </button>
          </div>
       </div>

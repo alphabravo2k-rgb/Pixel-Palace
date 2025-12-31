@@ -1,9 +1,15 @@
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';  // <-- Import useNavigate here
+import { useSession } from '../auth/useSession';
+import { ROLES } from '../lib/roles';
+import { Lock, ChevronRight, AlertCircle, Loader2 } from 'lucide-react';
+
 export const PinLogin = () => {
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { login } = useSession();
-  const navigate = useNavigate();
+  const navigate = useNavigate();  // <-- Initialize useNavigate here
 
   const handleLogin = async (e) => {
     e.preventDefault();

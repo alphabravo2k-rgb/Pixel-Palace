@@ -1,9 +1,3 @@
-import React, { useState, useEffect } from 'react';
-import { useSession } from '../../auth/useSession';
-import { useTournament } from '../../tournament/useTournament';
-import { supabase } from '../../supabase/client';
-import { UserPlus, UserMinus, Shield, Lock, AlertTriangle } from 'lucide-react';
-
 export const RosterBuilder = () => {
   const { session } = useSession();
   const { selectedTournamentId, tournamentData } = useTournament();
@@ -12,12 +6,9 @@ export const RosterBuilder = () => {
   const [loading, setLoading] = useState(true);
   const [inviteEmail, setInviteEmail] = useState("");
 
-  // 1. CONFIG: Read the rules from the DB
   const config = tournamentData?.format_config || { participant_type: 'TEAM', team_size: 5 };
   const isSolo = config.participant_type === 'SOLO';
   const maxPlayers = config.team_size;
-  
-  // 2. LIFECYCLE: Check if Roster Lock has passed
   const isLocked = tournamentData?.rosters_lock_at && new Date() > new Date(tournamentData.rosters_lock_at);
 
   useEffect(() => {
@@ -27,37 +18,25 @@ export const RosterBuilder = () => {
   const fetchMyStatus = async () => {
     if (!session?.identity?.id || !selectedTournamentId) return;
     try {
-      // Find the team this user belongs to for this tournament
       const { data, error } = await supabase
         .from('team_members')
-        .select(`
-          role,
-          team:teams (
-            id, name, access_code,
-            members:team_members (
-              id, role, 
-              player:global_identities (display_name, discord_handle) 
-            )
-          )
-        `)
+        .select(`role, team:teams (id, name, access_code, members:team_members (id, role, player:global_identities (display_name, discord_handle)))`)
         .eq('global_id', session.identity.id)
         .eq('team.tournament_id', selectedTournamentId)
         .single();
 
-      // Note: 'player' alias above must match what your view returns or table relations
       if (data) {
-          // Normalize structure
-          const normalizedTeam = {
-              ...data.team,
-              members: data.team.members.map(m => ({
-                  ...m,
-                  username: m.player?.display_name // map display_name to username for UI
-              }))
-          };
-          setMyTeam(normalizedTeam);
+        const normalizedTeam = {
+          ...data.team,
+          members: data.team.members.map(m => ({
+            ...m,
+            username: m.player?.display_name 
+          }))
+        };
+        setMyTeam(normalizedTeam);
       }
     } catch (err) {
-      // No team found is normal for new users
+      // Handle error (e.g., no team found)
     } finally {
       setLoading(false);
     }
@@ -65,18 +44,7 @@ export const RosterBuilder = () => {
 
   const handleJoinSolo = async () => {
     if (isLocked) return;
-    
-    // ⚠️ SAFETY: RPC Check
-    // 'register_solo_player' was not in the core backend audit.
-    alert("Solo Registration is disabled in v1.0. Please contact an admin to be added.");
-    return;
-
-    /* const { error } = await supabase.rpc('register_solo_player', {
-      p_tournament_id: selectedTournamentId,
-      p_user_id: session.identity.id
-    });
-    if (!error) fetchMyStatus();
-    */
+    alert("Solo Registration is disabled in v1.0.");
   };
 
   const handleInvite = async () => {
@@ -87,7 +55,6 @@ export const RosterBuilder = () => {
 
   if (loading) return <div className="text-zinc-500 animate-pulse">Loading Roster Status...</div>;
 
-  // 🔒 LOCKED STATE UI
   if (isLocked) {
     return (
       <div className="p-4 bg-red-950/30 border border-red-500/20 rounded-lg flex items-center gap-3">
@@ -100,7 +67,6 @@ export const RosterBuilder = () => {
     );
   }
 
-  // 👋 NOT REGISTERED STATE
   if (!myTeam) {
     return (
       <div className="p-6 bg-zinc-900 border border-white/10 rounded-lg text-center">
@@ -108,16 +74,10 @@ export const RosterBuilder = () => {
           {isSolo ? 'Ready to Compete?' : 'Assemble Your Squad'}
         </h3>
         <p className="text-zinc-500 text-sm mb-6">
-          {isSolo 
-            ? 'This is a 1v1 event. Sign up directly.' 
-            : `This event requires a team of ${maxPlayers}. Create one now.`}
+          {isSolo ? 'This is a 1v1 event. Sign up directly.' : `This event requires a team of ${maxPlayers}. Create one now.`}
         </p>
-        
         {isSolo ? (
-          <button 
-            onClick={handleJoinSolo}
-            className="px-6 py-2 bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-bold uppercase tracking-wider rounded transition-all"
-          >
+          <button onClick={handleJoinSolo} className="px-6 py-2 bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-bold uppercase tracking-wider rounded transition-all">
             Join Tournament
           </button>
         ) : (
@@ -129,10 +89,8 @@ export const RosterBuilder = () => {
     );
   }
 
-  // 🛡️ TEAM MANAGEMENT UI (5v5)
   return (
     <div className="bg-zinc-900 border border-white/10 rounded-lg overflow-hidden">
-      {/* Header */}
       <div className="p-4 bg-zinc-950 border-b border-white/5 flex justify-between items-center">
         <div>
           <h3 className="text-lg font-bold text-white flex items-center gap-2">
@@ -148,7 +106,6 @@ export const RosterBuilder = () => {
         </div>
       </div>
 
-      {/* Member List */}
       <div className="p-4 space-y-2">
         {myTeam.members?.map((member) => (
           <div key={member.id} className="flex items-center justify-between p-2 bg-black/20 rounded border border-white/5">
@@ -166,7 +123,6 @@ export const RosterBuilder = () => {
               </div>
             </div>
             
-            {/* Kick Button (Only Captains can see) */}
             {member.role !== 'CAPTAIN' && (
               <button className="text-zinc-600 hover:text-red-500 transition-colors">
                 <UserMinus className="w-4 h-4" />
@@ -174,8 +130,7 @@ export const RosterBuilder = () => {
             )}
           </div>
         ))}
-
-        {/* Invite Slot */}
+        
         {myTeam.members?.length < maxPlayers && (
           <div className="mt-4 pt-4 border-t border-white/5 flex gap-2">
             <input 
@@ -185,10 +140,7 @@ export const RosterBuilder = () => {
               onChange={(e) => setInviteEmail(e.target.value)}
               className="flex-1 bg-black/40 border border-white/10 rounded px-3 py-1.5 text-sm text-white focus:border-fuchsia-500 outline-none"
             />
-            <button 
-              onClick={handleInvite}
-              className="p-2 bg-white/5 hover:bg-white/10 rounded text-zinc-300"
-            >
+            <button onClick={handleInvite} className="p-2 bg-white/5 hover:bg-white/10 rounded text-zinc-300">
               <UserPlus className="w-4 h-4" />
             </button>
           </div>

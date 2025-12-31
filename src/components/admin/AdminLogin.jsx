@@ -13,10 +13,7 @@ export const AdminLogin = () => {
   const [cooldown, setCooldown] = useState(0);
 
   const handleInput = (field, value) => {
-    // 🛡️ SANITIZATION: Allow standard email chars, strip weird stuff
-    if (field === 'pin' && value.length > 20) return; // Hard stop length
-    
-    // For email (id), just trim spaces. Supabase validates format.
+    if (field === 'pin' && value.length > 20) return;
     const sanitized = value.trim(); 
     setFormData(prev => ({ ...prev, [field]: sanitized }));
   };
@@ -28,15 +25,12 @@ export const AdminLogin = () => {
     setLoading(true);
     setError(null);
 
-    // Note: formData.id maps to 'email' in Supabase Auth
     const result = await login(formData.id, formData.pin);
 
     if (result.success) {
-      const target = '/admin/dashboard'; 
-      navigate(target);
+      navigate('/admin/dashboard'); 
     } else {
       setError(result.message || "Access Denied");
-      // 🚧 UX GUARD: Client-side rate limit (Real protection is backend)
       setCooldown(prev => (prev === 0 ? 3 : prev * 2)); 
       setTimeout(() => setCooldown(0), (cooldown || 3) * 1000);
     }

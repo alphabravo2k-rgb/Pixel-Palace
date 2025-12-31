@@ -1,6 +1,3 @@
-import React from 'react';
-import { ArrowUpRight, Minus } from 'lucide-react';
-
 const StatsCard = ({ title, value, type }) => {
   const isGood = type === 'teams' || type === 'players';
   

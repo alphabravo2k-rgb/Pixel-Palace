@@ -1,3 +1,8 @@
+import React, { useState, useEffect } from 'react';
+import { supabase } from '../supabase/client';
+import { useTournament } from '../tournament/useTournament';
+import { Users, Shield, Crown, Loader2 } from 'lucide-react'; // ✅ ADDED Crown
+
 export const TeamRoster = () => {
   const { selectedTournamentId, loading: contextLoading } = useTournament();
   const [teams, setTeams] = useState([]);
@@ -34,6 +39,7 @@ export const TeamRoster = () => {
                 avatar_url: m.identity?.avatar_url
             }));
 
+            // Sort: Captain first, then others
             roster.sort((a, b) => (a.is_captain === b.is_captain) ? 0 : a.is_captain ? -1 : 1);
 
             return { ...team, roster };
@@ -105,7 +111,7 @@ export const TeamRoster = () => {
                     <div className="flex items-center gap-3">
                       <div className="w-6 h-6 rounded-full bg-zinc-800 flex items-center justify-center overflow-hidden">
                         {player.avatar_url ? (
-                          <img src={player.avatar_url} className="w-full h-full object-cover" />
+                          <img src={player.avatar_url} className="w-full h-full object-cover" alt={player.display_name} />
                         ) : (
                           <span className="text-[9px] text-zinc-500">{player.display_name?.charAt(0)}</span>
                         )}

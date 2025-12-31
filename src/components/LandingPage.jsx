@@ -1,28 +1,35 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';  // <-- Import useNavigate here
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useSession } from '../auth/useSession';
 import { Shield, ChevronRight, Loader2, Terminal } from 'lucide-react';
+import { BRAND } from '../lib/identity';
+import { ROLES } from '../lib/roles';
 
 export const LandingPage = () => {
-  const navigate = useNavigate();  // <-- Initialize useNavigate here
+  const navigate = useNavigate();
   const { session } = useSession();
   const [isConnecting, setIsConnecting] = useState(false);
 
-  useEffect(() => {
-    let timer;
-    if (isConnecting) {
-      timer = setTimeout(() => {
-        if (session?.isAuthenticated) {
-            navigate('/admin/dashboard');
-        } else {
-            navigate('/login');
-        }
-      }, 1500);
-    }
-    return () => clearTimeout(timer);
-  }, [isConnecting, session, navigate]);
+  const handleEnter = async () => {
+    if (isConnecting) return; // Prevent double clicks
+    setIsConnecting(true);
 
-  const handleEnter = () => setIsConnecting(true);
+    // 1. Artificial "System Boot" Delay (1.5s)
+    await new Promise(resolve => setTimeout(resolve, 1500));
+
+    // 2. Intelligent Routing based on Role
+    if (session?.isAuthenticated) {
+      if ([ROLES.OWNER, ROLES.ADMIN, ROLES.REFEREE].includes(session.role)) {
+        navigate('/admin/dashboard');
+      } else {
+        navigate('/dashboard'); // Player Dashboard
+      }
+    } else {
+      navigate('/login');
+    }
+    
+    // Note: We don't set isConnecting(false) because we are navigating away.
+  };
 
   return (
     <div className="relative min-h-screen w-full bg-[#050505] overflow-hidden flex flex-col items-center justify-center selection:bg-fuchsia-500/30 font-sans">
@@ -38,8 +45,8 @@ export const LandingPage = () => {
         <div className="relative group cursor-default mb-10">
           <div className="absolute inset-0 bg-gradient-to-tr from-fuchsia-600 to-purple-600 rounded-full blur-3xl opacity-20 group-hover:opacity-50 transition-opacity duration-1000"></div>
           <img 
-              src="https://raw.githubusercontent.com/alphabravo2k-rgb/pixel-palace-registration/1a7d90c43796fd037316bdaf4f3b4de9a485d615/image_4379f9.png" 
-              alt="Pixel Palace" 
+              src={BRAND.logo} 
+              alt={BRAND.name} 
               className="relative w-40 h-40 md:w-56 md:h-56 object-contain drop-shadow-2xl transition-transform duration-700 group-hover:scale-105"
           />
         </div>
@@ -52,7 +59,7 @@ export const LandingPage = () => {
           <div className="flex items-center justify-center gap-4 mt-4">
             <div className="h-px w-8 bg-zinc-800"></div>
             <p className="text-zinc-500 font-mono text-xs tracking-[0.4em] uppercase">
-                Competitive OS // v2.0
+                Competitive OS // {BRAND.version}
             </p>
             <div className="h-px w-8 bg-zinc-800"></div>
           </div>
@@ -84,8 +91,8 @@ export const LandingPage = () => {
         {/* Footer Status */}
         <div className="mt-8 flex items-center gap-6 text-[10px] text-zinc-600 font-mono uppercase tracking-wider">
           <span className="flex items-center gap-2">
-              <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse shadow-[0_0_5px_#22c55e]"></div>
-              System Online
+              <div className={`w-1.5 h-1.5 rounded-full animate-pulse shadow-[0_0_5px_#22c55e] ${session?.isAuthenticated ? 'bg-green-500' : 'bg-amber-500'}`}></div>
+              {session?.isAuthenticated ? 'System Online' : 'Guest Access'}
           </span>
           <span className="flex items-center gap-2">
               <Terminal size={10} />

@@ -8,7 +8,7 @@ export const RestrictedButton = ({
   children, 
   fallback = null, 
   className = "", 
-  disabled = false,
+  disabled = false, 
   ...props 
 }) => {
   const { can } = useCapabilities();

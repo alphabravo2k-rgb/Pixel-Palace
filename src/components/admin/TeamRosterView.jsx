@@ -28,7 +28,6 @@ const Icons = {
 const SocialLink = ({ href, type }) => {
   const Icon = Icons[type];
   if (!href) return <div className="p-1 opacity-20"><Icon className="w-3 h-3 grayscale" /></div>;
-  
   const colors = type === 'Faceit' ? 'text-[#ff5500]' : type === 'Steam' ? 'text-blue-400' : 'text-[#5865F2]';
   return (
     <a href={href} target="_blank" rel="noreferrer" className={`p-1 ${colors} hover:scale-110 transition-transform`} onClick={e => e.stopPropagation()}>
@@ -45,51 +44,100 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
   const [members, setMembers] = useState(team.members);
   const [saving, setSaving] = useState(false);
 
-  // Handle Input Change for a specific member
+  // Add a blank player to the local state
+  const handleAddPlayer = () => {
+    const newMember = {
+        id: `temp-${Date.now()}`, // Temporary ID
+        isNew: true, // Flag for save logic
+        role: 'PLAYER',
+        username: 'New Operator',
+        steam_url: '',
+        faceit_url: '',
+        discord: '',
+        elo: 1000
+    };
+    setMembers(prev => [...prev, newMember]);
+  };
+
   const updateMember = (id, field, value) => {
     setMembers(prev => prev.map(m => m.id === id ? { ...m, [field]: value } : m));
   };
 
-  // Save All Changes to Supabase
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      // 1. Update Roles in team_members
-      for (const m of members) {
-        // Update Role
-        await supabase
-          .from('team_members')
-          .update({ role: m.role })
-          .eq('id', m.id);
-
-        // Update Links in global_identities
-        await supabase
-          .from('global_identities')
-          .update({
-            display_name: m.username,
-            steam_url: m.steam_url || null,
-            faceit_url: m.faceit_url || null,
-            discord_handle: m.discord || null
-          })
-          .eq('id', m.global_id); // Assuming we store global_id in the formatted object
-      }
-      onRefresh();
-      onClose();
-    } catch (err) {
-      console.error("Save failed", err);
-      alert("Failed to save changes.");
-    } finally {
-      setSaving(false);
+  const handleDelete = async (memberId, isNew) => {
+    if (isNew) {
+        // Just remove from state if it hasn't been saved yet
+        setMembers(prev => prev.filter(m => m.id !== memberId));
+        return;
     }
-  };
-
-  const handleDelete = async (memberId) => {
     if(!window.confirm("Are you sure you want to remove this player?")) return;
     try {
       await supabase.from('team_members').delete().eq('id', memberId);
       setMembers(prev => prev.filter(m => m.id !== memberId));
     } catch (err) {
       alert("Failed to delete player");
+    }
+  };
+
+  // Save All Changes to Supabase
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      for (const m of members) {
+        if (m.isNew) {
+            // --- INSERT LOGIC FOR NEW PLAYERS ---
+            // 1. Create Identity
+            const { data: identityData, error: identityError } = await supabase
+                .from('global_identities')
+                .insert({
+                    display_name: m.username,
+                    steam_url: m.steam_url || null,
+                    faceit_url: m.faceit_url || null,
+                    discord_handle: m.discord || null,
+                    faceit_elo: 1000 // Default ELO
+                })
+                .select('id')
+                .single();
+            
+            if (identityError) throw identityError;
+
+            // 2. Link to Team
+            const { error: linkError } = await supabase
+                .from('team_members')
+                .insert({
+                    team_id: team.id,
+                    global_id: identityData.id,
+                    role: m.role
+                });
+            
+            if (linkError) throw linkError;
+
+        } else {
+            // --- UPDATE LOGIC FOR EXISTING PLAYERS ---
+            // Update Role
+            await supabase
+              .from('team_members')
+              .update({ role: m.role })
+              .eq('id', m.id);
+
+            // Update Links
+            await supabase
+              .from('global_identities')
+              .update({
+                display_name: m.username,
+                steam_url: m.steam_url || null,
+                faceit_url: m.faceit_url || null,
+                discord_handle: m.discord || null
+              })
+              .eq('id', m.global_id);
+        }
+      }
+      onRefresh();
+      onClose();
+    } catch (err) {
+      console.error("Save failed", err);
+      alert("Failed to save changes: " + err.message);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -113,7 +161,7 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
         {/* Scrollable List */}
         <div className="flex-grow overflow-y-auto p-4 space-y-3">
           {members.sort((a,b) => getRoleWeight(a.role) - getRoleWeight(b.role)).map(m => (
-            <div key={m.id} className="grid grid-cols-12 gap-4 items-center bg-zinc-900/50 p-3 rounded border border-zinc-800 hover:border-zinc-600 transition-colors">
+            <div key={m.id} className={`grid grid-cols-12 gap-4 items-center p-3 rounded border transition-colors ${m.isNew ? 'bg-fuchsia-900/10 border-fuchsia-500/30' : 'bg-zinc-900/50 border-zinc-800 hover:border-zinc-600'}`}>
               
               {/* Identity */}
               <div className="col-span-3">
@@ -190,7 +238,7 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
               {/* Actions */}
               <div className="col-span-1 flex justify-end items-end h-full pb-1">
                  <button 
-                  onClick={() => handleDelete(m.id)}
+                  onClick={() => handleDelete(m.id, m.isNew)}
                   title="Remove Player"
                   className="p-1.5 bg-red-900/20 text-red-500 hover:bg-red-900/50 rounded border border-red-900/30 transition-colors"
                  >
@@ -200,12 +248,13 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
             </div>
           ))}
 
-          {/* ADD PLAYER PLACEHOLDER (Future Feature) */}
-          {members.length < 7 && (
-            <div className="p-4 border border-dashed border-zinc-800 rounded bg-zinc-900/20 flex items-center justify-center text-zinc-600 text-xs uppercase tracking-widest cursor-not-allowed">
-              <Plus size={14} className="mr-2"/> Max Roster Reached via Import
-            </div>
-          )}
+          {/* ACTIVE ADD PLAYER BUTTON */}
+          <button 
+            onClick={handleAddPlayer}
+            className="w-full p-4 border border-dashed border-zinc-700 hover:border-fuchsia-500 hover:bg-fuchsia-900/10 rounded flex items-center justify-center text-zinc-500 hover:text-fuchsia-400 text-xs uppercase tracking-widest transition-all"
+          >
+            <Plus size={14} className="mr-2"/> ADD NEW OPERATOR
+          </button>
         </div>
 
         {/* Footer */}
@@ -264,8 +313,9 @@ const TeamCard = ({ team, onEdit }) => {
       {/* Players List (Compact View) */}
       <div className="flex-grow bg-zinc-900/20 p-1 space-y-px">
         {team.members.slice(0, 7).map((m, idx) => {
-           const isCap = m.role === 'CAPTAIN';
-           const isSub = m.role === 'SUBSTITUTE' || (idx >= 5 && !isCap);
+           const normalizedRole = m.role?.toUpperCase() || 'PLAYER';
+           const isCap = normalizedRole === 'CAPTAIN';
+           const isSub = normalizedRole === 'SUBSTITUTE' || (idx >= 5 && !isCap);
            
            return (
              <div key={m.id} className={`flex items-center justify-between px-3 py-1.5 ${isSub ? 'opacity-60 bg-black/20' : ''}`}>

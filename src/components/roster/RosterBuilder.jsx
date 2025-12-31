@@ -1,3 +1,9 @@
+import React, { useState, useEffect } from 'react';
+import { supabase } from '../../supabase/client';
+import { useSession } from '../../auth/useSession';
+import { useTournament } from '../../tournament/useTournament';
+import { Lock, Shield, UserMinus, UserPlus } from 'lucide-react'; // ✅ FIX: Added Imports
+
 export const RosterBuilder = () => {
   const { session } = useSession();
   const { selectedTournamentId, tournamentData } = useTournament();
@@ -18,14 +24,24 @@ export const RosterBuilder = () => {
   const fetchMyStatus = async () => {
     if (!session?.identity?.id || !selectedTournamentId) return;
     try {
+      // 🛡️ COMPLEX QUERY: Fetch Team via Team Member link
       const { data, error } = await supabase
         .from('team_members')
-        .select(`role, team:teams (id, name, access_code, members:team_members (id, role, player:global_identities (display_name, discord_handle)))`)
+        .select(`
+            role, 
+            team:teams (
+                id, name, access_code, 
+                members:team_members (
+                    id, role, 
+                    player:global_identities (display_name, discord_handle)
+                )
+            )
+        `)
         .eq('global_id', session.identity.id)
         .eq('team.tournament_id', selectedTournamentId)
         .single();
 
-      if (data) {
+      if (data && data.team) {
         const normalizedTeam = {
           ...data.team,
           members: data.team.members.map(m => ({
@@ -36,7 +52,7 @@ export const RosterBuilder = () => {
         setMyTeam(normalizedTeam);
       }
     } catch (err) {
-      // Handle error (e.g., no team found)
+      // It's okay if no team is found (user hasn't joined yet)
     } finally {
       setLoading(false);
     }

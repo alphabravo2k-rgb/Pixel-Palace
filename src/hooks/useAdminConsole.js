@@ -16,11 +16,11 @@ export const useAdminConsole = () => {
         throw new Error("UNAUTHORIZED: Session invalid.");
       }
 
-      const payload = { ...params };
+      // 🛡️ SECURITY: Backend handles identity via auth.uid()
+      // We only pass business parameters.
+      console.log(`[AdminConsole] Executing ${rpcName}`, params);
 
-      console.log(`[AdminConsole] Executing ${rpcName}`, payload);
-
-      const { data, error: rpcError } = await supabase.rpc(rpcName, payload);
+      const { data, error: rpcError } = await supabase.rpc(rpcName, params);
 
       if (rpcError) throw rpcError;
 
@@ -39,8 +39,10 @@ export const useAdminConsole = () => {
     }
   }, [session]);
 
-  const syncRegistrations = (tId) => execute('admin_sync_rosters', { p_tournament_id: tId });
-  const generateBracket = (tId) => execute('admin_generate_bracket', { p_tournament_id: tId });
+  // ⚠️ NOTE: These RPCs were purged in the Golden Master. 
+  // Uncomment only if you re-add them to the backend.
+  // const syncRegistrations = (tId) => execute('admin_sync_rosters', { p_tournament_id: tId });
+  // const generateBracket = (tId) => execute('admin_generate_bracket', { p_tournament_id: tId });
 
-  return { execute, syncRegistrations, generateBracket, loading, error };
+  return { execute, loading, error };
 };

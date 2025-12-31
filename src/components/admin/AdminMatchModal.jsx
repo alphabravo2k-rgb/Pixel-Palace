@@ -23,10 +23,7 @@ export const AdminMatchModal = ({ match, isOpen, onClose, onUpdate }) => {
     if (!window.confirm("CRITICAL: Force this result? This overrides game data.")) return;
     setLoading(true);
     try {
-      // ⚠️ NOTE: 'admin_force_match_result' was NOT created in backend audit.
-      // This is a placeholder alert until that RPC is added.
       alert("Feature Locked: SQL RPC 'admin_force_match_result' missing. Contact Lead Dev.");
-      
       /* const { error } = await supabase.rpc('admin_force_match_result', {
         p_match_id: match.id, p_winner_id: winnerId, p_reason: "Admin Override"
       });

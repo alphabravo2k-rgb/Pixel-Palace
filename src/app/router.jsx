@@ -18,17 +18,17 @@ const RequireAuth = ({ children }) => {
   
   if (session.loading) {
     return (
-        <div className="h-screen w-full flex items-center justify-center bg-[#050505]">
-            <Loader2 className="animate-spin text-fuchsia-600 w-8 h-8"/>
-        </div>
+      <div className="h-screen w-full flex items-center justify-center bg-[#050505]">
+        <Loader2 className="animate-spin text-fuchsia-600 w-8 h-8"/>
+      </div>
     );
   }
 
   if (!session.isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
-  
-  return children ? children : <Outlet />;
+
+  return children || <Outlet />;
 };
 
 // 🚧 UX GUARD 2: Authorization (Does user have the right role?)
@@ -37,20 +37,20 @@ const RequireRole = ({ allowedRoles = [], children }) => {
 
   if (allowedRoles.length > 0 && !allowedRoles.includes(session.role)) {
     console.warn(`⛔ ACCESS DENIED: Role ${session.role} attempted to access protected route.`);
-    return <Navigate to="/" replace />; 
+    return <Navigate to="/" replace />;
   }
 
-  return children ? children : <Outlet />;
+  return children || <Outlet />;
 };
 
 // 🏗️ LAYOUTS
 const AdminLayout = () => (
-    <div className="min-h-screen bg-[#050505]">
-        <AdminToolbar />
-        <div className="pt-16">
-            <Outlet />
-        </div>
+  <div className="min-h-screen bg-[#050505]">
+    <AdminToolbar />
+    <div className="pt-16">
+      <Outlet />
     </div>
+  </div>
 );
 
 // 🛣️ ROUTE DEFINITIONS

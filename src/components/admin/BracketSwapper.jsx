@@ -6,9 +6,6 @@ export const BracketSwapper = ({ matches, onSwapComplete }) => {
   const { execute, loading } = useAdminConsole();
   const [selectedMatch, setSelectedMatch] = useState(null);
 
-  // NOTE: In v1.0, we only support swapping sides within a single match.
-  // Cross-match swapping requires a complex 'admin_update_seeding' RPC we haven't built yet.
-
   const reset = () => {
     setSelectedMatch(null);
   };
@@ -16,7 +13,6 @@ export const BracketSwapper = ({ matches, onSwapComplete }) => {
   const handleSwap = async () => {
     if (!selectedMatch) return;
     
-    // Integrity Check
     if (['live', 'completed', 'veto'].includes(selectedMatch.status)) {
       alert("Integrity Error: This match is already active/locked.");
       return;
@@ -31,7 +27,6 @@ export const BracketSwapper = ({ matches, onSwapComplete }) => {
       return;
     }
 
-    // ✅ SECURE RPC CALL (Code 7)
     const result = await execute('api_swap_match_slots', {
       p_match_id: selectedMatch.id,
       p_reason: reason
@@ -46,10 +41,5 @@ export const BracketSwapper = ({ matches, onSwapComplete }) => {
     }
   };
 
-  // If used in a parent that passes 'source' prop, we adapt:
-  if (!matches) return null; // Or handle selection logic here
-
-  // Simplified UI for v1
-  return null; // ⚠️ Hiding this component for now as it was designed for Drag-n-Drop which isn't ready.
-  // Using AdminMatchControls inside the Modal is the preferred way to swap in v1.
+  return null;  // Hiding this component for now as it was designed for Drag-n-Drop.
 };

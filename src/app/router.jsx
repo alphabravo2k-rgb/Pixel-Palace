@@ -3,19 +3,19 @@ import { useSession } from '../auth/useSession';
 import { ROLES } from '../lib/roles';
 import { Loader2 } from 'lucide-react';
 
-// COMPONENTS
-import { LandingPage } from '../components/LandingPage'; 
+// Components
+import { LandingPage } from '../components/LandingPage';
 import { AdminLogin } from '../components/admin/AdminLogin';
 import { BracketView } from '../components/BracketView';
-import { MatchRoom } from '../components/match/MatchRoom'; 
+import { MatchRoom } from '../components/match/MatchRoom';
 import { AdminDashboard } from '../components/admin/AdminDashboard';
-import { PlayerDashboard } from '../components/player/PlayerDashboard'; 
+import { PlayerDashboard } from '../components/player/PlayerDashboard';
 import { AdminToolbar } from '../components/admin/AdminToolbar';
 
-// 🚧 UX GUARD 1: Authentication (Is user logged in?)
+// Authentication guard
 const RequireAuth = ({ children }) => {
   const { session } = useSession();
-  
+
   if (session.loading) {
     return (
       <div className="h-screen w-full flex items-center justify-center bg-[#050505]">
@@ -31,7 +31,7 @@ const RequireAuth = ({ children }) => {
   return children || <Outlet />;
 };
 
-// 🚧 UX GUARD 2: Authorization (Does user have the right role?)
+// Role-based access control
 const RequireRole = ({ allowedRoles = [], children }) => {
   const { session } = useSession();
 
@@ -43,7 +43,7 @@ const RequireRole = ({ allowedRoles = [], children }) => {
   return children || <Outlet />;
 };
 
-// 🏗️ LAYOUTS
+// Layout for Admin
 const AdminLayout = () => (
   <div className="min-h-screen bg-[#050505]">
     <AdminToolbar />
@@ -53,20 +53,16 @@ const AdminLayout = () => (
   </div>
 );
 
-// 🛣️ ROUTE DEFINITIONS
+// Routing structure
 export const router = createBrowserRouter([
   {
     path: '/',
     children: [
-      // PUBLIC ROUTES
       { index: true, element: <LandingPage /> },
       { path: 'login', element: <AdminLogin /> },
       { path: 'bracket', element: <BracketView /> },
-      
-      // HYBRID ROUTE (Read Public / Write Protected by Component Logic)
       { path: 'match/:matchId', element: <MatchRoom /> },
 
-      // 🛡️ ADMIN AREA
       {
         path: 'admin',
         element: (
@@ -80,8 +76,6 @@ export const router = createBrowserRouter([
           { path: 'dashboard', element: <AdminDashboard /> },
         ]
       },
-      
-      // 🛡️ PLAYER AREA
       {
         path: 'dashboard',
         element: (
@@ -92,8 +86,6 @@ export const router = createBrowserRouter([
           </RequireAuth>
         )
       },
-      
-      // 404 CATCH-ALL
       { path: '*', element: <Navigate to="/" replace /> }
     ]
   }

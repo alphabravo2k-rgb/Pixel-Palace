@@ -54,7 +54,7 @@ const SocialButton = ({ href, type }) => {
 
 // --- CONFIG: LOGIC & SORTING ---
 const ROLE_WEIGHT = { 'CAPTAIN': 1, 'PLAYER': 2, 'SUBSTITUTE': 3, 'COACH': 4 };
-const getRoleWeight = (role) => ROLE_WEIGHT[role] || 99;
+const getRoleWeight = (role) => ROLE_WEIGHT[role?.toUpperCase()] || 99; // Normalize case
 
 const StatsCard = ({ title, value, type }) => {
   const isGood = type === 'teams' || type === 'players';
@@ -77,10 +77,13 @@ const StatsCard = ({ title, value, type }) => {
 // --- COMPONENT: PLAYER ROW (THE "SLIDER") ---
 const PlayerRow = ({ member, idx }) => {
     // Determine Role & Visuals
-    const isCaptain = member.role === 'CAPTAIN';
-    // Treat 6th/7th players as Subs visually if not Captains
-    const isOverflow = idx >= 5 && !isCaptain; 
-    const isSub = member.role === 'SUBSTITUTE' || isOverflow;
+    const normalizedRole = member.role?.toUpperCase() || 'PLAYER';
+    const isCaptain = normalizedRole === 'CAPTAIN';
+    
+    // Treat 6th/7th players as Subs visually if not Captains and not explicitly Substitutes (fallback logic)
+    const isExplicitSub = normalizedRole === 'SUBSTITUTE';
+    const isOverflow = idx >= 5 && !isCaptain && !isExplicitSub; 
+    const isSub = isExplicitSub || isOverflow;
 
     const tag = isCaptain ? 'CPT' : isSub ? 'SUB' : 'OPR';
     const accentColor = isCaptain ? 'bg-fuchsia-500' : isSub ? 'bg-yellow-500' : 'bg-zinc-700';
@@ -126,7 +129,7 @@ const PlayerRow = ({ member, idx }) => {
                 <div className="flex items-center gap-1">
                     <SocialButton href={member.faceit_url} type="Faceit" />
                     <SocialButton href={member.steam_url} type="Steam" />
-                    <SocialButton href={`https://discord.com/users/${member.discord_id}`} type="Discord" />
+                    <SocialButton href={member.discord_id ? `https://discord.com/users/${member.discord_id}` : null} type="Discord" />
                 </div>
 
                 <span className={`text-[8px] px-1.5 py-0.5 rounded font-mono font-bold tracking-widest ${isCaptain ? 'bg-fuchsia-900/30 text-fuchsia-400' : isSub ? 'bg-yellow-900/30 text-yellow-500' : 'bg-zinc-800 text-zinc-400'}`}>
@@ -186,7 +189,14 @@ export const TeamRosterView = () => {
         })).sort((a, b) => {
             const weightA = getRoleWeight(a.role);
             const weightB = getRoleWeight(b.role);
+            
+            // Primary Sort: Role (Captain > Player > Sub)
             if (weightA !== weightB) return weightA - weightB;
+            
+            // Secondary Sort: ELO (Highest to Lowest) for same roles
+            if (a.elo !== b.elo) return b.elo - a.elo;
+
+            // Tertiary Sort: Alphabetical
             return a.username.localeCompare(b.username);
         });
 

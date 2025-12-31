@@ -2,17 +2,21 @@ import { supabase } from '../supabase/client';
 
 /**
  * PIXEL PALACE DATA SERVICE
- * Centralized data fetching to keep components clean.
+ * Centralized data fetching aligned with Golden Master DB Schema.
  */
 
+const ROLE_PRIORITY = {
+  'CAPTAIN': 1,
+  'PLAYER': 2,
+  'SUBSTITUTE': 3,
+  'COACH': 4
+};
+
 // 1. FETCH TEAM ROSTER
-// Enforces hierarchy: Captains -> Players -> Substitutes
 export const fetchTeamRoster = async (teamId) => {
   if (!teamId) return [];
 
   try {
-    // Query the 'team_members' table
-    // Joined with 'global_identities' to get names/avatars
     const { data, error } = await supabase
       .from('team_members')
       .select(`
@@ -20,30 +24,35 @@ export const fetchTeamRoster = async (teamId) => {
         role,
         joined_at,
         profile:global_identities (
-          username:display_name, 
-          avatar_url:discord_handle, 
-          discord_id
+          display_name, 
+          discord_handle, 
+          discord_id,
+          steam_url
         )
       `)
-      // Adjusted field mapping based on Schema (display_name, discord_handle)
-      .eq('team_id', teamId)
-      .order('role', { ascending: true }) 
-      .order('joined_at', { ascending: true });
+      .eq('team_id', teamId);
 
-    if (error) {
-      console.error("❌ Roster Load Failed:", error);
-      throw new Error('Failed to load team roster.');
-    }
+    if (error) throw error;
 
-    // Flatten the structure for the UI
-    return data.map(member => ({
-      id: member.id,
-      name: member.profile?.username || 'Unknown',
-      avatar: member.profile?.avatar_url || null, // Ensure the avatar is handled properly
-      role: member.role,
-      isCaptain: member.role === 'CAPTAIN',
-      discordId: member.profile?.discord_id
-    }));
+    // Client-side sorting and flattening
+    return data
+      .map(member => ({
+        id: member.id,
+        name: member.profile?.display_name || 'Unknown',
+        discordHandle: member.profile?.discord_handle || null,
+        role: member.role,
+        isCaptain: member.role === 'CAPTAIN',
+        discordId: member.profile?.discord_id,
+        joinedAt: member.joined_at
+      }))
+      .sort((a, b) => {
+        // Sort by Role Priority first, then Join Date
+        const pA = ROLE_PRIORITY[a.role] || 99;
+        const pB = ROLE_PRIORITY[b.role] || 99;
+        if (pA !== pB) return pA - pB;
+        return new Date(a.joinedAt) - new Date(b.joinedAt);
+      });
+
   } catch (err) {
     console.error("❌ Roster Fetch Error:", err);
     return [];
@@ -67,14 +76,11 @@ export const fetchMatchDetails = async (matchId) => {
         vetoes:match_vetoes(*)
       `)
       .eq('id', matchId)
-      .single();
+      .maybeSingle(); // Prevents 406 error if match doesn't exist
 
-    if (error) {
-      console.error("❌ Match Details Load Failed:", error);
-      throw new Error('Failed to load match details.');
-    }
-
+    if (error) throw error;
     return data;
+
   } catch (err) {
     console.error("❌ Match Details Fetch Error:", err);
     return null;

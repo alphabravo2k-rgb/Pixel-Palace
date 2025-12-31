@@ -36,6 +36,7 @@ export const TournamentProvider = ({ children, defaultId }) => {
 
       if (data) {
         setTournaments(data);
+        // Auto-select logic: If no ID selected, try localStorage, else pick first.
         if (!selectedTournamentId && data.length > 0 && !defaultId) {
            const lastId = localStorage.getItem('pp_active_tid');
            const isValid = data.find(t => t.id === lastId);
@@ -44,12 +45,12 @@ export const TournamentProvider = ({ children, defaultId }) => {
       }
     };
     fetchTournaments();
-  }, [defaultId]);
+  }, [defaultId, selectedTournamentId]); // Added selectedTournamentId dep to prevent loops
 
-  // 2. CAPTAIN CONTEXT BINDING
+  // 2. CAPTAIN CONTEXT BINDING (Auto-switch captain to their active tourney)
   useEffect(() => {
     if (session?.isAuthenticated && session?.role === ROLES.CAPTAIN) {
-      const assignedTournamentId = session.identity?.tournament_id;
+      const assignedTournamentId = session.identity?.context?.tournament_id; // Check nested context if available
       if (assignedTournamentId && selectedTournamentId !== assignedTournamentId) {
         setSelectedTournamentId(assignedTournamentId);
       }
@@ -116,8 +117,7 @@ export const TournamentProvider = ({ children, defaultId }) => {
   const validateAction = useCallback((action) => {
     if (!tournamentData) return false;
     if (action === 'EDIT_SETTINGS' && lifecycle.isLocked) {
-        alert("ACTION BLOCKED: Tournament is LIVE/LOCKED.");
-        return false;
+        return false; // UI should handle user feedback, no alerts in hooks
     }
     return true;
   }, [lifecycle, tournamentData]);

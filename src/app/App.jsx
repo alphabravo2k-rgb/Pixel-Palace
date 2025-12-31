@@ -2,9 +2,9 @@ import React from 'react';
 import { RouterProvider } from 'react-router-dom';
 import { SessionProvider } from '../auth/useSession';
 import { TournamentProvider } from '../tournament/useTournament';
-import ErrorBoundary from '../components/common/ErrorBoundary'; 
+import ErrorBoundary from '../components/common/ErrorBoundary';
 import { router } from './router';
-import '../index.css'; 
+import '../index.css';
 
 function App() {
   return (

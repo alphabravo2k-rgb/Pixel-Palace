@@ -1,3 +1,19 @@
+import React from 'react';
+import { useSession } from '../auth/useSession';
+import { X, Clock, AlertTriangle, Shield } from 'lucide-react';
+import { RestrictedButton } from './common/RestrictedButton';
+import { PERM_CAPABILITIES } from '../lib/permissions.actions';
+
+// Inline TeamCard to prevent crashes if file is missing
+const TeamCard = ({ team, isWinner }) => (
+  <div className={`flex flex-col items-center gap-3 p-4 rounded border ${isWinner ? 'bg-emerald-900/20 border-emerald-500/50' : 'bg-zinc-900 border-zinc-800'}`}>
+    <div className="w-16 h-16 bg-black rounded-full flex items-center justify-center border border-white/10">
+        {team?.logo_url ? <img src={team.logo_url} className="w-10 h-10 object-contain" /> : <Shield className="text-zinc-600" />}
+    </div>
+    <div className={`font-bold uppercase text-lg ${isWinner ? 'text-emerald-400' : 'text-white'}`}>{team?.name || 'TBD'}</div>
+  </div>
+);
+
 export const MatchModal = ({ match, isOpen, onClose }) => {
   const { session } = useSession();
   
@@ -45,8 +61,8 @@ export const MatchModal = ({ match, isOpen, onClose }) => {
               </h3>
               <div className="flex justify-center gap-4">
                 <RestrictedButton
-                  action="MATCH:CHECK_IN"
-                  resourceId={match.id}
+                  action={PERM_CAPABILITIES.ACT_AS_CAPTAIN} // ✅ Correct Permission
+                  context={match}
                   className="px-6 py-2 bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-bold uppercase rounded text-sm"
                   onClick={() => alert("Check-in logic goes here via useCaptainVeto")}
                 >

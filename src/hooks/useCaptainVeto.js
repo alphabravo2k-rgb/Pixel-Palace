@@ -8,8 +8,9 @@ export const useCaptainVeto = (match) => {
   const [loading, setLoading] = useState(false);
   
   const matchId = match?.id;
-  const myTeamId = session?.team_id;
+  const myTeamId = session?.team_id; 
 
+  // 1. Live Data Subscription
   useEffect(() => {
     if (!matchId) return;
 
@@ -39,6 +40,7 @@ export const useCaptainVeto = (match) => {
     return () => { supabase.removeChannel(channel); };
   }, [matchId]);
 
+  // 2. Veto Logic Engine
   const vetoState = useMemo(() => {
     if (!match) return { isMyTurn: false, currentAction: 'WAIT' };
 
@@ -50,6 +52,7 @@ export const useCaptainVeto = (match) => {
     const isMyTurn = activeTeamId === myTeamId;
     
     const totalVetoes = vetoes.length;
+    // Standard CS2 Logic: BO1 (Ban all until 1), BO3 (Ban-Pick-Ban-Decider)
     const turnOrder = match.best_of === 3 
         ? ['BAN', 'BAN', 'PICK', 'PICK', 'BAN', 'BAN', 'DECIDER'] 
         : ['BAN', 'BAN', 'BAN', 'BAN', 'BAN', 'BAN', 'PICK'];
@@ -64,11 +67,13 @@ export const useCaptainVeto = (match) => {
     };
   }, [match, vetoes, myTeamId]);
 
+  // 3. Action Handler
   const submitVeto = async (mapName) => {
     if (!matchId || !myTeamId || !vetoState.isMyTurn) return;
     
     setLoading(true);
     try {
+      // 🛡️ SECURITY: No p_team_id sent. Backend resolves auth.uid() -> team_id.
       const { error } = await supabase.rpc('api_submit_veto', {
         p_match_id: matchId,
         p_map_name: mapName,
@@ -78,7 +83,7 @@ export const useCaptainVeto = (match) => {
       if (error) throw error;
     } catch (err) {
       console.error("Veto Failed:", err);
-      alert(err.message);
+      // alert(err.message); // UX: Replace with toast in future
     } finally {
       setLoading(false);
     }

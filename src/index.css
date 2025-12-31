@@ -1,24 +1,40 @@
-/* src/index.css - OPTIMIZED FOR READABILITY */
+/* 1. ENGINE & FONTS (DO NOT DELETE) */
+@import url('https://fonts.googleapis.com/css2?family=Teko:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&display=swap');
 
-/* 1. CRT SCANLINE OVERLAY (Tuned Down) */
-/* Standard: Subtle texture, not a visibility blocker */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 2. GLOBAL RESET */
+html, body {
+  height: 100%;
+  background-color: #050505; /* Void Black */
+  color: white;
+  font-family: 'Inter', sans-serif; /* Default Fallback */
+  overflow-x: hidden;
+}
+
+/* 3. VISUAL FX (Your Custom Polish) */
+
+/* CRT SCANLINE OVERLAY */
 .scanlines {
   background: linear-gradient(
     to bottom,
     rgba(255, 255, 255, 0),
     rgba(255, 255, 255, 0) 50%,
-    rgba(0, 0, 0, 0.1) 50%, /* Reduced from 0.2 */
+    rgba(0, 0, 0, 0.1) 50%,
     rgba(0, 0, 0, 0.1)
   );
-  background-size: 100% 3px; /* Tighter lines for higher resolution feel */
+  background-size: 100% 3px;
   position: absolute;
   top: 0; left: 0; right: 0; bottom: 0;
   pointer-events: none;
-  z-index: 40; /* Behind the text, in front of background */
-  opacity: 0.15; /* ⚠️ CHANGED from 0.6 to 0.15. This is the "Premium" sweet spot. */
+  z-index: 40;
+  opacity: 0.15;
 }
 
-/* 2. TEXT GLITCH EFFECT (Tuned for Fuchsia/Cyan) */
+/* TEXT GLITCH EFFECT */
 .glitch-wrapper {
   position: relative;
   display: inline-block;
@@ -37,19 +53,18 @@
 
 .glitch-wrapper::before {
   left: 2px;
-  text-shadow: -1px 0 #d946ef; /* Fuchsia-500 */
+  text-shadow: -1px 0 #d946ef;
   clip-path: inset(44% 0 61% 0);
-  animation: glitch-anim-1 3s infinite linear alternate-reverse; /* Slower animation (3s) */
+  animation: glitch-anim-1 3s infinite linear alternate-reverse;
 }
 
 .glitch-wrapper::after {
   left: -2px;
-  text-shadow: -1px 0 #a855f7; /* Purple-500 */
+  text-shadow: -1px 0 #a855f7;
   clip-path: inset(54% 0 21% 0);
-  animation: glitch-anim-2 2.5s infinite linear alternate-reverse; /* Slower animation */
+  animation: glitch-anim-2 2.5s infinite linear alternate-reverse;
 }
 
-/* Keyframes remain the same, just timing changed above */
 @keyframes glitch-anim-1 {
   0% { clip-path: inset(20% 0 80% 0); }
   20% { clip-path: inset(60% 0 10% 0); }
@@ -68,11 +83,16 @@
   100% { clip-path: inset(0% 0 10% 0); }
 }
 
-/* 3. HOVER GLOW ANIMATION (Smoother) */
+/* HOVER GLOW ANIMATION */
 @keyframes breathe {
-  0%, 100% { opacity: 0.3; transform: scale(1); } /* Lower min opacity */
-  50% { opacity: 0.6; transform: scale(1.02); } /* Subtle scale */
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.02); }
 }
 .animate-breathe {
-  animation: breathe 5s infinite ease-in-out; /* Slower breath */
+  animation: breathe 5s infinite ease-in-out;
+}
+
+/* BUTTON SLANT CLIP */
+.clip-path-slant {
+  clip-path: polygon(15px 0, 100% 0, 100% calc(100% - 15px), calc(100% - 15px) 100%, 0 100%, 0 15px);
 }

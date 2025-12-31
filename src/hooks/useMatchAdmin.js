@@ -10,20 +10,12 @@ export const useMatchAdmin = (match) => {
     });
   };
 
-  const updateScore = (t1Score, t2Score) => {
-    return execute('api_update_match_score', { 
-        p_match_id: match.id, 
-        p_team1_score: t1Score, 
-        p_team2_score: t2Score 
+  const updateFormat = (bestOf) => {
+    return execute('admin_update_match_format', {
+        p_match_id: match.id,
+        p_best_of: bestOf
     });
   };
 
-  const resetMatch = (reason) => {
-    return execute('api_reset_match', { 
-        p_match_id: match.id, 
-        p_reason: reason 
-    });
-  };
-
-  return { updateScore, resetMatch, swapMatchSlots, loading, error };
+  return { swapMatchSlots, updateFormat, loading, error };
 };

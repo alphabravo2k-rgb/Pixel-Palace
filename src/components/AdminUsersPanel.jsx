@@ -1,8 +1,3 @@
-import React, { useState } from 'react';
-import { ShieldAlert, UserPlus, CheckCircle } from 'lucide-react';
-import { supabase } from '../supabase/client';
-import { useSession } from '../auth/useSession';
-
 export const AdminUsersPanel = () => {
   const { session } = useSession();
   const [loading, setLoading] = useState(false);
@@ -33,7 +28,6 @@ export const AdminUsersPanel = () => {
 
     setLoading(true);
     try {
-        // ✅ Direct DB Insert 
         const { error: dbError } = await supabase
             .from('app_admins') 
             .insert({
@@ -47,6 +41,7 @@ export const AdminUsersPanel = () => {
 
         setSuccess(`Created Admin: ${form.name}`);
         setForm({ name: '', newPin: '', role: 'ADMIN' });
+        setTimeout(() => document.querySelector('input[name="name"]').focus(), 100);  // Autofocus after success
 
     } catch (err) {
         console.error(err);
@@ -87,8 +82,7 @@ export const AdminUsersPanel = () => {
                  <option value="ADMIN">ADMIN</option>
                  <option value="REFEREE">REFEREE</option>
              </select>
-             
-             <input 
+              <input 
                 type="text" 
                 placeholder="Assign PIN Code" 
                 className="bg-black border border-white/10 p-2 rounded text-white text-sm font-mono tracking-widest" 

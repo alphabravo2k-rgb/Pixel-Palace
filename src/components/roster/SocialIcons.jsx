@@ -25,6 +25,7 @@ export const SocialIcons = ({ discord, steam, twitter }) => {
       if (isCopyable) {
         e.preventDefault();
         navigator.clipboard.writeText(url);
+        // Optional: Add toast notification here
       }
     };
 

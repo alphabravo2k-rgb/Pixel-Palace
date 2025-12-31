@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../../supabase/client';
 import { ScrollText, RefreshCw, ArrowRight, ShieldAlert } from 'lucide-react';
 import { useCapabilities } from '../../auth/useCapabilities';
@@ -8,38 +8,45 @@ export const AdminAuditLog = () => {
   const { can } = useCapabilities();
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null); // Added error state to handle fetch failures
   
   // 🛡️ SECURITY GUARD: Frontend Capability Check
-  // RLS is the real guard, but this prevents UI flickering for unauthorized users.
   const canViewLogs = can(PERM_CAPABILITIES.VIEW_HIDDEN_DATA);
+
+  const fetchLogs = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { data, error } = await supabase
+        .from('admin_audit_logs')
+        .select('id, created_at, admin_id, action_type, details, target_resource')
+        .order('created_at', { ascending: false })
+        .limit(50);
+        
+      if (error) throw error;
+
+      setLogs(data || []);
+    } catch (error) {
+      console.error('Error fetching logs:', error.message);
+      setError('Error loading logs.');
+    } finally {
+      setLoading(false);
+    }
+  }, [canViewLogs]);
 
   useEffect(() => {
     if (canViewLogs) fetchLogs();
-  }, [canViewLogs]);
-
-  const fetchLogs = async () => {
-    setLoading(true);
-    // 🛡️ EXPLICIT SELECT: Decouple from DB schema changes
-    const { data } = await supabase
-      .from('admin_audit_logs') 
-      .select('id, created_at, admin_id, action_type, details, target_resource')
-      .order('created_at', { ascending: false })
-      .limit(50);
-      
-    setLogs(data || []);
-    setLoading(false);
-  };
+  }, [canViewLogs, fetchLogs]);
 
   if (!canViewLogs) {
-      return (
-          <div className="p-8 text-center border border-red-900/50 bg-red-900/10 rounded flex flex-col items-center gap-2">
-              <ShieldAlert className="w-8 h-8 text-red-500" />
-              <span className="text-red-400 font-bold text-xs uppercase tracking-widest">Audit Access Denied</span>
-          </div>
-      );
+    return (
+      <div className="p-8 text-center border border-red-900/50 bg-red-900/10 rounded flex flex-col items-center gap-2">
+        <ShieldAlert className="w-8 h-8 text-red-500" />
+        <span className="text-red-400 font-bold text-xs uppercase tracking-widest">Audit Access Denied</span>
+      </div>
+    );
   }
 
-  // 🛡️ SMART PARSER: Turns raw JSON into human-readable context
   const renderDetails = (log) => {
     const d = log.details || {};
     const reason = d.reason || "No justification provided."; 
@@ -90,6 +97,10 @@ export const AdminAuditLog = () => {
           <RefreshCw className={`w-4 h-4 text-zinc-400 ${loading ? 'animate-spin' : ''}`} />
         </button>
       </div>
+
+      {error && (
+        <div className="p-4 text-center text-red-500">{error}</div>
+      )}
 
       <div className="flex-1 overflow-y-auto">
         <table className="w-full text-left text-sm">

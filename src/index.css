@@ -76,8 +76,3 @@
 .animate-breathe {
   animation: breathe 5s infinite ease-in-out; /* Slower breath */
 }
-
-/* 4. UTILITY: SLANT CLIP (For buttons) */
-.clip-path-slant {
-  clip-path: polygon(15px 0, 100% 0, 100% calc(100% - 15px), calc(100% - 15px) 100%, 0 100%, 0 15px);
-}

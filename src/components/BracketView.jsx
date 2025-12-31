@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { supabase } from '../supabase/client';
 import { useTournament } from '../tournament/useTournament';
-import { Bracket } from './Bracket';
+import { Bracket } from './Bracket'; // ⚠️ ENSURE THIS FILE EXISTS
 import { RefreshCw, Loader2, WifiOff } from 'lucide-react';
 import { AdminMatchModal } from './admin/AdminMatchModal';
 
@@ -94,6 +94,7 @@ export const BracketView = () => {
       {error && <div className="bg-red-900/20 p-2 text-center text-red-400 text-xs font-bold"><WifiOff size={14} className="inline mr-2"/>{error}</div>}
 
       <div className="flex-1 bg-[url('/grid-pattern.svg')] bg-fixed">
+        {/* Assumes Bracket component handles empty/loading states gracefully */}
         <Bracket matches={matches} onMatchClick={setSelectedMatch} />
       </div>
 

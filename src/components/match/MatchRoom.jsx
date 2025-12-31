@@ -3,8 +3,18 @@ import { supabase } from '../../supabase/client';
 import { useSession } from '../../auth/useSession';
 import { useCapabilities } from '../../auth/useCapabilities';
 import { Shield, AlertTriangle, CheckCircle, Lock, Map as MapIcon, RefreshCw, MessageSquare } from 'lucide-react';
-import { RestrictedButton } from '../common/RestrictedButton';
 import { PERM_CAPABILITIES } from '../../lib/permissions.actions';
+import { VetoPanel } from '../VetoPanel'; // ✅ IMPORTS VETO PANEL
+
+// Simple Team Card Component (Inline for stability)
+const TeamCard = ({ name, isReady, align = 'left' }) => (
+  <div className={`flex flex-col ${align === 'right' ? 'items-end text-right' : 'items-start text-left'} p-6 bg-zinc-900/50 rounded-lg border border-white/5`}>
+    <div className="text-xl font-bold font-['Teko'] uppercase tracking-wider text-white">{name}</div>
+    <div className={`mt-2 text-xs font-bold uppercase px-2 py-1 rounded ${isReady ? 'bg-green-500/20 text-green-400' : 'bg-zinc-800 text-zinc-500'}`}>
+        {isReady ? 'READY' : 'PREPARING'}
+    </div>
+  </div>
+);
 
 export const MatchRoom = ({ matchId }) => {
   const { session } = useSession();
@@ -50,6 +60,7 @@ export const MatchRoom = ({ matchId }) => {
   const handleDispute = async () => {
     if (!disputeReason) return;
     
+    // Note: RPC api_file_dispute must exist on backend
     const { error } = await supabase.rpc('api_file_dispute', {
       p_match_id: matchId,
       p_reason: disputeReason
@@ -67,6 +78,8 @@ export const MatchRoom = ({ matchId }) => {
   if (loading) return <div className="text-zinc-500 animate-pulse p-10 text-center flex justify-center"><RefreshCw className="animate-spin" /></div>;
 
   if (!match) return <div className="text-red-500 text-center p-10">Match data unavailable.</div>;
+
+  const canManage = can(PERM_CAPABILITIES.MANAGE_MATCH, match);
 
   if (match.is_locked) {
     return (
@@ -101,31 +114,40 @@ export const MatchRoom = ({ matchId }) => {
           </div>
         </div>
 
-        <div className="bg-zinc-900 border border-white/10 rounded-lg p-6 min-h-[200px] flex flex-col items-center justify-center text-center relative overflow-hidden group">
-            <div className="absolute inset-0 bg-gradient-to-br from-zinc-800/20 to-transparent pointer-events-none" />
-            <MapIcon className="w-8 h-8 text-zinc-700 mb-2 relative z-10" />
-            <h3 className="text-zinc-400 font-bold relative z-10">Map Veto Phase</h3>
-            <p className="text-zinc-600 text-xs mt-1 max-w-[200px] relative z-10">
-              Waiting for captains to initialize ban phase.
-            </p>
+        {/* VETO SECTION */}
+        {match.status === 'veto' ? (
+            <VetoPanel match={match} />
+        ) : (
+            <div className="bg-zinc-900 border border-white/10 rounded-lg p-6 min-h-[200px] flex flex-col items-center justify-center text-center relative overflow-hidden group">
+                <div className="absolute inset-0 bg-gradient-to-br from-zinc-800/20 to-transparent pointer-events-none" />
+                <MapIcon className="w-8 h-8 text-zinc-700 mb-2 relative z-10" />
+                <h3 className="text-zinc-400 font-bold relative z-10">Map Veto Phase</h3>
+                <p className="text-zinc-600 text-xs mt-1 max-w-[200px] relative z-10">
+                Waiting for captains to initialize ban phase.
+                </p>
 
-            <RestrictedButton 
-              action={PERM_CAPABILITIES.MANAGE_MATCH}
-              context={match}
-              className="mt-4 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-bold uppercase tracking-wider rounded border border-white/5 hover:border-white/20 transition-all relative z-10"
-            >
-              Start Veto
-            </RestrictedButton>
-        </div>
+                {/* START VETO BUTTON - Only visible if allowed */}
+                {canManage && (
+                    <button 
+                        className="mt-4 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-bold uppercase tracking-wider rounded border border-white/5 hover:border-white/20 transition-all relative z-10"
+                        // Add handler to trigger state change to 'veto' if needed
+                    >
+                    Start Veto
+                    </button>
+                )}
+            </div>
+        )}
 
         <div className="grid grid-cols-2 gap-2">
-           <RestrictedButton 
-             action={PERM_CAPABILITIES.MANAGE_MATCH}
-             context={match}
-             className="p-3 bg-green-900/20 border border-green-500/30 hover:bg-green-900/40 text-green-400 font-bold uppercase text-xs rounded flex items-center justify-center gap-2 transition-colors"
-           >
-             <CheckCircle className="w-4 h-4" /> Ready Up
-           </RestrictedButton>
+           {canManage ? (
+               <button className="p-3 bg-green-900/20 border border-green-500/30 hover:bg-green-900/40 text-green-400 font-bold uppercase text-xs rounded flex items-center justify-center gap-2 transition-colors">
+                 <CheckCircle className="w-4 h-4" /> Ready Up
+               </button>
+           ) : (
+               <div className="p-3 bg-zinc-900/50 border border-zinc-800 text-zinc-600 font-bold uppercase text-xs rounded flex items-center justify-center gap-2 cursor-not-allowed">
+                 <CheckCircle className="w-4 h-4" /> Not Ready
+               </div>
+           )}
 
            <button 
              onClick={() => setIsDisputing(!isDisputing)}
@@ -148,14 +170,12 @@ export const MatchRoom = ({ matchId }) => {
             <div className="flex justify-end gap-2">
               <button onClick={() => setIsDisputing(false)} className="px-3 py-2 text-xs text-zinc-400 hover:text-white transition-colors">Cancel</button>
 
-              <RestrictedButton 
-                action={PERM_CAPABILITIES.MANAGE_MATCH}
-                context={match}
+              <button 
                 onClick={handleDispute}
                 className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded uppercase tracking-wider transition-colors shadow-lg shadow-red-900/20"
               >
                 File Dispute & Lock Match
-              </RestrictedButton>
+              </button>
             </div>
           </div>
         )}

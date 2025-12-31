@@ -3,7 +3,6 @@ import { useAdminConsole } from './useAdminConsole';
 export const useMatchAdmin = (match) => {
   const { execute, loading, error } = useAdminConsole();
 
-  // 🔄 SWAP SLOTS
   const swapMatchSlots = (reason) => {
     return execute('api_swap_match_slots', {
         p_match_id: match.id,
@@ -11,7 +10,6 @@ export const useMatchAdmin = (match) => {
     });
   };
 
-  // 📝 UPDATE SCORE
   const updateScore = (t1Score, t2Score) => {
     return execute('api_update_match_score', { 
         p_match_id: match.id, 
@@ -20,7 +18,6 @@ export const useMatchAdmin = (match) => {
     });
   };
 
-  // 🔁 RESET MATCH
   const resetMatch = (reason) => {
     return execute('api_reset_match', { 
         p_match_id: match.id, 

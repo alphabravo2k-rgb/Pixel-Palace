@@ -1,3 +1,8 @@
+import React, { useState } from 'react';
+import { supabase } from '../supabase/client';
+import { useSession } from '../auth/useSession';
+import { ShieldAlert, CheckCircle, UserPlus } from 'lucide-react'; // ✅ ADDED UserPlus
+
 export const AdminUsersPanel = () => {
   const { session } = useSession();
   const [loading, setLoading] = useState(false);
@@ -7,7 +12,7 @@ export const AdminUsersPanel = () => {
   const [form, setForm] = useState({ 
     name: '', 
     newPin: '',
-    role: 'ADMIN' // Default
+    role: 'ADMIN' 
   });
 
   const handleSubmit = async (e) => {
@@ -32,7 +37,7 @@ export const AdminUsersPanel = () => {
             .from('app_admins') 
             .insert({
                 name: form.name,
-                pin_code: form.newPin,
+                pin_code: form.newPin, // Note: DB trigger handles hashing if configured, else logic needs to hash
                 role: form.role,
                 is_active: true
             });
@@ -41,12 +46,11 @@ export const AdminUsersPanel = () => {
 
         setSuccess(`Created Admin: ${form.name}`);
         setForm({ name: '', newPin: '', role: 'ADMIN' });
-        setTimeout(() => document.querySelector('input[name="name"]').focus(), 100);  // Autofocus after success
-
+        
     } catch (err) {
         console.error(err);
         if (err.code === '23505') setError("PIN Code already exists. Choose another.");
-        else if (err.code === '42501') setError("RLS Violation: Database Policy blocked this action. Check Owner Permissions.");
+        else if (err.code === '42501') setError("RLS Violation: Database Policy blocked this action.");
         else setError("Failed to create admin.");
     } finally {
         setLoading(false);
@@ -68,28 +72,28 @@ export const AdminUsersPanel = () => {
           <input 
             type="text" 
             placeholder="Display Name" 
-            className="bg-black border border-white/10 p-2 rounded text-white text-sm" 
+            className="bg-black border border-white/10 p-2 rounded text-white text-sm focus:border-fuchsia-500 outline-none" 
             value={form.name} 
             onChange={e => setForm({...form, name: e.target.value})} 
             required
           />
           <div className="grid grid-cols-2 gap-2">
              <select 
-                className="bg-black border border-white/10 p-2 rounded text-white text-sm"
+                className="bg-black border border-white/10 p-2 rounded text-white text-sm focus:border-fuchsia-500 outline-none"
                 value={form.role}
                 onChange={e => setForm({...form, role: e.target.value})}
              >
                  <option value="ADMIN">ADMIN</option>
                  <option value="REFEREE">REFEREE</option>
              </select>
-              <input 
+             <input 
                 type="text" 
                 placeholder="Assign PIN Code" 
-                className="bg-black border border-white/10 p-2 rounded text-white text-sm font-mono tracking-widest" 
+                className="bg-black border border-white/10 p-2 rounded text-white text-sm font-mono tracking-widest focus:border-fuchsia-500 outline-none" 
                 value={form.newPin} 
                 onChange={e => setForm({...form, newPin: e.target.value})} 
                 required
-              />
+             />
           </div>
         </div>
 
@@ -97,7 +101,7 @@ export const AdminUsersPanel = () => {
             <button 
                 type="submit" 
                 disabled={loading || session.role !== 'OWNER'} 
-                className="bg-white text-black font-bold uppercase px-6 py-2 rounded hover:bg-zinc-200 disabled:opacity-50"
+                className="bg-white text-black font-bold uppercase px-6 py-2 rounded hover:bg-zinc-200 disabled:opacity-50 flex items-center"
             >
               <UserPlus className="w-4 h-4 inline mr-2" /> Grant Access
             </button>

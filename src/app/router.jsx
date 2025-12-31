@@ -3,7 +3,7 @@ import { useSession } from '../auth/useSession';
 import { ROLES } from '../lib/roles';
 import { Loader2 } from 'lucide-react';
 
-// Components
+// Components (Ensure these files exist in these folders!)
 import { LandingPage } from '../components/LandingPage';
 import { AdminLogin } from '../components/admin/AdminLogin';
 import { BracketView } from '../components/BracketView';
@@ -63,6 +63,7 @@ export const router = createBrowserRouter([
       { path: 'bracket', element: <BracketView /> },
       { path: 'match/:matchId', element: <MatchRoom /> },
 
+      // PROTECTED ADMIN ROUTES
       {
         path: 'admin',
         element: (
@@ -76,6 +77,8 @@ export const router = createBrowserRouter([
           { path: 'dashboard', element: <AdminDashboard /> },
         ]
       },
+
+      // PROTECTED PLAYER ROUTES
       {
         path: 'dashboard',
         element: (
@@ -86,6 +89,8 @@ export const router = createBrowserRouter([
           </RequireAuth>
         )
       },
+
+      // Fallback
       { path: '*', element: <Navigate to="/" replace /> }
     ]
   }

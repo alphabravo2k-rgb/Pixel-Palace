@@ -6,7 +6,7 @@ import { ShieldAlert, Trophy, ScrollText, Users, LogOut } from 'lucide-react';
 // Unified Imports
 import { TournamentWarRoom } from '../TournamentWarRoom';
 import { AdminAuditLog } from './AdminAuditLog';
-import { TeamRosterView } from './TeamRosterView'; 
+import { TeamRosterView } from './TeamRosterView';
 
 export const AdminDashboard = () => {
   const { logout, session } = useSession();
@@ -33,8 +33,7 @@ export const AdminDashboard = () => {
           flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wider transition-all
           ${isActive 
             ? 'bg-fuchsia-600 text-white shadow-[0_0_15px_rgba(192,38,211,0.4)]' 
-            : 'text-zinc-500 hover:bg-white/5 hover:text-zinc-300'}
-        `}
+            : 'text-zinc-500 hover:bg-white/5 hover:text-zinc-300'}`}
       >
         <Icon className="w-4 h-4" />
         {label}

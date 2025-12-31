@@ -4,7 +4,7 @@ import { X } from 'lucide-react';
 const DISCORD_URL = 'https://discord.gg/JdXheQbvec';
 
 // 🆕 Skewed Action Button
-export const SkewButton = ({ children, onClick, className = "", disabled = false, type = "button" }) => (
+export const SkewButton = ({ children, onClick, className = "", disabled = false, type = "button", title = "" }) => (
   <button 
     type={type}
     onClick={disabled ? undefined : onClick} 
@@ -17,6 +17,7 @@ export const SkewButton = ({ children, onClick, className = "", disabled = false
       disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed
       group ${className}
     `}
+    title={title}
   >
     <span className="block transform skew-x-[10deg]">{children}</span>
   </button>
@@ -24,14 +25,11 @@ export const SkewButton = ({ children, onClick, className = "", disabled = false
 
 // 🆕 HUD Panel
 export const HudPanel = ({ children, className = "" }) => (
-  <div className={`
-    relative bg-[#141419]/70 backdrop-blur-md 
+  <div className={`relative bg-[#141419]/70 backdrop-blur-md 
     border border-white/10 
     hover:border-fuchsia-500/40 hover:shadow-[0_0_30px_rgba(124,58,237,0.15)]
-    transition-all duration-300
-    p-6 ${className}
-  `}
-  style={{ clipPath: 'polygon(0 0, 100% 0, 100% 95%, 95% 100%, 0 100%)' }}
+    transition-all duration-300 p-6 ${className}`}
+    style={{ clipPath: 'polygon(0 0, 100% 0, 100% 95%, 95% 100%, 0 100%)' }}
   >
     <div className="absolute top-0 left-0 w-[3px] h-full bg-gradient-to-b from-fuchsia-500 to-purple-600 opacity-80" />
     {children}
@@ -95,10 +93,13 @@ export const Modal = ({ isOpen, onClose, title, children }) => {
   useEffect(() => {
     if (!isOpen) return;
     document.body.style.overflow = 'hidden';
+
     const handleEsc = (e) => {
       if (e.key === 'Escape') onClose();
     };
+
     window.addEventListener('keydown', handleEsc);
+
     return () => {
       document.body.style.overflow = 'unset';
       window.removeEventListener('keydown', handleEsc);

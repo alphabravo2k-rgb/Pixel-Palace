@@ -24,6 +24,7 @@ export const RosterIntegrityControl = ({ player, teamId, onUpdate }) => {
     try {
       let error = null;
 
+      // 1. Perform the Action
       if (pendingAction.type === 'ROLE') {
         const { error: roleError } = await supabase
           .from('team_members')
@@ -40,7 +41,8 @@ export const RosterIntegrityControl = ({ player, teamId, onUpdate }) => {
 
       if (error) throw error;
 
-      // Audit Log Entry
+      // 2. Log it (Manual fallback if DB triggers fail, but DB triggers are preferred)
+      // We insert into admin_audit_logs to leave a paper trail.
       await supabase.from('admin_audit_logs').insert({
         admin_id: session.identity.id,
         action_type: `FORCE_${pendingAction.type}`,
@@ -58,6 +60,7 @@ export const RosterIntegrityControl = ({ player, teamId, onUpdate }) => {
       if (onUpdate) onUpdate();
 
     } catch (err) {
+      console.error(err);
       alert(`Action Failed: ${err.message}`);
     } finally {
       setLoading(false);
@@ -115,13 +118,13 @@ export const RosterIntegrityControl = ({ player, teamId, onUpdate }) => {
               </div>
 
               <div className="flex gap-3 pt-2">
-                <button
+                <button 
                   onClick={() => setShowModal(false)}
                   className="flex-1 py-3 text-xs font-bold uppercase text-zinc-500 hover:text-white bg-white/5 hover:bg-white/10 rounded"
                 >
                   Cancel
                 </button>
-                <button
+                <button 
                   onClick={executeAction}
                   disabled={reason.length < 5 || loading}
                   className="flex-1 py-3 bg-red-600 hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold uppercase rounded shadow-lg shadow-red-900/20 flex items-center justify-center gap-2"

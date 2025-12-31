@@ -1,25 +1,22 @@
 import React, { useState } from 'react';
-import { useSession } from '../../auth/useSession'; // Need session for manual audit log
+import { useSession } from '../../auth/useSession';
 import { supabase } from '../../supabase/client';
 import { ShieldAlert, UserCog, UserMinus, Loader2 } from 'lucide-react';
 
 export const RosterIntegrityControl = ({ player, teamId, onUpdate }) => {
   const { session } = useSession();
   
-  // Modal State
   const [showModal, setShowModal] = useState(false);
   const [pendingAction, setPendingAction] = useState(null); 
   const [reason, setReason] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // 1. TRIGGER
   const initiateForceAction = (type, payload) => {
     setPendingAction({ type, payload });
     setShowModal(true);
     setReason('');
   };
 
-  // 2. EXECUTE (Direct DB Edit + Manual Audit Log)
   const executeAction = async () => {
     if (reason.length < 5) return; 
     setLoading(true);
@@ -27,15 +24,13 @@ export const RosterIntegrityControl = ({ player, teamId, onUpdate }) => {
     try {
       let error = null;
 
-      // A. Perform Action
       if (pendingAction.type === 'ROLE') {
         const { error: roleError } = await supabase
           .from('team_members')
           .update({ role: pendingAction.payload })
-          .eq('id', player.id); // player.id here is the team_member row ID
+          .eq('id', player.id);
         error = roleError;
-      } 
-      else if (pendingAction.type === 'KICK') {
+      } else if (pendingAction.type === 'KICK') {
         const { error: kickError } = await supabase
           .from('team_members')
           .delete()
@@ -45,9 +40,9 @@ export const RosterIntegrityControl = ({ player, teamId, onUpdate }) => {
 
       if (error) throw error;
 
-      // B. Manual Audit Log (Since we aren't using an RPC)
+      // Audit Log Entry
       await supabase.from('admin_audit_logs').insert({
-        admin_id: session.identity.id, // Using mapped ID from session view
+        admin_id: session.identity.id,
         action_type: `FORCE_${pendingAction.type}`,
         target_resource: 'team_members',
         target_id: player.id,
@@ -89,7 +84,6 @@ export const RosterIntegrityControl = ({ player, teamId, onUpdate }) => {
         </button>
       </div>
 
-      {/* 🔴 FRICTION MODAL 🔴 */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 animate-in fade-in duration-200">
           <div className="bg-zinc-950 border-2 border-red-600 w-full max-w-md p-6 rounded-lg shadow-[0_0_50px_rgba(220,38,38,0.2)]">
@@ -105,9 +99,6 @@ export const RosterIntegrityControl = ({ player, teamId, onUpdate }) => {
               <div className="bg-red-500/5 p-3 rounded border border-red-500/10">
                 <p className="text-zinc-300 text-sm">
                   You are about to force <span className="text-white font-bold">{pendingAction.type}</span> on 
-
-[Image of Warning Icon]
-
                   <span className="text-white font-bold ml-1">{player.username || 'Player'}</span>.
                 </p>
               </div>

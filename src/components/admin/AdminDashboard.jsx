@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useSession } from '../../auth/useSession';
 import { ShieldAlert, Trophy, ScrollText, Users, LogOut } from 'lucide-react';
 
-// Unified Imports
+// Corrected Imports based on file structure
 import { TournamentWarRoom } from '../TournamentWarRoom';
 import { AdminAuditLog } from './AdminAuditLog';
 import { TeamRosterView } from './TeamRosterView';
@@ -18,7 +18,7 @@ export const AdminDashboard = () => {
     navigate('/login');
   };
 
-  const operatorLabel = session?.identity?.display_name ?? session?.user?.id?.substring(0, 6) ?? 'SYSTEM ONLINE';
+  const operatorLabel = session?.identity?.display_name ?? session?.user?.email?.substring(0, 6) ?? 'SYSTEM ONLINE';
 
   const renderTab = (id, label, Icon) => {
     const isActive = activeTab === id;

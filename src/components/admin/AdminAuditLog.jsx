@@ -30,7 +30,7 @@ export const AdminAuditLog = () => {
     } finally {
       setLoading(false);
     }
-  }, [canViewLogs]);
+  }, []);
 
   useEffect(() => {
     if (canViewLogs) fetchLogs();
@@ -97,7 +97,7 @@ export const AdminAuditLog = () => {
         <div className="p-4 text-center text-red-500">{error}</div>
       )}
 
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto custom-scrollbar">
         <table className="w-full text-left text-sm">
           <thead className="bg-black/40 text-zinc-500 font-mono text-[10px] uppercase sticky top-0 backdrop-blur-sm z-10">
             <tr>

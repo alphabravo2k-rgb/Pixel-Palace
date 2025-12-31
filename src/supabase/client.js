@@ -19,9 +19,9 @@ export const supabase = createClient(supabaseUrl, supabaseKey, {
   },
   realtime: {
     params: {
-      eventsPerSecond: 10, // Control the frequency of realtime events
+      eventsPerSecond: 10, // Throttle updates
     },
   },
 });
 
-export const isSupabaseConfigured = supabaseUrl && supabaseKey ? true : false;
+export const isSupabaseConfigured = !!(supabaseUrl && supabaseKey);

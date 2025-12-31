@@ -17,18 +17,6 @@ export const TeamStatusControl = ({ team, onUpdate }) => {
 
     alert("Feature Locked: Backend RPC 'admin_update_team_status' is not deployed in v1.0.");
     return;
-
-    /* Uncomment when backend RPC is available
-    const newValue = !currentValue;
-    const result = await execute('admin_update_team_status', {
-      p_team_id: team.id,
-      p_field: field, 
-      p_value: newValue,
-      p_reason: `Manual toggle of ${field} to ${newValue}`
-    });
-
-    if (result.success && onUpdate) onUpdate();
-    */
   };
 
   return (

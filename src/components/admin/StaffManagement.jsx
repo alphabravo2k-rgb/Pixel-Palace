@@ -11,7 +11,6 @@ export const StaffManagement = () => {
   const [admins, setAdmins] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // 1. PERMISSION GATE: Fail Fast
   if (!can(PERM_CAPABILITIES.MANAGE_TOURNAMENT, session)) {
     return (
       <div className="p-8 text-center border border-red-900/50 bg-red-900/10 rounded">
@@ -22,7 +21,6 @@ export const StaffManagement = () => {
     );
   }
 
-  // 2. FETCH PUBLIC DATA ONLY
   useEffect(() => {
     const fetchStaff = async () => {
       try {
@@ -51,7 +49,6 @@ export const StaffManagement = () => {
 
   return (
     <div className="space-y-8">
-      {/* 1. STAFF LIST */}
       <section className="bg-black/20 p-6 rounded border border-white/5">
         <div className="flex justify-between items-center mb-6">
             <h3 className="text-xl font-['Teko'] uppercase text-white tracking-wide flex items-center gap-2">
@@ -98,7 +95,6 @@ export const StaffManagement = () => {
         </div>
       </section>
       
-      {/* 2. SECURITY NOTICE */}
       <div className="p-4 border border-zinc-800 rounded bg-zinc-900/30 text-center">
           <p className="text-zinc-500 text-xs font-mono">
               <Lock size={12} className="inline mr-1" />

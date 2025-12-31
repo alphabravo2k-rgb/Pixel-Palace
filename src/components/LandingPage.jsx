@@ -1,5 +1,10 @@
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';  // <-- Import useNavigate here
+import { useSession } from '../auth/useSession';
+import { Shield, ChevronRight, Loader2, Terminal } from 'lucide-react';
+
 export const LandingPage = () => {
-  const navigate = useNavigate();
+  const navigate = useNavigate();  // <-- Initialize useNavigate here
   const { session } = useSession();
   const [isConnecting, setIsConnecting] = useState(false);
 

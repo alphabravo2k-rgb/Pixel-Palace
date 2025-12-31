@@ -2,14 +2,9 @@ import React from 'react';
 import { useCapabilities } from '../../auth/useCapabilities';
 import { Lock } from 'lucide-react';
 
-/**
- * 🛡️ RestrictedButton
- * UX Gating Component. 
- * Instantly checks permissions without layout shift.
- */
 export const RestrictedButton = ({ 
   action, 
-  context = null, // 🔄 CHANGED: Accepts full object (e.g. match) instead of just ID
+  context = null, 
   children, 
   fallback = null, 
   className = "", 
@@ -18,8 +13,7 @@ export const RestrictedButton = ({
 }) => {
   const { can } = useCapabilities();
   
-  // Synchronous check - Instant result
-  // We pass the full context so permissions.js can check fields like team1_id
+  // Check if the user has the capability to perform the action
   const allowed = can(action, context); 
 
   if (!allowed) {
@@ -34,7 +28,7 @@ export const RestrictedButton = ({
     );
   }
 
-  // Render the actual button
+  // Render the actual button if the user is allowed
   return (
     <button className={className} disabled={disabled} {...props}>
       {children}

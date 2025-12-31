@@ -10,7 +10,6 @@ export const AdminToolbar = () => {
   const { selectedTournamentId, setSelectedTournamentId, tournaments = [], loading, lifecycle } = useTournament();
   const navigate = useNavigate();
 
-  // Hide if not admin
   if (![ROLES.ADMIN, ROLES.OWNER].includes(session.role)) return null;
 
   const theme = ROLE_THEMES[session.role] || ROLE_THEMES.GUEST;
@@ -40,14 +39,12 @@ export const AdminToolbar = () => {
   return (
     <div className="fixed top-0 left-0 right-0 z-50 h-14 bg-zinc-950 border-b border-white/10 flex items-center justify-between px-6 shadow-2xl">
       
-      {/* LEFT: User & Mode */}
       <div className="flex items-center gap-4">
         <div className={`flex items-center gap-2 px-3 py-1 rounded-full border ${theme.bg} ${theme.border} ${theme.color}`}>
           <Lock className="w-3 h-3" />
           <span className="text-[10px] font-bold uppercase tracking-widest">{theme.label} MODE</span>
         </div>
         
-        {/* Global Selector */}
         <div className="relative group">
           <select 
             value={selectedTournamentId || ''}
@@ -72,7 +69,6 @@ export const AdminToolbar = () => {
         )}
       </div>
 
-      {/* RIGHT: Actions */}
       <div className="flex items-center gap-4">
         {loading && (
           <div className="flex items-center gap-2 text-[10px] text-fuchsia-500 animate-pulse">

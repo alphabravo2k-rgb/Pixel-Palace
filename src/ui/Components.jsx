@@ -1,7 +1,6 @@
 import React, { useEffect } from 'react';
 import { X } from 'lucide-react';
-
-const DISCORD_URL = 'https://discord.gg/JdXheQbvec';
+import { BRAND } from '../lib/identity'; // ✅ FIX: Use Source of Truth
 
 // 🆕 Skewed Action Button
 export const SkewButton = ({ children, onClick, className = "", disabled = false, type = "button", title = "" }) => (
@@ -39,15 +38,15 @@ export const HudPanel = ({ children, className = "" }) => (
 // 🆕 Breathing Logo
 export const BreathingLogo = ({ size = "w-40 h-40", className = "" }) => (
   <a 
-    href={DISCORD_URL} 
+    href={BRAND.discord} // ✅ FIX: Dynamic link
     target="_blank" 
     rel="noopener noreferrer"
     className={`relative block group cursor-pointer ${className}`}
     title="Join Pixel Palace Discord"
   >
     <img 
-      src="https://raw.githubusercontent.com/alphabravo2k-rgb/pixel-palace-registration/1a7d90c43796fd037316bdaf4f3b4de9a485d615/image_4379f9.png" 
-      alt="Pixel Palace" 
+      src={BRAND.logo} // ✅ FIX: Dynamic asset
+      alt={BRAND.name} 
       className={`${size} object-contain transition-all duration-300 group-hover:scale-110 group-hover:rotate-1 animate-breathe`}
     />
   </a>

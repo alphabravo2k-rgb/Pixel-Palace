@@ -1,18 +1,20 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../supabase/client';
-import { X, Shield, Trophy, RefreshCw, AlertTriangle, Activity } from 'lucide-react';
-import { useSession } from '../../auth/useSession';
+import { X, Shield, Trophy, AlertTriangle, Activity } from 'lucide-react';
 import { AdminMatchControls } from './AdminMatchControls';
 
 export const AdminMatchModal = ({ match, isOpen, onClose, onUpdate }) => {
-  const { session } = useSession();
   const [teams, setTeams] = useState([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (isOpen && match.tournament_id) {
       const fetchTeams = async () => {
-        const { data } = await supabase.from('teams').select('id, name, seed_number').eq('tournament_id', match.tournament_id).order('name');
+        const { data } = await supabase
+            .from('teams')
+            .select('id, name, seed_number')
+            .eq('tournament_id', match.tournament_id)
+            .order('name');
         setTeams(data || []);
       };
       fetchTeams();
@@ -23,14 +25,14 @@ export const AdminMatchModal = ({ match, isOpen, onClose, onUpdate }) => {
     if (!window.confirm("CRITICAL: Force this result? This overrides game data.")) return;
     setLoading(true);
     try {
+      // NOTE: This RPC was purged in Golden Master v1.0. 
+      // Re-add to backend if needed, otherwise this feature is soft-locked.
       alert("Feature Locked: SQL RPC 'admin_force_match_result' missing. Contact Lead Dev.");
-      /* const { error } = await supabase.rpc('admin_force_match_result', {
-        p_match_id: match.id, p_winner_id: winnerId, p_reason: "Admin Override"
-      });
-      if (error) throw error;
-      onUpdate(); onClose();
-      */
-    } catch (err) { alert(err.message); } finally { setLoading(false); }
+    } catch (err) { 
+        alert(err.message); 
+    } finally { 
+        setLoading(false); 
+    }
   };
 
   if (!isOpen) return null;

@@ -8,9 +8,8 @@ export const AdminAuditLog = () => {
   const { can } = useCapabilities();
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null); // Added error state to handle fetch failures
-  
-  // 🛡️ SECURITY GUARD: Frontend Capability Check
+  const [error, setError] = useState(null);
+
   const canViewLogs = can(PERM_CAPABILITIES.VIEW_HIDDEN_DATA);
 
   const fetchLogs = useCallback(async () => {
@@ -24,7 +23,6 @@ export const AdminAuditLog = () => {
         .limit(50);
         
       if (error) throw error;
-
       setLogs(data || []);
     } catch (error) {
       console.error('Error fetching logs:', error.message);
@@ -53,12 +51,10 @@ export const AdminAuditLog = () => {
 
     return (
       <div className="space-y-1">
-        {/* 1. The "Why" */}
         <div className="text-amber-500 text-[10px] font-mono uppercase border-l-2 border-amber-500/50 pl-2 mb-1 flex items-center gap-2">
            <span className="font-bold">REASON:</span> {reason}
         </div>
 
-        {/* 2. The "What" (Diff View) */}
         {d.old_role && d.new_role && (
           <div className="flex items-center gap-2 text-xs text-zinc-400">
             <span className="line-through opacity-50">{d.old_role}</span>
@@ -71,7 +67,6 @@ export const AdminAuditLog = () => {
             <span className="text-[10px] text-zinc-500 font-mono block">Match: {d.match_id.substring(0,8)}</span>
         )}
 
-        {/* Fallback */}
         {Object.keys(d).length > 0 && !d.old_role && !d.match_id && !d.reason && (
             <code className="text-[10px] text-zinc-600 block max-w-xs truncate font-mono">
               {JSON.stringify(d)}

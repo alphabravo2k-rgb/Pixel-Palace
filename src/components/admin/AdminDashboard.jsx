@@ -18,19 +18,14 @@ export const AdminDashboard = () => {
     navigate('/login');
   };
 
-  // 🛡️ SAFETY FALLBACK: Handle missing identity/user data
-  const operatorLabel = 
-    session?.identity?.display_name ?? 
-    session?.user?.id?.substring(0, 6) ?? 
-    'SYSTEM ONLINE';
+  const operatorLabel = session?.identity?.display_name ?? session?.user?.id?.substring(0, 6) ?? 'SYSTEM ONLINE';
 
   const renderTab = (id, label, Icon) => {
     const isActive = activeTab === id;
     return (
       <button
         onClick={() => setActiveTab(id)}
-        className={`
-          flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wider transition-all
+        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wider transition-all
           ${isActive 
             ? 'bg-fuchsia-600 text-white shadow-[0_0_15px_rgba(192,38,211,0.4)]' 
             : 'text-zinc-500 hover:bg-white/5 hover:text-zinc-300'}`}
@@ -43,7 +38,6 @@ export const AdminDashboard = () => {
 
   return (
     <div className="min-h-screen bg-black text-white selection:bg-fuchsia-500/30">
-      {/* Header */}
       <div className="sticky top-0 z-50 bg-zinc-950/80 backdrop-blur border-b border-white/10">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -71,7 +65,6 @@ export const AdminDashboard = () => {
         </div>
       </div>
 
-      {/* Content */}
       <main className="max-w-7xl mx-auto p-6">
         {activeTab === 'TEAMS' && <TeamRosterView />}
         {activeTab === 'OPS' && <TournamentWarRoom />}

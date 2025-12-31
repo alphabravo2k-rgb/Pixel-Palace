@@ -59,16 +59,16 @@ export const SessionProvider = ({ children }) => {
 
       // 🛑 CRITICAL: If no profile found (deleted user), Force GUEST.
       if (!profile) {
-          console.warn("Session: Auth valid but Identity missing. Defaulting to Guest.");
-          setSession({
-            isAuthenticated: true,
-            user: user,
-            role: ROLES.GUEST,
-            team_id: null,
-            identity: null,
-            loading: false
-          });
-          return;
+        console.warn("Session: Auth valid but Identity missing. Defaulting to Guest.");
+        setSession({
+          isAuthenticated: true,
+          user: user,
+          role: ROLES.GUEST,
+          team_id: null,
+          identity: null,
+          loading: false
+        });
+        return;
       }
 
       // Safe Role Normalization
@@ -77,11 +77,11 @@ export const SessionProvider = ({ children }) => {
       // 🛡️ DATA SANITIZATION: Whitelist identity fields
       // Do NOT pass the raw DB object to the UI
       const cleanIdentity = {
-          id: profile.id, // Or whatever ID field your view returns
-          auth_user_id: profile.auth_user_id,
-          display_name: profile.display_name || profile.name,
-          team_id: profile.team_id,
-          context: profile.context
+        id: profile.id, // Or whatever ID field your view returns
+        auth_user_id: profile.auth_user_id,
+        display_name: profile.display_name || profile.name,
+        team_id: profile.team_id,
+        context: profile.context
       };
 
       setSession({
@@ -97,23 +97,23 @@ export const SessionProvider = ({ children }) => {
       console.error("Session Hydration Failed:", err);
       // Fallback to Guest on error to prevent lockouts
       setSession(prev => ({ 
-          ...prev, 
-          isAuthenticated: !!user, 
-          role: ROLES.GUEST, 
-          loading: false 
+        ...prev, 
+        isAuthenticated: !!user, 
+        role: ROLES.GUEST, 
+        loading: false 
       }));
     } finally {
-        hydratingRef.current = false; // 🔓 Release lock
+      hydratingRef.current = false; // 🔓 Release lock
     }
   };
 
   const login = async (email, password) => {
     try {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-        return { success: true };
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      return { success: true };
     } catch (err) {
-        return { success: false, message: err.message };
+      return { success: false, message: err.message };
     }
   };
 

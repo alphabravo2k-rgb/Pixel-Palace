@@ -15,7 +15,7 @@ const TeamSlot = ({ team, score, isWinner }) => (
   <div className={`flex items-center justify-between px-3 py-2.5 transition-colors ${isWinner ? 'bg-white/5' : ''}`}>
     <div className="flex items-center gap-3 overflow-hidden">
       <div className={`w-6 h-6 rounded bg-zinc-900 flex-shrink-0 flex items-center justify-center border ${isWinner ? 'border-emerald-500/50' : 'border-zinc-800'}`}>
-        {team?.logo_url ? <img src={team.logo_url} className="w-full h-full object-contain p-0.5" /> : <Shield size={10} className="text-zinc-700" />}
+        {team?.logo_url ? <img src={team.logo_url} className="w-full h-full object-contain p-0.5" alt={team.name} /> : <Shield size={10} className="text-zinc-700" />}
       </div>
       <span className={`text-[11px] font-bold uppercase truncate font-['Rajdhani'] ${isWinner ? 'text-white' : 'text-zinc-400'}`}>
         {team?.name || 'TBD'}
@@ -30,12 +30,9 @@ const TeamSlot = ({ team, score, isWinner }) => (
 export const MatchNode = ({ match, onClick }) => {
   const theme = getStatusStyles(match.status);
   
-  // 🛡️ LOGIC GUARD: The UI now respects the Backend Integrity Lock
-  // We check if at least one team is present to allow admin inspection
   const hasTeams = match.team1 || match.team2; 
   const isLocked = match.is_locked;
   
-  // Interaction Logic
   const canOpen = hasTeams; 
   const isActionable = hasTeams && !isLocked && match.status !== 'completed';
 

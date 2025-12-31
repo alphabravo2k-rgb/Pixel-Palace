@@ -28,6 +28,9 @@ export const AdminMatchControls = ({ match, onUpdate }) => {
       return;
     }
     
+    setLocalError(null);
+    setSuccessMsg('');
+
     // 🛡️ SECURITY: Ensure parameters match RPC signature exactly
     const result = await execute('api_swap_match_slots', {
       p_match_id: match.id,
@@ -47,8 +50,11 @@ export const AdminMatchControls = ({ match, onUpdate }) => {
   const handleFormatChange = async (e) => {
     const newFormat = parseInt(e.target.value);
     setSelectedFormat(newFormat);
+    
+    setLocalError(null);
+    setSuccessMsg('');
 
-    // This matches Backend Code 7 (Secure RPC)
+    // This matches Backend Code (Secure RPC)
     const result = await execute('admin_update_match_format', {
         p_match_id: match.id,
         p_best_of: newFormat

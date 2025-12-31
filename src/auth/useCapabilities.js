@@ -6,6 +6,7 @@ export const useCapabilities = () => {
   const { session } = useSession();
 
   const can = useCallback((capability, context = null) => {
+    // 🛡️ Guard: Fail closed if loading or no session
     if (!session || session.loading) return false;
     return checkPermission(capability, session, context);
   }, [session]);

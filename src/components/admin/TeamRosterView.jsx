@@ -9,37 +9,42 @@ export const TeamRosterView = () => {
   const [teams, setTeams] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [error, setError] = useState(null); // Added error state
 
   const fetchTeams = async () => {
     setLoading(true);
-    
-    // Fetch Teams with nested members
-    const { data, error } = await supabase
-      .from('teams')
-      .select(`
-        id, name, logo_url, region, access_code,
-        team_members (
-            id, role,
-            global_identities (id, display_name, discord_handle)
-        )
-      `)
-      .order('name', { ascending: true });
+    setError(null); // Reset error before fetching
 
-    if (error) {
-      console.error('Error fetching teams:', error);
-    } else {
+    try {
+      const { data, error } = await supabase
+        .from('teams')
+        .select(`
+          id, name, logo_url, region, access_code,
+          team_members (
+              id, role,
+              global_identities (id, display_name, discord_handle)
+          )
+        `)
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+
       // Flatten for UI
       const processed = data?.map(t => ({
           ...t,
           members: t.team_members.map(tm => ({
-              id: tm.id, // This is the team_member ID needed for RosterIntegrityControl
+              id: tm.id, 
               role: tm.role,
               username: tm.global_identities?.display_name,
               discord: tm.global_identities?.discord_handle
           }))
       }));
       setTeams(processed || []);
+    } catch (error) {
+      console.error('Error fetching teams:', error);
+      setError('Failed to fetch teams, please try again later.'); // Show error to user
     }
+
     setLoading(false);
   };
 
@@ -84,6 +89,11 @@ export const TeamRosterView = () => {
         </button>
       </div>
 
+      {/* ERROR HANDLING */}
+      {error && (
+        <div className="p-4 text-center text-red-500">{error}</div>
+      )}
+
       {/* GRID */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         {filteredTeams.map((team) => (
@@ -107,6 +117,7 @@ export const TeamRosterView = () => {
                                     <span className="text-zinc-300">{player.username}</span>
                                 </div>
                                 
+
                                 {/* Controls appear on hover */}
                                 <div className="opacity-0 group-hover:opacity-100 transition-opacity">
                                     <RosterIntegrityControl 

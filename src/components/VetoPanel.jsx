@@ -1,3 +1,8 @@
+import React, { useState } from 'react';
+import { useCaptainVeto } from '../hooks/useCaptainVeto';
+import { MAP_POOL } from '../lib/constants';
+import { Ban, CheckCircle, Clock, Lock } from 'lucide-react'; // ✅ ADDED
+
 export const VetoPanel = ({ match }) => {
   const { vetoes, isMyTurn, currentAction, submitVeto, loading } = useCaptainVeto(match);
   const [selectedMap, setSelectedMap] = useState(null);

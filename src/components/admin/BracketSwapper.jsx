@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeftRight, ShieldAlert, X, AlertTriangle, Loader2 } from 'lucide-react';
+import { ArrowRightLeft, ShieldAlert, X, AlertTriangle, Loader2 } from 'lucide-react'; // ✅ Fixed Icon Name
 import { useAdminConsole } from '../../hooks/useAdminConsole';
 
 export const BracketSwapper = ({ matches, onSwapComplete }) => {
@@ -41,5 +41,5 @@ export const BracketSwapper = ({ matches, onSwapComplete }) => {
     }
   };
 
-  return null;  // Hiding this component for now as it was designed for Drag-n-Drop.
+  return null; // Logic-only component for now
 };

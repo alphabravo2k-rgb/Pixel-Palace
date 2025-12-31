@@ -12,17 +12,17 @@ export const MATCH_STATUS = {
   ARCHIVED: 'archived'
 };
 
-// 2. MAP POOL (Array format for easy UI mapping)
+// 2. MAP POOL (Aligned with Backend CHECK constraints)
 export const MAP_POOL = [
-  { id: 'MIRAGE', name: 'Mirage', image: 'https://img.youtube.com/vi/F91V3V6Qh6U/maxresdefault.jpg' },
-  { id: 'INFERNO', name: 'Inferno', image: 'https://blob.faceit.com/static/img/maps/cs2/inferno_bg.jpg' },
-  { id: 'NUKE', name: 'Nuke', image: 'https://blob.faceit.com/static/img/maps/cs2/nuke_bg.jpg' },
-  { id: 'OVERPASS', name: 'Overpass', image: 'https://blob.faceit.com/static/img/maps/cs2/overpass_bg.jpg' },
-  { id: 'VERTIGO', name: 'Vertigo', image: 'https://blob.faceit.com/static/img/maps/cs2/vertigo_bg.jpg' },
-  { id: 'ANCIENT', name: 'Ancient', image: 'https://blob.faceit.com/static/img/maps/cs2/ancient_bg.jpg' },
-  { id: 'ANUBIS', name: 'Anubis', image: 'https://blob.faceit.com/static/img/maps/cs2/anubis_bg.jpg' },
-  { id: 'DUST2', name: 'Dust 2', image: 'https://blob.faceit.com/static/img/maps/cs2/dust2_bg.jpg' },
-  { id: 'TRAIN', name: 'Train', image: 'https://blob.faceit.com/static/img/maps/cs2/train_bg.jpg' }
+  { id: 'de_mirage', name: 'Mirage', image: 'https://img.youtube.com/vi/F91V3V6Qh6U/maxresdefault.jpg' },
+  { id: 'de_inferno', name: 'Inferno', image: 'https://blob.faceit.com/static/img/maps/cs2/inferno_bg.jpg' },
+  { id: 'de_nuke', name: 'Nuke', image: 'https://blob.faceit.com/static/img/maps/cs2/nuke_bg.jpg' },
+  { id: 'de_overpass', name: 'Overpass', image: 'https://blob.faceit.com/static/img/maps/cs2/overpass_bg.jpg' },
+  { id: 'de_vertigo', name: 'Vertigo', image: 'https://blob.faceit.com/static/img/maps/cs2/vertigo_bg.jpg' },
+  { id: 'de_ancient', name: 'Ancient', image: 'https://blob.faceit.com/static/img/maps/cs2/ancient_bg.jpg' },
+  { id: 'de_anubis', name: 'Anubis', image: 'https://blob.faceit.com/static/img/maps/cs2/anubis_bg.jpg' },
+  { id: 'de_dust2', name: 'Dust 2', image: 'https://blob.faceit.com/static/img/maps/cs2/dust2_bg.jpg' },
+  { id: 'de_train', name: 'Train', image: 'https://blob.faceit.com/static/img/maps/cs2/train_bg.jpg' }
 ];
 
 // 3. MATCH FORMATS
@@ -38,7 +38,7 @@ export const MATCH_FORMATS = {
     id: 3,
     label: 'Best of 3',
     mapsNeeded: 3, 
-    vetoCount: 4,
+    vetoCount: 4, // 2 Bans per team
     description: 'Standard competitive series.'
   },
   BO5: {
@@ -54,6 +54,7 @@ export const MATCH_FORMATS = {
 export const ROLE_TAXONOMY = {
   OWNER: { id: 'OWNER', priority: -1, label: 'Tournament Owner' },
   ADMIN: { id: 'ADMIN', priority: 0, label: 'Administrator' },
+  REFEREE: { id: 'REFEREE', priority: 0, label: 'Match Referee' }, // Added Referee
   CAPTAIN: { id: 'CAPTAIN', priority: 1, label: 'Team Captain' },
   WILDCARD: { id: 'WILDCARD', priority: 2, label: 'Wildcard Entry' },
   PLAYER: { id: 'PLAYER', priority: 3, label: 'Operator' },

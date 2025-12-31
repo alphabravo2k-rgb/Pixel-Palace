@@ -5,7 +5,7 @@ import {
   User, Crown, AlertTriangle, Users 
 } from 'lucide-react';
 
-// --- HELPER: SORTING & CONFIG ---
+// --- CONFIG: MILITARY HIERARCHY ---
 const ROLE_WEIGHT = {
   'CAPTAIN': 1,
   'PLAYER': 2,
@@ -53,14 +53,22 @@ export const TeamRosterView = () => {
 
       if (error) throw error;
 
-      // Process and Sort Roster
+      // --- LOGIC: PROCESS & SORT ROSTER ---
       const formatted = data?.map(team => {
         const sortedMembers = team.team_members.map(tm => ({
           id: tm.id,
-          role: tm.role, // 'CAPTAIN', 'PLAYER', etc.
+          role: tm.role?.toUpperCase() || 'PLAYER', 
           username: tm.global_identities?.display_name || 'Unknown',
           discord: tm.global_identities?.discord_handle
-        })).sort((a, b) => getRoleWeight(a.role) - getRoleWeight(b.role));
+        })).sort((a, b) => {
+            // 1. Sort by Role Priority (Captain First)
+            const weightA = getRoleWeight(a.role);
+            const weightB = getRoleWeight(b.role);
+            if (weightA !== weightB) return weightA - weightB;
+            
+            // 2. Sort Alphabetically if Roles are same
+            return a.username.localeCompare(b.username);
+        });
 
         return { ...team, members: sortedMembers };
       });
@@ -126,24 +134,24 @@ export const TeamRosterView = () => {
           const playerCount = team.members?.length || 0;
           
           // 🚦 Status Colors
-          let statusColor = "border-zinc-800"; // Default
+          let statusColor = "border-zinc-800"; 
           let statusBadge = null;
 
           if (playerCount < 5) {
             statusColor = "border-red-600/50 shadow-[0_0_10px_rgba(220,38,38,0.1)]";
-            statusBadge = <span className="text-red-500 flex items-center gap-1"><AlertTriangle size={10} /> INCOMPLETE</span>;
+            statusBadge = <span className="text-red-500 flex items-center gap-1 font-bold"><AlertTriangle size={10} /> INCOMPLETE ({playerCount}/5)</span>;
           } else if (playerCount > 6) {
             statusColor = "border-yellow-600/50";
-            statusBadge = <span className="text-yellow-500 flex items-center gap-1"><Users size={10} /> OVER LIMIT</span>;
+            statusBadge = <span className="text-yellow-500 flex items-center gap-1 font-bold"><Users size={10} /> OVER LIMIT ({playerCount})</span>;
           }
 
           return (
             <div key={team.id} className={`bg-zinc-900/50 border rounded-lg overflow-hidden transition-all ${statusColor}`}>
               <div className="bg-black/40 p-3 border-b border-white/5 flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded bg-black flex items-center justify-center border border-white/10">
+                  <div className="w-8 h-8 rounded bg-black flex items-center justify-center border border-white/10 overflow-hidden">
                     {team.logo_url ? (
-                      <img src={team.logo_url} className="w-full h-full object-cover rounded" alt={team.name} />
+                      <img src={team.logo_url} className="w-full h-full object-cover" alt={team.name} />
                     ) : (
                       <Shield className="w-4 h-4 text-zinc-700" />
                     )}
@@ -164,27 +172,29 @@ export const TeamRosterView = () => {
               <div className="divide-y divide-white/5">
                 {team.members && team.members.length > 0 ? (
                   team.members.map((member, idx) => {
-                    // Logic to force 6th+ player as SUB visually if data is messy
-                    const isOverfill = idx >= 5; 
-                    const isSub = member.role === 'SUBSTITUTE' || isOverfill;
+                    // Logic: If role is explicitly SUB, or if they are the 6th/7th player and NOT captain
                     const isCaptain = member.role === 'CAPTAIN';
+                    const isExplicitSub = member.role === 'SUBSTITUTE';
+                    // If we have > 5 players, the extra ones are visually treated as subs if they aren't captains
+                    const isOverflow = idx >= 5 && !isCaptain; 
+                    const isSubVisual = isExplicitSub || isOverflow;
 
                     return (
-                      <div key={member.id} className={`p-2 flex items-center justify-between group hover:bg-white/5 transition-colors ${isSub ? 'bg-black/20' : ''}`}>
+                      <div key={member.id} className={`p-2 flex items-center justify-between group hover:bg-white/5 transition-colors ${isSubVisual ? 'bg-black/20' : ''}`}>
                         <div className="flex items-center gap-2 text-sm">
                           {isCaptain ? (
                              <Crown className="w-3.5 h-3.5 text-yellow-500" />
                           ) : (
-                             <div className={`w-1.5 h-1.5 rounded-full ${isSub ? 'bg-zinc-700' : 'bg-zinc-500'}`}></div>
+                             <div className={`w-1.5 h-1.5 rounded-full ${isSubVisual ? 'bg-zinc-700' : 'bg-green-500'}`}></div>
                           )}
-                          <span className={`${isCaptain ? 'text-white font-bold' : isSub ? 'text-zinc-500' : 'text-zinc-300'}`}>
+                          <span className={`${isCaptain ? 'text-white font-bold' : isSubVisual ? 'text-zinc-500 italic' : 'text-zinc-300'}`}>
                             {member.username}
                           </span>
                         </div>
                         
                         <div className="flex gap-2">
                             {isCaptain && <span className="text-[9px] font-bold text-yellow-600 bg-yellow-900/10 px-1 rounded border border-yellow-900/20">CPT</span>}
-                            {isSub && <span className="text-[9px] font-bold text-zinc-600 bg-zinc-900 px-1 rounded border border-zinc-800">SUB</span>}
+                            {isSubVisual && <span className="text-[9px] font-bold text-zinc-600 bg-zinc-900 px-1 rounded border border-zinc-800">SUB</span>}
                         </div>
                       </div>
                     );

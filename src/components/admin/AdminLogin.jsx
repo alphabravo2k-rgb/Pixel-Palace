@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useSession } from '../../auth/useSession';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom'; // Added Link import
 import { Shield, Lock, AlertTriangle, Loader2 } from 'lucide-react';
 
 export const AdminLogin = () => {
@@ -40,6 +40,8 @@ export const AdminLogin = () => {
   return (
     <div className="min-h-screen bg-black flex items-center justify-center p-4">
       <div className="w-full max-w-md bg-zinc-950 border border-white/10 p-8 rounded-2xl shadow-2xl relative overflow-hidden">
+        
+        {/* Header */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-fuchsia-900/20 text-fuchsia-500 mb-4 border border-fuchsia-500/20">
             <Shield className="w-6 h-6" />
@@ -47,6 +49,7 @@ export const AdminLogin = () => {
           <h1 className="text-2xl font-bold text-white font-['Teko'] uppercase tracking-wider">Pixel Palace // Secure Gate</h1>
         </div>
 
+        {/* Login Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider mb-1 block">Operator Email</label>
@@ -87,6 +90,17 @@ export const AdminLogin = () => {
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : cooldown > 0 ? `LOCKED (${cooldown}s)` : 'AUTHENTICATE'}
           </button>
         </form>
+
+        {/* --- 🔐 HIDDEN REGISTRATION LINK --- */}
+        <div className="mt-8 pt-6 border-t border-white/5 text-center">
+          <p className="text-zinc-600 text-[10px] uppercase tracking-widest">
+            Restricted Area // 
+            <Link to="/staff-register" className="text-zinc-500 hover:text-fuchsia-500 ml-1 transition-colors underline decoration-dotted decoration-zinc-700 hover:decoration-fuchsia-500">
+              Crew Enlistment
+            </Link>
+          </p>
+        </div>
+
       </div>
     </div>
   );

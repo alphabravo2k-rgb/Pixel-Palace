@@ -1,5 +1,5 @@
 import React from 'react';
-import { Tv, Shield, Lock, ChevronRight } from 'lucide-react';
+import { Tv, Shield, Lock, ChevronRight, AlertCircle } from 'lucide-react';
 
 const getStatusStyles = (status) => {
   const themes = {
@@ -15,7 +15,11 @@ const TeamSlot = ({ team, score, isWinner }) => (
   <div className={`flex items-center justify-between px-3 py-2.5 transition-colors ${isWinner ? 'bg-white/5' : ''}`}>
     <div className="flex items-center gap-3 overflow-hidden">
       <div className={`w-6 h-6 rounded bg-zinc-900 flex-shrink-0 flex items-center justify-center border ${isWinner ? 'border-emerald-500/50' : 'border-zinc-800'}`}>
-        {team?.logo_url ? <img src={team.logo_url} className="w-full h-full object-contain p-0.5" alt={team.name} /> : <Shield size={10} className="text-zinc-700" />}
+        {team?.logo_url ? (
+            <img src={team.logo_url} className="w-full h-full object-contain p-0.5" alt={team.name} />
+        ) : (
+            <Shield size={10} className="text-zinc-700" />
+        )}
       </div>
       <span className={`text-[11px] font-bold uppercase truncate font-['Rajdhani'] ${isWinner ? 'text-white' : 'text-zinc-400'}`}>
         {team?.name || 'TBD'}
@@ -30,9 +34,21 @@ const TeamSlot = ({ team, score, isWinner }) => (
 export const MatchNode = ({ match, onClick }) => {
   const theme = getStatusStyles(match.status);
   
+  // LOGIC UPDATE: Handle Combined Scores ("13-5") vs Individual Columns
+  let s1 = match.team1_score;
+  let s2 = match.team2_score;
+
+  // Fallback: Parse string score if individual columns are null
+  if ((s1 == null || s2 == null) && typeof match.score === 'string') {
+      const parts = match.score.split('-');
+      if (parts.length === 2) {
+          s1 = parts[0];
+          s2 = parts[1];
+      }
+  }
+
   const hasTeams = match.team1 || match.team2; 
   const isLocked = match.is_locked;
-  
   const canOpen = hasTeams; 
   const isActionable = hasTeams && !isLocked && match.status !== 'completed';
 
@@ -49,8 +65,8 @@ export const MatchNode = ({ match, onClick }) => {
 
       {/* Teams */}
       <div className="flex-1 flex flex-col justify-center divide-y divide-white/5">
-        <TeamSlot team={match.team1} score={match.team1_score} isWinner={match.winner_id === match.team1_id} />
-        <TeamSlot team={match.team2} score={match.team2_score} isWinner={match.winner_id === match.team2_id} />
+        <TeamSlot team={match.team1} score={s1} isWinner={match.winner_id === match.team1_id} />
+        <TeamSlot team={match.team2} score={s2} isWinner={match.winner_id === match.team2_id} />
       </div>
 
       {/* Action Footer */}
@@ -66,10 +82,10 @@ export const MatchNode = ({ match, onClick }) => {
         <span className="flex items-center gap-2">
            {isLocked && <Lock size={10} className="text-red-500" />}
            {match.stream_url && <Tv size={10} className="text-purple-500" />}
-           {isLocked ? 'LOCKED' : 'DETAILS'}
+           {!hasTeams ? 'WAITING...' : isLocked ? 'LOCKED' : 'DETAILS'}
         </span>
         {isActionable && <ChevronRight size={12} />}
       </button>
     </div>
   );
-};
+};s

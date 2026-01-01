@@ -25,11 +25,19 @@ export const AdminMatchModal = ({ match, isOpen, onClose, onUpdate }) => {
     if (!window.confirm("CRITICAL: Force this result? This overrides game data.")) return;
     setLoading(true);
     try {
-      // NOTE: This RPC was purged in Golden Master v1.0. 
-      // Re-add to backend if needed, otherwise this feature is soft-locked.
-      alert("Feature Locked: SQL RPC 'admin_force_match_result' missing. Contact Lead Dev.");
+      // ✅ Calls the backend function we just created (Code 25)
+      const { data, error } = await supabase.rpc('admin_force_match_result', {
+        p_match_id: match.id,
+        p_winner_id: winnerId
+      });
+
+      if (error) throw error;
+      if (!data.success) throw new Error(data.message);
+
+      onUpdate();
+      onClose();
     } catch (err) { 
-        alert(err.message); 
+        alert("Error: " + err.message); 
     } finally { 
         setLoading(false); 
     }
@@ -61,10 +69,10 @@ export const AdminMatchModal = ({ match, isOpen, onClose, onUpdate }) => {
                     <AlertTriangle className="w-3 h-3" /> Danger Zone
                 </div>
                 <div className="grid grid-cols-2 gap-3 mb-4">
-                    <button disabled={loading || !match.team1_id} onClick={() => handleForceWin(match.team1_id)} className="py-3 bg-zinc-900 border border-zinc-800 hover:text-green-400 rounded text-xs font-bold uppercase flex flex-col items-center gap-1 transition-colors">
+                    <button disabled={loading || !match.team1_id} onClick={() => handleForceWin(match.team1_id)} className="py-3 bg-zinc-900 border border-zinc-800 hover:text-green-400 rounded text-xs font-bold uppercase flex flex-col items-center gap-1 transition-colors disabled:opacity-50">
                         <Trophy className="w-4 h-4" /> {match.team1?.name || 'Team A'} Wins
                     </button>
-                    <button disabled={loading || !match.team2_id} onClick={() => handleForceWin(match.team2_id)} className="py-3 bg-zinc-900 border border-zinc-800 hover:text-green-400 rounded text-xs font-bold uppercase flex flex-col items-center gap-1 transition-colors">
+                    <button disabled={loading || !match.team2_id} onClick={() => handleForceWin(match.team2_id)} className="py-3 bg-zinc-900 border border-zinc-800 hover:text-green-400 rounded text-xs font-bold uppercase flex flex-col items-center gap-1 transition-colors disabled:opacity-50">
                         <Trophy className="w-4 h-4" /> {match.team2?.name || 'Team B'} Wins
                     </button>
                 </div>

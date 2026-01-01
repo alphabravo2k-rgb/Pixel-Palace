@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../supabase/client';
 import { 
-  Search, RefreshCw, Shield, Crown, Pin, 
-  ArrowUpRight, Minus, AlertTriangle, Users,
-  Edit3, Save, X, Trash2, Plus, Link as LinkIcon
+  Search, RefreshCw, Shield, Crown, 
+  AlertTriangle, Users, Edit3, Save, X, Trash2, Plus, Globe, Hash
 } from 'lucide-react';
 
-// --- ASSETS & HELPERS ---
+// --- ASSETS: CUSTOM SVGs (Socials) ---
 const Icons = {
   Faceit: ({ className }) => (
     <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
@@ -39,16 +38,30 @@ const SocialLink = ({ href, type }) => {
 const ROLE_WEIGHT = { 'CAPTAIN': 1, 'PLAYER': 2, 'SUBSTITUTE': 3 };
 const getRoleWeight = (role) => ROLE_WEIGHT[role?.toUpperCase()] || 99;
 
-// --- EDIT MODAL COMPONENT ---
-const EditTeamModal = ({ team, onClose, onRefresh }) => {
-  const [members, setMembers] = useState(team.members);
-  const [saving, setSaving] = useState(false);
+// --- COMPONENT: EDIT TEAM MODAL ---
+const EditTeamModal = ({ team, onClose, onRefresh, tournamentId }) => {
+  // State for Team Metadata
+  const [meta, setMeta] = useState({
+    name: team?.name || '',
+    logo_url: team?.logo_url || '',
+    region: team?.region || 'PAK',
+    seed_number: team?.seed_number || 0
+  });
 
-  // Add a blank player to the local state
+  // State for Roster
+  const [members, setMembers] = useState(team?.members || []);
+  const [saving, setSaving] = useState(false);
+  
+  const isCreateMode = !team;
+
+  const handleMetaChange = (field, value) => {
+    setMeta(prev => ({ ...prev, [field]: value }));
+  };
+
   const handleAddPlayer = () => {
     const newMember = {
-        id: `temp-${Date.now()}`, // Temporary ID
-        isNew: true, // Flag for save logic
+        id: `temp-${Date.now()}`,
+        isNew: true,
         role: 'PLAYER',
         username: 'New Operator',
         steam_url: '',
@@ -63,13 +76,12 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
     setMembers(prev => prev.map(m => m.id === id ? { ...m, [field]: value } : m));
   };
 
-  const handleDelete = async (memberId, isNew) => {
+  const handleDeleteMember = async (memberId, isNew) => {
     if (isNew) {
-        // Just remove from state if it hasn't been saved yet
         setMembers(prev => prev.filter(m => m.id !== memberId));
         return;
     }
-    if(!window.confirm("Are you sure you want to remove this player?")) return;
+    if(!window.confirm("Remove this player from the roster?")) return;
     try {
       await supabase.from('team_members').delete().eq('id', memberId);
       setMembers(prev => prev.filter(m => m.id !== memberId));
@@ -78,64 +90,82 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
     }
   };
 
-  // Save All Changes to Supabase
   const handleSave = async () => {
     setSaving(true);
     try {
+      let teamId = team?.id;
+
+      // 1. CREATE OR UPDATE TEAM
+      if (isCreateMode) {
+        const { data: newTeam, error: createError } = await supabase
+          .from('teams')
+          .insert({
+            tournament_id: tournamentId,
+            name: meta.name,
+            logo_url: meta.logo_url,
+            region: meta.region,
+            seed_number: meta.seed_number
+          })
+          .select('id')
+          .single();
+        if (createError) throw createError;
+        teamId = newTeam.id;
+      } else {
+        const { error: updateError } = await supabase
+          .from('teams')
+          .update({
+            name: meta.name,
+            logo_url: meta.logo_url,
+            region: meta.region,
+            seed_number: meta.seed_number
+          })
+          .eq('id', teamId);
+        if (updateError) throw updateError;
+      }
+
+      // 2. PROCESS PLAYERS
       for (const m of members) {
         if (m.isNew) {
-            // --- INSERT LOGIC FOR NEW PLAYERS ---
-            // 1. Create Identity
-            const { data: identityData, error: identityError } = await supabase
+            // New Player: Insert Identity -> Link
+            const { data: identityData, error: idError } = await supabase
                 .from('global_identities')
                 .insert({
                     display_name: m.username,
                     steam_url: m.steam_url || null,
                     faceit_url: m.faceit_url || null,
                     discord_handle: m.discord || null,
-                    faceit_elo: 1000 // Default ELO
+                    faceit_elo: m.elo || 1000
                 })
                 .select('id')
                 .single();
-            
-            if (identityError) throw identityError;
+            if (idError) throw idError;
 
-            // 2. Link to Team
             const { error: linkError } = await supabase
                 .from('team_members')
                 .insert({
-                    team_id: team.id,
+                    team_id: teamId,
                     global_id: identityData.id,
                     role: m.role
                 });
-            
             if (linkError) throw linkError;
 
         } else {
-            // --- UPDATE LOGIC FOR EXISTING PLAYERS ---
-            // Update Role
-            await supabase
-              .from('team_members')
-              .update({ role: m.role })
-              .eq('id', m.id);
-
-            // Update Links
-            await supabase
-              .from('global_identities')
-              .update({
+            // Existing Player: Update Role & Identity
+            await supabase.from('team_members').update({ role: m.role }).eq('id', m.id);
+            await supabase.from('global_identities').update({
                 display_name: m.username,
                 steam_url: m.steam_url || null,
                 faceit_url: m.faceit_url || null,
                 discord_handle: m.discord || null
-              })
-              .eq('id', m.global_id);
+            }).eq('id', m.global_id);
         }
       }
+
       onRefresh();
       onClose();
     } catch (err) {
       console.error("Save failed", err);
-      alert("Failed to save changes: " + err.message);
+      alert("Error: " + err.message);
     } finally {
       setSaving(false);
     }
@@ -144,135 +174,92 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
       <div className="bg-[#0b0c0f] border border-zinc-700 w-full max-w-4xl rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-        {/* Header */}
-        <div className="p-4 border-b border-zinc-800 bg-zinc-900 flex justify-between items-center">
-          <div className="flex items-center gap-3">
-             <div className="w-10 h-10 bg-black rounded border border-zinc-700 overflow-hidden p-1">
-                {team.logo_url ? <img src={team.logo_url} className="w-full h-full object-contain"/> : <Shield className="w-full h-full text-zinc-700"/>}
-             </div>
+        
+        {/* MODAL HEADER */}
+        <div className="p-6 border-b border-zinc-800 bg-zinc-900">
+          <div className="flex justify-between items-start mb-4">
              <div>
-               <h2 className="text-xl font-bold text-white uppercase italic tracking-tighter">{team.name}</h2>
-               <span className="text-xs text-zinc-500 font-mono">MANAGE ROSTER</span>
+               <h2 className="text-xl font-bold text-white uppercase italic tracking-tighter">
+                 {isCreateMode ? 'ESTABLISH NEW SQUAD' : 'EDIT UNIT DATA'}
+               </h2>
+             </div>
+             <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full text-zinc-400"><X size={20}/></button>
+          </div>
+
+          <div className="grid grid-cols-12 gap-4">
+             <div className="col-span-2">
+                <div className="w-20 h-20 bg-black rounded border border-zinc-700 flex items-center justify-center overflow-hidden mx-auto">
+                    {meta.logo_url ? <img src={meta.logo_url} className="w-full h-full object-contain p-1"/> : <Shield className="text-zinc-700 w-8 h-8"/>}
+                </div>
+             </div>
+             <div className="col-span-10 grid grid-cols-2 gap-4">
+                <div>
+                   <label className="text-[10px] font-bold text-zinc-500 uppercase">Squad Name</label>
+                   <input type="text" value={meta.name} onChange={e => handleMetaChange('name', e.target.value)} className="w-full bg-black border border-zinc-700 rounded px-3 py-2 text-sm text-white focus:border-fuchsia-500 outline-none"/>
+                </div>
+                <div>
+                   <label className="text-[10px] font-bold text-zinc-500 uppercase">Logo URL</label>
+                   <input type="text" value={meta.logo_url} onChange={e => handleMetaChange('logo_url', e.target.value)} className="w-full bg-black border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-300 focus:border-fuchsia-500 outline-none"/>
+                </div>
+                <div className="flex gap-4">
+                   <div className="flex-1">
+                      <label className="text-[10px] font-bold text-zinc-500 uppercase flex items-center gap-1"><Globe size={10}/> Region</label>
+                      <input type="text" value={meta.region} onChange={e => handleMetaChange('region', e.target.value)} className="w-full bg-black border border-zinc-700 rounded px-3 py-2 text-sm text-white focus:border-fuchsia-500 outline-none"/>
+                   </div>
+                   <div className="flex-1">
+                      <label className="text-[10px] font-bold text-zinc-500 uppercase flex items-center gap-1"><Hash size={10}/> Seed Rank</label>
+                      <input type="number" value={meta.seed_number} onChange={e => handleMetaChange('seed_number', parseInt(e.target.value))} className="w-full bg-black border border-zinc-700 rounded px-3 py-2 text-sm text-white focus:border-fuchsia-500 outline-none"/>
+                   </div>
+                </div>
              </div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full text-zinc-400"><X size={20}/></button>
         </div>
 
-        {/* Scrollable List */}
-        <div className="flex-grow overflow-y-auto p-4 space-y-3">
+        {/* ROSTER EDITOR LIST */}
+        <div className="flex-grow overflow-y-auto p-4 space-y-3 bg-[#0b0c0f]">
+          <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2 px-2">Active Roster</h3>
+          
           {members.sort((a,b) => getRoleWeight(a.role) - getRoleWeight(b.role)).map(m => (
             <div key={m.id} className={`grid grid-cols-12 gap-4 items-center p-3 rounded border transition-colors ${m.isNew ? 'bg-fuchsia-900/10 border-fuchsia-500/30' : 'bg-zinc-900/50 border-zinc-800 hover:border-zinc-600'}`}>
               
-              {/* Identity */}
               <div className="col-span-3">
                 <label className="text-[9px] text-zinc-500 font-bold uppercase block mb-1">Display Name</label>
-                <input 
-                  type="text" 
-                  value={m.username} 
-                  onChange={(e) => updateMember(m.id, 'username', e.target.value)}
-                  className="w-full bg-black border border-zinc-700 rounded px-2 py-1 text-sm text-white focus:border-fuchsia-500 outline-none"
-                />
+                <input type="text" value={m.username} onChange={(e) => updateMember(m.id, 'username', e.target.value)} className="w-full bg-black border border-zinc-700 rounded px-2 py-1 text-sm text-white focus:border-fuchsia-500 outline-none"/>
               </div>
 
-              {/* Role Selector */}
               <div className="col-span-2">
                 <label className="text-[9px] text-zinc-500 font-bold uppercase block mb-1">Role</label>
-                <select 
-                  value={m.role}
-                  onChange={(e) => updateMember(m.id, 'role', e.target.value)}
-                  className={`w-full text-xs font-bold px-2 py-1.5 rounded border outline-none appearance-none cursor-pointer ${
-                    m.role === 'CAPTAIN' ? 'bg-fuchsia-900/30 text-fuchsia-400 border-fuchsia-500/50' : 
-                    m.role === 'SUBSTITUTE' ? 'bg-yellow-900/30 text-yellow-500 border-yellow-500/50' : 
-                    'bg-zinc-800 text-zinc-300 border-zinc-600'
-                  }`}
-                >
+                <select value={m.role} onChange={(e) => updateMember(m.id, 'role', e.target.value)} className="w-full text-xs font-bold px-2 py-1.5 rounded border outline-none bg-zinc-800 text-zinc-300 border-zinc-600">
                   <option value="CAPTAIN">CAPTAIN</option>
                   <option value="PLAYER">PLAYER</option>
                   <option value="SUBSTITUTE">SUBSTITUTE</option>
                 </select>
               </div>
 
-              {/* Links */}
               <div className="col-span-6 grid grid-cols-3 gap-2">
-                <div>
-                   <label className="text-[9px] text-zinc-500 font-bold uppercase block mb-1">Steam URL</label>
-                   <div className="relative">
-                      <input 
-                        type="text" 
-                        value={m.steam_url || ''} 
-                        onChange={(e) => updateMember(m.id, 'steam_url', e.target.value)}
-                        placeholder="None"
-                        className="w-full bg-black border border-zinc-700 rounded pl-6 pr-2 py-1 text-[10px] text-zinc-300 focus:border-blue-500 outline-none"
-                      />
-                      <Icons.Steam className="absolute left-1.5 top-1.5 w-3 h-3 text-zinc-600" />
-                   </div>
-                </div>
-                <div>
-                   <label className="text-[9px] text-zinc-500 font-bold uppercase block mb-1">Faceit URL</label>
-                   <div className="relative">
-                      <input 
-                        type="text" 
-                        value={m.faceit_url || ''} 
-                        onChange={(e) => updateMember(m.id, 'faceit_url', e.target.value)}
-                        placeholder="None"
-                        className="w-full bg-black border border-zinc-700 rounded pl-6 pr-2 py-1 text-[10px] text-zinc-300 focus:border-[#ff5500] outline-none"
-                      />
-                      <Icons.Faceit className="absolute left-1.5 top-1.5 w-3 h-3 text-zinc-600" />
-                   </div>
-                </div>
-                <div>
-                   <label className="text-[9px] text-zinc-500 font-bold uppercase block mb-1">Discord</label>
-                   <div className="relative">
-                      <input 
-                        type="text" 
-                        value={m.discord || ''} 
-                        onChange={(e) => updateMember(m.id, 'discord', e.target.value)}
-                        placeholder="None"
-                        className="w-full bg-black border border-zinc-700 rounded pl-6 pr-2 py-1 text-[10px] text-zinc-300 focus:border-[#5865F2] outline-none"
-                      />
-                      <Icons.Discord className="absolute left-1.5 top-1.5 w-3 h-3 text-zinc-600" />
-                   </div>
-                </div>
+                <input type="text" value={m.steam_url || ''} onChange={(e) => updateMember(m.id, 'steam_url', e.target.value)} placeholder="Steam URL" className="bg-black border border-zinc-700 rounded px-2 py-1 text-[10px] text-zinc-300 focus:border-blue-500 outline-none"/>
+                <input type="text" value={m.faceit_url || ''} onChange={(e) => updateMember(m.id, 'faceit_url', e.target.value)} placeholder="Faceit URL" className="bg-black border border-zinc-700 rounded px-2 py-1 text-[10px] text-zinc-300 focus:border-[#ff5500] outline-none"/>
+                <input type="text" value={m.discord || ''} onChange={(e) => updateMember(m.id, 'discord', e.target.value)} placeholder="Discord" className="bg-black border border-zinc-700 rounded px-2 py-1 text-[10px] text-zinc-300 focus:border-[#5865F2] outline-none"/>
               </div>
 
-              {/* Actions */}
-              <div className="col-span-1 flex justify-end items-end h-full pb-1">
-                 <button 
-                  onClick={() => handleDelete(m.id, m.isNew)}
-                  title="Remove Player"
-                  className="p-1.5 bg-red-900/20 text-red-500 hover:bg-red-900/50 rounded border border-red-900/30 transition-colors"
-                 >
-                   <Trash2 size={14} />
-                 </button>
+              <div className="col-span-1 flex justify-end">
+                 <button onClick={() => handleDeleteMember(m.id, m.isNew)} className="p-1.5 bg-red-900/20 text-red-500 hover:bg-red-900/50 rounded border border-red-900/30 transition-colors"><Trash2 size={14} /></button>
               </div>
             </div>
           ))}
-
-          {/* ACTIVE ADD PLAYER BUTTON */}
-          <button 
-            onClick={handleAddPlayer}
-            className="w-full p-4 border border-dashed border-zinc-700 hover:border-fuchsia-500 hover:bg-fuchsia-900/10 rounded flex items-center justify-center text-zinc-500 hover:text-fuchsia-400 text-xs uppercase tracking-widest transition-all"
-          >
-            <Plus size={14} className="mr-2"/> ADD NEW OPERATOR
+          
+          <button onClick={handleAddPlayer} className="w-full p-4 border border-dashed border-zinc-700 hover:border-fuchsia-500 hover:bg-fuchsia-900/10 rounded flex items-center justify-center text-zinc-500 hover:text-fuchsia-400 text-xs uppercase tracking-widest transition-all">
+            <Plus size={14} className="mr-2"/> ADD OPERATOR
           </button>
         </div>
 
-        {/* Footer */}
-        <div className="p-4 bg-zinc-900 border-t border-zinc-800 flex justify-between items-center">
-           <div className="text-xs text-zinc-500">
-             Changes are applied immediately to the database upon save.
-           </div>
-           <div className="flex gap-3">
-             <button onClick={onClose} className="px-4 py-2 text-xs font-bold uppercase text-zinc-400 hover:text-white transition-colors">Cancel</button>
-             <button 
-               onClick={handleSave} 
-               disabled={saving}
-               className="flex items-center gap-2 px-6 py-2 bg-fuchsia-600 hover:bg-fuchsia-500 text-white text-xs font-bold uppercase tracking-wider rounded transition-all disabled:opacity-50"
-             >
-               {saving ? <RefreshCw className="w-3 h-3 animate-spin"/> : <Save className="w-3 h-3"/>}
-               {saving ? 'Saving...' : 'Save Roster'}
-             </button>
-           </div>
+        {/* MODAL FOOTER */}
+        <div className="p-4 bg-zinc-900 border-t border-zinc-800 flex justify-end gap-3">
+          <button onClick={onClose} className="px-4 py-2 text-xs font-bold uppercase text-zinc-400 hover:text-white">Cancel</button>
+          <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 px-6 py-2 bg-fuchsia-600 hover:bg-fuchsia-500 text-white text-xs font-bold uppercase tracking-wider rounded transition-all disabled:opacity-50">
+            {saving ? <RefreshCw className="w-3 h-3 animate-spin"/> : <Save className="w-3 h-3"/>}
+            {saving ? 'Saving...' : 'Confirm Changes'}
+          </button>
         </div>
       </div>
     </div>
@@ -280,76 +267,20 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
 };
 
 
-// --- MAIN ROSTER CARD COMPONENT ---
-const TeamCard = ({ team, onEdit }) => {
-  const playerCount = team.members.length;
-  // Determine border color based on validity
-  let statusColor = "border-zinc-800 hover:border-zinc-600";
-  if (playerCount < 5) statusColor = "border-red-600/50 shadow-[0_0_15px_rgba(220,38,38,0.15)]";
-  else if (playerCount > 6) statusColor = "border-yellow-600/50";
-
-  return (
-    <div className={`group relative bg-[#0b0c0f] border ${statusColor} flex flex-col h-full overflow-hidden transition-all duration-300`}>
-      {/* Header */}
-      <div className="p-3 bg-gradient-to-r from-zinc-900 to-black border-b border-white/5 flex justify-between items-center relative z-10">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-black rounded border border-zinc-800 flex items-center justify-center p-1">
-            {team.logo_url ? <img src={team.logo_url} className="w-full h-full object-contain"/> : <Shield className="w-4 h-4 text-zinc-700"/>}
-          </div>
-          <div>
-            <h3 className="text-sm font-black text-white uppercase italic tracking-tighter truncate max-w-[100px]">{team.name}</h3>
-            <span className="text-[9px] text-zinc-500 font-mono tracking-widest">{team.seed_number ? `SEED #${team.seed_number}` : 'UNRANKED'}</span>
-          </div>
-        </div>
-        <button 
-          onClick={() => onEdit(team)}
-          className="p-1.5 bg-zinc-800 hover:bg-fuchsia-600 text-zinc-400 hover:text-white rounded transition-colors"
-          title="Edit Roster"
-        >
-          <Edit3 size={12} />
-        </button>
-      </div>
-
-      {/* Players List (Compact View) */}
-      <div className="flex-grow bg-zinc-900/20 p-1 space-y-px">
-        {team.members.slice(0, 7).map((m, idx) => {
-           const normalizedRole = m.role?.toUpperCase() || 'PLAYER';
-           const isCap = normalizedRole === 'CAPTAIN';
-           const isSub = normalizedRole === 'SUBSTITUTE' || (idx >= 5 && !isCap);
-           
-           return (
-             <div key={m.id} className={`flex items-center justify-between px-3 py-1.5 ${isSub ? 'opacity-60 bg-black/20' : ''}`}>
-               <div className="flex items-center gap-2">
-                 {isCap ? <Crown size={10} className="text-fuchsia-500"/> : <div className={`w-1 h-1 rounded-full ${isSub ? 'bg-yellow-500' : 'bg-zinc-600'}`}/>}
-                 <span className={`text-[10px] font-medium truncate w-24 ${isCap ? 'text-white' : 'text-zinc-400'}`}>{m.username}</span>
-               </div>
-               <div className="flex gap-1">
-                 <SocialLink href={m.steam_url} type="Steam"/>
-                 <SocialLink href={m.faceit_url} type="Faceit"/>
-               </div>
-             </div>
-           );
-        })}
-      </div>
-      
-      {/* Footer Status */}
-      <div className={`px-2 py-1 text-[9px] font-mono text-center uppercase font-bold ${playerCount < 5 ? 'bg-red-900/30 text-red-500' : 'bg-zinc-950 text-zinc-600'}`}>
-         {playerCount} Operators / {playerCount < 5 ? 'INCOMPLETE' : 'READY'}
-      </div>
-    </div>
-  );
-};
-
-// --- MAIN PAGE ---
+// --- MAIN PAGE COMPONENT ---
 export const TeamRosterView = () => {
   const [teams, setTeams] = useState([]);
-  const [editingTeam, setEditingTeam] = useState(null);
+  const [editingTeam, setEditingTeam] = useState(undefined); // undefined=hidden, null=create, object=edit
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
+  const [tournamentId, setTournamentId] = useState(null);
 
   const fetchTeams = async () => {
     setLoading(true);
     try {
+      const { data: tData } = await supabase.from('tournaments').select('id').limit(1).single();
+      if(tData) setTournamentId(tData.id);
+
       const { data, error } = await supabase
         .from('teams')
         .select(`
@@ -362,8 +293,7 @@ export const TeamRosterView = () => {
         .order('name', { ascending: true });
 
       if (error) throw error;
-
-      // Format & Sort
+      
       const formatted = data.map(team => ({
         ...team,
         members: team.team_members.map(tm => ({
@@ -387,43 +317,86 @@ export const TeamRosterView = () => {
 
   useEffect(() => { fetchTeams(); }, []);
 
+  const handleDeleteTeam = async (teamId, teamName) => {
+    if(!window.confirm(`⚠️ DANGER: Are you sure you want to delete ${teamName}?\nThis cannot be undone.`)) return;
+    try {
+      await supabase.from('teams').delete().eq('id', teamId);
+      fetchTeams();
+    } catch (err) { alert("Delete failed"); }
+  };
+
   const filteredTeams = teams.filter(t => t.name.toLowerCase().includes(searchTerm.toLowerCase()));
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      {/* Header */}
+      
+      {/* HEADER BAR */}
       <div className="flex justify-between items-end border-b border-white/10 pb-4">
          <div>
             <h1 className="text-2xl font-black text-white italic uppercase tracking-tighter">ROSTER <span className="text-fuchsia-500">COMMAND</span></h1>
             <p className="text-[10px] text-zinc-500 font-mono tracking-widest">Database Editor // Admin Clearance Only</p>
          </div>
          <div className="flex items-center gap-3">
+             <button onClick={() => setEditingTeam(null)} className="flex items-center gap-2 px-4 py-1.5 bg-fuchsia-900/20 hover:bg-fuchsia-600 border border-fuchsia-500/30 text-fuchsia-400 hover:text-white rounded text-xs font-bold uppercase transition-all">
+               <Plus size={14}/> Add Squad
+             </button>
             <div className="relative">
                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 text-zinc-500" />
-               <input 
-                 type="text" 
-                 placeholder="SEARCH UNIT..." 
-                 className="bg-black border border-zinc-800 text-white pl-8 pr-3 py-1.5 rounded text-xs font-mono w-48 focus:border-fuchsia-500 outline-none transition-all"
-                 onChange={e => setSearchTerm(e.target.value)}
-               />
+               <input type="text" placeholder="SEARCH UNIT..." className="bg-black border border-zinc-800 text-white pl-8 pr-3 py-1.5 rounded text-xs font-mono w-48 focus:border-fuchsia-500 outline-none" onChange={e => setSearchTerm(e.target.value)}/>
             </div>
-            <button onClick={fetchTeams} className="p-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded transition-colors"><RefreshCw size={14}/></button>
+            <button onClick={fetchTeams} className="p-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded"><RefreshCw size={14}/></button>
          </div>
       </div>
 
-      {/* Grid */}
+      {/* SQUAD GRID */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
         {filteredTeams.map(team => (
-          <TeamCard key={team.id} team={team} onEdit={setEditingTeam} />
+           <div key={team.id} className="group relative bg-[#0b0c0f] border border-zinc-800 hover:border-zinc-600 flex flex-col h-full overflow-hidden transition-all duration-300">
+              
+              {/* CARD HEADER */}
+              <div className="p-3 bg-gradient-to-r from-zinc-900 to-black border-b border-white/5 flex justify-between items-center relative z-10">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 bg-black rounded border border-zinc-800 flex items-center justify-center p-1">
+                    {team.logo_url ? <img src={team.logo_url} className="w-full h-full object-contain"/> : <Shield className="w-4 h-4 text-zinc-700"/>}
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-white uppercase italic tracking-tighter truncate max-w-[100px]">{team.name}</h3>
+                    <span className="text-[9px] text-zinc-500 font-mono tracking-widest">{team.seed_number ? `SEED #${team.seed_number}` : 'UNRANKED'}</span>
+                  </div>
+                </div>
+                <div className="flex gap-1">
+                  <button onClick={() => setEditingTeam(team)} className="p-1.5 bg-zinc-800 hover:bg-fuchsia-600 text-zinc-400 hover:text-white rounded transition-colors" title="Edit Roster"><Edit3 size={12} /></button>
+                  <button onClick={() => handleDeleteTeam(team.id, team.name)} className="p-1.5 bg-zinc-800 hover:bg-red-600 text-zinc-400 hover:text-white rounded transition-colors" title="Delete Squad"><Trash2 size={12} /></button>
+                </div>
+              </div>
+
+              {/* ROSTER PREVIEW */}
+              <div className="flex-grow bg-zinc-900/20 p-1 space-y-px">
+                {team.members.slice(0, 7).map((m, idx) => {
+                   const isCap = m.role === 'CAPTAIN';
+                   const isSub = m.role === 'SUBSTITUTE' || (idx >= 5 && !isCap);
+                   return (
+                     <div key={m.id} className={`flex items-center justify-between px-3 py-1.5 ${isSub ? 'opacity-60 bg-black/20' : ''}`}>
+                       <div className="flex items-center gap-2">
+                         {isCap ? <Crown size={10} className="text-fuchsia-500"/> : <div className={`w-1 h-1 rounded-full ${isSub ? 'bg-yellow-500' : 'bg-zinc-600'}`}/>}
+                         <span className={`text-[10px] font-medium truncate w-24 ${isCap ? 'text-white' : 'text-zinc-400'}`}>{m.username}</span>
+                       </div>
+                     </div>
+                   );
+                })}
+              </div>
+              <div className={`px-2 py-1 text-[9px] font-mono text-center uppercase font-bold bg-zinc-950 text-zinc-600`}>{team.members.length} Operators</div>
+           </div>
         ))}
       </div>
 
-      {/* Editor Modal */}
-      {editingTeam && (
+      {/* RENDER MODAL */}
+      {editingTeam !== undefined && (
         <EditTeamModal 
-          team={editingTeam} 
-          onClose={() => setEditingTeam(null)} 
+          team={editingTeam} // Passes team object for edit, or NULL for create
+          onClose={() => setEditingTeam(undefined)} 
           onRefresh={fetchTeams} 
+          tournamentId={tournamentId}
         />
       )}
     </div>

@@ -1,18 +1,27 @@
 import { createBrowserRouter, Navigate, Outlet } from 'react-router-dom';
-import { useSession } from '../auth/useSession';
-import { ROLES } from '../lib/roles';
+import { useSession } from './auth/useSession';
+import { ROLES } from './lib/roles';
 import { Loader2 } from 'lucide-react';
 
-// Components (Ensure these files exist in these folders!)
-import { LandingPage } from '../components/LandingPage';
-import { AdminLogin } from '../components/admin/AdminLogin';
-import { BracketView } from '../components/BracketView';
-import { MatchRoom } from '../components/match/MatchRoom';
-import { AdminDashboard } from '../components/admin/AdminDashboard';
-import { PlayerDashboard } from '../components/player/PlayerDashboard';
-import { AdminToolbar } from '../components/admin/AdminToolbar';
+// --- AUTH COMPONENTS ---
+import { AdminLogin } from './components/auth/AdminLogin';
+import { StaffRegistration } from './components/auth/StaffRegistration'; // 🆕 Secret Route
 
-// Authentication guard
+// --- PUBLIC COMPONENTS ---
+import { LandingPage } from './components/LandingPage';
+import { BracketView } from './components/BracketView';
+import { MatchRoom } from './components/match/MatchRoom';
+
+// --- ADMIN COMPONENTS ---
+import { AdminDashboard } from './components/admin/AdminDashboard';
+import { TeamRosterView } from './components/admin/TeamRosterView'; // 🆕 Roster Command
+import { StaffManagement } from './components/admin/StaffManagement'; // 🆕 Staff Hierarchy
+import { AdminToolbar } from './components/admin/AdminToolbar';
+
+// --- PLAYER COMPONENTS ---
+import { PlayerDashboard } from './components/player/PlayerDashboard';
+
+// 1. Authentication Guard (Protects Routes)
 const RequireAuth = ({ children }) => {
   const { session } = useSession();
 
@@ -31,7 +40,7 @@ const RequireAuth = ({ children }) => {
   return children || <Outlet />;
 };
 
-// Role-based access control
+// 2. Role Guard (Restricts Access based on Rank)
 const RequireRole = ({ allowedRoles = [], children }) => {
   const { session } = useSession();
 
@@ -43,42 +52,52 @@ const RequireRole = ({ allowedRoles = [], children }) => {
   return children || <Outlet />;
 };
 
-// Layout for Admin
+// 3. Admin Layout (Adds the Toolbar to all Admin Pages)
 const AdminLayout = () => (
   <div className="min-h-screen bg-[#050505]">
     <AdminToolbar />
-    <div className="pt-16">
+    <div className="pt-16 p-6">
       <Outlet />
     </div>
   </div>
 );
 
-// Routing structure
+// 4. THE ROUTER MAP
 export const router = createBrowserRouter([
   {
     path: '/',
     children: [
+      // --- PUBLIC ROUTES ---
       { index: true, element: <LandingPage /> },
       { path: 'login', element: <AdminLogin /> },
+      { path: 'staff-register', element: <StaffRegistration /> }, // 🆕 The Secret Link works here
       { path: 'bracket', element: <BracketView /> },
       { path: 'match/:matchId', element: <MatchRoom /> },
 
-      // PROTECTED ADMIN ROUTES
+      // --- PROTECTED ADMIN AREA ---
       {
         path: 'admin',
         element: (
           <RequireAuth>
+            {/* Only Owners, Admins, and Referees can enter */}
             <RequireRole allowedRoles={[ROLES.ADMIN, ROLES.OWNER, ROLES.REFEREE]}>
               <AdminLayout />
             </RequireRole>
           </RequireAuth>
         ),
         children: [
+          // The Dashboard Landing
           { path: 'dashboard', element: <AdminDashboard /> },
+          
+          // 🆕 Roster Command Center
+          { path: 'roster', element: <TeamRosterView /> },
+          
+          // 🆕 Staff Hierarchy Management
+          { path: 'staff', element: <StaffManagement /> },
         ]
       },
 
-      // PROTECTED PLAYER ROUTES
+      // --- PROTECTED PLAYER AREA ---
       {
         path: 'dashboard',
         element: (
@@ -90,7 +109,7 @@ export const router = createBrowserRouter([
         )
       },
 
-      // Fallback
+      // Fallback (404)
       { path: '*', element: <Navigate to="/" replace /> }
     ]
   }

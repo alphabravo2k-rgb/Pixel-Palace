@@ -3,7 +3,7 @@ import { supabase } from '../../supabase/client';
 import { 
   Search, RefreshCw, Shield, Crown, 
   Edit3, Save, X, Trash2, Plus, Globe, Hash, 
-  MessageCircle, BarChart2, ExternalLink, AlertTriangle, Link as LinkIcon
+  MessageCircle, BarChart2, AlertTriangle, Link as LinkIcon
 } from 'lucide-react';
 
 // --- CONFIGURATION ---
@@ -18,50 +18,6 @@ const getRegionFlag = (regionCode) => {
   const isoCode = maps[code];
   if (isoCode) return <img src={`https://flagcdn.com/24x18/${isoCode}.png`} alt={code} className="h-3 w-4 object-cover rounded-[2px] opacity-80" />;
   return <span className="text-[9px] font-black bg-zinc-800 text-zinc-400 px-1 rounded border border-zinc-700">{code.substring(0, 2)}</span>;
-};
-
-const Icons = {
-  Faceit: ({ className }) => (<svg viewBox="0 0 24 24" fill="currentColor" className={className}><path d="M24 2.6l-1.9-.3c-2.9-.4-5.2.3-6.8 1.9-.3.3-.6.6-.9 1L12.9 2h-1L10.3 3.6 2.6 13.9l.6 2.2 1.9.6 1.9-2.6.3-.3.3-.6c1.6-3.2 4.5-4.5 7.4-4.2l3.6.3 3.5-3.6 1.9-3.1zM2.6 21.4l1.9.3c2.9.4 5.2-.3 6.8-1.9.3-.3.6-.6.9-1L13.7 17h1l1.6-1.6 7.7-10.3-.6-2.2-1.9-.6-1.9 2.6-.3.3-.3.6c-1.6 3.2-4.5 4.5-7.4 4.2l-3.6-.3L4.5 13.3 2.6 16.4v5z" /></svg>),
-  Steam: ({ className }) => (<svg viewBox="0 0 24 24" fill="currentColor" className={className}><path d="M11.979 0C5.66 0 .473 4.904.035 11.12l4.477 6.577 3.32-1.38c.75.526 1.642.85 2.61.88l1.64 4.793c.123.007.245.01.37.01 6.627 0 12-5.373 12-12S19.105 0 11.979 0zm.066 3.99c2.56 0 4.636 2.076 4.636 4.637 0 2.56-2.076 4.637-4.636 4.637-2.56 0-4.637-2.077-4.637-4.637 0-2.56 2.077-4.637 4.637-4.637zm-2.922 8.78c-.76.012-1.48.196-2.12.513l-3.32-1.325c-.29-.115-.595-.195-.913-.23.23-.01.46-.017.693-.017 1.83 0 3.51.64 4.866 1.71-.383-.236-.787-.43-1.206-.59V12.77zm1.87 3.21c-.37-.02-.733-.09-1.08-.205l-1.61 4.707c-.432-.132-.843-.302-1.23-.507l1.71-4.996c.66.425 1.433.682 2.27.682.022 0 .044-.002.066-.002l-.127.32z"/></svg>),
-  Discord: ({ className }) => (<svg viewBox="0 0 24 24" fill="currentColor" className={className}><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/></svg>)
-};
-
-// --- SOCIAL LINK COMPONENT ---
-const SocialLink = ({ href, handle, type }) => {
-  const Icon = Icons[type];
-  
-  // LOGIC:
-  // 1. If URL exists in DB -> Use it.
-  // 2. If no URL, but Handle exists -> Build the link (don't copy).
-  let targetUrl = href;
-  
-  if (type === 'Discord' && !targetUrl && handle) {
-      // Connects to profile using handle or ID
-      targetUrl = `https://discord.com/users/${handle}`;
-  }
-
-  if (!targetUrl) {
-    return (
-        <div className="p-1.5 opacity-10 cursor-not-allowed" title={`${type} Not Linked`}>
-            <Icon className="w-3 h-3 grayscale" />
-        </div>
-    );
-  }
-
-  const colors = type === 'Faceit' ? 'text-[#ff5500] hover:bg-[#ff5500]/10 hover:border-[#ff5500]/30' : type === 'Steam' ? 'text-blue-400 hover:bg-blue-400/10 hover:border-blue-400/30' : 'text-[#5865F2] hover:bg-[#5865F2]/10 hover:border-[#5865F2]/30';
-
-  return (
-    <a 
-        href={targetUrl} 
-        target="_blank" 
-        rel="noreferrer" 
-        className={`p-1.5 rounded border border-transparent transition-all ${colors} hover:scale-110`}
-        onClick={(e) => e.stopPropagation()}
-        title={`Open ${type} Profile`}
-    >
-      <Icon className="w-3 h-3" />
-    </a>
-  );
 };
 
 // --- TEAM CARD ---
@@ -117,18 +73,11 @@ const TeamCard = ({ team, onEdit }) => {
                     </span>
                  </div>
                </div>
-               
-               <div className="flex gap-0.5 shrink-0">
-                 <SocialLink href={m.steam_url} type="Steam"/>
-                 <SocialLink href={m.faceit_url} type="Faceit"/>
-                 <SocialLink href={null} handle={m.discord} type="Discord"/>
-               </div>
              </div>
            );
         })}
       </div>
       
-      {/* TEAM DISCORD BUTTON */}
       {team.discord_channel_url ? (
         <a 
             href={team.discord_channel_url} 
@@ -189,7 +138,7 @@ const EditTeamModal = ({ team, onClose, onRefresh, tournamentId }) => {
           logo_url: meta.logo_url, 
           region: meta.region, 
           seed_number: meta.seed_number,
-          discord_channel_url: meta.discord_channel_url // Ensure this saves!
+          discord_channel_url: meta.discord_channel_url 
       };
 
       if (isCreateMode) {
@@ -201,24 +150,36 @@ const EditTeamModal = ({ team, onClose, onRefresh, tournamentId }) => {
         if (error) throw error;
       }
 
+      // 🛠️ FIX: Robust Identity Handling
       for (const m of members) {
         const identityPayload = {
             display_name: m.username, 
             steam_url: m.steam_url || null,
             faceit_url: m.faceit_url || null, 
-            discord_handle: m.discord || null, // Map input to DB column
+            discord_handle: m.discord || null, 
             faceit_elo: parseInt(m.elo) || 1000
         };
+
         if (m.isNew) {
-            const { data: idData } = await supabase.from('global_identities').insert(identityPayload).select('id').single();
-            await supabase.from('team_members').insert({ team_id: teamId, global_id: idData.id, role: m.role });
+            // Create Identity
+            const { data: idData, error: idErr } = await supabase.from('global_identities').insert(identityPayload).select('id').single();
+            if (idErr) throw idErr;
+            
+            // Link to Team
+            const { error: linkErr } = await supabase.from('team_members').insert({ team_id: teamId, global_id: idData.id, role: m.role });
+            if (linkErr) throw linkErr;
         } else {
+            // Update Existing
             await supabase.from('team_members').update({ role: m.role }).eq('id', m.id);
             await supabase.from('global_identities').update(identityPayload).eq('id', m.global_id);
         }
       }
       onRefresh(); onClose();
-    } catch (err) { alert("Error: " + err.message); } finally { setSaving(false); }
+    } catch (err) { 
+        alert("Error saving: " + err.message); 
+    } finally { 
+        setSaving(false); 
+    }
   };
 
   return (
@@ -271,42 +232,42 @@ const EditTeamModal = ({ team, onClose, onRefresh, tournamentId }) => {
           </div>
           <div className="space-y-2">
             {members.sort((a,b) => getRoleWeight(a.role) - getRoleWeight(b.role)).map(m => (
-                <div key={m.id} className="grid grid-cols-12 gap-3 items-end p-3 rounded border border-zinc-800 bg-zinc-900/40 hover:border-zinc-700">
-                <div className="col-span-3">
-                    <label className="text-[9px] text-zinc-500 font-bold uppercase block mb-1">Name</label>
-                    <input type="text" value={m.username} onChange={(e) => updateMember(m.id, 'username', e.target.value)} className="w-full bg-black border border-zinc-700 rounded px-2 py-1.5 text-xs text-white focus:border-fuchsia-500 outline-none font-bold"/>
-                </div>
-                <div className="col-span-2">
-                    <label className="text-[9px] text-zinc-500 font-bold uppercase block mb-1">Role</label>
-                    <select value={m.role} onChange={(e) => updateMember(m.id, 'role', e.target.value)} className="w-full text-[10px] font-bold px-2 py-2 rounded border outline-none bg-zinc-950 text-zinc-300 border-zinc-700 focus:border-fuchsia-500">
-                    <option value="CAPTAIN">CAPTAIN</option>
-                    <option value="PLAYER">PLAYER</option>
-                    <option value="SUBSTITUTE">SUBSTITUTE</option>
-                    </select>
-                </div>
-                <div className="col-span-1">
-                    <label className="text-[9px] text-zinc-500 font-bold uppercase block mb-1">ELO</label>
-                    <input type="number" value={m.elo} onChange={(e) => updateMember(m.id, 'elo', e.target.value)} className="w-full bg-black border border-zinc-700 rounded px-2 py-1.5 text-xs text-orange-400 font-mono focus:border-orange-500 outline-none text-center"/>
-                </div>
-                <div className="col-span-5 grid grid-cols-3 gap-2">
-                    <input type="text" value={m.steam_url || ''} onChange={(e) => updateMember(m.id, 'steam_url', e.target.value)} placeholder="Steam" className="w-full bg-black border border-zinc-700 rounded px-2 py-1.5 text-[10px] text-zinc-300 focus:border-blue-500 outline-none"/>
-                    <input type="text" value={m.faceit_url || ''} onChange={(e) => updateMember(m.id, 'faceit_url', e.target.value)} placeholder="Faceit" className="w-full bg-black border border-zinc-700 rounded px-2 py-1.5 text-[10px] text-zinc-300 focus:border-[#ff5500] outline-none"/>
-                    <input type="text" value={m.discord || ''} onChange={(e) => updateMember(m.id, 'discord', e.target.value)} placeholder="Discord ID" className="w-full bg-black border border-zinc-700 rounded px-2 py-1.5 text-[10px] text-zinc-300 focus:border-[#5865F2] outline-none"/>
-                </div>
-                <div className="col-span-1 flex justify-end pb-1">
-                    <button onClick={() => handleDeleteMember(m.id, m.isNew)} className="p-1.5 bg-red-900/10 text-red-500 hover:bg-red-500 hover:text-white rounded transition-colors"><Trash2 size={14} /></button>
-                </div>
-                </div>
+               <div key={m.id} className="grid grid-cols-12 gap-3 items-end p-3 rounded border border-zinc-800 bg-zinc-900/40 hover:border-zinc-700">
+               <div className="col-span-3">
+                   <label className="text-[9px] text-zinc-500 font-bold uppercase block mb-1">Name</label>
+                   <input type="text" value={m.username} onChange={(e) => updateMember(m.id, 'username', e.target.value)} className="w-full bg-black border border-zinc-700 rounded px-2 py-1.5 text-xs text-white focus:border-fuchsia-500 outline-none font-bold"/>
+               </div>
+               <div className="col-span-2">
+                   <label className="text-[9px] text-zinc-500 font-bold uppercase block mb-1">Role</label>
+                   <select value={m.role} onChange={(e) => updateMember(m.id, 'role', e.target.value)} className="w-full text-[10px] font-bold px-2 py-2 rounded border outline-none bg-zinc-950 text-zinc-300 border-zinc-700 focus:border-fuchsia-500">
+                   <option value="CAPTAIN">CAPTAIN</option>
+                   <option value="PLAYER">PLAYER</option>
+                   <option value="SUBSTITUTE">SUBSTITUTE</option>
+                   </select>
+               </div>
+               <div className="col-span-1">
+                   <label className="text-[9px] text-zinc-500 font-bold uppercase block mb-1">ELO</label>
+                   <input type="number" value={m.elo} onChange={(e) => updateMember(m.id, 'elo', e.target.value)} className="w-full bg-black border border-zinc-700 rounded px-2 py-1.5 text-xs text-orange-400 font-mono focus:border-orange-500 outline-none text-center"/>
+               </div>
+               <div className="col-span-5 grid grid-cols-3 gap-2">
+                   <input type="text" value={m.steam_url || ''} onChange={(e) => updateMember(m.id, 'steam_url', e.target.value)} placeholder="Steam" className="w-full bg-black border border-zinc-700 rounded px-2 py-1.5 text-[10px] text-zinc-300 focus:border-blue-500 outline-none"/>
+                   <input type="text" value={m.faceit_url || ''} onChange={(e) => updateMember(m.id, 'faceit_url', e.target.value)} placeholder="Faceit" className="w-full bg-black border border-zinc-700 rounded px-2 py-1.5 text-[10px] text-zinc-300 focus:border-[#ff5500] outline-none"/>
+                   <input type="text" value={m.discord || ''} onChange={(e) => updateMember(m.id, 'discord', e.target.value)} placeholder="Discord ID" className="w-full bg-black border border-zinc-700 rounded px-2 py-1.5 text-[10px] text-zinc-300 focus:border-[#5865F2] outline-none"/>
+               </div>
+               <div className="col-span-1 flex justify-end pb-1">
+                   <button onClick={() => handleDeleteMember(m.id, m.isNew)} className="p-1.5 bg-red-900/10 text-red-500 hover:bg-red-500 hover:text-white rounded transition-colors"><Trash2 size={14} /></button>
+               </div>
+               </div>
             ))}
           </div>
         </div>
 
         <div className="p-6 bg-zinc-900 border-t border-zinc-800 flex justify-end gap-3">
-            <button onClick={onClose} className="px-6 py-2 text-xs font-bold uppercase text-zinc-400 hover:text-white transition-colors">Cancel</button>
-            <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 px-8 py-2 bg-white hover:bg-zinc-200 text-black text-xs font-black uppercase tracking-wider rounded transition-all disabled:opacity-50">
-                {saving ? <RefreshCw className="w-3 h-3 animate-spin"/> : <Save className="w-3 h-3"/>}
-                {saving ? 'Saving...' : 'Save Unit'}
-            </button>
+           <button onClick={onClose} className="px-6 py-2 text-xs font-bold uppercase text-zinc-400 hover:text-white transition-colors">Cancel</button>
+           <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 px-8 py-2 bg-white hover:bg-zinc-200 text-black text-xs font-black uppercase tracking-wider rounded transition-all disabled:opacity-50">
+               {saving ? <RefreshCw className="w-3 h-3 animate-spin"/> : <Save className="w-3 h-3"/>}
+               {saving ? 'Saving...' : 'Save Unit'}
+           </button>
         </div>
       </div>
     </div>

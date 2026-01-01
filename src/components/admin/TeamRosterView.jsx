@@ -3,14 +3,21 @@ import { supabase } from '../../supabase/client';
 import { 
   Search, RefreshCw, Shield, Crown, 
   Edit3, Save, X, Trash2, Plus, Globe, Hash, 
-  MessageCircle, BarChart2, AlertTriangle, Link as LinkIcon
+  MessageCircle, BarChart2, AlertTriangle, Link as LinkIcon, Key
 } from 'lucide-react';
 
 // --- CONFIGURATION ---
 const ROLE_WEIGHT = { 'CAPTAIN': 1, 'PLAYER': 2, 'SUBSTITUTE': 3 };
 const getRoleWeight = (role) => ROLE_WEIGHT[role?.toUpperCase()] || 99;
 
-// --- ASSETS ---
+const generateAccessCode = (teamName) => {
+  const cleanName = teamName.replace(/[^a-zA-Z]/g, '').toUpperCase();
+  const prefix = (cleanName.substring(0, 3) || 'TEAM').padEnd(3, 'X');
+  const numbers = Math.floor(1000 + Math.random() * 9000);
+  return `${prefix}-${numbers}`;
+};
+
+// --- COMPONENTS ---
 const getRegionFlag = (regionCode) => {
   if (!regionCode) return null;
   const code = regionCode.toUpperCase();
@@ -20,90 +27,54 @@ const getRegionFlag = (regionCode) => {
   return <span className="text-[9px] font-black bg-zinc-800 text-zinc-400 px-1 rounded border border-zinc-700">{code.substring(0, 2)}</span>;
 };
 
-// --- TEAM CARD ---
 const TeamCard = ({ team, onEdit }) => {
   const playerCount = team.members.length;
-  const totalElo = team.members.reduce((acc, curr) => acc + (curr.elo || 1000), 0);
-  const avgElo = playerCount > 0 ? Math.round(totalElo / playerCount) : 1000;
-
-  let statusColor = "border-zinc-800 hover:border-zinc-600";
-  let statusBadge = <span className="text-zinc-600">READY</span>;
   
-  if (playerCount < 5) {
-      statusColor = "border-red-900/50 shadow-[0_0_20px_rgba(220,38,38,0.1)]";
-      statusBadge = <span className="text-red-500 font-bold flex items-center gap-1"><AlertTriangle size={8}/> INCOMPLETE</span>;
-  } else if (playerCount > 6) {
-      statusColor = "border-yellow-600/50";
-      statusBadge = <span className="text-yellow-500 font-bold">OVER LIMIT</span>;
-  }
-
   return (
-    <div className={`group relative bg-[#0b0c0f] border ${statusColor} flex flex-col h-full overflow-hidden transition-all duration-300`}>
-      <div className="p-3 bg-gradient-to-r from-zinc-900 to-black border-b border-white/5 flex justify-between items-center relative z-10">
+    <div className="group relative bg-[#0b0c0f] border border-zinc-800 hover:border-zinc-600 flex flex-col h-full transition-all duration-300 rounded-xl overflow-hidden">
+      <div className="p-3 bg-zinc-900/50 border-b border-white/5 flex justify-between items-center">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-black rounded border border-zinc-800 flex items-center justify-center p-1 relative overflow-hidden shadow-inner">
+          <div className="w-10 h-10 bg-black rounded border border-zinc-800 flex items-center justify-center p-1">
             {team.logo_url ? <img src={team.logo_url} className="w-full h-full object-contain" alt={team.name}/> : <Shield className="w-5 h-5 text-zinc-700"/>}
           </div>
           <div>
-            <h3 className="text-sm font-black text-white uppercase italic tracking-tighter truncate max-w-[140px] leading-tight">{team.name}</h3>
-            <div className="flex gap-2 text-[9px] font-mono tracking-widest text-zinc-500 items-center mt-0.5">
-               <span className="flex items-center" title={team.region}>{getRegionFlag(team.region)}</span>
-               <span className="bg-zinc-900 px-1 rounded border border-zinc-800">{team.seed_number ? `#${team.seed_number}` : 'TBD'}</span>
-               <span className="text-orange-400 flex items-center gap-1"><BarChart2 size={8}/> {avgElo}</span>
+            <h3 className="text-sm font-black text-white uppercase italic tracking-tighter truncate max-w-[140px]">{team.name}</h3>
+            <div className="flex items-center gap-2 mt-1">
+                <span className="text-[10px] font-mono bg-zinc-800 px-1.5 rounded text-zinc-400 border border-zinc-700">
+                   {team.access_code || 'NO CODE'}
+                </span>
+                {team.seed_number && <span className="text-[10px] text-zinc-500 font-mono">SEED #{team.seed_number}</span>}
+                <span className="flex items-center" title={team.region}>{getRegionFlag(team.region)}</span>
             </div>
           </div>
         </div>
-        <div className="flex gap-1">
-          <button onClick={() => onEdit(team)} className="p-2 bg-zinc-900 hover:bg-fuchsia-600 text-zinc-500 hover:text-white rounded transition-colors border border-zinc-800" title="Edit Roster"><Edit3 size={12} /></button>
-        </div>
+        <button onClick={() => onEdit(team)} className="p-2 bg-zinc-900 hover:bg-white/10 text-zinc-500 hover:text-white rounded border border-zinc-800 transition-colors">
+            <Edit3 size={14} />
+        </button>
       </div>
 
-      <div className="flex-grow bg-zinc-900/10 p-1 space-y-0.5">
-        {team.members.slice(0, 7).map((m, idx) => {
-           const isCap = m.role === 'CAPTAIN';
-           const isSub = m.role === 'SUBSTITUTE' || (idx >= 5 && !isCap);
-           return (
-             <div key={m.id} className={`flex items-center justify-between px-3 py-1.5 rounded hover:bg-white/5 transition-colors ${isSub ? 'opacity-60' : ''}`}>
-               <div className="flex items-center gap-2.5 overflow-hidden">
-                 {isCap ? <Crown size={12} className="text-fuchsia-500 shrink-0"/> : <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${isSub ? 'bg-yellow-500' : 'bg-zinc-600'}`}/>}
-                 <div className="flex flex-col truncate">
-                    <span className={`text-[11px] font-bold truncate leading-none ${isCap ? 'text-white' : 'text-zinc-400'}`}>{m.username}</span>
-                    <span className="text-[8px] font-mono text-zinc-600 leading-tight mt-0.5 flex items-center gap-1">
-                        <span className="text-orange-500/60">{m.elo}</span> ELO
-                    </span>
-                 </div>
-               </div>
-             </div>
-           );
-        })}
+      <div className="p-2 space-y-1">
+        {team.members.slice(0, 5).map(m => (
+           <div key={m.id} className="flex justify-between items-center px-2 py-1 text-xs text-zinc-400">
+              <span className={m.role === 'CAPTAIN' ? 'text-fuchsia-400 font-bold' : ''}>{m.username}</span>
+              <span className="text-[9px] uppercase opacity-50">{m.role}</span>
+           </div>
+        ))}
+        {team.members.length === 0 && <div className="text-center py-4 text-[10px] text-zinc-600 uppercase">Roster Empty</div>}
       </div>
-      
-      {team.discord_channel_url ? (
-        <a 
-            href={team.discord_channel_url} 
-            target="_blank" 
-            rel="noreferrer" 
-            className="block w-full py-2 bg-[#5865F2]/5 hover:bg-[#5865F2] border-t border-[#5865F2]/20 text-[#5865F2] hover:text-white text-[9px] font-bold uppercase tracking-[0.2em] text-center transition-all flex items-center justify-center gap-2 group/btn"
-        >
-           <MessageCircle size={12} className="group-hover/btn:animate-pulse"/> TEAM COMMS
-        </a>
-      ) : (
-        <div className={`px-2 py-2 text-[9px] font-mono text-center uppercase font-bold border-t border-white/5 bg-zinc-950/50 ${playerCount < 5 ? 'text-red-500' : 'text-zinc-600'}`}>
-           {playerCount} / 6 OPERATORS — {statusBadge}
-        </div>
-      )}
     </div>
   );
 };
 
-// --- EDIT MODAL ---
+// --- EDIT MODAL (Restored!) ---
 const EditTeamModal = ({ team, onClose, onRefresh, tournamentId }) => {
   const [meta, setMeta] = useState({
     name: team?.name || '',
     logo_url: team?.logo_url || '',
     region: team?.region || 'PAK',
     seed_number: team?.seed_number || 0,
-    discord_channel_url: team?.discord_channel_url || ''
+    discord_channel_url: team?.discord_channel_url || '',
+    access_code: team?.access_code || '' // Added access code editing
   });
 
   const [members, setMembers] = useState(team?.members || []);
@@ -138,7 +109,8 @@ const EditTeamModal = ({ team, onClose, onRefresh, tournamentId }) => {
           logo_url: meta.logo_url, 
           region: meta.region, 
           seed_number: meta.seed_number,
-          discord_channel_url: meta.discord_channel_url 
+          discord_channel_url: meta.discord_channel_url,
+          access_code: meta.access_code // Save manual code edits
       };
 
       if (isCreateMode) {
@@ -150,7 +122,6 @@ const EditTeamModal = ({ team, onClose, onRefresh, tournamentId }) => {
         if (error) throw error;
       }
 
-      // 🛠️ FIX: Robust Identity Handling
       for (const m of members) {
         const identityPayload = {
             display_name: m.username, 
@@ -161,15 +132,11 @@ const EditTeamModal = ({ team, onClose, onRefresh, tournamentId }) => {
         };
 
         if (m.isNew) {
-            // Create Identity
             const { data: idData, error: idErr } = await supabase.from('global_identities').insert(identityPayload).select('id').single();
             if (idErr) throw idErr;
-            
-            // Link to Team
             const { error: linkErr } = await supabase.from('team_members').insert({ team_id: teamId, global_id: idData.id, role: m.role });
             if (linkErr) throw linkErr;
         } else {
-            // Update Existing
             await supabase.from('team_members').update({ role: m.role }).eq('id', m.id);
             await supabase.from('global_identities').update(identityPayload).eq('id', m.global_id);
         }
@@ -206,8 +173,8 @@ const EditTeamModal = ({ team, onClose, onRefresh, tournamentId }) => {
                    <input type="text" value={meta.name} onChange={e => setMeta({...meta, name: e.target.value})} className="w-full bg-black border border-zinc-700 rounded px-3 py-2 text-sm text-white focus:border-fuchsia-500 outline-none"/>
                 </div>
                 <div className="col-span-1">
-                   <label className="text-[10px] font-bold text-zinc-500 uppercase block mb-1">Logo URL</label>
-                   <input type="text" value={meta.logo_url} onChange={e => setMeta({...meta, logo_url: e.target.value})} className="w-full bg-black border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-300 focus:border-fuchsia-500 outline-none"/>
+                   <label className="text-[10px] font-bold text-zinc-500 uppercase block mb-1">Access Code</label>
+                   <input type="text" value={meta.access_code} onChange={e => setMeta({...meta, access_code: e.target.value})} className="w-full bg-black border border-zinc-700 rounded px-3 py-2 text-sm text-yellow-500 font-mono focus:border-yellow-500 outline-none"/>
                 </div>
                 <div className="col-span-2">
                    <label className="text-[10px] font-bold text-zinc-500 uppercase flex items-center gap-1 block mb-1"><LinkIcon size={10}/> Team Discord Invite Link</label>
@@ -276,28 +243,26 @@ const EditTeamModal = ({ team, onClose, onRefresh, tournamentId }) => {
 
 export const TeamRosterView = () => {
   const [teams, setTeams] = useState([]);
-  const [editingTeam, setEditingTeam] = useState(undefined);
-  const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
-  const [tournamentId, setTournamentId] = useState(null);
+  const [generating, setGenerating] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [editingTeam, setEditingTeam] = useState(undefined); // Modal State
 
   const fetchTeams = async () => {
     setLoading(true);
     try {
-      const { data: tData } = await supabase.from('tournaments').select('id').limit(1).single();
-      if(tData) setTournamentId(tData.id);
-
       const { data, error } = await supabase.from('teams')
-        .select(`id, name, logo_url, region, seed_number, discord_channel_url, team_members (id, role, global_identities (id, display_name, discord_handle, steam_url, faceit_url, faceit_elo, discord_id))`)
+        .select(`id, name, logo_url, access_code, seed_number, region, discord_channel_url, team_members (id, role, global_identities (display_name, discord_handle, steam_url, faceit_url, faceit_elo))`)
         .order('name', { ascending: true });
 
       if (error) throw error;
+
       const formatted = data.map(team => ({
         ...team,
         members: team.team_members.map(tm => ({
           id: tm.id,
-          global_id: tm.global_identities?.id,
-          role: tm.role?.toUpperCase() || 'PLAYER',
+          global_id: tm.global_identities?.id, // Ensure we map this for updates
+          role: tm.role?.toUpperCase(),
           username: tm.global_identities?.display_name || 'Unknown',
           discord: tm.global_identities?.discord_handle,
           steam_url: tm.global_identities?.steam_url,
@@ -309,26 +274,84 @@ export const TeamRosterView = () => {
     } catch (err) { console.error(err); } finally { setLoading(false); }
   };
 
+  const handleGenerateCodes = async () => {
+    if(!window.confirm("⚠️ This will OVERWRITE access codes for all teams missing them.\n\nTeams with existing codes will be skipped unless you want to reset all? (Cancel to stop)")) return;
+    
+    setGenerating(true);
+    let updatedCount = 0;
+
+    for (const team of teams) {
+        if (!team.access_code) {
+            const newCode = generateAccessCode(team.name);
+            await supabase.from('teams').update({ access_code: newCode }).eq('id', team.id);
+            updatedCount++;
+        }
+    }
+    
+    alert(`Generated credentials for ${updatedCount} teams.`);
+    fetchTeams();
+    setGenerating(false);
+  };
+
   useEffect(() => { fetchTeams(); }, []);
   const filteredTeams = teams.filter(t => t.name.toLowerCase().includes(searchTerm.toLowerCase()));
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
+      
+      {/* TOOLBAR */}
       <div className="flex justify-between items-end border-b border-white/10 pb-4">
          <div>
-            <h1 className="text-3xl font-black text-white italic uppercase tracking-tighter">ROSTER <span className="text-fuchsia-500">COMMAND</span></h1>
-            <p className="text-[10px] text-zinc-500 font-mono tracking-widest">Database Editor // Admin Clearance Only</p>
+            <h1 className="text-3xl font-black text-white italic uppercase tracking-tighter">
+               ROSTER <span className="text-fuchsia-500">COMMAND</span>
+            </h1>
+            <p className="text-[10px] text-zinc-500 font-mono tracking-widest">
+               {teams.length} Units Registered
+            </p>
          </div>
+         
          <div className="flex items-center gap-3">
-             <button onClick={fetchTeams} className="flex items-center gap-2 px-3 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 text-zinc-400 hover:text-white rounded text-xs font-bold uppercase transition-all"><RefreshCw size={12} className={loading ? "animate-spin" : ""}/> Sync DB</button>
-             <button onClick={() => setEditingTeam({})} className="flex items-center gap-2 px-4 py-2 bg-fuchsia-600 hover:bg-fuchsia-500 text-white rounded text-xs font-bold uppercase transition-all shadow-[0_0_15px_rgba(192,38,211,0.3)]"><Plus size={14}/> Add Squad</button>
-            <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 text-zinc-500" /><input type="text" placeholder="FIND UNIT..." className="bg-black border border-zinc-800 text-white pl-9 pr-3 py-2 rounded text-xs font-mono focus:border-fuchsia-500 outline-none" onChange={e => setSearchTerm(e.target.value)}/></div>
+             <button 
+                onClick={handleGenerateCodes} 
+                disabled={generating}
+                className="flex items-center gap-2 px-4 py-2 bg-yellow-600/10 hover:bg-yellow-600/20 text-yellow-500 border border-yellow-600/30 rounded text-xs font-bold uppercase transition-all"
+             >
+                {generating ? <RefreshCw className="animate-spin w-4 h-4"/> : <Key size={14}/>}
+                {generating ? "Generating..." : "Generate Codes"}
+             </button>
+
+             <button onClick={fetchTeams} className="p-2 bg-zinc-900 hover:bg-zinc-800 rounded border border-zinc-800 text-zinc-400 hover:text-white">
+                <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+             </button>
+             
+             <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 text-zinc-500" />
+                <input 
+                    type="text" 
+                    placeholder="FIND UNIT..." 
+                    className="bg-black border border-zinc-800 text-white pl-9 pr-3 py-2 rounded text-xs font-mono focus:border-fuchsia-500 outline-none w-48" 
+                    onChange={e => setSearchTerm(e.target.value)}
+                />
+             </div>
          </div>
       </div>
+
+      {/* GRID */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 pb-12">
-        {filteredTeams.map(team => (<TeamCard key={team.id} team={team} onEdit={setEditingTeam} />))}
+        {filteredTeams.map(team => (
+            <TeamCard key={team.id} team={team} onEdit={setEditingTeam} /> 
+        ))}
       </div>
-      {editingTeam !== undefined && <EditTeamModal team={Object.keys(editingTeam).length === 0 ? null : editingTeam} onClose={() => setEditingTeam(undefined)} onRefresh={fetchTeams} tournamentId={tournamentId} />}
+
+      {/* MODAL */}
+      {editingTeam !== undefined && (
+        <EditTeamModal 
+            team={Object.keys(editingTeam).length === 0 ? null : editingTeam} 
+            onClose={() => setEditingTeam(undefined)} 
+            onRefresh={fetchTeams} 
+            tournamentId={null} 
+        />
+      )}
     </div>
   );
 };

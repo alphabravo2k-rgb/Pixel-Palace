@@ -1,17 +1,15 @@
 import React, { useState } from 'react';
 import { supabase } from '../../supabase/client';
-import { Shield, User, Mail, Phone, Lock, Gamepad, Link as LinkIcon, Save, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Shield, User, Mail, Lock, Gamepad, Link as LinkIcon, Save, AlertTriangle, CheckCircle } from 'lucide-react';
 
 export const StaffRegistration = () => {
   const [formData, setFormData] = useState({
     email: '',
     password: '',
     fullName: '',
-    phone: '',
     discord: '',
     faceit: '',
-    steam: '',
-    tradeLink: ''
+    steam: ''
   });
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState({ type: '', msg: '' });
@@ -37,6 +35,7 @@ export const StaffRegistration = () => {
       if (!authData.user) throw new Error("Registration failed. Please check your email.");
 
       // 2. Create Admin Profile (Default Role: CREW)
+      // Removed: phone_number, steam_trade_link
       const { error: profileError } = await supabase
         .from('app_admins')
         .insert({
@@ -44,17 +43,15 @@ export const StaffRegistration = () => {
           email: formData.email,
           role: 'CREW', // Default low-level role
           full_name: formData.fullName,
-          phone_number: formData.phone,
           discord_handle: formData.discord,
           faceit_link: formData.faceit,
-          steam_link: formData.steam,
-          steam_trade_link: formData.tradeLink
+          steam_link: formData.steam
         });
 
       if (profileError) throw profileError;
 
-      setStatus({ type: 'success', msg: 'Registration Successful! rigorous vetting in process. Contact an Owner for activation.' });
-      setFormData({ email: '', password: '', fullName: '', phone: '', discord: '', faceit: '', steam: '', tradeLink: '' });
+      setStatus({ type: 'success', msg: 'Registration Successful! Account pending activation.' });
+      setFormData({ email: '', password: '', fullName: '', discord: '', faceit: '', steam: '' });
 
     } catch (err) {
       setStatus({ type: 'error', msg: err.message });
@@ -83,20 +80,11 @@ export const StaffRegistration = () => {
 
         <form onSubmit={handleRegister} className="space-y-6">
           {/* Identity Section */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="text-[10px] font-bold text-zinc-500 uppercase mb-1 block">Full Name</label>
-              <div className="relative">
-                <User className="absolute left-3 top-2.5 w-4 h-4 text-zinc-600" />
-                <input required name="fullName" value={formData.fullName} onChange={handleChange} className="w-full bg-zinc-900 border border-zinc-700 text-white text-sm rounded pl-10 pr-4 py-2 focus:border-fuchsia-500 outline-none" placeholder="John Doe" />
-              </div>
-            </div>
-            <div>
-              <label className="text-[10px] font-bold text-zinc-500 uppercase mb-1 block">Phone Number</label>
-              <div className="relative">
-                <Phone className="absolute left-3 top-2.5 w-4 h-4 text-zinc-600" />
-                <input required name="phone" value={formData.phone} onChange={handleChange} className="w-full bg-zinc-900 border border-zinc-700 text-white text-sm rounded pl-10 pr-4 py-2 focus:border-fuchsia-500 outline-none" placeholder="+92 300..." />
-              </div>
+          <div>
+            <label className="text-[10px] font-bold text-zinc-500 uppercase mb-1 block">Full Name</label>
+            <div className="relative">
+              <User className="absolute left-3 top-2.5 w-4 h-4 text-zinc-600" />
+              <input required name="fullName" value={formData.fullName} onChange={handleChange} className="w-full bg-zinc-900 border border-zinc-700 text-white text-sm rounded pl-10 pr-4 py-2 focus:border-fuchsia-500 outline-none" placeholder="John Doe" />
             </div>
           </div>
 
@@ -121,22 +109,20 @@ export const StaffRegistration = () => {
           {/* Gaming Links */}
           <div className="space-y-4 pt-4 border-t border-zinc-800">
             <h3 className="text-xs font-bold text-fuchsia-500 uppercase tracking-widest">Digital Identifiers</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4">
                <div className="relative">
                   <Gamepad className="absolute left-3 top-2.5 w-4 h-4 text-zinc-600" />
-                  <input required name="discord" value={formData.discord} onChange={handleChange} className="w-full bg-zinc-900 border border-zinc-700 text-white text-sm rounded pl-10 pr-4 py-2 focus:border-fuchsia-500 outline-none" placeholder="Discord Handle/ID" />
+                  <input required name="discord" value={formData.discord} onChange={handleChange} className="w-full bg-zinc-900 border border-zinc-700 text-white text-sm rounded pl-10 pr-4 py-2 focus:border-fuchsia-500 outline-none" placeholder="Discord Handle (e.g. user#1234)" />
                </div>
-               <div className="relative">
-                  <LinkIcon className="absolute left-3 top-2.5 w-4 h-4 text-zinc-600" />
-                  <input name="faceit" value={formData.faceit} onChange={handleChange} className="w-full bg-zinc-900 border border-zinc-700 text-white text-sm rounded pl-10 pr-4 py-2 focus:border-fuchsia-500 outline-none" placeholder="Faceit Profile URL" />
-               </div>
-               <div className="relative">
-                  <LinkIcon className="absolute left-3 top-2.5 w-4 h-4 text-zinc-600" />
-                  <input name="steam" value={formData.steam} onChange={handleChange} className="w-full bg-zinc-900 border border-zinc-700 text-white text-sm rounded pl-10 pr-4 py-2 focus:border-fuchsia-500 outline-none" placeholder="Steam Profile URL" />
-               </div>
-               <div className="relative">
-                  <LinkIcon className="absolute left-3 top-2.5 w-4 h-4 text-zinc-600" />
-                  <input name="tradeLink" value={formData.tradeLink} onChange={handleChange} className="w-full bg-zinc-900 border border-zinc-700 text-white text-sm rounded pl-10 pr-4 py-2 focus:border-fuchsia-500 outline-none" placeholder="Steam Trade Link" />
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                 <div className="relative">
+                    <LinkIcon className="absolute left-3 top-2.5 w-4 h-4 text-zinc-600" />
+                    <input name="faceit" value={formData.faceit} onChange={handleChange} className="w-full bg-zinc-900 border border-zinc-700 text-white text-sm rounded pl-10 pr-4 py-2 focus:border-fuchsia-500 outline-none" placeholder="Faceit Profile URL (Optional)" />
+                 </div>
+                 <div className="relative">
+                    <LinkIcon className="absolute left-3 top-2.5 w-4 h-4 text-zinc-600" />
+                    <input name="steam" value={formData.steam} onChange={handleChange} className="w-full bg-zinc-900 border border-zinc-700 text-white text-sm rounded pl-10 pr-4 py-2 focus:border-fuchsia-500 outline-none" placeholder="Steam Profile URL (Optional)" />
+                 </div>
                </div>
             </div>
           </div>

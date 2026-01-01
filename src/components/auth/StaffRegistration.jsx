@@ -35,18 +35,18 @@ export const StaffRegistration = () => {
       if (!authData.user) throw new Error("Registration failed. Please check your email.");
 
       // 2. Create Admin Profile (Default Role: CREW)
-      // Removed: phone_number, steam_trade_link
-      const { error: profileError } = await supabase
-        .from('app_admins')
-        .insert({
-          auth_user_id: authData.user.id,
-          email: formData.email,
-          role: 'CREW', // Default low-level role
-          full_name: formData.fullName,
-          discord_handle: formData.discord,
-          faceit_link: formData.faceit,
-          steam_link: formData.steam
-        });
+// Ensure these keys match the columns we just verified/added above
+const { error: profileError } = await supabase
+  .from('app_admins')
+  .insert({
+    auth_user_id: authData.user.id,
+    email: formData.email,      // Must match column 'email'
+    full_name: formData.fullName, // Must match column 'full_name'
+    role: 'CREW',
+    discord_handle: formData.discord,
+    faceit_link: formData.faceit,
+    steam_link: formData.steam
+  });
 
       if (profileError) throw profileError;
 

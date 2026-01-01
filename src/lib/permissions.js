@@ -11,9 +11,7 @@ const STATE_GUARDS = {
 
 /**
  * CENTRAL PERMISSION CHECKER
- * @param {string} capability - The capability to check (from PERM_CAPABILITIES)
- * @param {object} session - The current user session object
- * @param {object} context - Optional context (e.g., match object) for scope checks
+ * Evaluates Role (RBAC), Scope (Ownership), and State (Match Status)
  */
 export const can = (capability, session, context = null) => {
   // 1. Session Validity Check
@@ -29,7 +27,6 @@ export const can = (capability, session, context = null) => {
   if (!hasPermission) return false;
 
   // 4. SCOPE CHECK: Is this user allowed to touch this specific object?
-  // e.g., Captains can only veto for THEIR match
   if (capability === PERM_CAPABILITIES.ACT_AS_CAPTAIN) {
       const userTeamId = session.team_id; 
       
@@ -42,7 +39,6 @@ export const can = (capability, session, context = null) => {
   }
 
   // 5. STATE GUARD: Is the object in a valid state for this action?
-  // e.g., Cannot manage a locked match
   const guard = STATE_GUARDS[capability];
   if (guard && context) {
     const hasOverride = userCapabilities.includes(PERM_CAPABILITIES.OVERRIDE_MATCH);

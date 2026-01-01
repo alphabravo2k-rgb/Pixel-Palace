@@ -5,9 +5,6 @@ import { normalizeRole, ROLES } from '../lib/roles';
 const SessionContext = createContext(null);
 
 export const SessionProvider = ({ children }) => {
-  const hydratingRef = useRef(false);
-  
-  // Default State
   const [session, setSession] = useState({
     isAuthenticated: false,
     user: null,
@@ -15,40 +12,51 @@ export const SessionProvider = ({ children }) => {
     team_id: null,
     identity: null,
     loading: true,
-    authType: 'GUEST' // 'SUPABASE' or 'CAPTAIN_PIN'
+    authType: 'GUEST'
   });
 
-  // 1. Initial Load & Realtime Listener
+  const mounted = useRef(true);
+
   useEffect(() => {
-    // A. Check for Captain Session (Local Storage)
-    const localCaptain = localStorage.getItem('pixel_captain_session');
-    if (localCaptain) {
-        try {
-            const capData = JSON.parse(localCaptain);
-            // Verify session is valid (optional: could ping DB here)
-            setSession(capData);
-            return; 
-        } catch (e) {
-            localStorage.removeItem('pixel_captain_session');
+    const initAuth = async () => {
+        // 1. Check Local Storage for Captain PIN
+        const localCap = localStorage.getItem('pixel_captain_session');
+        if (localCap) {
+            try {
+                if(mounted.current) {
+                    setSession(JSON.parse(localCap));
+                    return; // Stop loading here
+                }
+            } catch(e) {
+                localStorage.removeItem('pixel_captain_session');
+            }
         }
-    }
 
-    // B. Check Supabase Auth (Admins)
-    supabase.auth.getSession().then(({ data: { session: authSession } }) => {
-      if (authSession?.user) hydrateUser(authSession.user);
-      else setAsGuest();
+        // 2. Check Supabase Auth (Admins)
+        const { data: { session: sbSession } } = await supabase.auth.getSession();
+        if (sbSession?.user) {
+            await hydrateAdmin(sbSession.user);
+        } else {
+            // No auth found, set as Guest immediately
+            if(mounted.current) setSession(prev => ({ ...prev, loading: false }));
+        }
+    };
+
+    initAuth();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+        if (session?.user) hydrateAdmin(session.user);
+        else if (!localStorage.getItem('pixel_captain_session')) {
+             if(mounted.current) setAsGuest();
+        }
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, authSession) => {
-      if (authSession?.user) hydrateUser(authSession.user);
-      // Don't reset if we are logged in as a Captain via PIN
-      else if (!localStorage.getItem('pixel_captain_session')) setAsGuest();
-    });
-
-    return () => subscription.unsubscribe();
+    return () => { 
+        mounted.current = false;
+        subscription.unsubscribe(); 
+    };
   }, []);
 
-  // Helper to reset state
   const setAsGuest = () => {
     setSession({
       isAuthenticated: false, user: null, role: ROLES.GUEST,
@@ -56,125 +64,69 @@ export const SessionProvider = ({ children }) => {
     });
   };
 
-  // 2. Hydration Logic (For Admins/Staff via Email)
-  const hydrateUser = async (user) => {
-    if (hydratingRef.current) return;
-    hydratingRef.current = true;
-
+  const hydrateAdmin = async (user) => {
     try {
-      const { data: profile, error } = await supabase
-        .from('session_profiles')
-        .select('*')
-        .eq('auth_user_id', user.id)
-        .maybeSingle();
-
-      if (error) throw error;
-
-      if (!profile) {
-        console.warn("[Session] Auth valid, but no Profile found.");
-        setSession({
-          isAuthenticated: true, user: user, role: ROLES.GUEST,
-          team_id: null, identity: null, loading: false, authType: 'SUPABASE'
-        });
-        return;
-      }
-
-      setSession({
-        isAuthenticated: true,
-        user: user,
-        role: normalizeRole(profile.role),
-        team_id: profile.team_id || null,
-        identity: {
-          auth_user_id: profile.auth_user_id,
-          display_name: profile.display_name,
-          team_id: profile.team_id,
-          context: profile.context
-        },
-        loading: false,
-        authType: 'SUPABASE'
-      });
-
-    } catch (err) {
-      console.error("[Session] Hydration Error:", err);
-      setAsGuest();
-    } finally {
-      hydratingRef.current = false;
+        const { data: profile } = await supabase.from('session_profiles').select('*').eq('auth_user_id', user.id).maybeSingle();
+        
+        if (mounted.current) {
+            setSession({
+                isAuthenticated: true,
+                user: user,
+                role: normalizeRole(profile?.role || 'GUEST'),
+                team_id: profile?.team_id,
+                identity: { auth_user_id: user.id, display_name: profile?.display_name || user.email },
+                loading: false, // Stop loading
+                authType: 'SUPABASE'
+            });
+        }
+    } catch (e) { 
+        console.error(e);
+        if(mounted.current) setAsGuest();
     }
   };
 
-  // 3. Login Functions
+  // --- ACTIONS ---
 
-  // A. Admin Login (Email/Pass)
   const loginAdmin = async (email, password) => {
-    try {
-      localStorage.removeItem('pixel_captain_session'); // Clear any captain session
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
-
-      // Optimistic check to return role immediately
-      const { data: roleData } = await supabase
-        .from('session_profiles')
-        .select('role')
-        .eq('auth_user_id', data.user.id)
-        .single();
-
-      return { success: true, role: roleData?.role || 'GUEST' };
-    } catch (err) {
-      return { success: false, message: err.message };
-    }
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) return { success: false, message: error.message };
+    return { success: true };
   };
 
-  // B. Captain Login (Access Code)
   const loginCaptain = async (accessCode) => {
-      try {
-          // Call the SQL Function
-          const { data, error } = await supabase.rpc('verify_team_access', { p_code: accessCode });
-          
-          if (error) throw error;
-          if (!data || !data.success) return { success: false, message: data?.message || 'Invalid Code' };
+    try {
+        const { data, error } = await supabase.rpc('verify_team_access', { p_code: accessCode });
+        if (error || !data.success) return { success: false, message: data?.message || 'Invalid Code' };
 
-          // Construct Captain Session
-          const capSession = {
-              isAuthenticated: true,
-              user: { id: 'captain_session' }, // Dummy user object
-              role: ROLES.CAPTAIN,
-              team_id: data.team_id,
-              identity: {
-                  id: data.team_id, // For captains, Identity ID = Team ID
-                  display_name: `Captain (${data.team_name})`,
-                  team_id: data.team_id
-              },
-              loading: false,
-              authType: 'CAPTAIN_PIN'
-          };
+        const capSession = {
+            isAuthenticated: true,
+            role: ROLES.CAPTAIN,
+            team_id: data.team_id,
+            identity: { id: data.team_id, display_name: `Captain (${data.team_name})` },
+            loading: false,
+            authType: 'CAPTAIN_PIN'
+        };
 
-          // Save & Set
-          localStorage.setItem('pixel_captain_session', JSON.stringify(capSession));
-          setSession(capSession);
-          
-          return { success: true, role: ROLES.CAPTAIN };
-
-      } catch (err) {
-          console.error(err);
-          return { success: false, message: "Verification failed." };
-      }
+        localStorage.setItem('pixel_captain_session', JSON.stringify(capSession));
+        setSession(capSession);
+        return { success: true };
+    } catch (err) {
+        return { success: false, message: "Connection Error" };
+    }
   };
 
   const logout = async () => {
     localStorage.removeItem('pixel_captain_session');
     await supabase.auth.signOut();
-    setAsGuest();
+    if(mounted.current) setAsGuest();
   };
 
+  // ⚠️ EXPORTING 'login' AS ALIAS FOR ADMIN LOGIN FOR BACKWARD COMPATIBILITY
   return (
-    <SessionContext.Provider value={{ session, login: loginAdmin, loginCaptain, logout, loading: session.loading }}>
+    <SessionContext.Provider value={{ session, login: loginAdmin, loginAdmin, loginCaptain, logout }}>
       {children}
     </SessionContext.Provider>
   );
 };
 
-export const useSession = () => {
-  const context = useContext(SessionContext);
-  if (!context) throw new Error('useSession must be used within a SessionProvider');
-  return context;
-};
+export const useSession = () => useContext(SessionContext);

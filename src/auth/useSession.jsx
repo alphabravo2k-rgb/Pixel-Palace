@@ -14,11 +14,26 @@ export const SessionProvider = ({ children }) => {
     role: ROLES.GUEST,
     team_id: null,
     identity: null,
-    loading: true
+    loading: true,
+    authType: 'GUEST' // 'SUPABASE' or 'CAPTAIN_PIN'
   });
 
   // 1. Initial Load & Realtime Listener
   useEffect(() => {
+    // A. Check for Captain Session (Local Storage)
+    const localCaptain = localStorage.getItem('pixel_captain_session');
+    if (localCaptain) {
+        try {
+            const capData = JSON.parse(localCaptain);
+            // Verify session is valid (optional: could ping DB here)
+            setSession(capData);
+            return; 
+        } catch (e) {
+            localStorage.removeItem('pixel_captain_session');
+        }
+    }
+
+    // B. Check Supabase Auth (Admins)
     supabase.auth.getSession().then(({ data: { session: authSession } }) => {
       if (authSession?.user) hydrateUser(authSession.user);
       else setAsGuest();
@@ -26,7 +41,8 @@ export const SessionProvider = ({ children }) => {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, authSession) => {
       if (authSession?.user) hydrateUser(authSession.user);
-      else setAsGuest();
+      // Don't reset if we are logged in as a Captain via PIN
+      else if (!localStorage.getItem('pixel_captain_session')) setAsGuest();
     });
 
     return () => subscription.unsubscribe();
@@ -36,17 +52,16 @@ export const SessionProvider = ({ children }) => {
   const setAsGuest = () => {
     setSession({
       isAuthenticated: false, user: null, role: ROLES.GUEST,
-      team_id: null, identity: null, loading: false
+      team_id: null, identity: null, loading: false, authType: 'GUEST'
     });
   };
 
-  // 2. Hydration Logic (The "Brain")
+  // 2. Hydration Logic (For Admins/Staff via Email)
   const hydrateUser = async (user) => {
     if (hydratingRef.current) return;
     hydratingRef.current = true;
 
     try {
-      // Fetch consolidated profile (Works for Admins OR Players)
       const { data: profile, error } = await supabase
         .from('session_profiles')
         .select('*')
@@ -57,10 +72,9 @@ export const SessionProvider = ({ children }) => {
 
       if (!profile) {
         console.warn("[Session] Auth valid, but no Profile found.");
-        // We keep them logged in but powerless (Guest)
         setSession({
           isAuthenticated: true, user: user, role: ROLES.GUEST,
-          team_id: null, identity: null, loading: false
+          team_id: null, identity: null, loading: false, authType: 'SUPABASE'
         });
         return;
       }
@@ -74,9 +88,10 @@ export const SessionProvider = ({ children }) => {
           auth_user_id: profile.auth_user_id,
           display_name: profile.display_name,
           team_id: profile.team_id,
-          context: profile.context // 'admin_panel' or 'competitor'
+          context: profile.context
         },
-        loading: false
+        loading: false,
+        authType: 'SUPABASE'
       });
 
     } catch (err) {
@@ -87,38 +102,72 @@ export const SessionProvider = ({ children }) => {
     }
   };
 
-  // 3. Login Function (The "Key" - Updated)
-  const login = async (email, password) => {
+  // 3. Login Functions
+
+  // A. Admin Login (Email/Pass)
+  const loginAdmin = async (email, password) => {
     try {
+      localStorage.removeItem('pixel_captain_session'); // Clear any captain session
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
 
-      // Check Role immediately to return success/fail to the form
-      // This prevents the "flash" on the login screen
+      // Optimistic check to return role immediately
       const { data: roleData } = await supabase
         .from('session_profiles')
         .select('role')
         .eq('auth_user_id', data.user.id)
         .single();
 
-      if (roleData) {
-        return { success: true, role: roleData.role };
-      }
-      
-      return { success: false, message: "Profile not found." };
-
+      return { success: true, role: roleData?.role || 'GUEST' };
     } catch (err) {
       return { success: false, message: err.message };
     }
   };
 
+  // B. Captain Login (Access Code)
+  const loginCaptain = async (accessCode) => {
+      try {
+          // Call the SQL Function
+          const { data, error } = await supabase.rpc('verify_team_access', { p_code: accessCode });
+          
+          if (error) throw error;
+          if (!data || !data.success) return { success: false, message: data?.message || 'Invalid Code' };
+
+          // Construct Captain Session
+          const capSession = {
+              isAuthenticated: true,
+              user: { id: 'captain_session' }, // Dummy user object
+              role: ROLES.CAPTAIN,
+              team_id: data.team_id,
+              identity: {
+                  id: data.team_id, // For captains, Identity ID = Team ID
+                  display_name: `Captain (${data.team_name})`,
+                  team_id: data.team_id
+              },
+              loading: false,
+              authType: 'CAPTAIN_PIN'
+          };
+
+          // Save & Set
+          localStorage.setItem('pixel_captain_session', JSON.stringify(capSession));
+          setSession(capSession);
+          
+          return { success: true, role: ROLES.CAPTAIN };
+
+      } catch (err) {
+          console.error(err);
+          return { success: false, message: "Verification failed." };
+      }
+  };
+
   const logout = async () => {
+    localStorage.removeItem('pixel_captain_session');
     await supabase.auth.signOut();
     setAsGuest();
   };
 
   return (
-    <SessionContext.Provider value={{ session, login, logout, loading: session.loading }}>
+    <SessionContext.Provider value={{ session, login: loginAdmin, loginCaptain, logout, loading: session.loading }}>
       {children}
     </SessionContext.Provider>
   );

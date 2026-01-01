@@ -88,4 +88,4 @@ export const MatchNode = ({ match, onClick }) => {
       </button>
     </div>
   );
-};s
+};

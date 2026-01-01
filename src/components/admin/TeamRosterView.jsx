@@ -3,7 +3,7 @@ import { supabase } from '../../supabase/client';
 import { 
   Search, RefreshCw, Shield, Crown, 
   Edit3, Save, X, Trash2, Plus, Globe, Hash, 
-  MessageCircle, BarChart2, Check, ExternalLink, AlertCircle, AlertTriangle
+  MessageCircle, BarChart2, ExternalLink, AlertTriangle, Link as LinkIcon
 } from 'lucide-react';
 
 // --- CONFIGURATION ---
@@ -26,16 +26,17 @@ const Icons = {
   Discord: ({ className }) => (<svg viewBox="0 0 24 24" fill="currentColor" className={className}><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/></svg>)
 };
 
-// --- SOCIAL LINK COMPONENT (UPDATED: ALWAYS LINK, NO COPY) ---
+// --- SOCIAL LINK COMPONENT ---
 const SocialLink = ({ href, handle, type }) => {
   const Icon = Icons[type];
   
-  // Construct URL
+  // LOGIC:
+  // 1. If URL exists in DB -> Use it.
+  // 2. If no URL, but Handle exists -> Build the link (don't copy).
   let targetUrl = href;
   
   if (type === 'Discord' && !targetUrl && handle) {
-      // If we only have a handle, assume it's an ID or try to link to it
-      // Note: connecting to "bravo.gg" directly is tricky without an ID, but we will try the standard format
+      // Connects to profile using handle or ID
       targetUrl = `https://discord.com/users/${handle}`;
   }
 
@@ -54,7 +55,7 @@ const SocialLink = ({ href, handle, type }) => {
         href={targetUrl} 
         target="_blank" 
         rel="noreferrer" 
-        className={`p-1.5 rounded border border-transparent transition-all ${colors} group relative`}
+        className={`p-1.5 rounded border border-transparent transition-all ${colors} hover:scale-110`}
         onClick={(e) => e.stopPropagation()}
         title={`Open ${type} Profile`}
     >
@@ -63,7 +64,7 @@ const SocialLink = ({ href, handle, type }) => {
   );
 };
 
-// --- TEAM CARD (VIEW MODE) ---
+// --- TEAM CARD ---
 const TeamCard = ({ team, onEdit }) => {
   const playerCount = team.members.length;
   const totalElo = team.members.reduce((acc, curr) => acc + (curr.elo || 1000), 0);
@@ -82,7 +83,6 @@ const TeamCard = ({ team, onEdit }) => {
 
   return (
     <div className={`group relative bg-[#0b0c0f] border ${statusColor} flex flex-col h-full overflow-hidden transition-all duration-300`}>
-      {/* Header */}
       <div className="p-3 bg-gradient-to-r from-zinc-900 to-black border-b border-white/5 flex justify-between items-center relative z-10">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-black rounded border border-zinc-800 flex items-center justify-center p-1 relative overflow-hidden shadow-inner">
@@ -102,7 +102,6 @@ const TeamCard = ({ team, onEdit }) => {
         </div>
       </div>
 
-      {/* Roster List */}
       <div className="flex-grow bg-zinc-900/10 p-1 space-y-0.5">
         {team.members.slice(0, 7).map((m, idx) => {
            const isCap = m.role === 'CAPTAIN';
@@ -119,21 +118,24 @@ const TeamCard = ({ team, onEdit }) => {
                  </div>
                </div>
                
-               {/* Socials */}
                <div className="flex gap-0.5 shrink-0">
                  <SocialLink href={m.steam_url} type="Steam"/>
                  <SocialLink href={m.faceit_url} type="Faceit"/>
-                 {/* Updated: Uses discord_handle or discord_id to form link */}
-                 <SocialLink href={null} handle={m.discord_id || m.discord} type="Discord"/>
+                 <SocialLink href={null} handle={m.discord} type="Discord"/>
                </div>
              </div>
            );
         })}
       </div>
       
-      {/* Footer: Team Comms or Status */}
+      {/* TEAM DISCORD BUTTON */}
       {team.discord_channel_url ? (
-        <a href={team.discord_channel_url} target="_blank" rel="noreferrer" className="block w-full py-2 bg-[#5865F2]/5 hover:bg-[#5865F2] border-t border-[#5865F2]/20 text-[#5865F2] hover:text-white text-[9px] font-bold uppercase tracking-[0.2em] text-center transition-all flex items-center justify-center gap-2 group/btn">
+        <a 
+            href={team.discord_channel_url} 
+            target="_blank" 
+            rel="noreferrer" 
+            className="block w-full py-2 bg-[#5865F2]/5 hover:bg-[#5865F2] border-t border-[#5865F2]/20 text-[#5865F2] hover:text-white text-[9px] font-bold uppercase tracking-[0.2em] text-center transition-all flex items-center justify-center gap-2 group/btn"
+        >
            <MessageCircle size={12} className="group-hover/btn:animate-pulse"/> TEAM COMMS
         </a>
       ) : (
@@ -145,7 +147,7 @@ const TeamCard = ({ team, onEdit }) => {
   );
 };
 
-// --- EDIT MODAL (ADMIN) ---
+// --- EDIT MODAL ---
 const EditTeamModal = ({ team, onClose, onRefresh, tournamentId }) => {
   const [meta, setMeta] = useState({
     name: team?.name || '',
@@ -195,7 +197,8 @@ const EditTeamModal = ({ team, onClose, onRefresh, tournamentId }) => {
         if (error) throw error;
         teamId = data.id;
       } else {
-        await supabase.from('teams').update(teamData).eq('id', teamId);
+        const { error } = await supabase.from('teams').update(teamData).eq('id', teamId);
+        if (error) throw error;
       }
 
       for (const m of members) {
@@ -203,7 +206,7 @@ const EditTeamModal = ({ team, onClose, onRefresh, tournamentId }) => {
             display_name: m.username, 
             steam_url: m.steam_url || null,
             faceit_url: m.faceit_url || null, 
-            discord_handle: m.discord || null, // Stores handle/ID
+            discord_handle: m.discord || null, // Map input to DB column
             faceit_elo: parseInt(m.elo) || 1000
         };
         if (m.isNew) {
@@ -221,8 +224,6 @@ const EditTeamModal = ({ team, onClose, onRefresh, tournamentId }) => {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4">
       <div className="bg-[#0b0c0f] border border-zinc-700 w-full max-w-6xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-        
-        {/* MODAL HEADER */}
         <div className="p-6 border-b border-zinc-800 bg-zinc-900/50">
           <div className="flex justify-between items-start mb-6">
              <div>
@@ -248,7 +249,7 @@ const EditTeamModal = ({ team, onClose, onRefresh, tournamentId }) => {
                    <input type="text" value={meta.logo_url} onChange={e => setMeta({...meta, logo_url: e.target.value})} className="w-full bg-black border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-300 focus:border-fuchsia-500 outline-none"/>
                 </div>
                 <div className="col-span-2">
-                   <label className="text-[10px] font-bold text-zinc-500 uppercase flex items-center gap-1 block mb-1"><MessageCircle size={10}/> Team Discord Invite</label>
+                   <label className="text-[10px] font-bold text-zinc-500 uppercase flex items-center gap-1 block mb-1"><LinkIcon size={10}/> Team Discord Invite Link</label>
                    <input type="text" value={meta.discord_channel_url} onChange={e => setMeta({...meta, discord_channel_url: e.target.value})} placeholder="https://discord.gg/..." className="w-full bg-black border border-zinc-700 rounded px-3 py-2 text-sm text-[#5865F2] focus:border-[#5865F2] outline-none font-mono"/>
                 </div>
                 <div className="col-span-1">
@@ -263,18 +264,16 @@ const EditTeamModal = ({ team, onClose, onRefresh, tournamentId }) => {
           </div>
         </div>
 
-        {/* ROSTER EDITOR */}
         <div className="flex-grow overflow-y-auto p-6 space-y-4 bg-[#0b0c0f]">
           <div className="flex justify-between items-center border-b border-white/5 pb-2">
              <h3 className="text-xs font-bold text-white uppercase tracking-widest">Active Roster</h3>
              <button onClick={handleAddPlayer} className="flex items-center gap-2 px-3 py-1 bg-fuchsia-600 hover:bg-fuchsia-500 text-white rounded text-[10px] font-bold uppercase transition-all"><Plus size={12}/> Add Operator</button>
           </div>
-          
           <div className="space-y-2">
             {members.sort((a,b) => getRoleWeight(a.role) - getRoleWeight(b.role)).map(m => (
-                <div key={m.id} className={`grid grid-cols-12 gap-3 items-end p-3 rounded border transition-colors ${m.isNew ? 'bg-fuchsia-900/10 border-fuchsia-500/30' : 'bg-zinc-900/40 border-zinc-800 hover:border-zinc-700'}`}>
+                <div key={m.id} className="grid grid-cols-12 gap-3 items-end p-3 rounded border border-zinc-800 bg-zinc-900/40 hover:border-zinc-700">
                 <div className="col-span-3">
-                    <label className="text-[9px] text-zinc-500 font-bold uppercase block mb-1">Display Name</label>
+                    <label className="text-[9px] text-zinc-500 font-bold uppercase block mb-1">Name</label>
                     <input type="text" value={m.username} onChange={(e) => updateMember(m.id, 'username', e.target.value)} className="w-full bg-black border border-zinc-700 rounded px-2 py-1.5 text-xs text-white focus:border-fuchsia-500 outline-none font-bold"/>
                 </div>
                 <div className="col-span-2">
@@ -290,18 +289,9 @@ const EditTeamModal = ({ team, onClose, onRefresh, tournamentId }) => {
                     <input type="number" value={m.elo} onChange={(e) => updateMember(m.id, 'elo', e.target.value)} className="w-full bg-black border border-zinc-700 rounded px-2 py-1.5 text-xs text-orange-400 font-mono focus:border-orange-500 outline-none text-center"/>
                 </div>
                 <div className="col-span-5 grid grid-cols-3 gap-2">
-                    <div>
-                    <label className="text-[8px] text-zinc-600 font-bold uppercase block mb-1 flex items-center gap-1"><Icons.Steam className="w-2 h-2"/> Steam</label>
-                    <input type="text" value={m.steam_url || ''} onChange={(e) => updateMember(m.id, 'steam_url', e.target.value)} className="w-full bg-black border border-zinc-700 rounded px-2 py-1.5 text-[10px] text-zinc-300 focus:border-blue-500 outline-none truncate"/>
-                    </div>
-                    <div>
-                    <label className="text-[8px] text-zinc-600 font-bold uppercase block mb-1 flex items-center gap-1"><Icons.Faceit className="w-2 h-2"/> Faceit</label>
-                    <input type="text" value={m.faceit_url || ''} onChange={(e) => updateMember(m.id, 'faceit_url', e.target.value)} className="w-full bg-black border border-zinc-700 rounded px-2 py-1.5 text-[10px] text-zinc-300 focus:border-[#ff5500] outline-none truncate"/>
-                    </div>
-                    <div>
-                    <label className="text-[8px] text-zinc-600 font-bold uppercase block mb-1 flex items-center gap-1"><Icons.Discord className="w-2 h-2"/> Discord ID/Handle</label>
-                    <input type="text" value={m.discord || ''} onChange={(e) => updateMember(m.id, 'discord', e.target.value)} className="w-full bg-black border border-zinc-700 rounded px-2 py-1.5 text-[10px] text-zinc-300 focus:border-[#5865F2] outline-none truncate"/>
-                    </div>
+                    <input type="text" value={m.steam_url || ''} onChange={(e) => updateMember(m.id, 'steam_url', e.target.value)} placeholder="Steam" className="w-full bg-black border border-zinc-700 rounded px-2 py-1.5 text-[10px] text-zinc-300 focus:border-blue-500 outline-none"/>
+                    <input type="text" value={m.faceit_url || ''} onChange={(e) => updateMember(m.id, 'faceit_url', e.target.value)} placeholder="Faceit" className="w-full bg-black border border-zinc-700 rounded px-2 py-1.5 text-[10px] text-zinc-300 focus:border-[#ff5500] outline-none"/>
+                    <input type="text" value={m.discord || ''} onChange={(e) => updateMember(m.id, 'discord', e.target.value)} placeholder="Discord ID" className="w-full bg-black border border-zinc-700 rounded px-2 py-1.5 text-[10px] text-zinc-300 focus:border-[#5865F2] outline-none"/>
                 </div>
                 <div className="col-span-1 flex justify-end pb-1">
                     <button onClick={() => handleDeleteMember(m.id, m.isNew)} className="p-1.5 bg-red-900/10 text-red-500 hover:bg-red-500 hover:text-white rounded transition-colors"><Trash2 size={14} /></button>
@@ -311,24 +301,18 @@ const EditTeamModal = ({ team, onClose, onRefresh, tournamentId }) => {
           </div>
         </div>
 
-        <div className="p-6 bg-zinc-900 border-t border-zinc-800 flex justify-between items-center">
-          <div className="flex items-center gap-2 text-zinc-500 text-[10px]">
-             <AlertCircle size={12}/> Changes reflect immediately on the Tournament Bracket.
-          </div>
-          <div className="flex gap-3">
+        <div className="p-6 bg-zinc-900 border-t border-zinc-800 flex justify-end gap-3">
             <button onClick={onClose} className="px-6 py-2 text-xs font-bold uppercase text-zinc-400 hover:text-white transition-colors">Cancel</button>
-            <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 px-8 py-2 bg-white hover:bg-zinc-200 text-black text-xs font-black uppercase tracking-wider rounded transition-all disabled:opacity-50 shadow-[0_0_15px_rgba(255,255,255,0.2)]">
+            <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 px-8 py-2 bg-white hover:bg-zinc-200 text-black text-xs font-black uppercase tracking-wider rounded transition-all disabled:opacity-50">
                 {saving ? <RefreshCw className="w-3 h-3 animate-spin"/> : <Save className="w-3 h-3"/>}
                 {saving ? 'Saving...' : 'Save Unit'}
             </button>
-          </div>
         </div>
       </div>
     </div>
   );
 };
 
-// --- MAIN PAGE COMPONENT ---
 export const TeamRosterView = () => {
   const [teams, setTeams] = useState([]);
   const [editingTeam, setEditingTeam] = useState(undefined);
@@ -343,17 +327,10 @@ export const TeamRosterView = () => {
       if(tData) setTournamentId(tData.id);
 
       const { data, error } = await supabase.from('teams')
-        .select(`
-          id, name, logo_url, region, seed_number, discord_channel_url,
-          team_members (
-            id, role, 
-            global_identities (id, display_name, discord_handle, steam_url, faceit_url, faceit_elo, discord_id)
-          )
-        `)
+        .select(`id, name, logo_url, region, seed_number, discord_channel_url, team_members (id, role, global_identities (id, display_name, discord_handle, steam_url, faceit_url, faceit_elo, discord_id))`)
         .order('name', { ascending: true });
 
       if (error) throw error;
-      
       const formatted = data.map(team => ({
         ...team,
         members: team.team_members.map(tm => ({
@@ -362,7 +339,6 @@ export const TeamRosterView = () => {
           role: tm.role?.toUpperCase() || 'PLAYER',
           username: tm.global_identities?.display_name || 'Unknown',
           discord: tm.global_identities?.discord_handle,
-          discord_id: tm.global_identities?.discord_id, 
           steam_url: tm.global_identities?.steam_url,
           faceit_url: tm.global_identities?.faceit_url,
           elo: tm.global_identities?.faceit_elo || 1000
@@ -377,46 +353,21 @@ export const TeamRosterView = () => {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      <div className="flex flex-col md:flex-row justify-between items-end gap-4 border-b border-white/10 pb-6">
+      <div className="flex justify-between items-end border-b border-white/10 pb-4">
          <div>
             <h1 className="text-3xl font-black text-white italic uppercase tracking-tighter">ROSTER <span className="text-fuchsia-500">COMMAND</span></h1>
-            <div className="flex items-center gap-3 mt-1">
-                <span className="text-[10px] text-zinc-500 font-mono tracking-widest bg-zinc-900 px-2 py-0.5 rounded border border-zinc-800">
-                    {teams.length} UNITS ACTIVE
-                </span>
-                <span className="text-[10px] text-zinc-500 font-mono tracking-widest bg-zinc-900 px-2 py-0.5 rounded border border-zinc-800">
-                    DATABASE: ONLINE
-                </span>
-            </div>
+            <p className="text-[10px] text-zinc-500 font-mono tracking-widest">Database Editor // Admin Clearance Only</p>
          </div>
-         <div className="flex items-center gap-3 w-full md:w-auto">
-             <button onClick={fetchTeams} className="flex items-center gap-2 px-3 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 text-zinc-400 hover:text-white rounded text-xs font-bold uppercase transition-all whitespace-nowrap">
-                <RefreshCw size={12} className={loading ? "animate-spin" : ""}/> Sync DB
-             </button>
-             <button onClick={() => setEditingTeam({})} className="flex items-center gap-2 px-4 py-2 bg-fuchsia-600 hover:bg-fuchsia-500 text-white rounded text-xs font-bold uppercase transition-all shadow-[0_0_15px_rgba(192,38,211,0.3)] whitespace-nowrap">
-               <Plus size={14}/> Add Squad
-             </button>
-            <div className="relative w-full md:w-auto">
-               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 text-zinc-500" />
-               <input type="text" placeholder="FIND UNIT..." className="w-full md:w-48 bg-black border border-zinc-800 text-white pl-9 pr-3 py-2 rounded text-xs font-mono focus:border-fuchsia-500 outline-none transition-all" onChange={e => setSearchTerm(e.target.value)}/>
-            </div>
+         <div className="flex items-center gap-3">
+             <button onClick={fetchTeams} className="flex items-center gap-2 px-3 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 text-zinc-400 hover:text-white rounded text-xs font-bold uppercase transition-all"><RefreshCw size={12} className={loading ? "animate-spin" : ""}/> Sync DB</button>
+             <button onClick={() => setEditingTeam({})} className="flex items-center gap-2 px-4 py-2 bg-fuchsia-600 hover:bg-fuchsia-500 text-white rounded text-xs font-bold uppercase transition-all shadow-[0_0_15px_rgba(192,38,211,0.3)]"><Plus size={14}/> Add Squad</button>
+            <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 text-zinc-500" /><input type="text" placeholder="FIND UNIT..." className="bg-black border border-zinc-800 text-white pl-9 pr-3 py-2 rounded text-xs font-mono focus:border-fuchsia-500 outline-none" onChange={e => setSearchTerm(e.target.value)}/></div>
          </div>
       </div>
-
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 pb-12">
-        {filteredTeams.map(team => (
-           <TeamCard key={team.id} team={team} onEdit={setEditingTeam} />
-        ))}
+        {filteredTeams.map(team => (<TeamCard key={team.id} team={team} onEdit={setEditingTeam} />))}
       </div>
-
-      {editingTeam !== undefined && (
-        <EditTeamModal 
-          team={Object.keys(editingTeam).length === 0 ? null : editingTeam} 
-          onClose={() => setEditingTeam(undefined)} 
-          onRefresh={fetchTeams} 
-          tournamentId={tournamentId}
-        />
-      )}
+      {editingTeam !== undefined && <EditTeamModal team={Object.keys(editingTeam).length === 0 ? null : editingTeam} onClose={() => setEditingTeam(undefined)} onRefresh={fetchTeams} tournamentId={tournamentId} />}
     </div>
   );
 };

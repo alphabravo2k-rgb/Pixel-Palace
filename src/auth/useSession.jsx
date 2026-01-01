@@ -25,7 +25,7 @@ export const SessionProvider = ({ children }) => {
             try {
                 if(mounted.current) {
                     setSession(JSON.parse(localCap));
-                    return; // Stop loading here
+                    return; 
                 }
             } catch(e) {
                 localStorage.removeItem('pixel_captain_session');
@@ -37,7 +37,6 @@ export const SessionProvider = ({ children }) => {
         if (sbSession?.user) {
             await hydrateAdmin(sbSession.user);
         } else {
-            // No auth found, set as Guest immediately
             if(mounted.current) setSession(prev => ({ ...prev, loading: false }));
         }
     };
@@ -75,7 +74,7 @@ export const SessionProvider = ({ children }) => {
                 role: normalizeRole(profile?.role || 'GUEST'),
                 team_id: profile?.team_id,
                 identity: { auth_user_id: user.id, display_name: profile?.display_name || user.email },
-                loading: false, // Stop loading
+                loading: false,
                 authType: 'SUPABASE'
             });
         }
@@ -88,6 +87,7 @@ export const SessionProvider = ({ children }) => {
   // --- ACTIONS ---
 
   const loginAdmin = async (email, password) => {
+    localStorage.removeItem('pixel_captain_session');
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) return { success: false, message: error.message };
     return { success: true };
@@ -102,7 +102,7 @@ export const SessionProvider = ({ children }) => {
             isAuthenticated: true,
             role: ROLES.CAPTAIN,
             team_id: data.team_id,
-            identity: { id: data.team_id, display_name: `Captain (${data.team_name})` },
+            identity: { id: data.team_id, display_name: `Captain (${data.team_name})`, team_id: data.team_id },
             loading: false,
             authType: 'CAPTAIN_PIN'
         };
@@ -121,7 +121,6 @@ export const SessionProvider = ({ children }) => {
     if(mounted.current) setAsGuest();
   };
 
-  // ⚠️ EXPORTING 'login' AS ALIAS FOR ADMIN LOGIN FOR BACKWARD COMPATIBILITY
   return (
     <SessionContext.Provider value={{ session, login: loginAdmin, loginAdmin, loginCaptain, logout }}>
       {children}

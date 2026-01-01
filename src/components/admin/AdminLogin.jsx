@@ -4,7 +4,8 @@ import { useNavigate, Link } from 'react-router-dom';
 import { Shield, Users, ArrowRight, Lock, AlertCircle, Loader2 } from 'lucide-react';
 
 export const AdminLogin = () => {
-  const { loginAdmin, loginCaptain } = useSession();
+  // 🛠️ FIX IS HERE: Destructure 'login' but rename it to 'loginAdmin'
+  const { login: loginAdmin, loginCaptain } = useSession();
   const navigate = useNavigate();
   
   const [mode, setMode] = useState('CAPTAIN'); // 'CAPTAIN' or 'ADMIN'
@@ -20,6 +21,7 @@ export const AdminLogin = () => {
     let result;
     // 1. Decide which login method to use
     if (mode === 'ADMIN') {
+        // Now loginAdmin is defined (it points to 'login' from context)
         result = await loginAdmin(formData.email, formData.password);
     } else {
         result = await loginCaptain(formData.code);
@@ -30,7 +32,7 @@ export const AdminLogin = () => {
         if (mode === 'ADMIN') navigate('/admin/dashboard');
         else navigate('/dashboard'); // Captain Dashboard
     } else {
-        setError(result.message);
+        setError(result.message || 'Authentication Failed');
     }
     setLoading(false);
   };

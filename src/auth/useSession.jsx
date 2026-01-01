@@ -6,6 +6,8 @@ const SessionContext = createContext(null);
 
 export const SessionProvider = ({ children }) => {
   const hydratingRef = useRef(false);
+  
+  // Default State
   const [session, setSession] = useState({
     isAuthenticated: false,
     user: null,
@@ -15,50 +17,36 @@ export const SessionProvider = ({ children }) => {
     loading: true
   });
 
+  // 1. Initial Load & Realtime Listener
   useEffect(() => {
-    // 1. Initial Load
     supabase.auth.getSession().then(({ data: { session: authSession } }) => {
-      if (authSession?.user) {
-        hydrateUser(authSession.user);
-      } else {
-        // Explicitly set Guest if no session found
-        setSession(prev => ({ 
-            ...prev, 
-            isAuthenticated: false, 
-            user: null, 
-            role: ROLES.GUEST, 
-            loading: false 
-        }));
-      }
+      if (authSession?.user) hydrateUser(authSession.user);
+      else setAsGuest();
     });
 
-    // 2. Realtime Listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, authSession) => {
-      // console.log("Auth Event:", event); // Debugging hook
-      if (authSession?.user) {
-        hydrateUser(authSession.user);
-      } else {
-        setSession({
-          isAuthenticated: false,
-          user: null,
-          role: ROLES.GUEST,
-          team_id: null,
-          identity: null,
-          loading: false
-        });
-      }
+      if (authSession?.user) hydrateUser(authSession.user);
+      else setAsGuest();
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
+  // Helper to reset state
+  const setAsGuest = () => {
+    setSession({
+      isAuthenticated: false, user: null, role: ROLES.GUEST,
+      team_id: null, identity: null, loading: false
+    });
+  };
+
+  // 2. Hydration Logic (The "Brain")
   const hydrateUser = async (user) => {
     if (hydratingRef.current) return;
     hydratingRef.current = true;
 
     try {
-      // 🛡️ SECURITY: Fetch from the 'session_profiles' VIEW (Code 11/12)
-      // This view consolidates Admins and Players into one identity source.
+      // Fetch consolidated profile (Works for Admins OR Players)
       const { data: profile, error } = await supabase
         .from('session_profiles')
         .select('*')
@@ -67,61 +55,58 @@ export const SessionProvider = ({ children }) => {
 
       if (error) throw error;
 
-      // 🛑 CRITICAL: Valid Auth but No Profile? -> Force Guest Mode
       if (!profile) {
-        console.warn("[Session] Auth valid, but no Profile found. Access limited.");
+        console.warn("[Session] Auth valid, but no Profile found.");
+        // We keep them logged in but powerless (Guest)
         setSession({
-          isAuthenticated: true, // They are logged in...
-          user: user,
-          role: ROLES.GUEST,     // ...but have no power.
-          team_id: null,
-          identity: null,
-          loading: false
+          isAuthenticated: true, user: user, role: ROLES.GUEST,
+          team_id: null, identity: null, loading: false
         });
         return;
       }
 
-      // ✅ SUCCESS: Profile Found
-      const cleanRole = normalizeRole(profile.role);
-      
-      const cleanIdentity = {
-        // Map fields strictly to the View columns
-        auth_user_id: profile.auth_user_id, 
-        display_name: profile.display_name,
-        team_id: profile.team_id,
-        context: profile.context // 'admin_panel' or 'competitor'
-      };
-
       setSession({
         isAuthenticated: true,
         user: user,
-        role: cleanRole,
-        team_id: profile.team_id || null, // Critical for Captain logic
-        identity: cleanIdentity,
+        role: normalizeRole(profile.role),
+        team_id: profile.team_id || null,
+        identity: {
+          auth_user_id: profile.auth_user_id,
+          display_name: profile.display_name,
+          team_id: profile.team_id,
+          context: profile.context // 'admin_panel' or 'competitor'
+        },
         loading: false
       });
 
     } catch (err) {
-      console.error("[Session] Hydration Failed:", err);
-      // Fallback: Keep them logged in as Guest so they can see the error or logout
-      setSession({
-        isAuthenticated: !!user,
-        user: user,
-        role: ROLES.GUEST,
-        team_id: null,
-        identity: null,
-        loading: false
-      });
+      console.error("[Session] Hydration Error:", err);
+      setAsGuest();
     } finally {
       hydratingRef.current = false;
     }
   };
 
+  // 3. Login Function (The "Key" - Updated)
   const login = async (email, password) => {
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
-      return { success: true };
+
+      // Check Role immediately to return success/fail to the form
+      // This prevents the "flash" on the login screen
+      const { data: roleData } = await supabase
+        .from('session_profiles')
+        .select('role')
+        .eq('auth_user_id', data.user.id)
+        .single();
+
+      if (roleData) {
+        return { success: true, role: roleData.role };
+      }
+      
+      return { success: false, message: "Profile not found." };
+
     } catch (err) {
       return { success: false, message: err.message };
     }
@@ -129,12 +114,7 @@ export const SessionProvider = ({ children }) => {
 
   const logout = async () => {
     await supabase.auth.signOut();
-    setSession({ 
-        isAuthenticated: false, 
-        user: null, 
-        role: ROLES.GUEST, 
-        loading: false 
-    });
+    setAsGuest();
   };
 
   return (

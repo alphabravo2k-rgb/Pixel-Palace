@@ -1,53 +1,15 @@
 import React from 'react';
-import { useTournament } from '../../tournament/useTournament';
-import { useAdminConsole } from '../../hooks/useAdminConsole';
-import { Lock, Trophy, Star } from 'lucide-react';
+import { Lock } from 'lucide-react';
 
-export const TeamStatusControl = ({ team, onUpdate }) => {
-  const { tournamentData } = useTournament();
-  const { execute, loading } = useAdminConsole();
-
-  const isLocked = tournamentData?.bracket_generated;
-
-  const handleToggle = async (field, currentValue) => {
-    if (isLocked) {
-      alert("LOCKED: Bracket already generated. Reset bracket to modify qualifications.");
-      return;
-    }
-
-    alert("Feature Locked: Backend RPC 'admin_update_team_status' is not deployed in v1.0.");
-    return;
-  };
-
+export const TeamStatusControl = ({ team }) => {
+  // 🛡️ SAFE MODE: Features disabled for v1.0 Launch
+  // We return a simple status badge instead of broken toggles.
+  
   return (
-    <div className="flex items-center gap-2">
-      <button
-        onClick={() => handleToggle('is_playoff', team.is_playoff)}
-        disabled={loading || isLocked}
-        className={`
-          relative p-1.5 rounded border transition-all
-          ${team.is_playoff ? 'bg-fuchsia-900/20 border-fuchsia-500/50 text-fuchsia-400' : 'bg-zinc-900/50 border-white/5 text-zinc-600 hover:text-zinc-400'}
-          ${isLocked ? 'cursor-not-allowed opacity-50' : ''}
-        `}
-        title={isLocked ? "Locked: Bracket Generated" : "Toggle Playoff"}
-      >
-        <Trophy size={14} />
-        {isLocked && <Lock size={10} className="absolute -top-1 -right-1 text-zinc-500 bg-black rounded-full p-0.5" />}
-      </button>
-
-      <button
-        onClick={() => handleToggle('is_wildcard', team.is_wildcard)}
-        disabled={loading || isLocked}
-        className={`
-          relative p-1.5 rounded border transition-all
-          ${team.is_wildcard ? 'bg-amber-900/20 border-amber-500/50 text-amber-400' : 'bg-zinc-900/50 border-white/5 text-zinc-600 hover:text-zinc-400'}
-          ${isLocked ? 'cursor-not-allowed opacity-50' : ''}
-        `}
-        title={isLocked ? "Locked: Bracket Generated" : "Toggle Wildcard"}
-      >
-        <Star size={14} />
-        {isLocked && <Lock size={10} className="absolute -top-1 -right-1 text-zinc-500 bg-black rounded-full p-0.5" />}
-      </button>
+    <div className="flex items-center gap-2 opacity-50 cursor-not-allowed" title="Status controls locked for v1.0">
+      <div className="p-1.5 rounded border border-white/5 bg-zinc-900/50 text-zinc-600">
+        <Lock size={14} />
+      </div>
     </div>
   );
 };

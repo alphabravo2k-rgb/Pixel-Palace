@@ -24,7 +24,7 @@ export const RosterIntegrityControl = ({ player, teamId, onUpdate }) => {
     try {
       let error = null;
 
-      // 1. Perform the Action
+      // 1. Perform the Database Action
       if (pendingAction.type === 'ROLE') {
         const { error: roleError } = await supabase
           .from('team_members')
@@ -41,18 +41,21 @@ export const RosterIntegrityControl = ({ player, teamId, onUpdate }) => {
 
       if (error) throw error;
 
-      // 2. Log it (Manual fallback if DB triggers fail, but DB triggers are preferred)
-      // We insert into admin_audit_logs to leave a paper trail.
+      // 2. Log the action to admin_audit_logs
+      // Aligned with database columns: operator_id, action_type, target, details
       await supabase.from('admin_audit_logs').insert({
-        admin_id: session.identity.id,
+        operator_id: session.user.id, // ID of the admin performing the action
         action_type: `FORCE_${pendingAction.type}`,
-        target_resource: 'team_members',
+        target: player.username || 'Unknown Player',
         target_id: player.id,
+        target_resource: 'team_members',
+        // Passed as a Javascript Object to satisfy JSONB requirement
         details: {
             team_id: teamId,
             reason: reason,
             target_user: player.username,
-            new_role: pendingAction.payload || 'NONE'
+            new_role: pendingAction.payload || 'NONE',
+            action_timestamp: new Date().toISOString()
         }
       });
 

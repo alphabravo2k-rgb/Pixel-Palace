@@ -1,11 +1,12 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { supabase } from '../supabase/client';
 import { useTournament } from '../tournament/useTournament';
-import { Bracket } from './Bracket'; // ⚠️ ENSURE THIS FILE EXISTS
-import { RefreshCw, Loader2, WifiOff } from 'lucide-react';
-import { AdminMatchModal } from './admin/AdminMatchModal';
+import Bracket from './Bracket'; // Imports the engine
+import { RefreshCw, WifiOff, Loader2 } from 'lucide-react';
+import MatchModal from './MatchModal'; 
 
 export const BracketView = () => {
+  // 1. Get the Tournament ID dynamically from Context
   const { selectedTournamentId, tournamentData, loading: contextLoading } = useTournament();
   
   const [matches, setMatches] = useState([]);
@@ -14,11 +15,11 @@ export const BracketView = () => {
   const [selectedMatch, setSelectedMatch] = useState(null);
   const channelRef = useRef(null);
 
-  // 1. Initial Fetch
   const fetchBracket = async () => {
     if (!selectedTournamentId) return;
     setLoading(true);
     try {
+      // ⚠️ FIX: Explicitly select columns to prevent 400 Errors on joined tables
       const { data, error } = await supabase
         .from('matches')
         .select(`
@@ -31,81 +32,75 @@ export const BracketView = () => {
 
       if (error) throw error;
       setMatches(data || []);
+      setError(null);
     } catch (err) {
       console.error(err);
-      setError("Failed to load bracket.");
+      setError("Grid Sync Failure");
     } finally {
       setLoading(false);
     }
   };
 
-  // 2. Realtime Listener
+  // 2. Realtime Listener & Initial Fetch
   useEffect(() => {
     if (!selectedTournamentId) return;
 
     fetchBracket();
-
-    if (channelRef.current) supabase.removeChannel(channelRef.current);
-
+    
     const channel = supabase
       .channel(`bracket-${selectedTournamentId}`)
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'matches', filter: `tournament_id=eq.${selectedTournamentId}` },
-        (payload) => {
-          setMatches(prevMatches => prevMatches.map(m => {
-             if (m.id === payload.new.id) {
-                return { ...m, ...payload.new };
-             }
-             return m;
-          }));
-        }
-      )
-      .subscribe((status) => {
-        if (status === 'CHANNEL_ERROR') setError("Live updates disconnected.");
-      });
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'matches', filter: `tournament_id=eq.${selectedTournamentId}` }, (payload) => {
+         // Optimistic Update
+         setMatches(prev => prev.map(m => m.id === payload.new.id ? { ...m, ...payload.new } : m));
+         fetchBracket(); // Full refresh to get team names
+      })
+      .subscribe();
 
     channelRef.current = channel;
-
-    return () => { if (channelRef.current) supabase.removeChannel(channelRef.current); };
+    return () => supabase.removeChannel(channel);
   }, [selectedTournamentId]);
 
   if (contextLoading) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-zinc-500" /></div>;
-  if (!selectedTournamentId) return <div className="h-screen flex items-center justify-center text-zinc-600 font-mono">SELECT TOURNAMENT</div>;
+  if (!selectedTournamentId) return <div className="h-screen flex items-center justify-center text-zinc-600 font-mono text-xs tracking-widest uppercase">Select a Tournament</div>;
 
   return (
-    <div className="min-h-screen bg-black text-white relative flex flex-col">
-      {/* Header */}
-      <div className="p-6 border-b border-white/5 flex items-center justify-between bg-zinc-950/80 backdrop-blur-md sticky top-0 z-50">
-        <div>
-           <h1 className="text-3xl font-['Teko'] uppercase font-bold tracking-wider text-white">
-             {tournamentData?.name || 'Bracket'}
-           </h1>
-           <div className="flex items-center gap-2 text-xs text-zinc-500 font-mono">
-             <span className={`w-2 h-2 rounded-full ${!error ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-red-500'}`} />
-             {error ? 'OFFLINE' : 'LIVE FEED ACTIVE'}
-           </div>
-        </div>
-        <button onClick={fetchBracket} disabled={loading} className="p-2 hover:bg-white/10 rounded-full transition-colors">
-          <RefreshCw className={`w-5 h-5 text-zinc-400 ${loading ? 'animate-spin' : ''}`} />
-        </button>
-      </div>
+    <div className="h-full flex flex-col bg-[#050505]">
+       {/* Toolbar */}
+       <div className="flex justify-between items-center p-4 border-b border-white/5 bg-zinc-950">
+          <div>
+            <h2 className="text-xl font-black text-white italic uppercase tracking-tighter">
+               {tournamentData?.name || 'Tactical Bracket'}
+            </h2>
+            <span className="text-[10px] text-zinc-500 font-mono uppercase tracking-widest">
+               {matches.length} Nodes Active
+            </span>
+          </div>
+          <button onClick={fetchBracket} disabled={loading} className="p-2 hover:bg-white/10 rounded-full transition-colors">
+            <RefreshCw className={`w-4 h-4 text-zinc-400 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+       </div>
 
-      {error && <div className="bg-red-900/20 p-2 text-center text-red-400 text-xs font-bold"><WifiOff size={14} className="inline mr-2"/>{error}</div>}
+       {/* Error State */}
+       {error && (
+         <div className="bg-red-900/20 p-2 text-center text-red-400 text-xs font-bold border-b border-red-900/50">
+           <WifiOff size={12} className="inline mr-2"/> {error}
+         </div>
+       )}
 
-      <div className="flex-1 bg-[url('/grid-pattern.svg')] bg-fixed">
-        {/* Assumes Bracket component handles empty/loading states gracefully */}
-        <Bracket matches={matches} onMatchClick={setSelectedMatch} />
-      </div>
+       {/* The Bracket Engine */}
+       <div className="flex-1 overflow-hidden relative">
+          <Bracket matches={matches} onMatchClick={setSelectedMatch} />
+       </div>
 
-      {selectedMatch && (
-        <AdminMatchModal 
-          match={selectedMatch} 
-          isOpen={!!selectedMatch} 
-          onClose={() => setSelectedMatch(null)}
-          onUpdate={fetchBracket}
-        />
-      )}
+       {/* Modal Layer */}
+       {selectedMatch && (
+         <MatchModal 
+            match={selectedMatch} 
+            onClose={() => setSelectedMatch(null)} 
+         />
+       )}
     </div>
   );
 };
+
+export default BracketView;

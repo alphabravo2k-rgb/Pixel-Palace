@@ -1,14 +1,14 @@
 import React, { useMemo } from 'react';
-import { MatchNode } from './MatchNode'; // ✅ Dependency
-import { Zap } from 'lucide-react'; // ✅ Dependency
+import { MatchNode } from './bracket/MatchNode'; // ✅ Ensure this path is correct
+import { ZoomableBracket } from './bracket/ZoomableBracket'; // ✅ Ensure this path is correct
+import { Zap } from 'lucide-react';
 
-// 🎨 LAYOUT CONSTANTS (Fixed "Undefined" Error)
 const CARD_WIDTH = 220;
 const CARD_HEIGHT = 100;
 const GAP_X = 80;
 const BASE_GAP_Y = 40;
 
-export const Bracket = ({ matches = [], onMatchClick }) => {
+const Bracket = ({ matches = [], onMatchClick }) => {
   const { nodes, paths, totalWidth, totalHeight } = useMemo(() => {
     if (!matches.length) return { nodes: [], paths: [], totalWidth: 0, totalHeight: 0 };
 
@@ -42,8 +42,9 @@ export const Bracket = ({ matches = [], onMatchClick }) => {
              const y1 = positions.get(feeders[0].id)?.y || 0;
              const y2 = positions.get(feeders[1].id)?.y || 0;
              y = (y1 + y2) / 2;
+          } else if (feeders.length === 1) {
+             y = positions.get(feeders[0].id)?.y || 0;
           } else {
-             // Fallback if bracket data is partial
              y = mIndex * (CARD_HEIGHT + BASE_GAP_Y) * Math.pow(2, rIndex); 
           }
         }
@@ -75,13 +76,11 @@ export const Bracket = ({ matches = [], onMatchClick }) => {
       const endY = end.y + (CARD_HEIGHT / 2);
 
       const cp1x = startX + (endX - startX) * 0.5;
-      const cp1y = startY;
-      const cp2x = startX + (endX - startX) * 0.5;
-      const cp2y = endY;
+      const cp2x = endX - (endX - startX) * 0.5;
 
       calculatedPaths.push({
         id: `${match.id}->${match.next_match_id}`,
-        d: `M ${startX} ${startY} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${endX} ${endY}`,
+        d: `M ${startX} ${startY} C ${cp1x} ${startY}, ${cp2x} ${endY}, ${endX} ${endY}`,
         status: match.status
       });
     });
@@ -95,40 +94,42 @@ export const Bracket = ({ matches = [], onMatchClick }) => {
 
   if (matches.length === 0) {
     return (
-      <div className="p-12 text-center text-zinc-600 border border-zinc-800 border-dashed uppercase text-xs tracking-widest font-mono">
-         Waiting for Bracket Generation...
+      <div className="h-[60vh] flex items-center justify-center border border-zinc-800 border-dashed rounded-xl m-8">
+         <span className="text-zinc-600 font-mono text-xs uppercase tracking-widest animate-pulse">Initializing Tactical Grid...</span>
       </div>
     );
   }
 
+  // 👇 THIS IS THE KEY CHANGE: WRAPPING IN ZOOMABLEBRACKET
   return (
-    <div className="space-y-8 animate-in fade-in duration-700">
-       <div className="flex items-center gap-3 text-zinc-500 text-[10px] font-mono uppercase tracking-[0.3em] border-b border-zinc-800 pb-4 px-8">
-         <Zap className="w-3.5 h-3.5 text-fuchsia-500" /> {matches.length} Combat Nodes Active
+    <div className="w-full h-full flex flex-col">
+       <div className="absolute top-4 right-6 z-10 text-[9px] text-zinc-600 font-mono pointer-events-none">
+          Use CTRL + Scroll to Zoom
        </div>
 
-       <div className="relative w-full overflow-auto bg-[#0a0a0a] min-h-[80vh] cursor-grab active:cursor-grabbing custom-scrollbar">
-         <div style={{ width: totalWidth + 100, height: totalHeight + 100, position: 'relative', padding: '50px' }}>
-           <svg className="absolute inset-0 w-full h-full pointer-events-none overflow-visible z-0">
-             {paths.map(path => (
-               <path
-                 key={path.id}
-                 d={path.d}
-                 fill="none"
-                 strokeWidth="2"
-                 strokeLinecap="round"
-                 className={`transition-all duration-700 ${path.status === 'live' ? 'stroke-emerald-500 animate-pulse' : path.status === 'completed' ? 'stroke-zinc-700' : 'stroke-zinc-800'}`}
-               />
-             ))}
-           </svg>
+       <ZoomableBracket>
+          <div style={{ width: totalWidth, height: totalHeight, position: 'relative' }}>
+            <svg className="absolute inset-0 w-full h-full pointer-events-none overflow-visible z-0">
+              {paths.map(path => (
+                <path
+                  key={path.id}
+                  d={path.d}
+                  fill="none"
+                  strokeWidth="2"
+                  className={`transition-all duration-700 ${path.status === 'live' ? 'stroke-emerald-500 animate-pulse' : 'stroke-zinc-800'}`}
+                />
+              ))}
+            </svg>
 
-           {nodes.map(({ match, style }) => (
-             <div key={match.id} style={style} className="z-10">
-               <MatchNode match={match} onClick={onMatchClick} />
-             </div>
-           ))}
-         </div>
-       </div>
+            {nodes.map(({ match, style }) => (
+              <div key={match.id} style={style} className="z-10">
+                <MatchNode match={match} onClick={onMatchClick} />
+              </div>
+            ))}
+          </div>
+       </ZoomableBracket>
     </div>
   );
 };
+
+export default Bracket;

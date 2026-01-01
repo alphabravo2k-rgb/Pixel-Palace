@@ -3,7 +3,7 @@ import { supabase } from '../../supabase/client';
 import { 
   Search, RefreshCw, Shield, Crown, 
   Edit3, Save, X, Trash2, Plus, Globe, Hash, 
-  MessageCircle, BarChart2, Check, Copy, AlertCircle
+  MessageCircle, BarChart2, Check, Copy, AlertCircle, AlertTriangle
 } from 'lucide-react';
 
 // --- CONFIGURATION ---
@@ -60,11 +60,6 @@ const SocialLink = ({ href, handle, id, type }) => {
   const [copied, setCopied] = useState(false);
   const Icon = Icons[type];
   
-  // LOGIC:
-  // 1. If we have a URL, open it.
-  // 2. If we have a Discord ID, build the URL.
-  // 3. If we only have a Handle, Copy it.
-  
   let finalUrl = href;
   if (type === 'Discord' && id) {
       finalUrl = `https://discord.com/users/${id}`;
@@ -111,11 +106,9 @@ const SocialLink = ({ href, handle, id, type }) => {
 const TeamCard = ({ team, onEdit }) => {
   const playerCount = team.members.length;
   
-  // Stats Calculation
   const totalElo = team.members.reduce((acc, curr) => acc + (curr.elo || 1000), 0);
   const avgElo = playerCount > 0 ? Math.round(totalElo / playerCount) : 1000;
 
-  // Status Styling
   let statusColor = "border-zinc-800 hover:border-zinc-600";
   let statusBadge = <span className="text-zinc-600">READY</span>;
   
@@ -129,7 +122,6 @@ const TeamCard = ({ team, onEdit }) => {
 
   return (
     <div className={`group relative bg-[#0b0c0f] border ${statusColor} flex flex-col h-full overflow-hidden transition-all duration-300`}>
-      {/* Header Area */}
       <div className="p-3 bg-gradient-to-r from-zinc-900 to-black border-b border-white/5 flex justify-between items-center relative z-10">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-black rounded border border-zinc-800 flex items-center justify-center p-1 relative overflow-hidden shadow-inner">
@@ -138,11 +130,8 @@ const TeamCard = ({ team, onEdit }) => {
           <div>
             <h3 className="text-sm font-black text-white uppercase italic tracking-tighter truncate max-w-[140px] leading-tight">{team.name}</h3>
             <div className="flex gap-2 text-[9px] font-mono tracking-widest text-zinc-500 items-center mt-0.5">
-               {/* Region Flag */}
                <span className="flex items-center" title={team.region}>{getRegionFlag(team.region)}</span>
-               {/* Seed */}
                <span className="bg-zinc-900 px-1 rounded border border-zinc-800">{team.seed_number ? `#${team.seed_number}` : 'TBD'}</span>
-               {/* Avg Elo */}
                <span className="text-orange-400 flex items-center gap-1"><BarChart2 size={8}/> {avgElo}</span>
             </div>
           </div>
@@ -152,7 +141,6 @@ const TeamCard = ({ team, onEdit }) => {
         </div>
       </div>
 
-      {/* Roster List */}
       <div className="flex-grow bg-zinc-900/10 p-1 space-y-0.5">
         {team.members.slice(0, 7).map((m, idx) => {
            const isCap = m.role === 'CAPTAIN';
@@ -169,7 +157,6 @@ const TeamCard = ({ team, onEdit }) => {
                  </div>
                </div>
                
-               {/* Social Actions */}
                <div className="flex gap-0.5 shrink-0">
                  <SocialLink href={m.steam_url} type="Steam"/>
                  <SocialLink href={m.faceit_url} type="Faceit"/>
@@ -180,7 +167,6 @@ const TeamCard = ({ team, onEdit }) => {
         })}
       </div>
       
-      {/* Footer Action */}
       {team.discord_channel_url ? (
         <a href={team.discord_channel_url} target="_blank" rel="noreferrer" className="block w-full py-2 bg-[#5865F2]/5 hover:bg-[#5865F2] border-t border-[#5865F2]/20 text-[#5865F2] hover:text-white text-[9px] font-bold uppercase tracking-[0.2em] text-center transition-all flex items-center justify-center gap-2 group/btn">
            <MessageCircle size={12} className="group-hover/btn:animate-pulse"/> OPEN COMMS
@@ -263,7 +249,6 @@ const EditTeamModal = ({ team, onClose, onRefresh, tournamentId }) => {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4">
       <div className="bg-[#0b0c0f] border border-zinc-700 w-full max-w-6xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         
-        {/* HEADER */}
         <div className="p-6 border-b border-zinc-800 bg-zinc-900/50">
           <div className="flex justify-between items-start mb-6">
              <div>
@@ -304,7 +289,6 @@ const EditTeamModal = ({ team, onClose, onRefresh, tournamentId }) => {
           </div>
         </div>
 
-        {/* ROSTER EDITOR */}
         <div className="flex-grow overflow-y-auto p-6 space-y-4 bg-[#0b0c0f]">
           <div className="flex justify-between items-center border-b border-white/5 pb-2">
              <h3 className="text-xs font-bold text-white uppercase tracking-widest">Active Roster</h3>
@@ -314,12 +298,10 @@ const EditTeamModal = ({ team, onClose, onRefresh, tournamentId }) => {
           <div className="space-y-2">
             {members.sort((a,b) => getRoleWeight(a.role) - getRoleWeight(b.role)).map(m => (
                 <div key={m.id} className={`grid grid-cols-12 gap-3 items-end p-3 rounded border transition-colors ${m.isNew ? 'bg-fuchsia-900/10 border-fuchsia-500/30' : 'bg-zinc-900/40 border-zinc-800 hover:border-zinc-700'}`}>
-                
                 <div className="col-span-3">
                     <label className="text-[9px] text-zinc-500 font-bold uppercase block mb-1">Display Name</label>
                     <input type="text" value={m.username} onChange={(e) => updateMember(m.id, 'username', e.target.value)} className="w-full bg-black border border-zinc-700 rounded px-2 py-1.5 text-xs text-white focus:border-fuchsia-500 outline-none font-bold"/>
                 </div>
-
                 <div className="col-span-2">
                     <label className="text-[9px] text-zinc-500 font-bold uppercase block mb-1">Role</label>
                     <select value={m.role} onChange={(e) => updateMember(m.id, 'role', e.target.value)} className="w-full text-[10px] font-bold px-2 py-2 rounded border outline-none bg-zinc-950 text-zinc-300 border-zinc-700 focus:border-fuchsia-500">
@@ -328,12 +310,10 @@ const EditTeamModal = ({ team, onClose, onRefresh, tournamentId }) => {
                     <option value="SUBSTITUTE">SUBSTITUTE</option>
                     </select>
                 </div>
-
                 <div className="col-span-1">
                     <label className="text-[9px] text-zinc-500 font-bold uppercase block mb-1">ELO</label>
                     <input type="number" value={m.elo} onChange={(e) => updateMember(m.id, 'elo', e.target.value)} className="w-full bg-black border border-zinc-700 rounded px-2 py-1.5 text-xs text-orange-400 font-mono focus:border-orange-500 outline-none text-center"/>
                 </div>
-
                 <div className="col-span-5 grid grid-cols-3 gap-2">
                     <div>
                     <label className="text-[8px] text-zinc-600 font-bold uppercase block mb-1 flex items-center gap-1"><Icons.Steam className="w-2 h-2"/> Steam</label>
@@ -348,7 +328,6 @@ const EditTeamModal = ({ team, onClose, onRefresh, tournamentId }) => {
                     <input type="text" value={m.discord || ''} onChange={(e) => updateMember(m.id, 'discord', e.target.value)} className="w-full bg-black border border-zinc-700 rounded px-2 py-1.5 text-[10px] text-zinc-300 focus:border-[#5865F2] outline-none truncate"/>
                     </div>
                 </div>
-
                 <div className="col-span-1 flex justify-end pb-1">
                     <button onClick={() => handleDeleteMember(m.id, m.isNew)} className="p-1.5 bg-red-900/10 text-red-500 hover:bg-red-500 hover:text-white rounded transition-colors"><Trash2 size={14} /></button>
                 </div>
@@ -357,7 +336,6 @@ const EditTeamModal = ({ team, onClose, onRefresh, tournamentId }) => {
           </div>
         </div>
 
-        {/* FOOTER */}
         <div className="p-6 bg-zinc-900 border-t border-zinc-800 flex justify-between items-center">
           <div className="flex items-center gap-2 text-zinc-500 text-[10px]">
              <AlertCircle size={12}/> Changes reflect immediately on the Tournament Bracket.

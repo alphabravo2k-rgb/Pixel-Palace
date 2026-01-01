@@ -21,7 +21,7 @@ export const TournamentProvider = ({ children, defaultId }) => {
     canGenerateBracket: false
   });
 
-  // 1. FETCH LIST
+  // 1. FETCH TOURNAMENT LIST
   useEffect(() => {
     const fetchTournaments = async () => {
       const { data, error: fetchError } = await supabase
@@ -36,7 +36,6 @@ export const TournamentProvider = ({ children, defaultId }) => {
 
       if (data) {
         setTournaments(data);
-        // Auto-select logic: If no ID selected, try localStorage, else pick first.
         if (!selectedTournamentId && data.length > 0 && !defaultId) {
            const lastId = localStorage.getItem('pp_active_tid');
            const isValid = data.find(t => t.id === lastId);
@@ -45,19 +44,9 @@ export const TournamentProvider = ({ children, defaultId }) => {
       }
     };
     fetchTournaments();
-  }, [defaultId, selectedTournamentId]); // Added selectedTournamentId dep to prevent loops
+  }, [defaultId, selectedTournamentId]);
 
-  // 2. CAPTAIN CONTEXT BINDING (Auto-switch captain to their active tourney)
-  useEffect(() => {
-    if (session?.isAuthenticated && session?.role === ROLES.CAPTAIN) {
-      const assignedTournamentId = session.identity?.context?.tournament_id; // Check nested context if available
-      if (assignedTournamentId && selectedTournamentId !== assignedTournamentId) {
-        setSelectedTournamentId(assignedTournamentId);
-      }
-    }
-  }, [session, selectedTournamentId]);
-
-  // 3. LOAD DETAILS & REAL-TIME
+  // 2. LOAD DETAILS & REAL-TIME SUBSCRIPTION
   useEffect(() => {
     if (!selectedTournamentId) return;
     
@@ -75,7 +64,6 @@ export const TournamentProvider = ({ children, defaultId }) => {
           if (detailError) throw detailError;
           updateLocalState(data);
         } catch (err) {
-          console.error("Tournament Detail Error:", err);
           setError(err.message);
         } finally {
           setLoading(false);
@@ -99,11 +87,10 @@ export const TournamentProvider = ({ children, defaultId }) => {
     return () => { supabase.removeChannel(subscription); };
   }, [selectedTournamentId]);
 
-  // 4. STATE MACHINE
+  // 3. STATE MACHINE
   const updateLocalState = (data) => {
     if (!data) return;
     setTournamentData(data);
-    
     const status = data.status || 'setup';
 
     setLifecycle({
@@ -114,14 +101,6 @@ export const TournamentProvider = ({ children, defaultId }) => {
     });
   };
 
-  const validateAction = useCallback((action) => {
-    if (!tournamentData) return false;
-    if (action === 'EDIT_SETTINGS' && lifecycle.isLocked) {
-        return false; // UI should handle user feedback, no alerts in hooks
-    }
-    return true;
-  }, [lifecycle, tournamentData]);
-
   return (
     <TournamentContext.Provider value={{
       selectedTournamentId,
@@ -129,7 +108,6 @@ export const TournamentProvider = ({ children, defaultId }) => {
       tournaments,
       tournamentData,
       lifecycle,
-      validateAction,
       loading,
       error
     }}>

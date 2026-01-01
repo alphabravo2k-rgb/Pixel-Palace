@@ -1,12 +1,13 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { supabase } from '../supabase/client';
 import { useTournament } from '../tournament/useTournament';
-import Bracket from './Bracket'; // Imports the engine
+import Bracket from './Bracket';
 import { RefreshCw, WifiOff, Loader2 } from 'lucide-react';
-import MatchModal from './MatchModal'; 
+
+// 👇 CHANGE THIS IMPORT to use the Admin Modal
+import { AdminMatchModal } from './admin/AdminMatchModal'; 
 
 export const BracketView = () => {
-  // 1. Get the Tournament ID dynamically from Context
   const { selectedTournamentId, tournamentData, loading: contextLoading } = useTournament();
   
   const [matches, setMatches] = useState([]);
@@ -19,7 +20,6 @@ export const BracketView = () => {
     if (!selectedTournamentId) return;
     setLoading(true);
     try {
-      // ⚠️ FIX: Explicitly select columns to prevent 400 Errors on joined tables
       const { data, error } = await supabase
         .from('matches')
         .select(`
@@ -41,22 +41,16 @@ export const BracketView = () => {
     }
   };
 
-  // 2. Realtime Listener & Initial Fetch
   useEffect(() => {
     if (!selectedTournamentId) return;
-
     fetchBracket();
-    
     const channel = supabase
       .channel(`bracket-${selectedTournamentId}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'matches', filter: `tournament_id=eq.${selectedTournamentId}` }, (payload) => {
-         // Optimistic Update
          setMatches(prev => prev.map(m => m.id === payload.new.id ? { ...m, ...payload.new } : m));
-         fetchBracket(); // Full refresh to get team names
+         fetchBracket(); 
       })
       .subscribe();
-
-    channelRef.current = channel;
     return () => supabase.removeChannel(channel);
   }, [selectedTournamentId]);
 
@@ -65,7 +59,6 @@ export const BracketView = () => {
 
   return (
     <div className="h-full flex flex-col bg-[#050505]">
-       {/* Toolbar */}
        <div className="flex justify-between items-center p-4 border-b border-white/5 bg-zinc-950">
           <div>
             <h2 className="text-xl font-black text-white italic uppercase tracking-tighter">
@@ -80,23 +73,23 @@ export const BracketView = () => {
           </button>
        </div>
 
-       {/* Error State */}
        {error && (
          <div className="bg-red-900/20 p-2 text-center text-red-400 text-xs font-bold border-b border-red-900/50">
            <WifiOff size={12} className="inline mr-2"/> {error}
          </div>
        )}
 
-       {/* The Bracket Engine */}
        <div className="flex-1 overflow-hidden relative">
           <Bracket matches={matches} onMatchClick={setSelectedMatch} />
        </div>
 
-       {/* Modal Layer */}
+       {/* 👇 USE THE ADMIN MODAL HERE */}
        {selectedMatch && (
-         <MatchModal 
+         <AdminMatchModal 
             match={selectedMatch} 
+            isOpen={!!selectedMatch}
             onClose={() => setSelectedMatch(null)} 
+            onUpdate={fetchBracket}
          />
        )}
     </div>

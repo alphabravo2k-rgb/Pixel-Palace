@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { supabase } from '../../supabase/client';
 import { 
-  X, Shield, Swords, Tv, Server, AlertTriangle, 
-  RotateCcw, Save, CheckCircle, Lock, Trophy, User
+  X, Shield, Tv, Server, AlertTriangle, 
+  RotateCcw, Save, Trophy
 } from 'lucide-react';
 
 export const AdminMatchModal = ({ match, isOpen, onClose, onUpdate }) => {
@@ -109,7 +109,7 @@ export const AdminMatchModal = ({ match, isOpen, onClose, onUpdate }) => {
                    {/* Team 1 */}
                    <div className="flex-1 flex flex-col items-center gap-3">
                       <div className="w-20 h-20 bg-zinc-900 rounded-lg flex items-center justify-center border border-zinc-800">
-                         {match.team1?.logo_url ? <img src={match.team1.logo_url} className="w-16 h-16 object-contain"/> : <Shield className="text-zinc-700"/>}
+                         {match.team1?.logo_url ? <img src={match.team1.logo_url} className="w-16 h-16 object-contain" alt={match.team1.name}/> : <Shield className="text-zinc-700"/>}
                       </div>
                       <h3 className="font-black text-xl uppercase italic text-center">{match.team1?.name || 'TBD'}</h3>
                    </div>
@@ -131,7 +131,7 @@ export const AdminMatchModal = ({ match, isOpen, onClose, onUpdate }) => {
                    {/* Team 2 */}
                    <div className="flex-1 flex flex-col items-center gap-3">
                       <div className="w-20 h-20 bg-zinc-900 rounded-lg flex items-center justify-center border border-zinc-800">
-                         {match.team2?.logo_url ? <img src={match.team2.logo_url} className="w-16 h-16 object-contain"/> : <Shield className="text-zinc-700"/>}
+                         {match.team2?.logo_url ? <img src={match.team2.logo_url} className="w-16 h-16 object-contain" alt={match.team2.name}/> : <Shield className="text-zinc-700"/>}
                       </div>
                       <h3 className="font-black text-xl uppercase italic text-center">{match.team2?.name || 'TBD'}</h3>
                    </div>

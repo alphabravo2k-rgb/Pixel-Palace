@@ -1,10 +1,10 @@
 import React from 'react';
 import { useSession } from '../auth/useSession';
 import { useTournament } from '../../tournament/useTournament';
-import { useAdminConsole } from '../../hooks/useAdminConsole';
+import { useAdminConsole } from '../hooks/useAdminConsole';
 import { Loader2, ShieldAlert, Trophy, RefreshCw, Play } from 'lucide-react';
-import { can } from '../../lib/permissions';
-import { PERM_CAPABILITIES } from '../../lib/permissions.actions';
+import { can } from '../lib/permissions';
+import { PERM_CAPABILITIES } from '../lib/permissions.actions';
 import { BracketView } from './BracketView';
 
 export const TournamentWarRoom = () => {

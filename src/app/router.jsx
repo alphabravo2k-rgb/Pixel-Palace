@@ -1,11 +1,12 @@
 import { createBrowserRouter, Navigate, Outlet } from 'react-router-dom';
-import { useSession } from '../auth/useSession'; // Fixed path: ../auth
-import { ROLES } from '../lib/roles'; // Fixed path: ../lib
+import { useSession } from '../auth/useSession';
+import { ROLES } from '../lib/roles';
 import { Loader2 } from 'lucide-react';
 
 // --- AUTH COMPONENTS ---
-import { AdminLogin } from '../components/auth/AdminLogin'; // Fixed path: ../components
-import { StaffRegistration } from '../components/auth/StaffRegistration';
+// ✅ CORRECTED PATHS BASED ON YOUR INPUT:
+import { AdminLogin } from '../components/admin/AdminLogin';       // Found in src/components/admin/
+import { StaffRegistration } from '../components/auth/StaffRegistration'; // Found in src/components/auth/
 
 // --- PUBLIC COMPONENTS ---
 import { LandingPage } from '../components/LandingPage';
@@ -69,8 +70,11 @@ export const router = createBrowserRouter([
     children: [
       // --- PUBLIC ROUTES ---
       { index: true, element: <LandingPage /> },
+      
       { path: 'login', element: <AdminLogin /> },
+      
       { path: 'staff-register', element: <StaffRegistration /> }, // Secret Route
+      
       { path: 'bracket', element: <BracketView /> },
       { path: 'match/:matchId', element: <MatchRoom /> },
 

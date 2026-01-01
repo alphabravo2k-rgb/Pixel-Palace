@@ -3,32 +3,71 @@ import { supabase } from '../../supabase/client';
 import { 
   Search, RefreshCw, Shield, Crown, 
   Edit3, Save, X, Trash2, Plus, Globe, Hash, 
-  MessageCircle, BarChart2
+  MessageCircle, BarChart2, Copy, Check
 } from 'lucide-react';
 
-// --- ICONS & SOCIALS ---
+// --- ASSETS: FLAGS & ICONS ---
+const getRegionFlag = (regionCode) => {
+  if (!regionCode) return null;
+  const code = regionCode.toUpperCase();
+  // Map Common Codes to Flag CDN
+  const maps = { 'PAK': 'pk', 'PK': 'pk', 'IND': 'in', 'IN': 'in', 'IRN': 'ir', 'IR': 'ir', 'UAE': 'ae', 'SA': 'sa' };
+  
+  if (maps[code]) {
+    return <img src={`https://flagcdn.com/24x18/${maps[code]}.png`} alt={code} className="h-3 w-4 object-cover rounded-[2px] shadow-sm opacity-80" />;
+  }
+  // Fallback for "ME" (Middle East) or generic
+  return <span className="text-[9px] font-black bg-zinc-800 text-zinc-400 px-1 rounded border border-zinc-700">{code}</span>;
+};
+
 const Icons = {
   Faceit: ({ className }) => (
-    <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
-      <path d="M24 2.6l-1.9-.3c-2.9-.4-5.2.3-6.8 1.9-.3.3-.6.6-.9 1L12.9 2h-1L10.3 3.6 2.6 13.9l.6 2.2 1.9.6 1.9-2.6.3-.3.3-.6c1.6-3.2 4.5-4.5 7.4-4.2l3.6.3 3.5-3.6 1.9-3.1zM2.6 21.4l1.9.3c2.9.4 5.2-.3 6.8-1.9.3-.3.6-.6.9-1L13.7 17h1l1.6-1.6 7.7-10.3-.6-2.2-1.9-.6-1.9 2.6-.3.3-.3.6c-1.6 3.2-4.5 4.5-7.4 4.2l-3.6-.3L4.5 13.3 2.6 16.4v5z" />
-    </svg>
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className}><path d="M24 2.6l-1.9-.3c-2.9-.4-5.2.3-6.8 1.9-.3.3-.6.6-.9 1L12.9 2h-1L10.3 3.6 2.6 13.9l.6 2.2 1.9.6 1.9-2.6.3-.3.3-.6c1.6-3.2 4.5-4.5 7.4-4.2l3.6.3 3.5-3.6 1.9-3.1zM2.6 21.4l1.9.3c2.9.4 5.2-.3 6.8-1.9.3-.3.6-.6.9-1L13.7 17h1l1.6-1.6 7.7-10.3-.6-2.2-1.9-.6-1.9 2.6-.3.3-.3.6c-1.6 3.2-4.5 4.5-7.4 4.2l-3.6-.3L4.5 13.3 2.6 16.4v5z" /></svg>
   ),
   Steam: ({ className }) => (
-    <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
-      <path d="M11.979 0C5.66 0 .473 4.904.035 11.12l4.477 6.577 3.32-1.38c.75.526 1.642.85 2.61.88l1.64 4.793c.123.007.245.01.37.01 6.627 0 12-5.373 12-12S19.105 0 11.979 0zm.066 3.99c2.56 0 4.636 2.076 4.636 4.637 0 2.56-2.076 4.637-4.636 4.637-2.56 0-4.637-2.077-4.637-4.637 0-2.56 2.077-4.637 4.637-4.637zm-2.922 8.78c-.76.012-1.48.196-2.12.513l-3.32-1.325c-.29-.115-.595-.195-.913-.23.23-.01.46-.017.693-.017 1.83 0 3.51.64 4.866 1.71-.383-.236-.787-.43-1.206-.59V12.77zm1.87 3.21c-.37-.02-.733-.09-1.08-.205l-1.61 4.707c-.432-.132-.843-.302-1.23-.507l1.71-4.996c.66.425 1.433.682 2.27.682.022 0 .044-.002.066-.002l-.127.32z"/>
-    </svg>
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className}><path d="M11.979 0C5.66 0 .473 4.904.035 11.12l4.477 6.577 3.32-1.38c.75.526 1.642.85 2.61.88l1.64 4.793c.123.007.245.01.37.01 6.627 0 12-5.373 12-12S19.105 0 11.979 0zm.066 3.99c2.56 0 4.636 2.076 4.636 4.637 0 2.56-2.076 4.637-4.636 4.637-2.56 0-4.637-2.077-4.637-4.637 0-2.56 2.077-4.637 4.637-4.637zm-2.922 8.78c-.76.012-1.48.196-2.12.513l-3.32-1.325c-.29-.115-.595-.195-.913-.23.23-.01.46-.017.693-.017 1.83 0 3.51.64 4.866 1.71-.383-.236-.787-.43-1.206-.59V12.77zm1.87 3.21c-.37-.02-.733-.09-1.08-.205l-1.61 4.707c-.432-.132-.843-.302-1.23-.507l1.71-4.996c.66.425 1.433.682 2.27.682.022 0 .044-.002.066-.002l-.127.32z"/></svg>
   ),
   Discord: ({ className }) => (
-    <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
-      <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/>
-    </svg>
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className}><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/></svg>
   )
 };
 
-const SocialLink = ({ href, type }) => {
+const SocialLink = ({ href, handle, type }) => {
+  const [copied, setCopied] = useState(false);
   const Icon = Icons[type];
-  if (!href) return <div className="p-1 opacity-20 cursor-not-allowed"><Icon className="w-3 h-3 grayscale" /></div>;
+  
+  // Logic: Use Href if available, otherwise check for Handle (Text)
+  const isClickable = href || handle;
+  
+  if (!isClickable) {
+    return <div className="p-1 opacity-10 cursor-not-allowed"><Icon className="w-3 h-3 grayscale" /></div>;
+  }
+
+  const handleCopy = (e) => {
+    if (!href && handle) {
+        e.preventDefault();
+        e.stopPropagation();
+        navigator.clipboard.writeText(handle);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
   const colors = type === 'Faceit' ? 'text-[#ff5500] hover:bg-[#ff5500]/10' : type === 'Steam' ? 'text-blue-400 hover:bg-blue-400/10' : 'text-[#5865F2] hover:bg-[#5865F2]/10';
+  
+  // If it's a Handle (No URL), we render a button that copies
+  if (!href && handle) {
+      return (
+        <button 
+            onClick={handleCopy} 
+            className={`p-1 rounded ${colors} hover:scale-110 transition-all relative group`} 
+            title={`Copy ${type}: ${handle}`}
+        >
+            {copied ? <Check className="w-3 h-3 text-green-500"/> : <Icon className="w-3 h-3" />}
+        </button>
+      );
+  }
+
   return (
     <a href={href} target="_blank" rel="noreferrer" className={`p-1 rounded ${colors} hover:scale-110 transition-all`} onClick={e => e.stopPropagation()} title={`Open ${type}`}>
       <Icon className="w-3 h-3" />
@@ -39,7 +78,7 @@ const SocialLink = ({ href, type }) => {
 const ROLE_WEIGHT = { 'CAPTAIN': 1, 'PLAYER': 2, 'SUBSTITUTE': 3 };
 const getRoleWeight = (role) => ROLE_WEIGHT[role?.toUpperCase()] || 99;
 
-// --- EDIT MODAL (TEAM & PLAYERS) ---
+// --- EDIT MODAL ---
 const EditTeamModal = ({ team, onClose, onRefresh, tournamentId }) => {
   const [meta, setMeta] = useState({
     name: team?.name || '',
@@ -86,7 +125,6 @@ const EditTeamModal = ({ team, onClose, onRefresh, tournamentId }) => {
     setSaving(true);
     try {
       let teamId = team?.id;
-      
       // 1. Save Meta
       const teamData = {
         tournament_id: tournamentId,
@@ -157,7 +195,7 @@ const EditTeamModal = ({ team, onClose, onRefresh, tournamentId }) => {
                    <input type="text" value={meta.logo_url} onChange={e => handleMetaChange('logo_url', e.target.value)} className="w-full bg-black border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-300 focus:border-fuchsia-500 outline-none"/>
                 </div>
                 <div>
-                   <label className="text-[10px] font-bold text-zinc-500 uppercase flex items-center gap-1"><MessageCircle size={10}/> Team Discord Channel (Invite URL)</label>
+                   <label className="text-[10px] font-bold text-zinc-500 uppercase flex items-center gap-1"><MessageCircle size={10}/> Team Discord Invite</label>
                    <input type="text" value={meta.discord_channel_url} onChange={e => handleMetaChange('discord_channel_url', e.target.value)} placeholder="https://discord.gg/..." className="w-full bg-black border border-zinc-700 rounded px-3 py-2 text-sm text-[#5865F2] focus:border-[#5865F2] outline-none"/>
                 </div>
                 <div className="flex gap-4">
@@ -166,7 +204,7 @@ const EditTeamModal = ({ team, onClose, onRefresh, tournamentId }) => {
                       <input type="text" value={meta.region} onChange={e => handleMetaChange('region', e.target.value)} className="w-full bg-black border border-zinc-700 rounded px-3 py-2 text-sm text-white focus:border-fuchsia-500 outline-none"/>
                    </div>
                    <div className="flex-1">
-                      <label className="text-[10px] font-bold text-zinc-500 uppercase flex items-center gap-1"><Hash size={10}/> Seed</label>
+                      <label className="text-[10px] font-bold text-zinc-500 uppercase flex items-center gap-1"><Hash size={10}/> Seed (0 = TBD)</label>
                       <input type="number" value={meta.seed_number} onChange={e => handleMetaChange('seed_number', parseInt(e.target.value))} className="w-full bg-black border border-zinc-700 rounded px-3 py-2 text-sm text-white focus:border-fuchsia-500 outline-none"/>
                    </div>
                 </div>
@@ -176,7 +214,10 @@ const EditTeamModal = ({ team, onClose, onRefresh, tournamentId }) => {
 
         {/* ROSTER */}
         <div className="flex-grow overflow-y-auto p-4 space-y-3 bg-[#0b0c0f]">
-          <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2 px-2">Active Roster</h3>
+          <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2 px-2 flex justify-between items-center">
+             <span>Active Roster</span>
+             <button className="text-[9px] flex items-center gap-1 text-zinc-500 hover:text-orange-400 bg-zinc-900 border border-zinc-800 px-2 py-1 rounded transition-colors"><RefreshCw size={10}/> REFRESH ALL ELO (MOCK)</button>
+          </h3>
           {members.sort((a,b) => getRoleWeight(a.role) - getRoleWeight(b.role)).map(m => (
             <div key={m.id} className={`grid grid-cols-12 gap-4 items-end p-3 rounded border transition-colors ${m.isNew ? 'bg-fuchsia-900/10 border-fuchsia-500/30' : 'bg-zinc-900/50 border-zinc-800 hover:border-zinc-600'}`}>
               <div className="col-span-3">
@@ -192,7 +233,7 @@ const EditTeamModal = ({ team, onClose, onRefresh, tournamentId }) => {
                 </select>
               </div>
               <div className="col-span-1">
-                <label className="text-[9px] text-zinc-500 font-bold uppercase block mb-1">ELO</label>
+                <label className="text-[9px] text-zinc-500 font-bold uppercase block mb-1 flex justify-between">ELO <RefreshCw size={8} className="cursor-pointer text-zinc-600 hover:text-orange-400"/></label>
                 <input type="number" value={m.elo} onChange={(e) => updateMember(m.id, 'elo', e.target.value)} className="w-full bg-black border border-zinc-700 rounded px-2 py-1.5 text-xs text-orange-400 font-mono focus:border-orange-500 outline-none"/>
               </div>
               <div className="col-span-5 grid grid-cols-3 gap-2">
@@ -205,7 +246,7 @@ const EditTeamModal = ({ team, onClose, onRefresh, tournamentId }) => {
                   <input type="text" value={m.faceit_url || ''} onChange={(e) => updateMember(m.id, 'faceit_url', e.target.value)} className="w-full bg-black border border-zinc-700 rounded px-2 py-1.5 text-[10px] text-zinc-300 focus:border-[#ff5500] outline-none"/>
                 </div>
                 <div>
-                  <label className="text-[8px] text-zinc-600 font-bold uppercase block mb-1 flex items-center gap-1"><Icons.Discord className="w-2 h-2"/> Discord</label>
+                  <label className="text-[8px] text-zinc-600 font-bold uppercase block mb-1 flex items-center gap-1"><Icons.Discord className="w-2 h-2"/> Discord Handle/ID</label>
                   <input type="text" value={m.discord || ''} onChange={(e) => updateMember(m.id, 'discord', e.target.value)} className="w-full bg-black border border-zinc-700 rounded px-2 py-1.5 text-[10px] text-zinc-300 focus:border-[#5865F2] outline-none"/>
                 </div>
               </div>
@@ -250,15 +291,17 @@ const TeamCard = ({ team, onEdit }) => {
       {/* Header */}
       <div className="p-3 bg-gradient-to-r from-zinc-900 to-black border-b border-white/5 flex justify-between items-center relative z-10">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-black rounded border border-zinc-800 flex items-center justify-center p-1">
+          <div className="w-9 h-9 bg-black rounded border border-zinc-800 flex items-center justify-center p-1 relative overflow-hidden">
             {team.logo_url ? <img src={team.logo_url} className="w-full h-full object-contain"/> : <Shield className="w-4 h-4 text-zinc-700"/>}
           </div>
           <div>
             <h3 className="text-sm font-black text-white uppercase italic tracking-tighter truncate max-w-[100px]">{team.name}</h3>
-            <div className="flex gap-2 text-[9px] font-mono tracking-widest text-zinc-500">
-               <span>{team.seed_number ? `#${team.seed_number}` : 'UR'}</span>
-               {/* 4. Display AVG ELO */}
-               <span className="text-orange-400 flex items-center gap-1"><BarChart2 size={8}/> {avgElo} AVG</span>
+            <div className="flex gap-2 text-[9px] font-mono tracking-widest text-zinc-500 items-center">
+               <span className="flex items-center gap-1">{getRegionFlag(team.region)}</span>
+               {/* Fixed "UR" to "SEED TBD" */}
+               <span>{team.seed_number ? `#${team.seed_number}` : 'SEED TBD'}</span>
+               {/* Display AVG ELO */}
+               <span className="text-orange-400 flex items-center gap-1"><BarChart2 size={8}/> {avgElo}</span>
             </div>
           </div>
         </div>
@@ -278,23 +321,27 @@ const TeamCard = ({ team, onEdit }) => {
                  {isCap ? <Crown size={10} className="text-fuchsia-500"/> : <div className={`w-1 h-1 rounded-full ${isSub ? 'bg-yellow-500' : 'bg-zinc-600'}`}/>}
                  <div className="flex flex-col">
                     <span className={`text-[10px] font-medium truncate w-20 leading-none ${isCap ? 'text-white' : 'text-zinc-400'}`}>{m.username}</span>
-                    {/* 3. Display Player ELO */}
+                    {/* Player ELO */}
                     <span className="text-[8px] font-mono text-orange-500/50 leading-none mt-0.5">{m.elo} ELO</span>
                  </div>
                </div>
                
-               {/* 1. Display Social Buttons */}
+               {/* Smart Social Buttons (URL or Handle) */}
                <div className="flex gap-1">
                  <SocialLink href={m.steam_url} type="Steam"/>
                  <SocialLink href={m.faceit_url} type="Faceit"/>
-                 <SocialLink href={m.discord_id ? `https://discord.com/users/${m.discord_id}` : null} type="Discord"/>
+                 <SocialLink 
+                    href={m.discord_id ? `https://discord.com/users/${m.discord_id}` : null} 
+                    handle={m.discord} 
+                    type="Discord"
+                 />
                </div>
              </div>
            );
         })}
       </div>
       
-      {/* Footer: Status or Discord Button (2. Team Comms Button) */}
+      {/* Footer: Team Comms or Status */}
       {team.discord_channel_url ? (
         <a href={team.discord_channel_url} target="_blank" rel="noreferrer" className="block w-full py-1.5 bg-[#5865F2]/10 hover:bg-[#5865F2] border-t border-[#5865F2]/20 text-[#5865F2] hover:text-white text-[9px] font-bold uppercase tracking-widest text-center transition-all flex items-center justify-center gap-2">
            <MessageCircle size={10}/> Team Comms
@@ -340,8 +387,8 @@ export const TeamRosterView = () => {
           global_id: tm.global_identities?.id,
           role: tm.role?.toUpperCase() || 'PLAYER',
           username: tm.global_identities?.display_name || 'Unknown',
-          discord_handle: tm.global_identities?.discord_handle,
-          discord_id: tm.global_identities?.discord_id, // Fetching ID for linking
+          discord: tm.global_identities?.discord_handle,
+          discord_id: tm.global_identities?.discord_id, 
           steam_url: tm.global_identities?.steam_url,
           faceit_url: tm.global_identities?.faceit_url,
           elo: tm.global_identities?.faceit_elo || 1000
@@ -362,6 +409,10 @@ export const TeamRosterView = () => {
             <p className="text-[10px] text-zinc-500 font-mono tracking-widest">Database Editor // Admin Clearance Only</p>
          </div>
          <div className="flex items-center gap-3">
+             {/* Global Sync Button (Mock for now) */}
+             <button onClick={fetchTeams} className="flex items-center gap-2 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 hover:text-white rounded text-xs font-bold uppercase transition-all">
+                <RefreshCw size={12}/> Sync Stats
+             </button>
              <button onClick={() => setEditingTeam({})} className="flex items-center gap-2 px-4 py-1.5 bg-fuchsia-900/20 hover:bg-fuchsia-600 border border-fuchsia-500/30 text-fuchsia-400 hover:text-white rounded text-xs font-bold uppercase transition-all">
                <Plus size={14}/> Add Squad
              </button>
@@ -369,7 +420,6 @@ export const TeamRosterView = () => {
                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 text-zinc-500" />
                <input type="text" placeholder="SEARCH UNIT..." className="bg-black border border-zinc-800 text-white pl-8 pr-3 py-1.5 rounded text-xs font-mono w-48 focus:border-fuchsia-500 outline-none" onChange={e => setSearchTerm(e.target.value)}/>
             </div>
-            <button onClick={fetchTeams} className="p-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded"><RefreshCw size={14}/></button>
          </div>
       </div>
 

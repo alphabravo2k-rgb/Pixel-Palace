@@ -16,9 +16,10 @@ export const AdminAuditLog = () => {
     setLoading(true);
     setError(null);
     try {
+      // ✅ FIXED: Changed admin_id to operator_id to match Code 17 schema
       const { data, error } = await supabase
         .from('admin_audit_logs')
-        .select('id, created_at, admin_id, action_type, details, target_resource')
+        .select('id, created_at, operator_id, action_type, details, target')
         .order('created_at', { ascending: false })
         .limit(50);
         
@@ -46,32 +47,27 @@ export const AdminAuditLog = () => {
   }
 
   const renderDetails = (log) => {
-    const d = log.details || {};
-    const reason = d.reason || "No justification provided."; 
+    // Try to parse details if it's a string (from Code 17)
+    let d = log.details;
+    try {
+        if (typeof d === 'string') d = JSON.parse(d);
+    } catch (e) {
+        // keep as string
+    }
 
     return (
       <div className="space-y-1">
-        <div className="text-amber-500 text-[10px] font-mono uppercase border-l-2 border-amber-500/50 pl-2 mb-1 flex items-center gap-2">
-           <span className="font-bold">REASON:</span> {reason}
-        </div>
-
-        {d.old_role && d.new_role && (
-          <div className="flex items-center gap-2 text-xs text-zinc-400">
-            <span className="line-through opacity-50">{d.old_role}</span>
-            <ArrowRight size={10} className="text-zinc-600" />
-            <span className="text-white font-bold">{d.new_role}</span>
-          </div>
+        {/* Target Resource Display */}
+        {log.target && (
+            <div className="text-fuchsia-400 text-[10px] font-mono font-bold uppercase mb-1">
+                TARGET: {log.target}
+            </div>
         )}
 
-        {d.match_id && (
-            <span className="text-[10px] text-zinc-500 font-mono block">Match: {d.match_id.substring(0,8)}</span>
-        )}
-
-        {Object.keys(d).length > 0 && !d.old_role && !d.match_id && !d.reason && (
-            <code className="text-[10px] text-zinc-600 block max-w-xs truncate font-mono">
-              {JSON.stringify(d)}
-            </code>
-        )}
+        {/* Dynamic Details Rendering */}
+        <code className="text-[10px] text-zinc-500 block max-w-xs break-all font-mono">
+            {typeof d === 'object' ? JSON.stringify(d).substring(0, 100) : d}
+        </code>
       </div>
     );
   };
@@ -113,7 +109,7 @@ export const AdminAuditLog = () => {
             ) : (
                 logs.map((log) => {
                 const actionName = log.action_type || 'UNKNOWN';
-                const isForce = actionName.includes('FORCE') || actionName.includes('KICK');
+                const isForce = actionName.includes('DELETE') || actionName.includes('KICK');
                 
                 return (
                     <tr key={log.id} className="hover:bg-white/5 transition-colors group">
@@ -122,7 +118,8 @@ export const AdminAuditLog = () => {
                     </td>
                     <td className="p-3 align-top">
                         <span className="font-mono text-xs text-fuchsia-400 bg-fuchsia-900/10 px-1.5 py-0.5 rounded border border-fuchsia-500/20">
-                            OP:{log.admin_id ? log.admin_id.substring(0, 6) : 'SYSTEM'}
+                            {/* ✅ FIXED: operator_id */}
+                            OP:{log.operator_id ? log.operator_id.substring(0, 6) : 'SYSTEM'}
                         </span>
                     </td>
                     <td className="p-3 align-top">

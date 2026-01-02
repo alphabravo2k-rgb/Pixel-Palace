@@ -1,32 +1,22 @@
 import React, { useState } from 'react';
-import { supabase } from '../../supabase/client';
-import { 
-  X, Shield, Tv, Server, AlertTriangle, 
-  RotateCcw, Save, Trophy
-} from 'lucide-react';
+import { supabase } from '../../supabase/client'; // Keep direct supabase for simple updates, use hook for RPC if preferred
+import { X, Shield, Tv, Server, AlertTriangle, RotateCcw, Save, Trophy } from 'lucide-react';
 
 export const AdminMatchModal = ({ match, isOpen, onClose, onUpdate }) => {
   if (!isOpen || !match) return null;
 
-  const [activeTab, setActiveTab] = useState('overview'); // overview, server, admin
+  const [activeTab, setActiveTab] = useState('overview');
   const [loading, setLoading] = useState(false);
-  
-  // Local state for edits
   const [score, setScore] = useState(match.score || '');
   const [streamUrl, setStreamUrl] = useState(match.stream_url || '');
   const [serverIp, setServerIp] = useState(match.server_ip || '');
-  
-  // --- ACTIONS ---
 
+  // ACTIONS
   const handleSaveMetadata = async () => {
     setLoading(true);
     const { error } = await supabase
       .from('matches')
-      .update({ 
-        score, 
-        stream_url: streamUrl, 
-        server_ip: serverIp 
-      })
+      .update({ score, stream_url: streamUrl, server_ip: serverIp })
       .eq('id', match.id);
 
     if (error) alert("Error saving: " + error.message);
@@ -38,13 +28,17 @@ export const AdminMatchModal = ({ match, isOpen, onClose, onUpdate }) => {
   };
 
   const handleForceWin = async (winnerId) => {
-    if (!window.confirm("⚠️ DANGER: This will end the match and advance the bracket. Are you sure?")) return;
+    // ✅ AUDIT REQUIREMENT: Prompt for reason
+    const reason = window.prompt("⚠️ DANGER: Force End Match?\n\nEnter audit reason (Required):");
+    if (!reason || reason.length < 3) return;
     
     setLoading(true);
-    // Call the SQL function (auto-advances bracket)
+    
+    // ✅ CALL UPDATED RPC WITH REASON
     const { error } = await supabase.rpc('admin_force_match_result', {
       p_match_id: match.id,
-      p_winner_id: winnerId
+      p_winner_id: winnerId,
+      p_reason: reason
     });
 
     if (error) alert("Error: " + error.message);
@@ -58,10 +52,9 @@ export const AdminMatchModal = ({ match, isOpen, onClose, onUpdate }) => {
   const handleSwapSides = async () => {
      if (!window.confirm("Swap Team Sides?")) return;
      setLoading(true);
-     // Call the SQL function
      const { error } = await supabase.rpc('api_swap_match_slots', {
-        p_match_id: match.id,
-        p_reason: "Manual Admin Swap"
+       p_match_id: match.id,
+       p_reason: "Manual Admin Swap via Modal"
      });
      
      if (error) alert("Error: " + error.message);
@@ -89,13 +82,13 @@ export const AdminMatchModal = ({ match, isOpen, onClose, onUpdate }) => {
         {/* TABS */}
         <div className="flex border-b border-zinc-800 bg-[#050505]">
            <button onClick={() => setActiveTab('overview')} className={`flex-1 py-3 text-xs font-bold uppercase tracking-widest border-b-2 transition-colors ${activeTab === 'overview' ? 'border-fuchsia-500 text-white bg-white/5' : 'border-transparent text-zinc-600 hover:text-zinc-400'}`}>
-              Overview
+             Overview
            </button>
            <button onClick={() => setActiveTab('server')} className={`flex-1 py-3 text-xs font-bold uppercase tracking-widest border-b-2 transition-colors ${activeTab === 'server' ? 'border-blue-500 text-white bg-white/5' : 'border-transparent text-zinc-600 hover:text-zinc-400'}`}>
-              Server & Stream
+             Server & Stream
            </button>
            <button onClick={() => setActiveTab('admin')} className={`flex-1 py-3 text-xs font-bold uppercase tracking-widest border-b-2 transition-colors ${activeTab === 'admin' ? 'border-red-500 text-white bg-white/5' : 'border-transparent text-zinc-600 hover:text-zinc-400'}`}>
-              Danger Zone
+             Danger Zone
            </button>
         </div>
 
@@ -106,7 +99,6 @@ export const AdminMatchModal = ({ match, isOpen, onClose, onUpdate }) => {
            {activeTab === 'overview' && (
              <div className="space-y-6">
                 <div className="flex items-center justify-between gap-8">
-                   {/* Team 1 */}
                    <div className="flex-1 flex flex-col items-center gap-3">
                       <div className="w-20 h-20 bg-zinc-900 rounded-lg flex items-center justify-center border border-zinc-800">
                          {match.team1?.logo_url ? <img src={match.team1.logo_url} className="w-16 h-16 object-contain" alt={match.team1.name}/> : <Shield className="text-zinc-700"/>}
@@ -114,7 +106,6 @@ export const AdminMatchModal = ({ match, isOpen, onClose, onUpdate }) => {
                       <h3 className="font-black text-xl uppercase italic text-center">{match.team1?.name || 'TBD'}</h3>
                    </div>
 
-                   {/* Score Input */}
                    <div className="flex flex-col items-center gap-2">
                       <span className="text-zinc-500 text-[10px] font-mono uppercase">Current Score</span>
                       <input 
@@ -128,7 +119,6 @@ export const AdminMatchModal = ({ match, isOpen, onClose, onUpdate }) => {
                       </button>
                    </div>
 
-                   {/* Team 2 */}
                    <div className="flex-1 flex flex-col items-center gap-3">
                       <div className="w-20 h-20 bg-zinc-900 rounded-lg flex items-center justify-center border border-zinc-800">
                          {match.team2?.logo_url ? <img src={match.team2.logo_url} className="w-16 h-16 object-contain" alt={match.team2.name}/> : <Shield className="text-zinc-700"/>}
@@ -189,12 +179,12 @@ export const AdminMatchModal = ({ match, isOpen, onClose, onUpdate }) => {
 
                       {/* Force Win Team 2 */}
                       <button 
-                         onClick={() => handleForceWin(match.team2?.id)}
-                         disabled={loading || !match.team2}
-                         className="py-4 bg-red-950 hover:bg-red-900 border border-red-800 text-red-200 rounded font-bold uppercase text-xs flex flex-col items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          onClick={() => handleForceWin(match.team2?.id)}
+                          disabled={loading || !match.team2}
+                          className="py-4 bg-red-950 hover:bg-red-900 border border-red-800 text-red-200 rounded font-bold uppercase text-xs flex flex-col items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                         <Trophy size={16} />
-                         <span>Win: {match.team2?.name || 'TBD'}</span>
+                          <Trophy size={16} />
+                          <span>Win: {match.team2?.name || 'TBD'}</span>
                       </button>
                    </div>
                 </div>

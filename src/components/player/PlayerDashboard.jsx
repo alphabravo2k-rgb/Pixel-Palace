@@ -1,142 +1,139 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useSession } from '../../auth/useSession';
-import { useTournament } from '../../tournament/useTournament'; // ✅ Added
+import { supabase } from '../../supabase/client';
 import { useNavigate } from 'react-router-dom';
-import { User, LogOut, Shield, Swords, Trophy } from 'lucide-react';
-import { RosterBuilder } from '../roster/RosterBuilder'; // ✅ Added (Assumed path)
-
-const NavButton = ({ active, onClick, icon: Icon, label, badge }) => (
-  <button
-    onClick={onClick}
-    className={`w-full flex items-center justify-between p-3 rounded-lg transition-all border
-      ${active 
-        ? 'bg-zinc-800 border-fuchsia-600 text-white shadow-lg shadow-fuchsia-900/10' 
-        : 'bg-transparent border-transparent text-zinc-500 hover:bg-white/5 hover:text-zinc-300'}`}
-  >
-    <div className="flex items-center gap-3">
-      <Icon className={`w-4 h-4 ${active ? 'text-fuchsia-500' : 'text-zinc-600'}`} />
-      <span className="font-bold uppercase tracking-wider text-sm">{label}</span>
-    </div>
-    {badge && (
-      <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 rounded-full">
-        {badge}
-      </span>
-    )}
-  </button>
-);
+import { Shield, Swords, Clock, AlertCircle, LogOut } from 'lucide-react';
 
 export const PlayerDashboard = () => {
   const { session, logout } = useSession();
-  const { selectedTournamentId } = useTournament();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('ROSTER');
+  const [activeMatch, setActiveMatch] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  // 1. Get Team Details & Active Match
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!session?.team_id) return;
+      
+      try {
+        // Find active match (Scheduled, Veto, or Live)
+        const { data: match } = await supabase
+          .from('matches')
+          .select(`*, team1:team1_id(name), team2:team2_id(name)`)
+          .or(`team1_id.eq.${session.team_id},team2_id.eq.${session.team_id}`)
+          .in('status', ['scheduled', 'veto', 'live'])
+          .single();
+
+        setActiveMatch(match);
+      } catch (err) {
+        console.error("Dashboard Load Error", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [session]);
 
   const handleLogout = async () => {
     await logout();
     navigate('/login');
   };
 
-  const identity = session?.identity || {};
-  const username = identity.display_name || 'Unknown Player'; 
-  const reputation = identity.faceit_elo || 1000; 
+  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-zinc-500 animate-pulse">Establishing Uplink...</div>;
 
   return (
-    <div className="min-h-screen bg-black text-white selection:bg-fuchsia-500/30">
-      {/* Top Navigation */}
-      <div className="sticky top-0 z-50 bg-zinc-950/80 backdrop-blur border-b border-white/10">
-        <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="relative group cursor-pointer">
-              <div className="w-10 h-10 rounded-full bg-zinc-800 border-2 border-fuchsia-600 flex items-center justify-center overflow-hidden">
-                 <User className="w-5 h-5 text-zinc-400" />
-              </div>
-              <div className="absolute -bottom-1 -right-1 bg-black rounded-full px-1.5 py-0.5 border border-white/10 text-[10px] font-mono text-fuchsia-400 font-bold">
-                {reputation}
-              </div>
+    <div className="min-h-screen bg-[#050505] text-white p-6">
+      
+      {/* Header */}
+      <div className="max-w-4xl mx-auto flex justify-between items-center border-b border-white/10 pb-6 mb-8">
+         <div>
+            <h1 className="text-3xl font-black italic uppercase tracking-tighter font-['Teko']">
+               UNIT <span className="text-blue-500">DASHBOARD</span>
+            </h1>
+            <div className="flex items-center gap-2 mt-1">
+               <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">
+                  OPERATOR: {session.identity?.display_name || 'Captain'}
+               </span>
+               <span className="px-2 py-0.5 bg-blue-900/20 text-blue-400 text-[10px] font-bold uppercase rounded border border-blue-500/20">
+                  Team ID: {session.team_id?.slice(0,8)}
+               </span>
             </div>
-
-            <div>
-              <h1 className="font-['Teko'] text-2xl font-bold leading-none text-white tracking-wide">
-                {username}
-              </h1>
-              <span className="text-[10px] text-zinc-500 uppercase tracking-widest flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"/> ONLINE
-              </span>
-            </div>
-          </div>
-
-          <button 
-            onClick={handleLogout}
-            className="flex items-center gap-2 px-3 py-1.5 rounded text-xs font-bold text-red-400 hover:bg-red-950/30 hover:text-red-300 transition-colors uppercase tracking-widest"
-          >
-            <LogOut className="w-3 h-3" /> Disconnect
-          </button>
-        </div>
+         </div>
+         <button onClick={handleLogout} className="p-2 hover:bg-white/5 rounded-full text-zinc-500 hover:text-red-400 transition-colors">
+            <LogOut size={20} />
+         </button>
       </div>
 
-      {/* Main Content */}
-      <main className="max-w-6xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Left Column: Navigation */}
-        <div className="lg:col-span-1 space-y-2">
-          <NavButton 
-            active={activeTab === 'ROSTER'} 
-            onClick={() => setActiveTab('ROSTER')} 
-            icon={Shield} 
-            label="My Team" 
-          />
-          <NavButton 
-            active={activeTab === 'MATCHES'} 
-            onClick={() => setActiveTab('MATCHES')} 
-            icon={Swords} 
-            label="Matches" 
-            badge="0" 
-          />
-           <NavButton 
-            active={activeTab === 'STATS'} 
-            onClick={() => setActiveTab('STATS')} 
-            icon={Trophy} 
-            label="Career Stats" 
-          />
-        </div>
+      <div className="max-w-4xl mx-auto grid gap-6">
+         
+         {/* ACTIVE MISSION CARD */}
+         <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-8 relative overflow-hidden group">
+            <div className="absolute top-0 left-0 w-1 h-full bg-blue-500"></div>
+            
+            {activeMatch ? (
+               <div className="relative z-10">
+                  <div className="flex justify-between items-start mb-6">
+                     <div>
+                        <h2 className="text-xl font-bold uppercase flex items-center gap-2">
+                           <Swords className="text-blue-500" /> Active Protocol
+                        </h2>
+                        <p className="text-zinc-500 text-xs font-mono mt-1">
+                           MATCH #{activeMatch.match_no} • {activeMatch.status.toUpperCase()}
+                        </p>
+                     </div>
+                     {activeMatch.status === 'live' && (
+                        <span className="animate-pulse bg-red-600 px-3 py-1 rounded text-[10px] font-bold uppercase">LIVE</span>
+                     )}
+                  </div>
 
-        {/* Right Column */}
-        <div className="lg:col-span-3">
-          {/* Tab: Roster Management */}
-          {activeTab === 'ROSTER' && (
-            <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-               {!selectedTournamentId ? (
-                 <div className="p-8 border border-dashed border-white/10 rounded-lg text-center text-zinc-500">
-                   Select a tournament to view roster settings.
-                 </div>
-               ) : (
-                 <RosterBuilder /> 
-               )}
-            </div>
-          )}
+                  <div className="flex items-center justify-between bg-black/40 p-6 rounded-xl border border-white/5 mb-6">
+                     <div className="text-lg font-black uppercase text-zinc-300">{activeMatch.team1?.name}</div>
+                     <div className="text-2xl font-mono font-bold text-blue-500">VS</div>
+                     <div className="text-lg font-black uppercase text-zinc-300">{activeMatch.team2?.name}</div>
+                  </div>
 
-          {/* Tab: Matches */}
-          {activeTab === 'MATCHES' && (
-            <div className="p-12 text-center bg-zinc-900 border border-white/10 rounded-lg">
-              <Swords className="w-12 h-12 text-zinc-700 mx-auto mb-4" />
-              <h3 className="text-xl font-['Teko'] uppercase text-zinc-500">No Active Matches</h3>
-              <p className="text-zinc-600 text-sm font-mono mt-2">
-                When the bracket goes live, your games will appear here.
-              </p>
-            </div>
-          )}
+                  <button 
+                     onClick={() => navigate(`/match/${activeMatch.id}`)}
+                     className="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white font-bold uppercase tracking-widest rounded-lg transition-all shadow-lg shadow-blue-900/20 flex items-center justify-center gap-2"
+                  >
+                     Enter War Room
+                  </button>
+               </div>
+            ) : (
+               <div className="text-center py-8">
+                  <div className="w-16 h-16 bg-zinc-800 rounded-full flex items-center justify-center mx-auto mb-4">
+                     <Clock className="text-zinc-500" />
+                  </div>
+                  <h3 className="text-lg font-bold text-white uppercase">Standby Phase</h3>
+                  <p className="text-zinc-500 text-sm mt-2 max-w-md mx-auto">
+                     No active matches assigned to your unit. Wait for the bracket to update or contact an admin.
+                  </p>
+               </div>
+            )}
+         </div>
 
-          {/* Tab: Stats */}
-          {activeTab === 'STATS' && (
-             <div className="p-12 text-center bg-zinc-900 border border-white/10 rounded-lg">
-               <Trophy className="w-12 h-12 text-yellow-500/20 mx-auto mb-4" />
-               <h3 className="text-xl font-['Teko'] uppercase text-zinc-500">Career Profile</h3>
-               <p className="text-zinc-600 text-sm font-mono mt-2">
-                 Global stats tracking coming in Phase 2.
+         {/* QUICK LINKS */}
+         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-zinc-900/30 border border-zinc-800 p-6 rounded-xl">
+               <h3 className="text-sm font-bold uppercase text-zinc-400 mb-2 flex items-center gap-2">
+                  <Shield size={14}/> Unit Status
+               </h3>
+               <p className="text-xs text-zinc-600">
+                  Roster locked. No substitutions allowed without Admin override.
                </p>
-             </div>
-          )}
-        </div>
-      </main>
+            </div>
+            <div className="bg-zinc-900/30 border border-zinc-800 p-6 rounded-xl">
+               <h3 className="text-sm font-bold uppercase text-zinc-400 mb-2 flex items-center gap-2">
+                  <AlertCircle size={14}/> Help Request
+               </h3>
+               <p className="text-xs text-zinc-600">
+                  Need assistance? Use the "Dispute" button inside the Match Room.
+               </p>
+            </div>
+         </div>
+
+      </div>
     </div>
   );
 };

@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useSession } from '../../auth/useSession';
 import { ShieldAlert, Trophy, ScrollText, Users, LogOut } from 'lucide-react';
 
-// Corrected Imports based on file structure
-import { TournamentWarRoom } from '../TournamentWarRoom';
+// ✅ CORRECTED IMPORTS
+import { TournamentWarRoom } from '../TournamentWarRoom'; // As provided in previous batch
 import { AdminAuditLog } from './AdminAuditLog';
 import { TeamRosterView } from './TeamRosterView';
 

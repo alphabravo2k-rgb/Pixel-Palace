@@ -1,47 +1,78 @@
 /** @type {import('tailwindcss').Config} */
 export default {
+  darkMode: 'class', // 🌙 Manual dark mode allows for better control
   content: [
     './index.html',
     './src/**/*.{js,ts,jsx,tsx}',
   ],
   theme: {
     extend: {
+      // 🎨 DYNAMIC PALETTE (Backed by Database)
+      // We use 'rgb(var(--name) / <alpha-value>)' to allow opacity utilities like 'bg-brand/50'
       colors: {
         bg: {
-          DEFAULT: '#050505', // Deep Void
-          panel: '#121214',   // Glass Panel Base
+          DEFAULT: '#050505', // Deep Void (Keep static base)
+          panel: '#09090b',   // Zinc-950
+          surface: '#121214', // Zinc-900
         },
+        // 👇 THESE are now dynamic. See "How to Connect" below.
         brand: {
-          DEFAULT: '#c026d3', // Fuchsia 600
-          glow: '#e879f9',    // Fuchsia 400
-          dark: '#701a75',    // Fuchsia 900
+          DEFAULT: 'rgb(var(--color-brand) / <alpha-value>)', 
+          dim: 'rgb(var(--color-brand-dim) / <alpha-value>)',
+          glow: 'rgb(var(--color-brand-glow) / <alpha-value>)',
         },
         tactical: {
-          surface: '#0b0c0f',
-          border: '#27272a',
+          DEFAULT: '#27272a',
+          active: '#3f3f46',
+          highlight: '#52525b',
+        },
+        // Status Colors (Esports Standard)
+        status: {
+          win: '#10b981',  // Emerald 500
+          loss: '#ef4444', // Red 500
+          draw: '#eab308', // Yellow 500
         }
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
         mono: ['JetBrains Mono', 'Menlo', 'monospace'],
-        teko: ['Teko', 'sans-serif'],
-        rajdhani: ['Rajdhani', 'sans-serif'],
+        display: ['Teko', 'sans-serif'], // Great for Headers
+        hud: ['Rajdhani', 'sans-serif'], // Great for Numbers/Stats
+      },
+      backgroundImage: {
+        'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
+        'grid-pattern': "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32' width='32' height='32' fill='none' stroke='rgb(255 255 255 / 0.05)'%3e%3cpath d='M0 .5H31.5V32'/%3e%3c/svg%3e\")",
       },
       boxShadow: {
-        neon: '0 0 20px rgba(192, 38, 211, 0.4)', // Purple Glow
-        glass: '0 8px 32px 0 rgba(0, 0, 0, 0.37)',
+        'neon': '0 0 20px rgb(var(--color-brand) / 0.4)', 
+        'glass': '0 8px 32px 0 rgba(0, 0, 0, 0.37)',
+        'inner-glow': 'inset 0 0 20px rgb(var(--color-brand) / 0.2)',
       },
+      // ⚡ ANIMATIONS
       animation: {
-        breathe: 'breathe 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-        'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+        'breathe': 'breathe 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+        'glitch': 'glitch 1s linear infinite',
+        'scanline': 'scanline 8s linear infinite',
       },
       keyframes: {
         breathe: {
-          '0%, 100%': { transform: 'scale(1)', filter: 'drop-shadow(0 0 15px rgba(168, 85, 247, 0.5))' },
-          '50%': { transform: 'scale(1.03)', filter: 'drop-shadow(0 0 25px rgba(236, 72, 153, 0.7))' },
+          '0%, 100%': { transform: 'scale(1)', filter: 'drop-shadow(0 0 5px rgb(var(--color-brand) / 0.5))' },
+          '50%': { transform: 'scale(1.02)', filter: 'drop-shadow(0 0 15px rgb(var(--color-brand) / 0.7))' },
+        },
+        glitch: {
+          '2%, 64%': { transform: 'translate(2px,0) skew(0deg)' },
+          '4%, 60%': { transform: 'translate(-2px,0) skew(0deg)' },
+          '62%': { transform: 'translate(0,0) skew(5deg)' },
+        },
+        scanline: {
+          '0%': { transform: 'translateY(-100%)' },
+          '100%': { transform: 'translateY(100%)' }
         }
       }
     },
   },
-  plugins: [],
+  plugins: [
+    require('tailwind-scrollbar')({ nocompatible: true }),
+    require('@tailwindcss/typography'),
+  ],
 };

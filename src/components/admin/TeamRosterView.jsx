@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../supabase/client';
 import { Search, RefreshCw, Shield, Edit3, X, Trash2, Key, Users } from 'lucide-react';
-import StatsCard from '../../components/StatsCard'; // ✅ Import the Stats Card
+import StatsCard from '../../components/StatsCard'; // ✅ Uses your existing StatsCard
 
 // --- HELPERS ---
 const ROLE_WEIGHT = { 'CAPTAIN': 1, 'PLAYER': 2, 'SUBSTITUTE': 3 };
@@ -23,37 +23,86 @@ const getRegionFlag = (regionCode) => {
   return <span className="text-[9px] font-black bg-zinc-800 text-zinc-400 px-1 rounded border border-zinc-700">{code.substring(0, 2)}</span>;
 };
 
-// --- TEAM CARD COMPONENT ---
+// --- TEAM CARD (HYBRID PRO VERSION) ---
 const TeamCard = ({ team, onEdit }) => (
   <div className="group relative bg-[#0b0c0f] border border-zinc-800 hover:border-zinc-600 flex flex-col h-full transition-all duration-300 rounded-xl overflow-hidden">
+    
+    {/* Header Section */}
     <div className="p-3 bg-zinc-900/50 border-b border-white/5 flex justify-between items-center">
       <div className="flex items-center gap-3">
+        {/* Logo */}
         <div className="w-10 h-10 bg-black rounded border border-zinc-800 flex items-center justify-center p-1">
           {team.logo_url ? <img src={team.logo_url} className="w-full h-full object-contain" alt={team.name} /> : <Shield className="w-5 h-5 text-zinc-700"/>}
         </div>
+        
+        {/* Team Info */}
         <div>
           <h3 className="text-sm font-black text-white uppercase italic tracking-tighter truncate max-w-[140px]">{team.name}</h3>
           <div className="flex items-center gap-2 mt-1">
-              <span className="text-[10px] font-mono bg-zinc-800 px-1.5 rounded text-zinc-400 border border-zinc-700">{team.access_code || 'NO CODE'}</span>
-              {team.seed_number && <span className="text-[10px] text-zinc-500 font-mono">SEED #{team.seed_number}</span>}
+              {/* Conditional Access Code */}
+              {team.access_code && (
+                  <span className="text-[9px] font-mono bg-zinc-800 px-1.5 rounded text-zinc-400 border border-zinc-700 flex items-center gap-1" title="Invite Code">
+                    <Key size={8} /> {team.access_code}
+                  </span>
+              )}
+              {/* Seed & Region */}
+              {team.seed_number > 0 && <span className="text-[9px] text-zinc-500 font-mono">SEED #{team.seed_number}</span>}
               <span className="flex items-center" title={team.region}>{getRegionFlag(team.region)}</span>
           </div>
         </div>
       </div>
+      {/* Edit Button */}
       <button onClick={() => onEdit(team)} className="p-2 bg-zinc-900 hover:bg-white/10 text-zinc-500 hover:text-white rounded border border-zinc-800 transition-colors"><Edit3 size={14} /></button>
     </div>
+
+    {/* Roster List */}
     <div className="p-2 space-y-1">
       {team.members.slice(0, 5).map(m => (
-         <div key={m.id} className="flex justify-between items-center px-2 py-1 text-xs text-zinc-400">
-            <span className={m.role === 'CAPTAIN' ? 'text-fuchsia-400 font-bold' : ''}>{m.username}</span>
-            <span className="text-[9px] uppercase opacity-50">{m.role}</span>
+         <div key={m.id} className="flex justify-between items-center px-2 py-1.5 bg-black/20 rounded border border-transparent hover:border-zinc-800 transition-colors">
+            
+            {/* Left: Name & Role */}
+            <div className="flex flex-col">
+                <span className={`text-xs font-bold leading-none ${m.role === 'CAPTAIN' ? 'text-fuchsia-400' : 'text-zinc-300'}`}>
+                    {m.username || 'Unknown'}
+                </span>
+                <span className="text-[8px] uppercase text-zinc-600 font-mono mt-0.5">{m.role}</span>
+            </div>
+
+            {/* Right: Socials & ELO */}
+            <div className="flex items-center gap-1.5">
+                {/* ELO Badge (Only if > 0) */}
+                {m.faceit_elo > 0 && (
+                    <span className="text-[9px] font-mono font-bold text-yellow-500 bg-yellow-900/10 px-1 rounded border border-yellow-500/20">
+                        {m.faceit_elo}
+                    </span>
+                )}
+                
+                {/* Social Links (Professional SVG Icons) */}
+                {m.steam_url && (
+                    <a href={m.steam_url} target="_blank" rel="noreferrer" className="text-zinc-600 hover:text-[#171a21] hover:bg-white rounded-full p-0.5 transition-colors" title="Steam">
+                        <svg className="w-3 h-3 fill-current" viewBox="0 0 24 24"><path d="M11.979 0C5.666 0 .548 5.13.548 11.465c0 3.25 1.344 6.18 3.506 8.27l1.96-2.94a4.938 4.938 0 0 1-.366-1.874 4.975 4.975 0 0 1 4.97-4.97c.453 0 .89.066 1.306.184l3.194-4.79A11.378 11.378 0 0 0 11.98 0zm6.983 6.94l-3.33 4.995a4.933 4.933 0 0 1 2.25 2.126l4.634-2.857a11.385 11.385 0 0 0-3.554-4.264zM7.276 17.037l-1.897 2.846a11.37 11.37 0 0 0 5.23 1.94l1.19-4.167a4.966 4.966 0 0 1-4.523-.62zm9.11 1.07l-4.22 2.602a4.965 4.965 0 0 1-2.09.47L8.91 24.5a11.413 11.413 0 0 0 7.476-6.393z"/></svg>
+                    </a>
+                )}
+                {m.faceit_url && (
+                    <a href={m.faceit_url} target="_blank" rel="noreferrer" className="text-zinc-600 hover:text-[#ff5500] hover:bg-white rounded-full p-0.5 transition-colors" title="Faceit">
+                        <svg className="w-3 h-3 fill-current" viewBox="0 0 24 24"><path d="M23.999 2.705c-.167-1.446-1.41-2.433-2.802-2.585-6.522-.73-12.603 1.353-12.603 1.353s-6.336 2.456-12.288 3.03C-.62 4.88-.633 6.643 2.053 6.34c3.418-.387 13.923-2.08 13.923-2.08l.385 1.554-15.01 2.37c-1.396.22-1.35 2.03.02 2.24l15.114 2.253.402 1.62-15.187 2.155c-1.48.212-1.31 2.14.07 2.21 4.545.232 14.832-.852 14.832-.852l.52 2.102-14.898 3.522c-1.8.426-1.077 2.924.787 2.502 6.556-1.48 13.116-2.923 13.116-2.923s5.88-1.528 7.625-5.914c1.19-2.99 1.483-11.233.178-14.394"/></svg>
+                    </a>
+                )}
+            </div>
          </div>
       ))}
+      
+      {/* Reserves Indicator */}
+      {team.members.length > 5 && (
+          <div className="text-center text-[9px] text-zinc-600 pt-1 italic font-mono">
+              +{team.members.length - 5} Reserves
+          </div>
+      )}
     </div>
   </div>
 );
 
-// --- EDIT MODAL COMPONENT ---
+// --- EDIT MODAL COMPONENT (SECURE RPC) ---
 const EditTeamModal = ({ team, onClose, onRefresh }) => {
   const [meta, setMeta] = useState({
     name: team?.name || '', logo_url: team?.logo_url || '', region: team?.region || 'PAK',
@@ -185,12 +234,12 @@ export const TeamRosterView = () => {
 
   const fetchTeams = async () => {
     setLoading(true);
-    // ✅ CRITICAL: Fetches ALL profile fields so the Edit Modal isn't empty
+    // ✅ CRITICAL: Fetches ALL profile fields including FACEIT ELO
     const { data } = await supabase.from('teams').select(`
         *, 
         team_members(
             id, role, 
-            global_identities(display_name, discord_handle, steam_url, faceit_url)
+            global_identities(display_name, discord_handle, steam_url, faceit_url, faceit_elo)
         )
     `).order('name');
     
@@ -203,7 +252,8 @@ export const TeamRosterView = () => {
                 username: tm.global_identities?.display_name,
                 discord_handle: tm.global_identities?.discord_handle,
                 steam_url: tm.global_identities?.steam_url,
-                faceit_url: tm.global_identities?.faceit_url
+                faceit_url: tm.global_identities?.faceit_url,
+                faceit_elo: tm.global_identities?.faceit_elo // ✅ NOW AVAILABLE
             })).sort((a,b)=>getRoleWeight(a.role)-getRoleWeight(b.role))
         })));
     }
@@ -224,19 +274,20 @@ export const TeamRosterView = () => {
   
   const filteredTeams = teams.filter(t => t.name.toLowerCase().includes(searchTerm.toLowerCase()));
 
-  // ✅ ADDED STATS CALCULATION
+  // Stats Logic
   const totalPlayers = teams.reduce((acc, t) => acc + t.members.length, 0);
   const readyTeams = teams.filter(t => t.members.length >= 5).length;
 
   return (
     <div className="space-y-6 animate-in fade-in">
-       {/* ✅ ADDED STATS HEADER */}
+       {/* Stats Header */}
        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <StatsCard title="Total Teams" value={teams.length} type="teams" />
           <StatsCard title="Active Operators" value={totalPlayers} type="players" />
           <StatsCard title="Combat Ready" value={readyTeams} type="active" />
        </div>
 
+       {/* Toolbar */}
        <div className="flex justify-between items-end border-b border-white/10 pb-4">
           <h1 className="text-3xl font-black text-white italic uppercase tracking-tighter">ROSTER <span className="text-fuchsia-500">COMMAND</span></h1>
           <div className="flex items-center gap-3">
@@ -247,10 +298,12 @@ export const TeamRosterView = () => {
           </div>
        </div>
        
+       {/* Team Grid */}
        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pb-12">
           {filteredTeams.map(t => <TeamCard key={t.id} team={t} onEdit={setEditTeam} />)}
        </div>
        
+       {/* Modal */}
        {editTeam !== undefined && (
          <EditTeamModal 
             team={editTeam} 

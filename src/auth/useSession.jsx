@@ -37,6 +37,7 @@ export const SessionProvider = ({ children }) => {
         if (sbSession?.user) {
             await hydrateAdmin(sbSession.user);
         } else {
+            // No auth found, set as Guest immediately
             if(mounted.current) setSession(prev => ({ ...prev, loading: false }));
         }
     };
@@ -74,7 +75,7 @@ export const SessionProvider = ({ children }) => {
                 role: normalizeRole(profile?.role || 'GUEST'),
                 team_id: profile?.team_id,
                 identity: { auth_user_id: user.id, display_name: profile?.display_name || user.email },
-                loading: false,
+                loading: false, // Stop loading
                 authType: 'SUPABASE'
             });
         }
@@ -121,6 +122,7 @@ export const SessionProvider = ({ children }) => {
     if(mounted.current) setAsGuest();
   };
 
+  // Export loginAdmin explicitly
   return (
     <SessionContext.Provider value={{ session, login: loginAdmin, loginAdmin, loginCaptain, logout }}>
       {children}

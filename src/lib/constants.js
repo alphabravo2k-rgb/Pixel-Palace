@@ -1,6 +1,6 @@
 /**
  * PIXEL PALACE - SOURCE OF TRUTH
- * Alignment: V2 Backend Standard
+ * Alignment: V2 Backend Standard & Veto Engine
  */
 
 // 1. MATCH STATUS (Must match Postgres Enum exactly)
@@ -25,28 +25,54 @@ export const MAP_POOL = [
   { id: 'de_train', name: 'Train', image: 'https://blob.faceit.com/static/img/maps/cs2/train_bg.jpg' }
 ];
 
-// 3. MATCH FORMATS
+// 3. MATCH FORMATS (Updated with Veto Sequences)
 export const MATCH_FORMATS = {
   BO1: {
-    id: 1, // Matches DB INT
+    id: 1, // Matches DB INT 'best_of'
     label: 'Best of 1',
     mapsNeeded: 1,
-    vetoCount: 6,
-    description: 'Single map elimination.'
+    description: 'Single map elimination.',
+    // ⚡ REQUIRED FOR VETO ENGINE:
+    sequence: [
+      { type: 'BAN', team: 'A' },
+      { type: 'BAN', team: 'B' },
+      { type: 'BAN', team: 'A' },
+      { type: 'BAN', team: 'B' },
+      { type: 'BAN', team: 'A' },
+      { type: 'BAN', team: 'B' },
+      { type: 'DECIDER', team: 'SYSTEM' } // The last map left
+    ]
   },
   BO3: {
     id: 3,
     label: 'Best of 3',
     mapsNeeded: 3, 
-    vetoCount: 4, // 2 Bans per team
-    description: 'Standard competitive series.'
+    description: 'Standard competitive series.',
+    // ⚡ REQUIRED FOR VETO ENGINE:
+    sequence: [
+      { type: 'BAN', team: 'A' },
+      { type: 'BAN', team: 'B' },
+      { type: 'PICK', team: 'A' }, // Map 1
+      { type: 'PICK', team: 'B' }, // Map 2
+      { type: 'BAN', team: 'A' },
+      { type: 'BAN', team: 'B' },
+      { type: 'DECIDER', team: 'SYSTEM' } // Map 3
+    ]
   },
   BO5: {
     id: 5,
     label: 'Best of 5',
     mapsNeeded: 5,
-    vetoCount: 2,
-    description: 'Grand Finals format.'
+    description: 'Grand Finals format.',
+    sequence: [
+      { type: 'BAN', team: 'A' },
+      { type: 'BAN', team: 'B' },
+      { type: 'PICK', team: 'A' },
+      { type: 'PICK', team: 'B' },
+      { type: 'PICK', team: 'A' },
+      { type: 'PICK', team: 'B' },
+      { type: 'DECIDER', team: 'SYSTEM' }
+    ]
   }
 };
 
@@ -54,7 +80,7 @@ export const MATCH_FORMATS = {
 export const ROLE_TAXONOMY = {
   OWNER: { id: 'OWNER', priority: -1, label: 'Tournament Owner' },
   ADMIN: { id: 'ADMIN', priority: 0, label: 'Administrator' },
-  REFEREE: { id: 'REFEREE', priority: 0, label: 'Match Referee' }, // Added Referee
+  REFEREE: { id: 'REFEREE', priority: 0, label: 'Match Referee' },
   CAPTAIN: { id: 'CAPTAIN', priority: 1, label: 'Team Captain' },
   WILDCARD: { id: 'WILDCARD', priority: 2, label: 'Wildcard Entry' },
   PLAYER: { id: 'PLAYER', priority: 3, label: 'Operator' },

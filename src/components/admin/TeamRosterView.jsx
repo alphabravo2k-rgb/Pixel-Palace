@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../supabase/client';
-import { Search, RefreshCw, Shield, Edit3, X, Trash2, Key, Users, Copy, CheckCircle, Ban, Trophy } from 'lucide-react';
+import { Search, RefreshCw, Shield, Edit3, X, Trash2, Key, Users, Copy, CheckCircle, Ban, Trophy, Mic, ExternalLink } from 'lucide-react';
 import StatsCard from '../../components/StatsCard';
 
 // --- OFFICIAL BRAND ICONS (SVG PATHS) ---
@@ -38,32 +38,45 @@ const getRegionFlag = (regionCode) => {
 
 const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text);
-    // You could add a toast notification here
-    console.log("Copied to clipboard:", text);
 };
 
-// --- TEAM CARD (UPDATED) ---
+// --- TEAM CARD (PRO VERSION) ---
 const TeamCard = ({ team, onEdit }) => {
   const activeMembers = team.members.slice(0, 5);
   const reserveMembers = team.members.slice(5);
   const isDQ = team.status === 'DISQUALIFIED';
 
+  // CALCULATE AVG ELO
+  const eloValues = activeMembers.map(m => m.faceit_elo).filter(e => e > 0);
+  const avgElo = eloValues.length > 0 
+    ? Math.round(eloValues.reduce((a, b) => a + b, 0) / eloValues.length) 
+    : 0;
+
   return (
     <div className={`group relative bg-[#0b0c0f] border hover:border-zinc-600 flex flex-col h-full transition-all duration-300 rounded-xl overflow-visible ${isDQ ? 'border-red-900/50 opacity-75' : 'border-zinc-800'}`}>
       
       {/* Header Section */}
-      <div className="p-3 bg-zinc-900/50 border-b border-white/5 flex justify-between items-center rounded-t-xl">
-        <div className="flex items-center gap-3">
+      <div className="p-3 bg-zinc-900/50 border-b border-white/5 flex justify-between items-start rounded-t-xl">
+        <div className="flex items-start gap-3">
           {/* Logo */}
-          <div className="w-10 h-10 bg-black rounded border border-zinc-800 flex items-center justify-center p-1 relative">
-            {team.logo_url ? <img src={team.logo_url} className="w-full h-full object-contain" alt={team.name} /> : <Shield className="w-5 h-5 text-zinc-700"/>}
+          <div className="w-12 h-12 bg-black rounded border border-zinc-800 flex items-center justify-center p-1 relative mt-1">
+            {team.logo_url ? <img src={team.logo_url} className="w-full h-full object-contain" alt={team.name} /> : <Shield className="w-6 h-6 text-zinc-700"/>}
             {isDQ && <div className="absolute inset-0 bg-black/80 flex items-center justify-center rounded"><Ban className="w-6 h-6 text-red-600"/></div>}
           </div>
           
           {/* Team Info */}
-          <div>
-            <h3 className={`text-sm font-black uppercase italic tracking-tighter truncate max-w-[140px] ${isDQ ? 'text-red-500 line-through' : 'text-white'}`}>{team.name}</h3>
-            <div className="flex items-center gap-2 mt-1">
+          <div className="flex flex-col gap-1">
+            <h3 className={`text-base font-black uppercase italic tracking-tighter truncate max-w-[140px] leading-none ${isDQ ? 'text-red-500 line-through' : 'text-white'}`}>{team.name}</h3>
+            
+            {/* AVG ELO BADGE */}
+            {avgElo > 0 && (
+                <div className="inline-flex items-center gap-1 bg-yellow-900/10 border border-yellow-600/20 px-1.5 py-0.5 rounded w-fit">
+                    <Trophy size={8} className="text-yellow-500" />
+                    <span className="text-[9px] font-bold text-yellow-500 font-mono">AVG {avgElo}</span>
+                </div>
+            )}
+
+            <div className="flex items-center gap-2 mt-0.5">
                 {/* STATUS BADGES */}
                 {isDQ ? (
                     <span className="text-[9px] font-bold bg-red-900/20 text-red-500 px-1.5 rounded border border-red-900/50">DQ</span>
@@ -76,7 +89,22 @@ const TeamCard = ({ team, onEdit }) => {
             </div>
           </div>
         </div>
-        <button onClick={() => onEdit(team)} className="p-2 bg-zinc-900 hover:bg-white/10 text-zinc-500 hover:text-white rounded border border-zinc-800 transition-colors"><Edit3 size={14} /></button>
+        
+        <div className="flex gap-1">
+            {/* TEAM VOICE CHANNEL BUTTON */}
+            {team.voice_channel_url && (
+                <a 
+                    href={team.voice_channel_url} 
+                    target="_blank" 
+                    rel="noreferrer" 
+                    className="p-2 bg-[#5865F2]/10 hover:bg-[#5865F2] text-[#5865F2] hover:text-white rounded border border-[#5865F2]/30 transition-all"
+                    title="Join Team Voice Channel"
+                >
+                    <Mic size={14} />
+                </a>
+            )}
+            <button onClick={() => onEdit(team)} className="p-2 bg-zinc-900 hover:bg-white/10 text-zinc-500 hover:text-white rounded border border-zinc-800 transition-colors"><Edit3 size={14} /></button>
+        </div>
       </div>
 
       {/* Roster List */}
@@ -101,22 +129,30 @@ const TeamCard = ({ team, onEdit }) => {
                   )}
                   
                   {m.steam_url && (
-                      <a href={m.steam_url} target="_blank" rel="noreferrer" className="text-zinc-600 hover:text-[#171a21] hover:bg-white rounded-full p-0.5 transition-colors" title="Steam">
+                      <a href={m.steam_url} target="_blank" rel="noreferrer" className="text-zinc-600 hover:text-[#171a21] hover:bg-white rounded-full p-0.5 transition-colors" title="Steam Profile">
                          {BRAND_ICONS.STEAM}
                       </a>
                   )}
-                  {/* DISCORD COPY BUTTON */}
+
+                  {/* CLICKABLE DISCORD HANDLE */}
                   {m.discord_handle && (
-                       <button 
-                          onClick={() => copyToClipboard(m.discord_handle)}
-                          className="text-zinc-600 hover:text-[#5865F2] hover:bg-white rounded-full p-0.5 transition-colors cursor-pointer active:scale-90" 
-                          title="Click to Copy Discord ID"
+                       <a 
+                          href={`https://discord.com/users/${m.discord_handle}`} 
+                          target="_blank" 
+                          rel="noreferrer"
+                          onClick={(e) => {
+                             // Fallback: Copy if link fails (since we can't catch 404s easily, we just copy too)
+                             copyToClipboard(m.discord_handle);
+                          }}
+                          className="text-zinc-600 hover:text-[#5865F2] hover:bg-white rounded-full p-0.5 transition-colors cursor-pointer" 
+                          title={`Click to open profile (ID: ${m.discord_handle})`}
                         >
                          {BRAND_ICONS.DISCORD}
-                       </button>
+                       </a>
                   )}
+
                   {m.faceit_url && (
-                      <a href={m.faceit_url} target="_blank" rel="noreferrer" className="text-zinc-600 hover:text-[#ff5500] hover:bg-white rounded-full p-0.5 transition-colors" title="Faceit">
+                      <a href={m.faceit_url} target="_blank" rel="noreferrer" className="text-zinc-600 hover:text-[#ff5500] hover:bg-white rounded-full p-0.5 transition-colors" title="Faceit Profile">
                           {BRAND_ICONS.FACEIT}
                       </a>
                   )}
@@ -157,7 +193,8 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
     access_code: team?.access_code || '',
     status: team?.status || 'ACTIVE',
     wins: team?.wins || 0,
-    losses: team?.losses || 0
+    losses: team?.losses || 0,
+    voice_channel_url: team?.voice_channel_url || ''
   });
   const [members, setMembers] = useState(
       team?.members.map(m => ({
@@ -188,6 +225,7 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
           p_status: meta.status,
           p_wins: parseInt(meta.wins),
           p_losses: parseInt(meta.losses),
+          p_voice_channel_url: meta.voice_channel_url, // NEW FIELD
           p_members: members 
       });
 
@@ -244,6 +282,12 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
               </div>
               
               <div className="space-y-4">
+                  {/* NEW FIELD: VOICE CHANNEL */}
+                  <div className="space-y-1">
+                      <label className="text-[10px] text-[#5865F2] uppercase font-bold flex items-center gap-1"><Mic size={10}/> Discord Voice Channel URL</label>
+                      <input value={meta.voice_channel_url} onChange={e=>setMeta({...meta, voice_channel_url:e.target.value})} className="w-full bg-[#5865F2]/10 border border-[#5865F2]/30 p-2 text-white rounded text-sm" placeholder="https://discord.com/channels/..." />
+                  </div>
+
                   <div className="space-y-1">
                       <label className="text-[10px] text-zinc-500 uppercase font-bold">Access Code</label>
                       <input value={meta.access_code} onChange={e=>setMeta({...meta, access_code:e.target.value})} className="w-full bg-black border border-zinc-700 p-2 text-yellow-500 font-mono rounded text-sm" />
@@ -277,7 +321,7 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
                     </div>
                     <div className="flex-1 w-full flex gap-2">
                         <input value={m.steam} onChange={e => updateMember(idx, 'steam', e.target.value)} className="bg-black border border-zinc-700 p-2 text-zinc-300 rounded text-xs w-full" placeholder="Steam URL" />
-                        <input value={m.discord} onChange={e => updateMember(idx, 'discord', e.target.value)} className="bg-black border border-zinc-700 p-2 text-zinc-300 rounded text-xs w-full" placeholder="Discord ID" />
+                        <input value={m.discord} onChange={e => updateMember(idx, 'discord', e.target.value)} className="bg-black border border-zinc-700 p-2 text-zinc-300 rounded text-xs w-full" placeholder="Discord ID / Handle" />
                     </div>
                     <button onClick={() => removeMember(idx)} className="text-red-500 hover:text-red-400 p-2 hover:bg-red-900/20 rounded"><Trash2 size={14}/></button>
                  </div>

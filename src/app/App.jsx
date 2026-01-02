@@ -1,10 +1,10 @@
 import React, { useEffect } from 'react';
 import { RouterProvider } from 'react-router-dom';
 
-// ✅ FIX 1: Use RELATIVE import for Router (Because it's in the same folder as App.jsx)
+// ✅ RELATIVE import for Router (Same folder)
 import { router } from './router'; 
 
-// ✅ FIX 2: Use ABSOLUTE aliases for everything else (Guaranteed to work)
+// ✅ ABSOLUTE aliases for everything else
 import { supabase } from '@/supabase/client'; 
 import { SessionProvider, useSession } from '@/auth/useSession';
 import { TournamentProvider } from '@/tournament/useTournament';
@@ -14,21 +14,27 @@ import ErrorBoundary from '@/components/common/ErrorBoundary';
 import '@/index.css';
 
 // 🎨 THEME MANAGER (Platinum Edition)
+// - Handles "No Active Tournament" gracefully
+// - Injects DB colors into CSS variables
 const ThemeManager = () => {
   useEffect(() => {
     const fetchTheme = async () => {
       try {
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from('tournaments')
           .select('theme_color, theme_color_dim, theme_color_glow') 
           .eq('is_active', true)
-          .single();
+          // 🚀 CRITICAL FIX: Use .maybeSingle() instead of .single()
+          // .single() crashes if 0 rows are found. 
+          // .maybeSingle() returns null safely (falls back to default purple).
+          .maybeSingle(); 
 
         if (data?.theme_color) {
           const root = document.documentElement;
           
           // Helper: Hex -> RGB
           const toRGB = (hex) => {
+             if (!hex) return '192 38 211'; // Fallback Purple
              const cleanHex = hex.replace('#', '');
              const r = parseInt(cleanHex.substring(0, 2), 16);
              const g = parseInt(cleanHex.substring(2, 4), 16);
@@ -37,12 +43,15 @@ const ThemeManager = () => {
           };
 
           // 💉 Inject All 3 Layers
+          console.log(`🎨 Theme Loaded: ${data.theme_color}`);
           root.style.setProperty('--color-brand', toRGB(data.theme_color));
           root.style.setProperty('--color-brand-dim', data.theme_color_dim ? toRGB(data.theme_color_dim) : toRGB(data.theme_color));
           root.style.setProperty('--color-brand-glow', data.theme_color_glow ? toRGB(data.theme_color_glow) : toRGB(data.theme_color));
+        } else {
+          console.log("🎨 No active tournament theme found. Using Default Protocol.");
         }
       } catch (e) {
-        // Silent fail
+        console.warn("Theme Sync Warning:", e);
       }
     };
     fetchTheme();

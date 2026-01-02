@@ -3,23 +3,16 @@ import { useSession } from '../auth/useSession';
 import { ROLES } from '../lib/roles';
 import { Loader2 } from 'lucide-react';
 
-// --- AUTH COMPONENTS ---
-// 🛡️ Verify these paths exist exactly as written
-import { AdminLogin } from '../components/admin/AdminLogin'; 
+// ✅ CORRECT IMPORTS
+import { AdminLogin } from '../components/admin/AdminLogin';
 import { StaffRegistration } from '../components/auth/StaffRegistration';
-
-// --- PUBLIC COMPONENTS ---
 import { LandingPage } from '../components/LandingPage';
 import { BracketView } from '../components/BracketView';
 import { MatchRoom } from '../components/match/MatchRoom';
-
-// --- ADMIN COMPONENTS ---
 import { AdminDashboard } from '../components/admin/AdminDashboard';
 import { TeamRosterView } from '../components/admin/TeamRosterView';
 import { StaffManagement } from '../components/admin/StaffManagement';
 import { AdminToolbar } from '../components/admin/AdminToolbar';
-
-// --- PLAYER COMPONENTS ---
 import { PlayerDashboard } from '../components/player/PlayerDashboard';
 
 const RequireAuth = ({ children }) => {

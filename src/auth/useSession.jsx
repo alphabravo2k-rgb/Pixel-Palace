@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
-import { supabase } from '../supabase/client'; // Ensure path is correct
+import { supabase } from '../supabase/client';
 import { normalizeRole, ROLES } from '../lib/roles';
 
 const SessionContext = createContext(null);
@@ -21,10 +21,9 @@ export const SessionProvider = ({ children }) => {
     return () => { mounted.current = false; };
   }, []);
 
-  // 🔄 HYDRATION LOGIC (Runs on App Start)
   useEffect(() => {
     const hydrate = async () => {
-      // A. Check for Admin/Staff (Supabase Auth)
+      // 1. Staff Login
       const { data: { session: sbSession } } = await supabase.auth.getSession();
       
       if (sbSession?.user) {
@@ -32,30 +31,27 @@ export const SessionProvider = ({ children }) => {
         return;
       }
 
-      // B. Check for Captain (Local Storage + RPC Verification)
+      // 2. Captain Login (Check Storage)
       const localCap = localStorage.getItem('pixel_captain_session');
       if (localCap) {
         try {
           const parsed = JSON.parse(localCap);
-          // 🛡️ SECURITY CHECK: Don't trust storage. Verify with DB.
+          // 🛡️ RE-VERIFY PIN ON RELOAD (Code 61)
           if (parsed.accessCode) {
-             const verify = await loginCaptain(parsed.accessCode, true); // true = silent re-auth
+             const verify = await loginCaptain(parsed.accessCode, true); 
              if (verify.success) return; 
           }
         } catch (e) {
           console.error("Session Corrupted", e);
         }
-        // If verification failed, wipe storage
         localStorage.removeItem('pixel_captain_session');
       }
 
-      // C. Fallback to Guest
       if (mounted.current) setAsGuest();
     };
 
     hydrate();
 
-    // Listener for Admin Logout/Login
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) hydrateAdmin(session.user);
       else if (!localStorage.getItem('pixel_captain_session')) {
@@ -66,7 +62,6 @@ export const SessionProvider = ({ children }) => {
     return () => subscription.unsubscribe();
   }, []);
 
-  // --- HELPER: Set Guest ---
   const setAsGuest = () => {
     setSession({
       isAuthenticated: false, user: null, role: ROLES.GUEST,
@@ -74,10 +69,8 @@ export const SessionProvider = ({ children }) => {
     });
   };
 
-  // --- HELPER: Load Admin Profile (Uses the Fixed View) ---
   const hydrateAdmin = async (user) => {
     try {
-      // Query the FIXED View (Code 01_MASTER_DEPLOY)
       const { data: profile, error } = await supabase
         .from('session_profiles')
         .select('*')
@@ -107,19 +100,16 @@ export const SessionProvider = ({ children }) => {
     }
   };
 
-  // --- ACTION: Admin Login ---
   const loginAdmin = async (email, password) => {
-    // Clear any captain session first
     localStorage.removeItem('pixel_captain_session');
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) return { success: false, message: error.message };
     return { success: true };
   };
 
-  // --- ACTION: Captain Login (Uses RPC) ---
   const loginCaptain = async (accessCode, silent = false) => {
     try {
-        // 1. Call the Secure Backend Function
+        // CALL THE BACKEND RPC (Code 61/65)
         const { data, error } = await supabase.rpc('verify_team_access', { p_code: accessCode });
         
         if (error) throw error;
@@ -142,7 +132,6 @@ export const SessionProvider = ({ children }) => {
 
         if (mounted.current) setSession(capSession);
         
-        // Store code for re-verification on reload
         if (!silent) {
             localStorage.setItem('pixel_captain_session', JSON.stringify({ ...capSession, accessCode }));
         }
@@ -154,7 +143,6 @@ export const SessionProvider = ({ children }) => {
     }
   };
 
-  // --- ACTION: Logout ---
   const logout = async () => {
     localStorage.removeItem('pixel_captain_session');
     await supabase.auth.signOut();
@@ -168,8 +156,4 @@ export const SessionProvider = ({ children }) => {
   );
 };
 
-export const useSession = () => {
-    const context = useContext(SessionContext);
-    if (!context) throw new Error("useSession must be used within SessionProvider");
-    return context;
-};
+export const useSession = () => useContext(SessionContext);

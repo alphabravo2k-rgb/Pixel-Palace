@@ -3,6 +3,8 @@ import { supabase } from '../supabase/client';
 import { useTournament } from '../tournament/useTournament';
 import Bracket from './Bracket';
 import { RefreshCw, WifiOff, Loader2 } from 'lucide-react';
+import { MatchWarRoom } from './admin/MatchWarRoom'; // ✅ Import the new file
+import { Settings } from 'lucide-react'; // For the button icon
 
 // 👇 CHANGE THIS IMPORT to use the Admin Modal
 import { AdminMatchModal } from './admin/AdminMatchModal'; 

@@ -1,13 +1,11 @@
 import React, { useEffect } from 'react';
 import { RouterProvider } from 'react-router-dom';
 
-// ✅ FIX 1: Use absolute alias for Supabase
+// ✅ FIX 1: Use RELATIVE import for Router (Because it's in the same folder as App.jsx)
+import { router } from './router'; 
+
+// ✅ FIX 2: Use ABSOLUTE aliases for everything else (Guaranteed to work)
 import { supabase } from '@/supabase/client'; 
-
-// ✅ FIX 2: Use ABSOLUTE alias for Router (Guaranteed to find src/router.jsx)
-import { router } from '@/router'; 
-
-// ✅ FIX 3: Use absolute alias for Auth/Tournament context
 import { SessionProvider, useSession } from '@/auth/useSession';
 import { TournamentProvider } from '@/tournament/useTournament';
 import ErrorBoundary from '@/components/common/ErrorBoundary';
@@ -22,14 +20,14 @@ const ThemeManager = () => {
       try {
         const { data } = await supabase
           .from('tournaments')
-          .select('theme_color, theme_color_dim, theme_color_glow') // Fetch all variants
+          .select('theme_color, theme_color_dim, theme_color_glow') 
           .eq('is_active', true)
           .single();
 
         if (data?.theme_color) {
           const root = document.documentElement;
           
-          // Helper: Hex -> RGB (e.g. "255 0 0")
+          // Helper: Hex -> RGB
           const toRGB = (hex) => {
              const cleanHex = hex.replace('#', '');
              const r = parseInt(cleanHex.substring(0, 2), 16);
@@ -52,7 +50,7 @@ const ThemeManager = () => {
   return null; 
 };
 
-// 🛑 THE GATEKEEPER (Fixed Logic)
+// 🛑 THE GATEKEEPER
 const SessionGate = ({ children }) => {
   const { isReady } = useSession(); 
 
@@ -71,7 +69,6 @@ const SessionGate = ({ children }) => {
     );
   }
 
-  // ✅ Render App (Router will handle Public vs Private pages)
   return children;
 };
 

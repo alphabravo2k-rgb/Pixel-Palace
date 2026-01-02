@@ -3,8 +3,9 @@ import { useSession } from '../auth/useSession';
 import { ROLES } from '../lib/roles';
 import { Loader2 } from 'lucide-react';
 
-// ✅ CORRECT IMPORTS
+// --- AUTH COMPONENTS ---
 import { AdminLogin } from '../components/admin/AdminLogin';
+import { AdminPasswordReset } from '../components/admin/AdminPasswordReset'; // ✅ ADDED
 import { StaffRegistration } from '../components/auth/StaffRegistration';
 import { LandingPage } from '../components/LandingPage';
 import { BracketView } from '../components/BracketView';
@@ -17,7 +18,7 @@ import { PlayerDashboard } from '../components/player/PlayerDashboard';
 
 const RequireAuth = ({ children }) => {
   const { session } = useSession();
-  if (session.loading) return <div className="h-screen w-full flex items-center justify-center bg-[#050505]"><Loader2 className="animate-spin text-fuchsia-600 w-8 h-8"/></div>;
+  if (!session.isReady) return <div className="h-screen w-full flex items-center justify-center bg-[#050505]"><Loader2 className="animate-spin text-fuchsia-600 w-8 h-8"/></div>;
   if (!session.isAuthenticated) return <Navigate to="/login" replace />;
   return children || <Outlet />;
 };
@@ -43,6 +44,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <LandingPage /> },
       { path: 'login', element: <AdminLogin /> },
+      { path: 'recover-password', element: <AdminPasswordReset /> }, // ✅ ADDED
       { path: 'staff-register', element: <StaffRegistration /> },
       { path: 'bracket', element: <BracketView /> },
       { path: 'match/:matchId', element: <MatchRoom /> },

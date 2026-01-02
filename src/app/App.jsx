@@ -1,9 +1,13 @@
 import React, { useEffect } from 'react';
 import { RouterProvider } from 'react-router-dom';
 
-// ✅ FIX 1: Use Absolute Aliases (Bulletproof paths)
+// ✅ FIX 1: Use absolute alias for Supabase
 import { supabase } from '@/supabase/client'; 
-import { router } from '@/router'; // Finds router.jsx in src/ root reliably
+
+// ✅ FIX 2: Use ABSOLUTE alias for Router (Guaranteed to find src/router.jsx)
+import { router } from '@/router'; 
+
+// ✅ FIX 3: Use absolute alias for Auth/Tournament context
 import { SessionProvider, useSession } from '@/auth/useSession';
 import { TournamentProvider } from '@/tournament/useTournament';
 import ErrorBoundary from '@/components/common/ErrorBoundary';
@@ -12,7 +16,6 @@ import ErrorBoundary from '@/components/common/ErrorBoundary';
 import '@/index.css';
 
 // 🎨 THEME MANAGER (Platinum Edition)
-// Connects to Database and uses ALL 3 color variants for depth
 const ThemeManager = () => {
   useEffect(() => {
     const fetchTheme = async () => {
@@ -37,12 +40,11 @@ const ThemeManager = () => {
 
           // 💉 Inject All 3 Layers
           root.style.setProperty('--color-brand', toRGB(data.theme_color));
-          // Use DB value OR fallback to main color if missing
           root.style.setProperty('--color-brand-dim', data.theme_color_dim ? toRGB(data.theme_color_dim) : toRGB(data.theme_color));
           root.style.setProperty('--color-brand-glow', data.theme_color_glow ? toRGB(data.theme_color_glow) : toRGB(data.theme_color));
         }
       } catch (e) {
-        // Silent fail (App uses default purple from index.css)
+        // Silent fail
       }
     };
     fetchTheme();
@@ -52,8 +54,6 @@ const ThemeManager = () => {
 
 // 🛑 THE GATEKEEPER (Fixed Logic)
 const SessionGate = ({ children }) => {
-  // Destructure 'loading' or 'isReady' from your hook
-  // Note: 'session' will be null if logged out, which is FINE (Guests need to see Login page)
   const { isReady } = useSession(); 
 
   // ✅ Show Spinner ONLY while checking auth status

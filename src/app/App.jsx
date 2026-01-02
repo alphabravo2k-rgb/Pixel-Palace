@@ -1,32 +1,76 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { RouterProvider } from 'react-router-dom';
-// ✅ IMPORT FROM THE CORRECT FILE (Adjust path if needed)
-import { SessionProvider, useSession } from '../auth/useSession';
-import { TournamentProvider } from '../tournament/useTournament';
-import ErrorBoundary from '../components/common/ErrorBoundary';
+import { supabase } from './supabase/client'; // Ensure path is correct
+import { SessionProvider, useSession } from './auth/useSession';
+import { TournamentProvider } from './tournament/useTournament';
+import ErrorBoundary from './components/common/ErrorBoundary';
 import { router } from './router';
-import '../index.css';
+import './index.css';
+
+// 🎨 THEME MANAGER: Connects UI to Database
+const ThemeManager = () => {
+  useEffect(() => {
+    const fetchTheme = async () => {
+      try {
+        // Fetch active tournament color settings
+        // Expects table 'tournaments' with columns: is_active, theme_color (hex)
+        const { data } = await supabase
+          .from('tournaments')
+          .select('theme_color')
+          .eq('is_active', true)
+          .single();
+
+        if (data?.theme_color) {
+          const root = document.documentElement;
+          const hex = data.theme_color.replace('#', '');
+          
+          // Parse Hex to RGB
+          const r = parseInt(hex.substring(0, 2), 16);
+          const g = parseInt(hex.substring(2, 4), 16);
+          const b = parseInt(hex.substring(4, 6), 16);
+          const rgbString = `${r} ${g} ${b}`;
+
+          // Inject into CSS Variables
+          root.style.setProperty('--color-brand', rgbString);
+          // Auto-generate Dim (Darker) and Glow (Lighter) variants could go here
+          // For now, we use the main color for consistency
+          root.style.setProperty('--color-brand-dim', rgbString); 
+          root.style.setProperty('--color-brand-glow', rgbString);
+        }
+      } catch (e) {
+        console.warn("Theme Sync Failed: Using Default Protocol");
+      }
+    };
+
+    fetchTheme();
+  }, []);
+
+  return null; // This component renders nothing, just manages logic
+};
 
 // 🛑 THE GATEKEEPER
 const SessionGate = ({ children }) => {
   const { session } = useSession();
 
-  // Safety check: If session is undefined (provider error), don't crash with 's is not defined'
+  // 1. Provider not ready (Safety)
   if (!session) return null;
 
+  // 2. Auth Loading State
   if (!session.isReady) {
     return (
       <div className="h-screen w-full bg-[#050505] flex flex-col items-center justify-center space-y-4">
         <div className="relative">
-            <div className="w-16 h-16 border-4 border-fuchsia-600/30 border-t-fuchsia-500 rounded-full animate-spin"></div>
+           {/* Dynamic Spinner Color */}
+           <div className="w-16 h-16 border-4 border-brand/30 border-t-brand rounded-full animate-spin"></div>
         </div>
         <div className="text-zinc-500 font-mono text-xs uppercase tracking-widest animate-pulse">
-            System Boot...
+           System Boot...
         </div>
       </div>
     );
   }
 
+  // 3. Ready
   return children;
 };
 
@@ -34,6 +78,7 @@ function App() {
   return (
     <React.StrictMode>
       <ErrorBoundary>
+        <ThemeManager /> {/* 👈 Injects Database Colors */}
         <SessionProvider>
           <SessionGate>
              <TournamentProvider>

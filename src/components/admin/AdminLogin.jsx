@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
 import { useSession } from '../../auth/useSession';
-import { useNavigate, Link } from 'react-router-dom';
-import { Shield, Users, ArrowRight, Lock, AlertCircle, Loader2 } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom'; // ✅ Ensure Link is imported
+import { Shield, ArrowRight, Loader2 } from 'lucide-react';
 
-// ✅ THIS IS THE NAMED EXPORT THE ROUTER IS LOOKING FOR
 export const AdminLogin = () => {
   const { loginAdmin, loginCaptain } = useSession();
   const navigate = useNavigate();
@@ -57,12 +56,19 @@ export const AdminLogin = () => {
                     <>
                         <input type="email" className="w-full bg-black border border-zinc-700 rounded p-3 text-sm text-white focus:border-fuchsia-500 outline-none" placeholder="Email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
                         <input type="password" className="w-full bg-black border border-zinc-700 rounded p-3 text-sm text-white focus:border-fuchsia-500 outline-none" placeholder="Password" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} />
+                        
+                        {/* ✅ FORGOT PASSWORD LINK */}
+                        <div className="flex justify-end">
+                            <Link to="/recover-password" className="text-[10px] text-zinc-500 hover:text-fuchsia-400 transition-colors uppercase font-bold tracking-wider">
+                                Forgot Credentials?
+                            </Link>
+                        </div>
                     </>
                 )}
 
-                {error && <div className="text-red-500 text-xs font-bold text-center">{error}</div>}
+                {error && <div className="text-red-500 text-xs font-bold text-center uppercase">{error}</div>}
 
-                <button disabled={loading} className="w-full py-4 bg-zinc-800 hover:bg-zinc-700 text-white font-bold uppercase text-xs rounded flex items-center justify-center gap-2">
+                <button disabled={loading} className="w-full py-4 bg-zinc-800 hover:bg-zinc-700 text-white font-bold uppercase text-xs rounded flex items-center justify-center gap-2 transition-colors">
                     {loading ? <Loader2 className="animate-spin w-4 h-4"/> : <>Enter System <ArrowRight size={14} /></>}
                 </button>
              </form>

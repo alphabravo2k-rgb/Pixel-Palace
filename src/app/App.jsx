@@ -1,11 +1,15 @@
 import React, { useEffect } from 'react';
 import { RouterProvider } from 'react-router-dom';
-import { supabase } from './supabase/client'; // Ensure path is correct
-import { SessionProvider, useSession } from './auth/useSession';
-import { TournamentProvider } from './tournament/useTournament';
-import ErrorBoundary from './components/common/ErrorBoundary';
-import { router } from './router';
-import './index.css';
+
+// ✅ FIX: Use '@' alias to point to 'src/' root (Defined in vite.config.js)
+import { supabase } from '@/supabase/client'; 
+import { SessionProvider, useSession } from '@/auth/useSession';
+import { TournamentProvider } from '@/tournament/useTournament';
+import ErrorBoundary from '@/components/common/ErrorBoundary';
+import { router } from '@/router';
+
+// ✅ CSS Import (Adjusted for alias)
+import '@/index.css';
 
 // 🎨 THEME MANAGER: Connects UI to Database
 const ThemeManager = () => {
@@ -13,7 +17,6 @@ const ThemeManager = () => {
     const fetchTheme = async () => {
       try {
         // Fetch active tournament color settings
-        // Expects table 'tournaments' with columns: is_active, theme_color (hex)
         const { data } = await supabase
           .from('tournaments')
           .select('theme_color')
@@ -32,35 +35,30 @@ const ThemeManager = () => {
 
           // Inject into CSS Variables
           root.style.setProperty('--color-brand', rgbString);
-          // Auto-generate Dim (Darker) and Glow (Lighter) variants could go here
-          // For now, we use the main color for consistency
           root.style.setProperty('--color-brand-dim', rgbString); 
           root.style.setProperty('--color-brand-glow', rgbString);
         }
       } catch (e) {
-        console.warn("Theme Sync Failed: Using Default Protocol");
+        // Silent fail - keep default theme
       }
     };
 
     fetchTheme();
   }, []);
 
-  return null; // This component renders nothing, just manages logic
+  return null; 
 };
 
 // 🛑 THE GATEKEEPER
 const SessionGate = ({ children }) => {
   const { session } = useSession();
 
-  // 1. Provider not ready (Safety)
   if (!session) return null;
 
-  // 2. Auth Loading State
   if (!session.isReady) {
     return (
       <div className="h-screen w-full bg-[#050505] flex flex-col items-center justify-center space-y-4">
         <div className="relative">
-           {/* Dynamic Spinner Color */}
            <div className="w-16 h-16 border-4 border-brand/30 border-t-brand rounded-full animate-spin"></div>
         </div>
         <div className="text-zinc-500 font-mono text-xs uppercase tracking-widest animate-pulse">
@@ -70,7 +68,6 @@ const SessionGate = ({ children }) => {
     );
   }
 
-  // 3. Ready
   return children;
 };
 
@@ -78,7 +75,7 @@ function App() {
   return (
     <React.StrictMode>
       <ErrorBoundary>
-        <ThemeManager /> {/* 👈 Injects Database Colors */}
+        <ThemeManager />
         <SessionProvider>
           <SessionGate>
              <TournamentProvider>

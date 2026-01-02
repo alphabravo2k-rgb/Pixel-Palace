@@ -1,24 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../supabase/client';
-import { Search, RefreshCw, Shield, Edit3, X, Trash2, Key, Users } from 'lucide-react';
+import { Search, RefreshCw, Shield, Edit3, X, Trash2, Key, Users, Copy, CheckCircle, Ban, Trophy } from 'lucide-react';
 import StatsCard from '../../components/StatsCard';
 
 // --- OFFICIAL BRAND ICONS (SVG PATHS) ---
 const BRAND_ICONS = {
   STEAM: (
-    <svg viewBox="0 0 24 24" className="w-3 h-3 fill-current" xmlns="http://www.w3.org/2000/svg">
-      <path d="M11.979 0C5.666 0 .548 5.13.548 11.465c0 3.25 1.344 6.18 3.506 8.27l1.96-2.94a4.938 4.938 0 0 1-.366-1.874 4.975 4.975 0 0 1 4.97-4.97c.453 0 .89.066 1.306.184l3.194-4.79A11.378 11.378 0 0 0 11.98 0zm6.983 6.94l-3.33 4.995a4.933 4.933 0 0 1 2.25 2.126l4.634-2.857a11.385 11.385 0 0 0-3.554-4.264zM7.276 17.037l-1.897 2.846a11.37 11.37 0 0 0 5.23 1.94l1.19-4.167a4.966 4.966 0 0 1-4.523-.62zm9.11 1.07l-4.22 2.602a4.965 4.965 0 0 1-2.09.47L8.91 24.5a11.413 11.413 0 0 0 7.476-6.393z"/>
-    </svg>
+    <svg viewBox="0 0 24 24" className="w-3 h-3 fill-current" xmlns="http://www.w3.org/2000/svg"><path d="M11.979 0C5.666 0 .548 5.13.548 11.465c0 3.25 1.344 6.18 3.506 8.27l1.96-2.94a4.938 4.938 0 0 1-.366-1.874 4.975 4.975 0 0 1 4.97-4.97c.453 0 .89.066 1.306.184l3.194-4.79A11.378 11.378 0 0 0 11.98 0zm6.983 6.94l-3.33 4.995a4.933 4.933 0 0 1 2.25 2.126l4.634-2.857a11.385 11.385 0 0 0-3.554-4.264zM7.276 17.037l-1.897 2.846a11.37 11.37 0 0 0 5.23 1.94l1.19-4.167a4.966 4.966 0 0 1-4.523-.62zm9.11 1.07l-4.22 2.602a4.965 4.965 0 0 1-2.09.47L8.91 24.5a11.413 11.413 0 0 0 7.476-6.393z"/></svg>
   ),
   DISCORD: (
-    <svg viewBox="0 0 24 24" className="w-3 h-3 fill-current" xmlns="http://www.w3.org/2000/svg">
-      <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/>
-    </svg>
+    <svg viewBox="0 0 24 24" className="w-3 h-3 fill-current" xmlns="http://www.w3.org/2000/svg"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg>
   ),
   FACEIT: (
-    <svg viewBox="0 0 24 24" className="w-3 h-3 fill-current" xmlns="http://www.w3.org/2000/svg">
-      <path d="M23.999 2.705c-.167-1.446-1.41-2.433-2.802-2.585-6.522-.73-12.603 1.353-12.603 1.353s-6.336 2.456-12.288 3.03C-.62 4.88-.633 6.643 2.053 6.34c3.418-.387 13.923-2.08 13.923-2.08l.385 1.554-15.01 2.37c-1.396.22-1.35 2.03.02 2.24l15.114 2.253.402 1.62-15.187 2.155c-1.48.212-1.31 2.14.07 2.21 4.545.232 14.832-.852 14.832-.852l.52 2.102-14.898 3.522c-1.8.426-1.077 2.924.787 2.502 6.556-1.48 13.116-2.923 13.116-2.923s5.88-1.528 7.625-5.914c1.19-2.99 1.483-11.233.178-14.394"/>
-    </svg>
+    <svg viewBox="0 0 24 24" className="w-3 h-3 fill-current" xmlns="http://www.w3.org/2000/svg"><path d="M23.999 2.705c-.167-1.446-1.41-2.433-2.802-2.585-6.522-.73-12.603 1.353-12.603 1.353s-6.336 2.456-12.288 3.03C-.62 4.88-.633 6.643 2.053 6.34c3.418-.387 13.923-2.08 13.923-2.08l.385 1.554-15.01 2.37c-1.396.22-1.35 2.03.02 2.24l15.114 2.253.402 1.62-15.187 2.155c-1.48.212-1.31 2.14.07 2.21 4.545.232 14.832-.852 14.832-.852l.52 2.102-14.898 3.522c-1.8.426-1.077 2.924.787 2.502 6.556-1.48 13.116-2.923 13.116-2.923s5.88-1.528 7.625-5.914c1.19-2.99 1.483-11.233.178-14.394"/></svg>
   )
 };
 
@@ -42,32 +36,42 @@ const getRegionFlag = (regionCode) => {
   return <span className="text-[9px] font-black bg-zinc-800 text-zinc-400 px-1 rounded border border-zinc-700">{code.substring(0, 2)}</span>;
 };
 
-// --- TEAM CARD (UPDATED WITH BRAND LOGOS & HOVER) ---
+const copyToClipboard = (text) => {
+    navigator.clipboard.writeText(text);
+    // You could add a toast notification here
+    console.log("Copied to clipboard:", text);
+};
+
+// --- TEAM CARD (UPDATED) ---
 const TeamCard = ({ team, onEdit }) => {
   const activeMembers = team.members.slice(0, 5);
   const reserveMembers = team.members.slice(5);
+  const isDQ = team.status === 'DISQUALIFIED';
 
   return (
-    <div className="group relative bg-[#0b0c0f] border border-zinc-800 hover:border-zinc-600 flex flex-col h-full transition-all duration-300 rounded-xl overflow-visible">
+    <div className={`group relative bg-[#0b0c0f] border hover:border-zinc-600 flex flex-col h-full transition-all duration-300 rounded-xl overflow-visible ${isDQ ? 'border-red-900/50 opacity-75' : 'border-zinc-800'}`}>
       
       {/* Header Section */}
       <div className="p-3 bg-zinc-900/50 border-b border-white/5 flex justify-between items-center rounded-t-xl">
         <div className="flex items-center gap-3">
           {/* Logo */}
-          <div className="w-10 h-10 bg-black rounded border border-zinc-800 flex items-center justify-center p-1">
+          <div className="w-10 h-10 bg-black rounded border border-zinc-800 flex items-center justify-center p-1 relative">
             {team.logo_url ? <img src={team.logo_url} className="w-full h-full object-contain" alt={team.name} /> : <Shield className="w-5 h-5 text-zinc-700"/>}
+            {isDQ && <div className="absolute inset-0 bg-black/80 flex items-center justify-center rounded"><Ban className="w-6 h-6 text-red-600"/></div>}
           </div>
           
           {/* Team Info */}
           <div>
-            <h3 className="text-sm font-black text-white uppercase italic tracking-tighter truncate max-w-[140px]">{team.name}</h3>
+            <h3 className={`text-sm font-black uppercase italic tracking-tighter truncate max-w-[140px] ${isDQ ? 'text-red-500 line-through' : 'text-white'}`}>{team.name}</h3>
             <div className="flex items-center gap-2 mt-1">
-                {team.access_code && (
-                    <span className="text-[9px] font-mono bg-zinc-800 px-1.5 rounded text-zinc-400 border border-zinc-700 flex items-center gap-1" title="Invite Code">
-                      <Key size={8} /> {team.access_code}
-                    </span>
+                {/* STATUS BADGES */}
+                {isDQ ? (
+                    <span className="text-[9px] font-bold bg-red-900/20 text-red-500 px-1.5 rounded border border-red-900/50">DQ</span>
+                ) : (
+                    <div className="flex items-center gap-1 text-[9px] font-mono text-zinc-500">
+                        <span className="text-emerald-500 font-bold">{team.wins || 0}W</span> - <span className="text-red-400 font-bold">{team.losses || 0}L</span>
+                    </div>
                 )}
-                {team.seed_number > 0 && <span className="text-[9px] text-zinc-500 font-mono">SEED #{team.seed_number}</span>}
                 <span className="flex items-center" title={team.region}>{getRegionFlag(team.region)}</span>
             </div>
           </div>
@@ -96,16 +100,20 @@ const TeamCard = ({ team, onEdit }) => {
                       </span>
                   )}
                   
-                  {/* REAL BRAND ICONS */}
                   {m.steam_url && (
                       <a href={m.steam_url} target="_blank" rel="noreferrer" className="text-zinc-600 hover:text-[#171a21] hover:bg-white rounded-full p-0.5 transition-colors" title="Steam">
                          {BRAND_ICONS.STEAM}
                       </a>
                   )}
+                  {/* DISCORD COPY BUTTON */}
                   {m.discord_handle && (
-                       <div className="text-zinc-600 hover:text-[#5865F2] hover:bg-white rounded-full p-0.5 transition-colors cursor-help" title={m.discord_handle}>
+                       <button 
+                          onClick={() => copyToClipboard(m.discord_handle)}
+                          className="text-zinc-600 hover:text-[#5865F2] hover:bg-white rounded-full p-0.5 transition-colors cursor-pointer active:scale-90" 
+                          title="Click to Copy Discord ID"
+                        >
                          {BRAND_ICONS.DISCORD}
-                       </div>
+                       </button>
                   )}
                   {m.faceit_url && (
                       <a href={m.faceit_url} target="_blank" rel="noreferrer" className="text-zinc-600 hover:text-[#ff5500] hover:bg-white rounded-full p-0.5 transition-colors" title="Faceit">
@@ -122,8 +130,6 @@ const TeamCard = ({ team, onEdit }) => {
                 <div className="text-[9px] text-zinc-600 italic group-hover:text-fuchsia-500 transition-colors">
                     +{reserveMembers.length} Reserves (Hover to view)
                 </div>
-                
-                {/* TOOLTIP POPUP */}
                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-[#0b0c0f] border border-zinc-700 rounded-lg p-2 shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[100] pointer-events-none group-hover:pointer-events-auto">
                     <div className="text-[9px] font-bold uppercase text-zinc-500 mb-2 border-b border-zinc-800 pb-1">Reserve Roster</div>
                     {reserveMembers.map(sub => (
@@ -132,7 +138,6 @@ const TeamCard = ({ team, onEdit }) => {
                             <span className="text-zinc-600">{sub.faceit_elo > 0 ? sub.faceit_elo : 'NR'}</span>
                         </div>
                     ))}
-                    {/* Tiny Arrow */}
                     <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-[#0b0c0f] border-b border-r border-zinc-700 rotate-45"></div>
                 </div>
             </div>
@@ -145,8 +150,14 @@ const TeamCard = ({ team, onEdit }) => {
 // --- EDIT MODAL COMPONENT ---
 const EditTeamModal = ({ team, onClose, onRefresh }) => {
   const [meta, setMeta] = useState({
-    name: team?.name || '', logo_url: team?.logo_url || '', region: team?.region || 'PAK',
-    seed_number: team?.seed_number || 0, access_code: team?.access_code || ''
+    name: team?.name || '', 
+    logo_url: team?.logo_url || '', 
+    region: team?.region || 'PAK',
+    seed_number: team?.seed_number || 0, 
+    access_code: team?.access_code || '',
+    status: team?.status || 'ACTIVE',
+    wins: team?.wins || 0,
+    losses: team?.losses || 0
   });
   const [members, setMembers] = useState(
       team?.members.map(m => ({
@@ -174,6 +185,9 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
           p_region: meta.region,
           p_seed_number: parseInt(meta.seed_number),
           p_access_code: meta.access_code,
+          p_status: meta.status,
+          p_wins: parseInt(meta.wins),
+          p_losses: parseInt(meta.losses),
           p_members: members 
       });
 
@@ -199,6 +213,7 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
         <div className="p-6 overflow-y-auto space-y-6">
            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-4">
+                  {/* Basic Info */}
                   <div className="space-y-1">
                       <label className="text-[10px] text-zinc-500 uppercase font-bold">Team Name</label>
                       <input value={meta.name} onChange={e=>setMeta({...meta, name:e.target.value})} className="w-full bg-black border border-zinc-700 p-2 text-white rounded text-sm" placeholder="e.g. Navi" />
@@ -207,11 +222,31 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
                       <label className="text-[10px] text-zinc-500 uppercase font-bold">Logo URL</label>
                       <input value={meta.logo_url} onChange={e=>setMeta({...meta, logo_url:e.target.value})} className="w-full bg-black border border-zinc-700 p-2 text-white rounded text-sm" placeholder="https://..." />
                   </div>
+                  {/* Status & Record */}
+                  <div className="flex gap-4">
+                      <div className="space-y-1 flex-1">
+                          <label className="text-[10px] text-zinc-500 uppercase font-bold">Status</label>
+                          <select value={meta.status} onChange={e=>setMeta({...meta, status:e.target.value})} className="w-full bg-black border border-zinc-700 p-2 text-white rounded text-sm uppercase">
+                              <option value="ACTIVE">Active</option>
+                              <option value="DISQUALIFIED">Disqualified</option>
+                              <option value="ELIMINATED">Eliminated</option>
+                          </select>
+                      </div>
+                      <div className="space-y-1 w-20">
+                          <label className="text-[10px] text-zinc-500 uppercase font-bold">Wins</label>
+                          <input type="number" value={meta.wins} onChange={e=>setMeta({...meta, wins:e.target.value})} className="w-full bg-black border border-zinc-700 p-2 text-white rounded text-sm text-center" />
+                      </div>
+                      <div className="space-y-1 w-20">
+                          <label className="text-[10px] text-zinc-500 uppercase font-bold">Losses</label>
+                          <input type="number" value={meta.losses} onChange={e=>setMeta({...meta, losses:e.target.value})} className="w-full bg-black border border-zinc-700 p-2 text-white rounded text-sm text-center" />
+                      </div>
+                  </div>
               </div>
+              
               <div className="space-y-4">
                   <div className="space-y-1">
-                      <label className="text-[10px] text-zinc-500 uppercase font-bold">Access Code (Auto-Generated)</label>
-                      <input value={meta.access_code} onChange={e=>setMeta({...meta, access_code:e.target.value})} className="w-full bg-black border border-zinc-700 p-2 text-yellow-500 font-mono rounded text-sm" placeholder="TEAM-1234" />
+                      <label className="text-[10px] text-zinc-500 uppercase font-bold">Access Code</label>
+                      <input value={meta.access_code} onChange={e=>setMeta({...meta, access_code:e.target.value})} className="w-full bg-black border border-zinc-700 p-2 text-yellow-500 font-mono rounded text-sm" />
                   </div>
                   <div className="flex gap-4">
                     <div className="space-y-1 flex-1">
@@ -271,6 +306,7 @@ export const TeamRosterView = () => {
 
   const fetchTeams = async () => {
     setLoading(true);
+    // Fetch with new Status/Stats columns
     const { data } = await supabase.from('teams').select(`
         *, 
         team_members(

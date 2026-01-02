@@ -1,21 +1,24 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { supabase } from '../supabase/client';
 import { useTournament } from '../tournament/useTournament';
+import { useSession } from '../auth/useSession'; // ✅ Check for Admin Role
 import Bracket from './Bracket';
-import { RefreshCw, WifiOff, Loader2 } from 'lucide-react';
-import { MatchWarRoom } from './admin/MatchWarRoom'; // ✅ Import the new file
-import { Settings } from 'lucide-react'; // For the button icon
-
-// 👇 CHANGE THIS IMPORT to use the Admin Modal
-import { AdminMatchModal } from './admin/AdminMatchModal'; 
+import { RefreshCw, WifiOff, Loader2, Settings } from 'lucide-react';
+import { MatchWarRoom } from './admin/MatchWarRoom'; // ✅ Import War Room
+import { AdminMatchModal } from './admin/AdminMatchModal'; // Keep for standard details if needed
 
 export const BracketView = () => {
+  const { session } = useSession(); // ✅ Get User Role
   const { selectedTournamentId, tournamentData, loading: contextLoading } = useTournament();
   
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [selectedMatch, setSelectedMatch] = useState(null);
+  
+  // Modals State
+  const [selectedMatch, setSelectedMatch] = useState(null); // Standard View
+  const [warRoomMatchId, setWarRoomMatchId] = useState(null); // ✅ War Room View
+
   const channelRef = useRef(null);
 
   const fetchBracket = async () => {
@@ -46,15 +49,29 @@ export const BracketView = () => {
   useEffect(() => {
     if (!selectedTournamentId) return;
     fetchBracket();
+    
     const channel = supabase
       .channel(`bracket-${selectedTournamentId}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'matches', filter: `tournament_id=eq.${selectedTournamentId}` }, (payload) => {
+         // Optimistic update for smoothness
          setMatches(prev => prev.map(m => m.id === payload.new.id ? { ...m, ...payload.new } : m));
          fetchBracket(); 
       })
       .subscribe();
+      
     return () => supabase.removeChannel(channel);
   }, [selectedTournamentId]);
+
+  // ✅ SMART CLICK HANDLER
+  const handleMatchClick = (match) => {
+      // If user is ADMIN or OWNER, open the War Room immediately
+      if (session?.role === 'ADMIN' || session?.role === 'OWNER') {
+          setWarRoomMatchId(match.id);
+      } else {
+          // Otherwise, open standard details (if you have one)
+          setSelectedMatch(match);
+      }
+  };
 
   if (contextLoading) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-zinc-500" /></div>;
   if (!selectedTournamentId) return <div className="h-screen flex items-center justify-center text-zinc-600 font-mono text-xs tracking-widest uppercase">Select a Tournament</div>;
@@ -82,10 +99,24 @@ export const BracketView = () => {
        )}
 
        <div className="flex-1 overflow-hidden relative">
-          <Bracket matches={matches} onMatchClick={setSelectedMatch} />
+          {/* ✅ Pass the smart click handler to the Bracket */}
+          <Bracket matches={matches} onMatchClick={handleMatchClick} />
        </div>
 
-       {/* 👇 USE THE ADMIN MODAL HERE */}
+       {/* ✅ WAR ROOM MODAL (ADMINS ONLY) */}
+       {warRoomMatchId && (
+         <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 animate-in fade-in">
+            <div className="absolute inset-0" onClick={() => setWarRoomMatchId(null)} />
+            <div className="relative z-10 w-full max-w-6xl">
+                <MatchWarRoom 
+                    matchId={warRoomMatchId} 
+                    onClose={() => setWarRoomMatchId(null)} 
+                />
+            </div>
+         </div>
+       )}
+
+       {/* STANDARD MODAL (PLAYERS) */}
        {selectedMatch && (
          <AdminMatchModal 
             match={selectedMatch} 

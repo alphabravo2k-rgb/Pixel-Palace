@@ -7,7 +7,7 @@ export const AdminLogin = () => {
   const { login: loginAdmin, loginCaptain } = useSession();
   const navigate = useNavigate();
   
-  const [mode, setMode] = useState('CAPTAIN'); 
+  const [mode, setMode] = useState('CAPTAIN');
   const [formData, setFormData] = useState({ email: '', password: '', code: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -71,7 +71,7 @@ export const AdminLogin = () => {
 
                 {error && <div className="p-3 bg-red-900/20 border border-red-500/30 text-red-400 text-xs font-bold text-center rounded flex items-center justify-center gap-2 animate-in fade-in"><AlertCircle size={14} /> {error}</div>}
 
-                <button disabled={loading} className={`w-full py-4 rounded font-bold uppercase tracking-widest text-xs transition-all flex items-center justify-center gap-2 mt-2 ${mode === 'CAPTAIN' ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-900/20' : 'bg-fuchsia-600 hover:bg-fuchsia-500 text-white shadow-lg shadow-fuchsia-900/20'} ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                <button disabled={loading} className={`w-full py-4 rounded font-bold uppercase tracking-widest text-xs transition-all flex items-center justify-center gap-2 mt-2 ${mode === 'CAPTAIN' ? 'bg-blue-600 hover:bg-blue-500 text-white' : 'bg-fuchsia-600 hover:bg-fuchsia-500 text-white'} ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}>
                     {loading ? <Loader2 className="animate-spin w-4 h-4"/> : <>Enter System <ArrowRight size={14} /></>}
                 </button>
              </form>

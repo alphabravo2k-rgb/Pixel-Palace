@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../supabase/client';
-import { Search, RefreshCw, Shield, Crown, Edit3, X, Trash2, Key, Link as LinkIcon } from 'lucide-react';
+import { Search, RefreshCw, Shield, Edit3, X, Trash2, Key, Users } from 'lucide-react';
+import StatsCard from '../../components/StatsCard'; // ✅ Import the Stats Card
 
 // --- HELPERS ---
 const ROLE_WEIGHT = { 'CAPTAIN': 1, 'PLAYER': 2, 'SUBSTITUTE': 3 };
@@ -77,8 +78,7 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
   const handleSave = async () => {
     setSaving(true);
     try {
-      
-      // ✅ ATOMIC TRANSACTION via RPC (Code 70)
+      // ✅ ATOMIC TRANSACTION via RPC
       const { data, error } = await supabase.rpc('admin_upsert_team', {
           p_team_id: team?.id || null,
           p_name: meta.name,
@@ -101,7 +101,7 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in">
       <div className="bg-[#0b0c0f] border border-zinc-700 w-full max-w-5xl rounded-2xl flex flex-col max-h-[90vh]">
         <div className="p-6 border-b border-zinc-800 bg-zinc-900/50 flex justify-between">
            <h2 className="text-xl font-black text-white uppercase italic">{isCreate ? 'NEW SQUAD' : 'EDIT UNIT'}</h2>
@@ -110,31 +110,55 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
         
         <div className="p-6 overflow-y-auto space-y-6">
            {/* Meta Fields */}
-           <div className="grid grid-cols-2 gap-4">
-              <input value={meta.name} onChange={e=>setMeta({...meta, name:e.target.value})} className="bg-black border border-zinc-700 p-2 text-white rounded text-sm" placeholder="Team Name" />
-              <input value={meta.access_code} onChange={e=>setMeta({...meta, access_code:e.target.value})} className="bg-black border border-zinc-700 p-2 text-yellow-500 font-mono rounded text-sm" placeholder="Access Code" />
-              <input value={meta.logo_url} onChange={e=>setMeta({...meta, logo_url:e.target.value})} className="bg-black border border-zinc-700 p-2 text-white rounded text-sm" placeholder="Logo URL" />
-              <input value={meta.seed_number} type="number" onChange={e=>setMeta({...meta, seed_number:e.target.value})} className="bg-black border border-zinc-700 p-2 text-white rounded text-sm" placeholder="Seed #" />
+           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-4">
+                  <div className="space-y-1">
+                      <label className="text-[10px] text-zinc-500 uppercase font-bold">Team Name</label>
+                      <input value={meta.name} onChange={e=>setMeta({...meta, name:e.target.value})} className="w-full bg-black border border-zinc-700 p-2 text-white rounded text-sm" placeholder="e.g. Navi" />
+                  </div>
+                  <div className="space-y-1">
+                      <label className="text-[10px] text-zinc-500 uppercase font-bold">Logo URL</label>
+                      <input value={meta.logo_url} onChange={e=>setMeta({...meta, logo_url:e.target.value})} className="w-full bg-black border border-zinc-700 p-2 text-white rounded text-sm" placeholder="https://..." />
+                  </div>
+              </div>
+              <div className="space-y-4">
+                  <div className="space-y-1">
+                      <label className="text-[10px] text-zinc-500 uppercase font-bold">Access Code (Auto-Generated)</label>
+                      <input value={meta.access_code} onChange={e=>setMeta({...meta, access_code:e.target.value})} className="w-full bg-black border border-zinc-700 p-2 text-yellow-500 font-mono rounded text-sm" placeholder="TEAM-1234" />
+                  </div>
+                  <div className="flex gap-4">
+                    <div className="space-y-1 flex-1">
+                        <label className="text-[10px] text-zinc-500 uppercase font-bold">Seed #</label>
+                        <input value={meta.seed_number} type="number" onChange={e=>setMeta({...meta, seed_number:e.target.value})} className="w-full bg-black border border-zinc-700 p-2 text-white rounded text-sm" placeholder="0" />
+                    </div>
+                     <div className="space-y-1 flex-1">
+                        <label className="text-[10px] text-zinc-500 uppercase font-bold">Region</label>
+                        <input value={meta.region} onChange={e=>setMeta({...meta, region:e.target.value})} className="w-full bg-black border border-zinc-700 p-2 text-white rounded text-sm" placeholder="PAK" />
+                    </div>
+                  </div>
+              </div>
            </div>
 
            {/* Roster Editor */}
            <div className="space-y-2 border-t border-zinc-800 pt-4">
               <div className="flex justify-between items-center mb-2">
-                  <h3 className="font-bold text-white text-sm uppercase">Active Roster</h3>
-                  <button onClick={handleAdd} className="text-xs bg-blue-600 px-3 py-1 rounded text-white font-bold uppercase">Add Operator</button>
+                  <h3 className="font-bold text-white text-sm uppercase flex items-center gap-2"><Users size={14}/> Active Roster</h3>
+                  <button onClick={handleAdd} className="text-xs bg-blue-600 hover:bg-blue-500 px-3 py-1 rounded text-white font-bold uppercase transition-colors">Add Operator</button>
               </div>
               
               {members.map((m, idx) => (
-                 <div key={idx} className="flex gap-2 items-center bg-zinc-900/50 p-2 rounded border border-zinc-800">
-                    <input value={m.username} onChange={e => updateMember(idx, 'username', e.target.value)} className="bg-black border border-zinc-700 p-1 text-white rounded text-xs flex-1" placeholder="Username" />
-                    <input value={m.steam} onChange={e => updateMember(idx, 'steam', e.target.value)} className="bg-black border border-zinc-700 p-1 text-zinc-300 rounded text-xs w-32" placeholder="Steam URL" />
-                    <input value={m.discord} onChange={e => updateMember(idx, 'discord', e.target.value)} className="bg-black border border-zinc-700 p-1 text-zinc-300 rounded text-xs w-24" placeholder="Discord" />
-                    
-                    <select value={m.role} onChange={e => updateMember(idx, 'role', e.target.value)} className="bg-black border border-zinc-700 p-1 text-white rounded text-xs uppercase font-bold">
-                        <option>CAPTAIN</option><option>PLAYER</option><option>SUBSTITUTE</option>
-                    </select>
-                    
-                    <button onClick={() => removeMember(idx)} className="text-red-500 hover:text-red-400 p-1"><Trash2 size={14}/></button>
+                 <div key={idx} className="flex flex-col md:flex-row gap-2 items-center bg-zinc-900/50 p-3 rounded border border-zinc-800">
+                    <div className="flex-1 w-full flex gap-2">
+                        <input value={m.username} onChange={e => updateMember(idx, 'username', e.target.value)} className="bg-black border border-zinc-700 p-2 text-white rounded text-xs flex-1" placeholder="Username" />
+                        <select value={m.role} onChange={e => updateMember(idx, 'role', e.target.value)} className="bg-black border border-zinc-700 p-2 text-white rounded text-xs uppercase font-bold">
+                            <option>CAPTAIN</option><option>PLAYER</option><option>SUBSTITUTE</option>
+                        </select>
+                    </div>
+                    <div className="flex-1 w-full flex gap-2">
+                        <input value={m.steam} onChange={e => updateMember(idx, 'steam', e.target.value)} className="bg-black border border-zinc-700 p-2 text-zinc-300 rounded text-xs w-full" placeholder="Steam URL" />
+                        <input value={m.discord} onChange={e => updateMember(idx, 'discord', e.target.value)} className="bg-black border border-zinc-700 p-2 text-zinc-300 rounded text-xs w-full" placeholder="Discord ID" />
+                    </div>
+                    <button onClick={() => removeMember(idx)} className="text-red-500 hover:text-red-400 p-2 hover:bg-red-900/20 rounded"><Trash2 size={14}/></button>
                  </div>
               ))}
            </div>
@@ -142,7 +166,7 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
 
         <div className="p-4 border-t border-zinc-800 flex justify-end gap-2 bg-zinc-900/50">
            <button onClick={onClose} className="px-4 py-2 text-zinc-400 text-xs font-bold uppercase hover:text-white">Cancel</button>
-           <button onClick={handleSave} disabled={saving} className="px-6 py-2 bg-fuchsia-600 hover:bg-fuchsia-500 text-white text-xs font-bold uppercase rounded shadow-lg">
+           <button onClick={handleSave} disabled={saving} className="px-6 py-2 bg-fuchsia-600 hover:bg-fuchsia-500 text-white text-xs font-bold uppercase rounded shadow-lg transition-all">
               {saving ? 'Processing...' : 'Save Changes'}
            </button>
         </div>
@@ -200,8 +224,19 @@ export const TeamRosterView = () => {
   
   const filteredTeams = teams.filter(t => t.name.toLowerCase().includes(searchTerm.toLowerCase()));
 
+  // ✅ ADDED STATS CALCULATION
+  const totalPlayers = teams.reduce((acc, t) => acc + t.members.length, 0);
+  const readyTeams = teams.filter(t => t.members.length >= 5).length;
+
   return (
     <div className="space-y-6 animate-in fade-in">
+       {/* ✅ ADDED STATS HEADER */}
+       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <StatsCard title="Total Teams" value={teams.length} type="teams" />
+          <StatsCard title="Active Operators" value={totalPlayers} type="players" />
+          <StatsCard title="Combat Ready" value={readyTeams} type="active" />
+       </div>
+
        <div className="flex justify-between items-end border-b border-white/10 pb-4">
           <h1 className="text-3xl font-black text-white italic uppercase tracking-tighter">ROSTER <span className="text-fuchsia-500">COMMAND</span></h1>
           <div className="flex items-center gap-3">

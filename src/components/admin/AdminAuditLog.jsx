@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../../supabase/client';
-import { ScrollText, RefreshCw, ArrowRight, ShieldAlert } from 'lucide-react';
+import { ScrollText, RefreshCw, ShieldAlert } from 'lucide-react';
 import { useCapabilities } from '../../auth/useCapabilities';
 import { PERM_CAPABILITIES } from '../../lib/permissions.actions';
 
@@ -16,7 +16,6 @@ export const AdminAuditLog = () => {
     setLoading(true);
     setError(null);
     try {
-      // ✅ FIXED: Changed admin_id to operator_id to match Code 17 schema
       const { data, error } = await supabase
         .from('admin_audit_logs')
         .select('id, created_at, operator_id, action_type, details, target')
@@ -47,27 +46,27 @@ export const AdminAuditLog = () => {
   }
 
   const renderDetails = (log) => {
-    // Try to parse details if it's a string (from Code 17)
-    let d = log.details;
+    let d = log.details || {};
+    
+    // 🛡️ SAFELY HANDLE HYBRID DATA (Strings vs Objects)
     try {
         if (typeof d === 'string') d = JSON.parse(d);
     } catch (e) {
-        // keep as string
+        // If parsing fails, keep it as a string
     }
+
+    const displayString = typeof d === 'object' ? JSON.stringify(d, null, 2) : String(d);
 
     return (
       <div className="space-y-1">
-        {/* Target Resource Display */}
         {log.target && (
             <div className="text-fuchsia-400 text-[10px] font-mono font-bold uppercase mb-1">
                 TARGET: {log.target}
             </div>
         )}
-
-        {/* Dynamic Details Rendering */}
-        <code className="text-[10px] text-zinc-500 block max-w-xs break-all font-mono">
-            {typeof d === 'object' ? JSON.stringify(d).substring(0, 100) : d}
-        </code>
+        <pre className="text-[10px] text-zinc-500 block max-w-xs overflow-x-auto font-mono bg-black/20 p-1 rounded">
+            {displayString.substring(0, 200)}
+        </pre>
       </div>
     );
   };
@@ -109,7 +108,7 @@ export const AdminAuditLog = () => {
             ) : (
                 logs.map((log) => {
                 const actionName = log.action_type || 'UNKNOWN';
-                const isForce = actionName.includes('DELETE') || actionName.includes('KICK');
+                const isForce = actionName.includes('DELETE') || actionName.includes('KICK') || actionName.includes('FORCE');
                 
                 return (
                     <tr key={log.id} className="hover:bg-white/5 transition-colors group">
@@ -118,7 +117,6 @@ export const AdminAuditLog = () => {
                     </td>
                     <td className="p-3 align-top">
                         <span className="font-mono text-xs text-fuchsia-400 bg-fuchsia-900/10 px-1.5 py-0.5 rounded border border-fuchsia-500/20">
-                            {/* ✅ FIXED: operator_id */}
                             OP:{log.operator_id ? log.operator_id.substring(0, 6) : 'SYSTEM'}
                         </span>
                     </td>

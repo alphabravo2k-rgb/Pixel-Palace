@@ -12,13 +12,17 @@ module.exports = {
   settings: { react: { version: '18.2' } },
   plugins: ['react-refresh'],
   rules: {
-    // 1. PROJECT STRUCTURE: Allow Hooks + Components in one file
-    'react-refresh/only-export-components': 'off',
+    // 1. PROJECT STRUCTURE: Allow Constants + Components in one file
+    // 'warn' is safer than 'off' because it keeps Fast Refresh working
+    'react-refresh/only-export-components': [
+      'warn',
+      { allowConstantExport: true },
+    ],
     
     // 2. DEV EXPERIENCE: Warn only, don't break build
     'react/prop-types': 'off', 
     'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^React$' }],
-    'no-console': ['warn', { allow: ['warn', 'error', 'info'] }],
+    'no-console': ['warn', { allow: ['warn', 'error', 'info', 'debug'] }], // Added 'debug'
     
     // 3. REACT PRACTICES
     'react/jsx-props-no-spreading': 'off', 

@@ -36,6 +36,7 @@ export const TournamentProvider = ({ children, defaultId }) => {
 
       if (data) {
         setTournaments(data);
+        // Smart Selection: Remember last viewed or pick newest
         if (!selectedTournamentId && data.length > 0 && !defaultId) {
            const lastId = localStorage.getItem('pp_active_tid');
            const isValid = data.find(t => t.id === lastId);
@@ -72,6 +73,7 @@ export const TournamentProvider = ({ children, defaultId }) => {
 
     fetchDetails(selectedTournamentId);
 
+    // ⚡ REAL-TIME: If Admin updates status/theme, clients update instantly
     const subscription = supabase
       .channel(`tournament_live_${selectedTournamentId}`)
       .on('postgres_changes', { 

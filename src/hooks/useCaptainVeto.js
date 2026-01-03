@@ -1,43 +1,46 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '../supabase/client';
 import { useSession } from '../auth/useSession';
-import { MATCH_FORMATS } from '../lib/constants'; // ✅ Single Source of Truth
+import { MATCH_FORMATS } from '../lib/constants';
 
 export const useCaptainVeto = (match) => {
   const { session } = useSession();
   const [vetoes, setVetoes] = useState([]);
   const [loading, setLoading] = useState(false);
   
-  // 1️⃣ CRITICAL FIX: SCOPED IDENTITY
-  // Do not trust session.team_id blindly. Only trust it if it belongs to THIS match.
+  // 1️⃣ SCOPED IDENTITY: Are you a captain *of this match*?
   const myTeamId = useMemo(() => {
-    if (!session?.team_id) return null;
+    if (!session?.team_id || !match) return null;
     if (match.team1_id === session.team_id) return match.team1_id;
     if (match.team2_id === session.team_id) return match.team2_id;
-    return null; // You might be a captain, but not for THIS match.
+    return null; 
   }, [match, session]);
 
-  // 2️⃣ FORMAT DERIVATION (Don't hardcode rules in UI)
+  // 2️⃣ FORMAT DERIVATION (BO1 vs BO3)
   const formatRules = useMemo(() => {
-    // Fallback to BO1 if unknown, but try to read from constants
+    if (!match) return MATCH_FORMATS['BO1'];
+    // Matches DB INT 'best_of' -> 1 or 3
     const type = match.best_of === 3 ? 'BO3' : 'BO1'; 
     return MATCH_FORMATS[type] || MATCH_FORMATS['BO1'];
-  }, [match.best_of]);
+  }, [match]);
 
-  // 3️⃣ STATE CALCULATION (Deterministic)
+  // 3️⃣ STATE CALCULATION (Whose turn is it?)
   const vetoState = useMemo(() => {
+    if (!formatRules) return { isMyTurn: false, action: 'WAIT' };
+
     const totalSteps = formatRules.sequence.length;
     const currentStepIndex = vetoes.length;
     const isComplete = currentStepIndex >= totalSteps;
 
     if (isComplete) {
-      return { isMyTurn: false, action: 'WAIT', activeTeamId: null };
+      return { isMyTurn: false, action: 'COMPLETE', activeTeamId: null };
     }
 
-    const currentStep = formatRules.sequence[currentStepIndex]; // { action: 'BAN', team: 'A' }
+    // Logic: Look up the sequence step (e.g., Step 0 = Ban Team A)
+    const currentStep = formatRules.sequence[currentStepIndex]; 
     
-    // Resolve 'A' or 'B' to actual Team IDs
-    // Assuming Team A = team1 (Higher seed/Home) and Team B = team2
+    // Resolve 'A' (Team 1) or 'B' (Team 2)
+    // Team 1 is usually the "Home" or "High Seed" team
     const activeTeamId = currentStep.team === 'A' ? match.team1_id : match.team2_id;
     
     return {
@@ -47,57 +50,62 @@ export const useCaptainVeto = (match) => {
     };
   }, [vetoes, formatRules, match, myTeamId]);
 
-  // 4️⃣ DATA FETCHING (The "Source of Truth")
+  // 4️⃣ DATA FETCHING
   const fetchVetoes = useCallback(async () => {
+    if (!match?.id) return;
     const { data, error } = await supabase
-      .from('match_veto')
+      .from('match_vetoes') // ✅ FIXED: Plural
       .select('*')
       .eq('match_id', match.id)
-      .order('sequence_no', { ascending: true });
+      .order('pick_order', { ascending: true }); // ✅ FIXED: Correct Column
 
     if (!error) setVetoes(data || []);
-  }, [match.id]);
+  }, [match?.id]);
 
-  // Initial Load & Subscription
+  // Initial Load & Realtime Sync
   useEffect(() => {
     fetchVetoes();
 
-    // 🛡️ CRITICAL FIX: REALTIME DEDUPLICATION
-    // Instead of appending rows blindly, we just trigger a full refetch.
-    // This is slightly slower but 100% accurate (no race conditions).
     const subscription = supabase
-      .channel(`veto_sync_${match.id}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'match_veto', filter: `match_id=eq.${match.id}` }, 
-        () => fetchVetoes()
-      )
+      .channel(`veto_sync_${match?.id}`)
+      .on('postgres_changes', { 
+        event: 'INSERT', 
+        schema: 'public', 
+        table: 'match_vetoes', // ✅ FIXED: Plural
+        filter: `match_id=eq.${match?.id}` 
+      }, () => fetchVetoes())
       .subscribe();
 
     return () => { supabase.removeChannel(subscription); };
-  }, [match.id, fetchVetoes]);
+  }, [match?.id, fetchVetoes]);
 
-  // 5️⃣ ACTION SUBMISSION (With Revalidation)
+  // 5️⃣ SUBMIT ACTION
   const submitVeto = async (mapId) => {
     if (!vetoState.isMyTurn || loading) return;
     setLoading(true);
 
     try {
-      // Optimistic Update (Optional - skipped for safety in Phase 1)
-      
+      // Determines if this is a BAN or PICK
+      const type = vetoState.action; 
+      // Calculate next order index (0, 1, 2...)
+      const nextOrder = vetoes.length; 
+
       const { error } = await supabase.rpc('api_submit_veto', {
         p_match_id: match.id,
         p_team_id: myTeamId,
-        p_map_name: mapId
+        p_map_name: mapId,
+        p_type: type,
+        p_pick_order: nextOrder
       });
 
       if (error) throw error;
 
-      // 🛡️ FORCE REVALIDATION
-      // Don't wait for realtime. Fetch immediately to confirm backend state.
+      // Immediate refresh to update UI
       await fetchVetoes();
 
     } catch (err) {
       console.error("Veto Error:", err);
-      alert("Failed to submit veto: " + err.message);
+      alert("Failed to update veto: " + err.message);
     } finally {
       setLoading(false);
     }

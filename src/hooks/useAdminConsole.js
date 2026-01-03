@@ -16,14 +16,15 @@ export const useAdminConsole = () => {
         throw new Error("UNAUTHORIZED: Session invalid.");
       }
 
-      // 🛡️ SECURITY: Backend handles identity via auth.uid()
-      // We only pass business parameters.
+      // 🛡️ SECURITY LOGGING (Helps you debug in Console)
       console.log(`[AdminConsole] Executing ${rpcName}`, params);
 
+      // The Magic Line: Calls the Postgres Function
       const { data, error: rpcError } = await supabase.rpc(rpcName, params);
 
       if (rpcError) throw rpcError;
 
+      // Handle "Logic Errors" returned by the database (e.g., "Tournament Locked")
       if (data && data.success === false) {
         throw new Error(data.message || 'Operation denied by server logic.');
       }
@@ -38,11 +39,6 @@ export const useAdminConsole = () => {
       setLoading(false);
     }
   }, [session]);
-
-  // ⚠️ NOTE: These RPCs were purged in the Golden Master. 
-  // Uncomment only if you re-add them to the backend.
-  // const syncRegistrations = (tId) => execute('admin_sync_rosters', { p_tournament_id: tId });
-  // const generateBracket = (tId) => execute('admin_generate_bracket', { p_tournament_id: tId });
 
   return { execute, loading, error };
 };

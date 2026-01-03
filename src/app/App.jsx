@@ -1,40 +1,34 @@
 import React, { useEffect } from 'react';
 import { RouterProvider } from 'react-router-dom';
 
-// ✅ RELATIVE import for Router (Same folder)
-import { router } from './router'; 
-
-// ✅ ABSOLUTE aliases for everything else
-import { supabase } from '@/supabase/client'; 
-import { SessionProvider, useSession } from '@/auth/useSession';
-import { TournamentProvider } from '@/tournament/useTournament';
-import ErrorBoundary from '@/components/common/ErrorBoundary';
+// ✅ SAFE IMPORTS (Matching your working "Old Code" structure)
+// We use relative paths '../' instead of '@/' to guarantee it finds the files.
+import { SessionProvider, useSession } from '../auth/useSession';
+import { TournamentProvider } from '../tournament/useTournament';
+import ErrorBoundary from '../components/common/ErrorBoundary';
+import { supabase } from '../supabase/client'; // Ensures we find the client
+import { router } from './router';
 
 // ✅ CSS Import
-import '@/index.css';
+import '../index.css';
 
 // 🎨 THEME MANAGER (Platinum Edition)
-// - Handles "No Active Tournament" gracefully
-// - Injects DB colors into CSS variables
 const ThemeManager = () => {
   useEffect(() => {
     const fetchTheme = async () => {
       try {
-        const { data, error } = await supabase
+        const { data } = await supabase
           .from('tournaments')
           .select('theme_color, theme_color_dim, theme_color_glow') 
           .eq('is_active', true)
-          // 🚀 CRITICAL FIX: Use .maybeSingle() instead of .single()
-          // .single() crashes if 0 rows are found. 
-          // .maybeSingle() returns null safely (falls back to default purple).
-          .maybeSingle(); 
+          .maybeSingle(); // ✅ Safe: Won't crash if 0 rows found
 
         if (data?.theme_color) {
           const root = document.documentElement;
           
           // Helper: Hex -> RGB
           const toRGB = (hex) => {
-             if (!hex) return '192 38 211'; // Fallback Purple
+             if (!hex) return '192 38 211'; 
              const cleanHex = hex.replace('#', '');
              const r = parseInt(cleanHex.substring(0, 2), 16);
              const g = parseInt(cleanHex.substring(2, 4), 16);
@@ -47,8 +41,6 @@ const ThemeManager = () => {
           root.style.setProperty('--color-brand', toRGB(data.theme_color));
           root.style.setProperty('--color-brand-dim', data.theme_color_dim ? toRGB(data.theme_color_dim) : toRGB(data.theme_color));
           root.style.setProperty('--color-brand-glow', data.theme_color_glow ? toRGB(data.theme_color_glow) : toRGB(data.theme_color));
-        } else {
-          console.log("🎨 No active tournament theme found. Using Default Protocol.");
         }
       } catch (e) {
         console.warn("Theme Sync Warning:", e);
@@ -61,9 +53,11 @@ const ThemeManager = () => {
 
 // 🛑 THE GATEKEEPER
 const SessionGate = ({ children }) => {
-  const { isReady } = useSession(); 
+  const { session, isReady } = useSession(); 
 
-  // ✅ Show Spinner ONLY while checking auth status
+  // Safety check: prevent crash if provider is still initializing
+  if (!session) return null; 
+
   if (!isReady) {
     return (
       <div className="h-screen w-full bg-[#050505] flex flex-col items-center justify-center space-y-4">

@@ -1,24 +1,24 @@
-import React, { Suspense, lazy } from 'react';
+import React from 'react';
 import { createBrowserRouter, Navigate, Outlet } from 'react-router-dom';
 import { Loader2, AlertTriangle } from 'lucide-react';
 
-// ✅ SAFE RELATIVE IMPORTS (Fixes the crash)
+// ✅ SAFE RELATIVE IMPORTS
 import { useSession } from '../auth/useSession';
 import { ROLES } from '../lib/roles';
 
-// ⚡ LAZY LOADING (With Safe Paths)
-// We use '../' to ensure the build finds the files without needing special config
-const LandingPage = lazy(() => import('../components/LandingPage'));
-const AdminLogin = lazy(() => import('../components/admin/AdminLogin'));
-const AdminPasswordReset = lazy(() => import('../components/admin/AdminPasswordReset'));
-const StaffRegistration = lazy(() => import('../components/auth/StaffRegistration'));
-const BracketView = lazy(() => import('../components/BracketView'));
-const MatchRoom = lazy(() => import('../components/match/MatchRoom'));
-const AdminDashboard = lazy(() => import('../components/admin/AdminDashboard'));
-const TeamRosterView = lazy(() => import('../components/admin/TeamRosterView'));
-const StaffManagement = lazy(() => import('../components/admin/StaffManagement'));
-const AdminToolbar = lazy(() => import('../components/admin/AdminToolbar'));
-const PlayerDashboard = lazy(() => import('../components/player/PlayerDashboard'));
+// 📦 STANDARD COMPONENT IMPORTS (Fixes Error #306)
+// We use { NamedImports } because your components are likely exported as 'export const Name = ...'
+import { LandingPage } from '../components/LandingPage';
+import { AdminLogin } from '../components/admin/AdminLogin';
+import { AdminPasswordReset } from '../components/admin/AdminPasswordReset';
+import { StaffRegistration } from '../components/auth/StaffRegistration';
+import { BracketView } from '../components/BracketView';
+import { MatchRoom } from '../components/match/MatchRoom';
+import { AdminDashboard } from '../components/admin/AdminDashboard';
+import { TeamRosterView } from '../components/admin/TeamRosterView';
+import { StaffManagement } from '../components/admin/StaffManagement';
+import { AdminToolbar } from '../components/admin/AdminToolbar';
+import { PlayerDashboard } from '../components/player/PlayerDashboard';
 
 // 🛑 1. LOADING UI
 const PageLoader = () => (
@@ -35,8 +35,13 @@ const PageLoader = () => (
 // 🛡️ 2. AUTH GUARDS
 const RequireAuth = ({ children }) => {
   const { session } = useSession();
+  
+  // Wait for session to initialize
   if (!session.isReady) return <PageLoader />;
+  
+  // Redirect if not logged in
   if (!session.isAuthenticated) return <Navigate to="/login" replace />;
+  
   return children || <Outlet />;
 };
 
@@ -52,17 +57,13 @@ const RequireRole = ({ allowedRoles = [], children }) => {
 const RootLayout = () => (
   <div className="min-h-screen bg-[#050505] text-white selection:bg-fuchsia-500/30">
     <div className="scanlines" /> 
-    <Suspense fallback={<PageLoader />}>
-      <Outlet />
-    </Suspense>
+    <Outlet />
   </div>
 );
 
 const AdminLayout = () => (
   <div className="min-h-screen bg-[#050505] relative z-10">
-    <Suspense fallback={<div className="h-16 bg-zinc-900 animate-pulse" />}>
-        <AdminToolbar />
-    </Suspense>
+    <AdminToolbar />
     <div className="pt-16 p-6">
       <Outlet />
     </div>
@@ -78,19 +79,22 @@ export const router = createBrowserRouter([
         <div className="h-screen w-full flex flex-col items-center justify-center bg-[#050505] text-red-500 gap-4">
             <AlertTriangle size={48} />
             <h1 className="text-2xl font-mono uppercase tracking-widest">Critical UI Failure</h1>
-            <p className="text-zinc-500 text-sm">Router Crash Detected</p>
+            <p className="text-zinc-500 text-sm font-mono">Router Crash Detected</p>
             <button onClick={() => window.location.reload()} className="px-4 py-2 border border-red-500 hover:bg-red-500/10 rounded uppercase text-xs font-bold transition-colors">
                 System Reboot
             </button>
         </div>
     ),
     children: [
+      // --- PUBLIC ROUTES ---
       { index: true, element: <LandingPage /> },
       { path: 'login', element: <AdminLogin /> },
       { path: 'recover-password', element: <AdminPasswordReset /> },
       { path: 'staff-register', element: <StaffRegistration /> },
       { path: 'bracket', element: <BracketView /> },
       { path: 'match/:matchId', element: <MatchRoom /> },
+
+      // --- ADMIN ROUTES (Protected) ---
       {
         path: 'admin',
         element: (
@@ -106,6 +110,8 @@ export const router = createBrowserRouter([
           { path: 'staff', element: <StaffManagement /> },
         ]
       },
+
+      // --- PLAYER ROUTES (Protected) ---
       {
         path: 'dashboard',
         element: (
@@ -116,6 +122,8 @@ export const router = createBrowserRouter([
           </RequireAuth>
         )
       },
+
+      // --- CATCH ALL ---
       { path: '*', element: <Navigate to="/" replace /> }
     ]
   }

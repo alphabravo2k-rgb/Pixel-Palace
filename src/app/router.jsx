@@ -2,25 +2,25 @@ import React, { Suspense, lazy } from 'react';
 import { createBrowserRouter, Navigate, Outlet } from 'react-router-dom';
 import { Loader2, AlertTriangle } from 'lucide-react';
 
-// ✅ FIX: Use Absolute Aliases for robustness
-import { useSession } from '@/auth/useSession';
-import { ROLES } from '@/lib/roles';
+// ✅ SAFE RELATIVE IMPORTS (Fixes the crash)
+import { useSession } from '../auth/useSession';
+import { ROLES } from '../lib/roles';
 
-// ⚡ PERFORMANCE: LAZY LOAD COMPONENTS
-// This ensures players don't download Admin code, making the site 3x faster.
-const LandingPage = lazy(() => import('@/components/LandingPage'));
-const AdminLogin = lazy(() => import('@/components/admin/AdminLogin'));
-const AdminPasswordReset = lazy(() => import('@/components/admin/AdminPasswordReset'));
-const StaffRegistration = lazy(() => import('@/components/auth/StaffRegistration'));
-const BracketView = lazy(() => import('@/components/BracketView'));
-const MatchRoom = lazy(() => import('@/components/match/MatchRoom'));
-const AdminDashboard = lazy(() => import('@/components/admin/AdminDashboard'));
-const TeamRosterView = lazy(() => import('@/components/admin/TeamRosterView'));
-const StaffManagement = lazy(() => import('@/components/admin/StaffManagement'));
-const AdminToolbar = lazy(() => import('@/components/admin/AdminToolbar'));
-const PlayerDashboard = lazy(() => import('@/components/player/PlayerDashboard'));
+// ⚡ LAZY LOADING (With Safe Paths)
+// We use '../' to ensure the build finds the files without needing special config
+const LandingPage = lazy(() => import('../components/LandingPage'));
+const AdminLogin = lazy(() => import('../components/admin/AdminLogin'));
+const AdminPasswordReset = lazy(() => import('../components/admin/AdminPasswordReset'));
+const StaffRegistration = lazy(() => import('../components/auth/StaffRegistration'));
+const BracketView = lazy(() => import('../components/BracketView'));
+const MatchRoom = lazy(() => import('../components/match/MatchRoom'));
+const AdminDashboard = lazy(() => import('../components/admin/AdminDashboard'));
+const TeamRosterView = lazy(() => import('../components/admin/TeamRosterView'));
+const StaffManagement = lazy(() => import('../components/admin/StaffManagement'));
+const AdminToolbar = lazy(() => import('../components/admin/AdminToolbar'));
+const PlayerDashboard = lazy(() => import('../components/player/PlayerDashboard'));
 
-// 🛑 1. GLOBAL LOADING UI
+// 🛑 1. LOADING UI
 const PageLoader = () => (
   <div className="h-screen w-full flex flex-col items-center justify-center bg-[#050505] space-y-4">
     <div className="relative">
@@ -32,35 +32,26 @@ const PageLoader = () => (
   </div>
 );
 
-// 🛡️ 2. AUTH GUARDS (Supabase Integrated)
+// 🛡️ 2. AUTH GUARDS
 const RequireAuth = ({ children }) => {
   const { session } = useSession();
-  
-  // Wait for Supabase to confirm session status
   if (!session.isReady) return <PageLoader />;
-  
-  // If not logged in, redirect to login
   if (!session.isAuthenticated) return <Navigate to="/login" replace />;
-  
   return children || <Outlet />;
 };
 
 const RequireRole = ({ allowedRoles = [], children }) => {
   const { session } = useSession();
-  
-  // Role-Based Access Control (RBAC)
   if (allowedRoles.length > 0 && !allowedRoles.includes(session.role)) {
       return <Navigate to="/" replace />;
   }
-  
   return children || <Outlet />;
 };
 
 // 🧱 3. LAYOUT SHELLS
-// Root Layout ensures Scanlines & Background persist on ALL pages
 const RootLayout = () => (
   <div className="min-h-screen bg-[#050505] text-white selection:bg-fuchsia-500/30">
-    <div className="scanlines" /> {/* CRT Effect from index.css */}
+    <div className="scanlines" /> 
     <Suspense fallback={<PageLoader />}>
       <Outlet />
     </Suspense>
@@ -82,26 +73,24 @@ const AdminLayout = () => (
 export const router = createBrowserRouter([
   {
     path: '/',
-    element: <RootLayout />, // Wraps app in global styles
+    element: <RootLayout />,
     errorElement: (
         <div className="h-screen w-full flex flex-col items-center justify-center bg-[#050505] text-red-500 gap-4">
             <AlertTriangle size={48} />
             <h1 className="text-2xl font-mono uppercase tracking-widest">Critical UI Failure</h1>
+            <p className="text-zinc-500 text-sm">Router Crash Detected</p>
             <button onClick={() => window.location.reload()} className="px-4 py-2 border border-red-500 hover:bg-red-500/10 rounded uppercase text-xs font-bold transition-colors">
                 System Reboot
             </button>
         </div>
     ),
     children: [
-      // --- PUBLIC ROUTES ---
       { index: true, element: <LandingPage /> },
       { path: 'login', element: <AdminLogin /> },
       { path: 'recover-password', element: <AdminPasswordReset /> },
       { path: 'staff-register', element: <StaffRegistration /> },
       { path: 'bracket', element: <BracketView /> },
       { path: 'match/:matchId', element: <MatchRoom /> },
-
-      // --- ADMIN ROUTES (Protected) ---
       {
         path: 'admin',
         element: (
@@ -117,8 +106,6 @@ export const router = createBrowserRouter([
           { path: 'staff', element: <StaffManagement /> },
         ]
       },
-
-      // --- PLAYER ROUTES (Protected) ---
       {
         path: 'dashboard',
         element: (
@@ -129,8 +116,6 @@ export const router = createBrowserRouter([
           </RequireAuth>
         )
       },
-
-      // --- CATCH ALL ---
       { path: '*', element: <Navigate to="/" replace /> }
     ]
   }

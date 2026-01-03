@@ -1,6 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-  darkMode: 'class', // 🌙 Manual dark mode allows for better control
+  darkMode: 'class', 
   content: [
     './index.html',
     './src/**/*.{js,ts,jsx,tsx}',
@@ -8,14 +8,12 @@ export default {
   theme: {
     extend: {
       // 🎨 DYNAMIC PALETTE (Backed by Database)
-      // We use 'rgb(var(--name) / <alpha-value>)' to allow opacity utilities like 'bg-brand/50'
       colors: {
         bg: {
-          DEFAULT: '#050505', // Deep Void (Keep static base)
+          DEFAULT: '#050505', // Deep Void
           panel: '#09090b',   // Zinc-950
           surface: '#121214', // Zinc-900
         },
-        // 👇 THESE are now dynamic. See "How to Connect" below.
         brand: {
           DEFAULT: 'rgb(var(--color-brand) / <alpha-value>)', 
           dim: 'rgb(var(--color-brand-dim) / <alpha-value>)',
@@ -26,33 +24,25 @@ export default {
           active: '#3f3f46',
           highlight: '#52525b',
         },
-        // Status Colors (Esports Standard)
         status: {
-          win: '#10b981',  // Emerald 500
-          loss: '#ef4444', // Red 500
-          draw: '#eab308', // Yellow 500
+          win: '#10b981',  
+          loss: '#ef4444', 
+          draw: '#eab308', 
         }
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
         mono: ['JetBrains Mono', 'Menlo', 'monospace'],
-        display: ['Teko', 'sans-serif'], // Great for Headers
-        hud: ['Rajdhani', 'sans-serif'], // Great for Numbers/Stats
-      },
-      backgroundImage: {
-        'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
-        'grid-pattern': "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32' width='32' height='32' fill='none' stroke='rgb(255 255 255 / 0.05)'%3e%3cpath d='M0 .5H31.5V32'/%3e%3c/svg%3e\")",
+        display: ['Teko', 'sans-serif'], 
+        hud: ['Rajdhani', 'sans-serif'], 
       },
       boxShadow: {
         'neon': '0 0 20px rgb(var(--color-brand) / 0.4)', 
         'glass': '0 8px 32px 0 rgba(0, 0, 0, 0.37)',
-        'inner-glow': 'inset 0 0 20px rgb(var(--color-brand) / 0.2)',
       },
-      // ⚡ ANIMATIONS
       animation: {
         'breathe': 'breathe 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         'glitch': 'glitch 1s linear infinite',
-        'scanline': 'scanline 8s linear infinite',
       },
       keyframes: {
         breathe: {
@@ -63,10 +53,6 @@ export default {
           '2%, 64%': { transform: 'translate(2px,0) skew(0deg)' },
           '4%, 60%': { transform: 'translate(-2px,0) skew(0deg)' },
           '62%': { transform: 'translate(0,0) skew(5deg)' },
-        },
-        scanline: {
-          '0%': { transform: 'translateY(-100%)' },
-          '100%': { transform: 'translateY(100%)' }
         }
       }
     },

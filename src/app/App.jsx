@@ -1,18 +1,17 @@
 import React, { useEffect } from 'react';
 import { RouterProvider } from 'react-router-dom';
 
-// ✅ SAFE IMPORTS (Matching your working "Old Code" structure)
-// We use relative paths '../' instead of '@/' to guarantee it finds the files.
+// ✅ SAFE IMPORTS (Relative paths to avoid build errors)
 import { SessionProvider, useSession } from '../auth/useSession';
 import { TournamentProvider } from '../tournament/useTournament';
 import ErrorBoundary from '../components/common/ErrorBoundary';
-import { supabase } from '../supabase/client'; // Ensures we find the client
+import { supabase } from '../supabase/client'; 
 import { router } from './router';
 
 // ✅ CSS Import
 import '../index.css';
 
-// 🎨 THEME MANAGER (Platinum Edition)
+// 🎨 THEME MANAGER
 const ThemeManager = () => {
   useEffect(() => {
     const fetchTheme = async () => {
@@ -21,12 +20,10 @@ const ThemeManager = () => {
           .from('tournaments')
           .select('theme_color, theme_color_dim, theme_color_glow') 
           .eq('is_active', true)
-          .maybeSingle(); // ✅ Safe: Won't crash if 0 rows found
+          .maybeSingle(); 
 
         if (data?.theme_color) {
           const root = document.documentElement;
-          
-          // Helper: Hex -> RGB
           const toRGB = (hex) => {
              if (!hex) return '192 38 211'; 
              const cleanHex = hex.replace('#', '');
@@ -36,7 +33,6 @@ const ThemeManager = () => {
              return `${r} ${g} ${b}`;
           };
 
-          // 💉 Inject All 3 Layers
           console.log(`🎨 Theme Loaded: ${data.theme_color}`);
           root.style.setProperty('--color-brand', toRGB(data.theme_color));
           root.style.setProperty('--color-brand-dim', data.theme_color_dim ? toRGB(data.theme_color_dim) : toRGB(data.theme_color));
@@ -51,18 +47,19 @@ const ThemeManager = () => {
   return null; 
 };
 
-// 🛑 THE GATEKEEPER
+// 🛑 THE GATEKEEPER (Fixed Logic)
 const SessionGate = ({ children }) => {
-  const { session, isReady } = useSession(); 
+  // 🐛 FIX WAS HERE: We must get 'session' first, then check 'session.isReady'
+  const { session } = useSession(); 
 
-  // Safety check: prevent crash if provider is still initializing
-  if (!session) return null; 
+  // If the provider hasn't even created the session object yet, wait.
+  if (!session) return null;
 
-  if (!isReady) {
+  // ✅ Check the property INSIDE the session object
+  if (!session.isReady) {
     return (
       <div className="h-screen w-full bg-[#050505] flex flex-col items-center justify-center space-y-4">
         <div className="relative">
-           {/* Dynamic Brand Color Spinner */}
            <div className="w-16 h-16 border-4 border-brand/30 border-t-brand rounded-full animate-spin"></div>
         </div>
         <div className="text-zinc-500 font-mono text-xs uppercase tracking-widest animate-pulse">

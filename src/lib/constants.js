@@ -9,7 +9,8 @@ export const MATCH_STATUS = {
   VETO: 'veto',
   LIVE: 'live',
   COMPLETED: 'completed',
-  ARCHIVED: 'archived'
+  ARCHIVED: 'archived', // ⚡ DB Update Required for this
+  DISPUTED: 'disputed'
 };
 
 // 2. MAP POOL (Aligned with Backend CHECK constraints)
@@ -102,4 +103,10 @@ export const TOURNAMENT_RULES = {
     PLAYOFFS: 'PLAYOFFS',
     COMPLETED: 'COMPLETED'
   }
+};
+
+// 🛠️ HELPER: Safe Map Image Getter
+export const getMapImage = (mapId) => {
+    const map = MAP_POOL.find(m => m.id === mapId);
+    return map ? map.image : 'https://wallpapers.com/images/hd/counter-strike-global-offensive-4k-gaming-poster-u3a3e6q3q6t1v6r1.jpg'; // Fallback Generic CS2 Image
 };

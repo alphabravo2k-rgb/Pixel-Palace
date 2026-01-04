@@ -11,26 +11,41 @@ dist-ssr/
 coverage/
 *.local
 
-# 🔐 Security & Env (CRITICAL)
+# 🔐 Security & Env (CRITICAL - NEVER COMMIT THESE)
 .env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
-.DS_Store
 *.pem
+*.key
 
-# 🛠️ Editor & IDE Settings (Keep repo clean)
+# 🛠️ Editor & IDE Settings
 .idea/
 .vscode/
 *.swp
 *.swo
 
-# ⚡ Supabase Local Dev (Don't commit local DB data)
+# 🖥️ OS Junk Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# ⚡ Supabase Local Dev
 supabase/.branches
 supabase/.temp
 supabase/tmp
+# Ignore generated types if you run 'supabase gen types' locally often
+# supabase/functions/**/deno.lock
 
-# ☁️ Cloudflare / Vercel
+# 🧹 Performance Caches (Don't commit these)
+.eslintcache
+.prettiercache
+
+# ☁️ Deployment Platforms
 .vercel
 .wrangler

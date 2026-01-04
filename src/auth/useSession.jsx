@@ -21,20 +21,25 @@ export const SessionProvider = ({ children }) => {
   // --- HELPER: Safe State Update ---
   const finalize = (newState) => {
     if (mounted.current) {
-        setState(prev => ({ ...prev, ...newState, isReady: true, isLoading: false }));
+        setState(prev => ({ 
+            ...prev, 
+            ...newState, 
+            isReady: true, 
+            isLoading: false 
+        }));
     }
   };
 
   useEffect(() => {
     const initialize = async () => {
       try {
-        // 1. Check Supabase (Staff)
+        // 1. Check Supabase (Staff/Admins)
         const { data } = await supabase.auth.getSession();
         
         if (data?.session?.user) {
           await hydrateAdmin(data.session.user);
         } else {
-          // 2. Check Local Storage (Captain)
+          // 2. Check Local Storage (Captain/Players)
           const localCap = localStorage.getItem('pixel_captain_session');
           if (localCap) {
             try {
@@ -56,27 +61,28 @@ export const SessionProvider = ({ children }) => {
               isAuthenticated: false, 
               user: null, 
               role: ROLES.GUEST, 
-              authType: 'GUEST'
+              authType: 'GUEST' 
           });
         }
       } catch (err) {
         console.error("Boot Error:", err);
-        finalize({ role: ROLES.GUEST }); // Fail safe
+        finalize({ role: ROLES.GUEST }); 
       }
     };
 
     initialize();
 
-    // Listen for Auth Changes
+    // Listen for Auth Changes (Supabase only)
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
         if (session?.user) {
             hydrateAdmin(session.user);
         } else if (!localStorage.getItem('pixel_captain_session')) {
+            // Only drop to guest if not holding a captain session
             finalize({ 
                 isAuthenticated: false, 
                 user: null, 
                 role: ROLES.GUEST, 
-                authType: 'GUEST'
+                authType: 'GUEST' 
             });
         }
     });
@@ -90,21 +96,26 @@ export const SessionProvider = ({ children }) => {
   // --- HELPER: Hydrate Admin ---
   const hydrateAdmin = async (user) => {
     try {
+      // Query the specific app_admins table we created
       const { data: profile } = await supabase
-        .from('session_profiles')
+        .from('app_admins')
         .select('*')
         .eq('auth_user_id', user.id)
         .maybeSingle();
       
+      // Determine Role
+      const role = profile ? normalizeRole(profile.role) : ROLES.GUEST;
+
       finalize({
         isAuthenticated: true,
         user: user,
-        role: normalizeRole(profile?.role || 'GUEST'),
-        team_id: profile?.team_id,
+        role: role,
+        team_id: null,
         identity: { 
           auth_user_id: user.id, 
-          display_name: profile?.display_name || user.email,
-          is_staff: profile?.context?.is_staff || false
+          display_name: profile?.full_name || user.email,
+          is_staff: true,
+          ...profile
         },
         authType: 'SUPABASE'
       });
@@ -118,49 +129,70 @@ export const SessionProvider = ({ children }) => {
   const verifyCaptain = async (code) => {
       try {
         const { data, error } = await supabase.rpc('verify_team_access', { p_code: code });
-        if (error || !data || !data.success) return { success: false };
+        
+        if (error || !data || !data.success) {
+            return { success: false, message: error?.message || 'Invalid Access Code' };
+        }
         
         return {
             success: true,
             session: {
                 isAuthenticated: true,
-                role: 'CAPTAIN',
+                user: { id: 'captain-session' }, // Placeholder for generic structure
+                role: ROLES.CAPTAIN,
                 team_id: data.team_id,
-                identity: { id: data.team_id, display_name: `Captain (${data.team_name})`, team_id: data.team_id },
+                identity: { 
+                    id: data.team_id, 
+                    display_name: `Captain (${data.team_name})`, 
+                    team_id: data.team_id,
+                    team_name: data.team_name
+                },
                 authType: 'CAPTAIN_PIN'
             }
         };
       } catch (e) {
-          return { success: false };
+          return { success: false, message: 'Verification Error' };
       }
   };
 
   // --- PUBLIC ACTIONS ---
   const loginAdmin = async (email, password) => {
+    // Clear any captain sessions first
     localStorage.removeItem('pixel_captain_session');
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) return { success: false, message: error.message };
-    return { success: true };
+    
+    // State update happens via onAuthStateChange listener
+    // We return success here to let UI know
+    return { success: true }; 
   };
 
   const loginCaptain = async (accessCode) => {
+    // Clear any admin sessions (if possible, though unlikely to mix)
+    if (state.authType === 'SUPABASE') await supabase.auth.signOut();
+
     const result = await verifyCaptain(accessCode);
     if (result.success) {
         localStorage.setItem('pixel_captain_session', JSON.stringify({ accessCode }));
         finalize({ ...result.session });
-        return { success: true };
+        return { success: true, role: 'captain' };
     }
-    return { success: false, message: 'Invalid Access Code' };
+    return { success: false, message: result.message };
   };
 
   const logout = async () => {
     localStorage.removeItem('pixel_captain_session');
-    await supabase.auth.signOut();
+    if (state.authType === 'SUPABASE') {
+        await supabase.auth.signOut();
+    }
     finalize({ 
         isAuthenticated: false, 
         user: null, 
         role: ROLES.GUEST, 
-        authType: 'GUEST'
+        team_id: null,
+        identity: null,
+        authType: 'GUEST' 
     });
   };
 

@@ -1,17 +1,17 @@
 import React, { useEffect } from 'react';
 import { RouterProvider } from 'react-router-dom';
 
-// ✅ SAFE IMPORTS (Relative paths to avoid build errors)
+// ✅ SAFE IMPORTS
 import { SessionProvider, useSession } from '../auth/useSession';
 import { TournamentProvider } from '../tournament/useTournament';
 import ErrorBoundary from '../components/common/ErrorBoundary';
 import { supabase } from '../supabase/client'; 
 import { router } from './router';
 
-// ✅ CSS Import
+// ✅ CSS Import (Ensure this exists in your project root)
 import '../index.css';
 
-// 🎨 THEME MANAGER
+// 🎨 THEME MANAGER (Dynamic Brand Colors)
 const ThemeManager = () => {
   useEffect(() => {
     const fetchTheme = async () => {
@@ -24,8 +24,10 @@ const ThemeManager = () => {
 
         if (data?.theme_color) {
           const root = document.documentElement;
+          
+          // Helper: Convert HEX to RGB "r g b" string for Tailwind opacity support
           const toRGB = (hex) => {
-             if (!hex) return '192 38 211'; 
+             if (!hex) return '192 38 211'; // Default Fuchsia
              const cleanHex = hex.replace('#', '');
              const r = parseInt(cleanHex.substring(0, 2), 16);
              const g = parseInt(cleanHex.substring(2, 4), 16);
@@ -47,20 +49,19 @@ const ThemeManager = () => {
   return null; 
 };
 
-// 🛑 THE GATEKEEPER (Fixed Logic)
+// 🛑 THE GATEKEEPER (Prevents Auth Flicker)
 const SessionGate = ({ children }) => {
-  // 🐛 FIX WAS HERE: We must get 'session' first, then check 'session.isReady'
   const { session } = useSession(); 
 
-  // If the provider hasn't even created the session object yet, wait.
+  // If the provider hasn't initialized the object, wait.
   if (!session) return null;
 
-  // ✅ Check the property INSIDE the session object
+  // If the session logic is still running checks, show boot screen.
   if (!session.isReady) {
     return (
       <div className="h-screen w-full bg-[#050505] flex flex-col items-center justify-center space-y-4">
         <div className="relative">
-           <div className="w-16 h-16 border-4 border-brand/30 border-t-brand rounded-full animate-spin"></div>
+           <div className="w-16 h-16 border-4 border-zinc-800 border-t-fuchsia-600 rounded-full animate-spin"></div>
         </div>
         <div className="text-zinc-500 font-mono text-xs uppercase tracking-widest animate-pulse">
            System Boot...
@@ -74,18 +75,16 @@ const SessionGate = ({ children }) => {
 
 function App() {
   return (
-    <React.StrictMode>
-      <ErrorBoundary>
-        <ThemeManager />
-        <SessionProvider>
-          <SessionGate>
-             <TournamentProvider>
-               <RouterProvider router={router} />
-             </TournamentProvider>
-          </SessionGate>
-        </SessionProvider>
-      </ErrorBoundary>
-    </React.StrictMode>
+    <ErrorBoundary>
+      <ThemeManager />
+      <SessionProvider>
+        <SessionGate>
+           <TournamentProvider>
+              <RouterProvider router={router} />
+           </TournamentProvider>
+        </SessionGate>
+      </SessionProvider>
+    </ErrorBoundary>
   );
 }
 

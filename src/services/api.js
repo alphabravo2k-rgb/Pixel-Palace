@@ -2,7 +2,7 @@ import { supabase } from '../supabase/client';
 
 /**
  * PIXEL PALACE DATA SERVICE
- * Centralized data fetching aligned with Golden Master DB Schema.
+ * Centralized data fetching aligned with Master DB Schema (Code A).
  */
 
 const ROLE_PRIORITY = {
@@ -22,12 +22,13 @@ export const fetchTeamRoster = async (teamId) => {
       .select(`
         id,
         role,
-        joined_at,
         profile:global_identities (
+          id,
           display_name, 
           discord_handle, 
-          discord_id,
-          steam_url
+          steam_url,
+          faceit_url,
+          faceit_elo
         )
       `)
       .eq('team_id', teamId);
@@ -38,19 +39,23 @@ export const fetchTeamRoster = async (teamId) => {
     return data
       .map(member => ({
         id: member.id,
-        name: member.profile?.display_name || 'Unknown',
+        // Fallback to 'Unknown' if profile is missing (prevents crash)
+        name: member.profile?.display_name || 'Unknown Agent',
         discordHandle: member.profile?.discord_handle || null,
+        steamUrl: member.profile?.steam_url || null,
+        faceitUrl: member.profile?.faceit_url || null,
+        elo: member.profile?.faceit_elo || 1000,
         role: member.role,
         isCaptain: member.role === 'CAPTAIN',
-        discordId: member.profile?.discord_id,
-        joinedAt: member.joined_at
       }))
       .sort((a, b) => {
-        // Sort by Role Priority first, then Join Date
+        // 1. Sort by Role (Captain first)
         const pA = ROLE_PRIORITY[a.role] || 99;
         const pB = ROLE_PRIORITY[b.role] || 99;
         if (pA !== pB) return pA - pB;
-        return new Date(a.joinedAt) - new Date(b.joinedAt);
+        
+        // 2. Sort by ELO (High skill first)
+        return b.elo - a.elo;
       });
 
   } catch (err) {
@@ -59,30 +64,58 @@ export const fetchTeamRoster = async (teamId) => {
   }
 };
 
-// 2. FETCH MATCH DETAILS
+// 2. FETCH MATCH DETAILS (War Room)
 export const fetchMatchDetails = async (matchId) => {
-  if (!matchId) {
-    console.error("❌ No match ID provided.");
-    return null;
-  }
+  if (!matchId) return null;
 
   try {
     const { data, error } = await supabase
       .from('matches')
       .select(`
         *,
-        team1:team1_id(id, name, logo_url),
-        team2:team2_id(id, name, logo_url),
+        team1:team1_id(id, name, logo_url, region, wins, losses),
+        team2:team2_id(id, name, logo_url, region, wins, losses),
         vetoes:match_vetoes(*)
       `)
       .eq('id', matchId)
-      .maybeSingle(); // Prevents 406 error if match doesn't exist
+      .maybeSingle(); 
 
     if (error) throw error;
+    
+    // Sort vetoes by pick_order for correct display history
+    if (data && data.vetoes) {
+        data.vetoes.sort((a, b) => a.pick_order - b.pick_order);
+    }
+    
     return data;
 
   } catch (err) {
     console.error("❌ Match Details Fetch Error:", err);
     return null;
   }
+};
+
+// 3. FETCH BRACKET (Tournament Tree)
+export const fetchBracketMatches = async (tournamentId) => {
+    if (!tournamentId) return [];
+    
+    try {
+        const { data, error } = await supabase
+            .from('matches')
+            .select(`
+                id, round, match_no, status, start_time,
+                score_team1, score_team2, winner_id,
+                team1:team1_id(id, name, logo_url, seed_number),
+                team2:team2_id(id, name, logo_url, seed_number)
+            `)
+            .eq('tournament_id', tournamentId)
+            .order('round', { ascending: true })
+            .order('match_no', { ascending: true });
+            
+        if (error) throw error;
+        return data;
+    } catch (err) {
+        console.error("❌ Bracket Fetch Error:", err);
+        return [];
+    }
 };

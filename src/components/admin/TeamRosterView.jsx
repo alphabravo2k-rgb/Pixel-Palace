@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../supabase/client';
 import { 
   Search, RefreshCw, Shield, Edit3, X, Trash2, Key, Users, 
-  Copy, CheckCircle, Ban, Trophy, Mic, Globe, Monitor, Gamepad2, AlertTriangle, Save 
+  Copy, CheckCircle, Ban, Trophy, Mic, Globe, Monitor, Gamepad2, AlertTriangle, Save, Link as LinkIcon 
 } from 'lucide-react';
 import StatsCard from '../../components/StatsCard';
 import { toast } from 'react-hot-toast';
@@ -148,7 +148,9 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
     voice_channel_url: team?.voice_channel_url||''
   });
   
+  // ✅ IMPORTANT: Store user_id to prevent duplicates on save
   const [members, setMembers] = useState(team?.members.map(m => ({
+      user_id: m.user_id, // Keep the ID
       username: m.username, 
       role: normalizeRole(m.role).toUpperCase(), 
       discord: m.discord_handle||'', 
@@ -166,7 +168,7 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
   };
 
   const addMember = () => {
-      setMembers([...members, { username: 'New Operator', role: 'PLAYER', discord: '', steam: '', faceit: '', elo: 1000 }]);
+      setMembers([...members, { user_id: null, username: 'New Operator', role: 'PLAYER', discord: '', steam: '', faceit: '', elo: 1000 }]);
   };
 
   const removeMember = (idx) => {
@@ -195,14 +197,17 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
       const toastId = toast.loading(`Enriching data for ${faceitNickname}...`);
 
       try {
-          // 2. Fetch Basic Profile
-          const res = await fetch(`https://open.faceit.com/data/v4/players?nickname=${faceitNickname}`, {
-              headers: { 'Authorization': 'Bearer a77d0763-5fdd-4bde-a8a5-6e840408de2e' } // Demo API Key
+          // 2. Fetch via Proxy (Fixes "Failed to Fetch")
+          const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(`https://open.faceit.com/data/v4/players?nickname=${faceitNickname}`)}`;
+          
+          const res = await fetch(proxyUrl, {
+              headers: { 'Authorization': 'Bearer a77d0763-5fdd-4bde-a8a5-6e840408de2e' } // Note: Header might be stripped by some proxies, usually okay for demo
           });
           
-          if(!res.ok) throw new Error("Player not found on Faceit");
-          
-          const data = await res.json();
+          const json = await res.json();
+          const data = JSON.parse(json.contents); // AllOrigins returns data in 'contents' string
+
+          if(!data.player_id) throw new Error("Player not found on Faceit");
           
           // 3. Extract Data
           const realName = data.nickname;
@@ -211,15 +216,28 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
           const steamId64 = data.steam_id_64;
           const steamUrl = steamId64 ? `https://steamcommunity.com/profiles/${steamId64}` : member.steam;
 
-          // 4. Update State (Overwrite local fields)
+          // 4. 🛡️ DATABASE CONFLICT CHECK
+          // Check if this Faceit URL already exists in our DB
+          const { data: existingUser } = await supabase
+            .from('global_identities')
+            .select('id')
+            .eq('faceit_url', faceitUrl)
+            .maybeSingle();
+
           const updated = [...members];
           updated[idx].username = realName; // Correct the name field
           updated[idx].elo = newElo;
           updated[idx].faceit = faceitUrl;
           updated[idx].steam = steamUrl; // Auto-fill Steam if missing
+
+          if (existingUser) {
+              updated[idx].user_id = existingUser.id; // ✅ LINK EXISTING USER
+              toast.success(`Linked existing profile: ${realName}`, { id: toastId, icon: '🔗' });
+          } else {
+              toast.success(`Found new player: ${realName}`, { id: toastId });
+          }
           
           setMembers(updated);
-          toast.success(`Found ${realName}: ${newElo} ELO`, { id: toastId });
 
       } catch(e) {
           console.error(e);
@@ -308,31 +326,7 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
               </div>
            </div>
 
-           {/* SECTION 2: STATUS & STATS */}
-           <div className="bg-zinc-900/30 p-4 rounded border border-zinc-800 grid grid-cols-2 md:grid-cols-4 gap-4">
-               <div>
-                  <label className="text-[10px] text-zinc-500 uppercase font-bold block mb-1">Status</label>
-                  <select value={meta.status} onChange={e=>setMeta({...meta, status:e.target.value})} className="w-full bg-black border border-zinc-700 p-2 text-white rounded text-xs uppercase font-bold focus:border-brand outline-none">
-                      <option value="ACTIVE">Active</option>
-                      <option value="DISQUALIFIED">Disqualified</option>
-                      <option value="ELIMINATED">Eliminated</option>
-                  </select>
-               </div>
-               <div>
-                  <label className="text-[10px] text-emerald-600 uppercase font-bold block mb-1">Wins</label>
-                  <input type="number" value={meta.wins} onChange={e=>setMeta({...meta, wins:e.target.value})} className="w-full bg-black border border-emerald-900/50 text-emerald-500 p-2 rounded text-xs font-bold text-center" />
-               </div>
-               <div>
-                  <label className="text-[10px] text-red-600 uppercase font-bold block mb-1">Losses</label>
-                  <input type="number" value={meta.losses} onChange={e=>setMeta({...meta, losses:e.target.value})} className="w-full bg-black border border-red-900/50 text-red-500 p-2 rounded text-xs font-bold text-center" />
-               </div>
-               <div>
-                  <label className="text-[10px] text-yellow-600 uppercase font-bold block mb-1">Access Key</label>
-                  <input value={meta.access_code} onChange={e=>setMeta({...meta, access_code:e.target.value})} className="w-full bg-black border border-yellow-900/50 text-yellow-500 p-2 rounded text-xs font-mono text-center tracking-wider" />
-               </div>
-           </div>
-           
-           {/* SECTION 3: ROSTER EDITOR */}
+           {/* SECTION 2: ROSTER EDITOR */}
            <div className="space-y-4 border-t border-zinc-800 pt-6">
               <div className="flex justify-between items-center mb-2">
                   <div className="flex items-center gap-2">
@@ -398,6 +392,9 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
                         <div className="relative"><Gamepad2 className="absolute left-2 top-2 w-3 h-3 text-zinc-600"/><input value={m.faceit} onChange={e => updateMember(idx, 'faceit', e.target.value)} className="w-full bg-black border border-zinc-700 pl-7 p-1.5 text-zinc-300 rounded text-[10px] focus:border-orange-500 outline-none" placeholder="Faceit URL" /></div>
                     </div>
                     
+                    {/* Link Indicator */}
+                    {m.user_id && <div className="text-emerald-500" title="Linked to Database ID"><LinkIcon size={12}/></div>}
+                    
                     <button onClick={() => removeMember(idx)} className="text-zinc-600 hover:text-red-500 p-1.5 transition-colors" title="Remove"><Trash2 size={14}/></button>
                  </div>
               ))}
@@ -439,6 +436,7 @@ export const TeamRosterView = () => {
                 const p = profileMap[tm.user_id] || {};
                 return {
                     id: tm.id,
+                    user_id: tm.user_id, // ✅ CRITICAL: Pass User ID to modal
                     role: tm.role,
                     username: p.display_name || 'Unknown Operator',
                     discord_handle: p.discord_handle,

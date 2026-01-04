@@ -12,24 +12,32 @@ module.exports = {
   settings: { react: { version: '18.2' } },
   plugins: ['react-refresh'],
   rules: {
-    // 1. PROJECT STRUCTURE: Allow Constants + Components in one file
-    // 'warn' is safer than 'off' because it keeps Fast Refresh working
+    // 1. 🚀 VELOCITY: Allow Constants + Components in one file (Vite requirement)
     'react-refresh/only-export-components': [
       'warn',
       { allowConstantExport: true },
     ],
     
-    // 2. DEV EXPERIENCE: Warn only, don't break build
-    'react/prop-types': 'off', 
-    'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^React$' }],
-    'no-console': ['warn', { allow: ['warn', 'error', 'info', 'debug'] }], // Added 'debug'
+    // 2. 🧠 SANITY CHECKS: Reduce annoyance
+    'react/prop-types': 'off', // We trust you know your props (or use TypeScript later)
+    'react/no-unescaped-entities': 'off', // Allows "Don't" instead of "Don&apos;t"
+    'react/display-name': 'off', // Fixes false positives with memo/forwardRef
     
-    // 3. REACT PRACTICES
+    // 3. 🧹 CLEAN CODE
+    'no-unused-vars': ['warn', { 
+      argsIgnorePattern: '^_', 
+      varsIgnorePattern: '^React$',
+      caughtErrorsIgnorePattern: '^_' 
+    }],
+    'no-console': ['warn', { allow: ['warn', 'error', 'info', 'debug', 'table'] }], 
+    
+    // 4. ⚛️ REACT BEST PRACTICES
     'react/jsx-props-no-spreading': 'off', 
     "react/function-component-definition": ["warn", { "namedComponents": "arrow-function" }],
+    'react/self-closing-comp': 'warn', // Forces <Div /> instead of <Div></Div> for empty tags
     
-    // 4. THE CRITICAL FIX: "Warn" only. 
-    // Stops the infinite loop trap where linter forces bad deps.
+    // 5. ⚠️ THE SAFETY VALVE: Warn only, don't break build.
+    // This allows you to intentionally omit dependencies in useEffect if you know what you're doing.
     "react-hooks/exhaustive-deps": "warn"
   },
 }

@@ -1,16 +1,43 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../supabase/client';
 import { useSession } from '../../auth/useSession';
-import { useCapabilities } from '../../auth/useCapabilities';
-import { Shield, AlertTriangle, CheckCircle, Lock, Map as MapIcon, RefreshCw, MessageSquare } from 'lucide-react';
-import { PERM_CAPABILITIES } from '../../lib/permissions.actions';
-import { VetoPanel } from '../VetoPanel'; // ✅ IMPORTS VETO PANEL
+import { PERMISSIONS } from '../../lib/roles';
+import { can } from '../../lib/permissions';
+import { Shield, AlertTriangle, CheckCircle, Lock, Map as MapIcon, RefreshCw, MessageSquare, Trophy, Clock } from 'lucide-react';
+import { VetoPanel } from '../VetoPanel'; // Shared Component
+import { cn } from '../../lib/utils';
+import { toast } from 'react-hot-toast';
 
-// Simple Team Card Component (Inline for stability)
-const TeamCard = ({ name, isReady, align = 'left' }) => (
-  <div className={`flex flex-col ${align === 'right' ? 'items-end text-right' : 'items-start text-left'} p-6 bg-zinc-900/50 rounded-lg border border-white/5`}>
-    <div className="text-xl font-bold font-['Teko'] uppercase tracking-wider text-white">{name}</div>
-    <div className={`mt-2 text-xs font-bold uppercase px-2 py-1 rounded ${isReady ? 'bg-green-500/20 text-green-400' : 'bg-zinc-800 text-zinc-500'}`}>
+// Inline Team Card for Layout
+const TeamCard = ({ team, isReady, align = 'left', score }) => (
+  <div className={cn(
+      "flex flex-col p-8 bg-bg-panel border border-tactical rounded-lg shadow-glass relative overflow-hidden transition-all duration-300 hover:border-brand/30",
+      align === 'right' ? 'items-end text-right' : 'items-start text-left'
+  )}>
+    {/* Background Logo Watermark */}
+    {team?.logo_url && (
+        <img src={team.logo_url} className={cn(
+            "absolute top-1/2 -translate-y-1/2 w-48 h-48 opacity-[0.03] grayscale pointer-events-none",
+            align === 'right' ? '-left-12' : '-right-12'
+        )} />
+    )}
+
+    <div className="relative z-10 w-20 h-20 mb-4 bg-black rounded-full flex items-center justify-center border border-white/10 shadow-inner">
+         {team?.logo_url ? <img src={team.logo_url} className="w-12 h-12 object-contain" /> : <Shield className="w-8 h-8 text-zinc-700" />}
+    </div>
+
+    <div className="text-3xl font-display font-black uppercase tracking-tighter text-white relative z-10 leading-none">
+        {team?.name || 'TBD'}
+    </div>
+    
+    <div className="text-6xl font-display font-black text-zinc-800 mt-2 select-none relative z-10">
+        {score ?? '-'}
+    </div>
+
+    <div className={cn(
+        "mt-4 text-[10px] font-bold uppercase px-3 py-1 rounded border font-mono tracking-widest relative z-10",
+        isReady ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" : "bg-zinc-800 text-zinc-500 border-zinc-700"
+    )}>
         {isReady ? 'READY' : 'PREPARING'}
     </div>
   </div>
@@ -18,11 +45,13 @@ const TeamCard = ({ name, isReady, align = 'left' }) => (
 
 export const MatchRoom = ({ matchId }) => {
   const { session } = useSession();
-  const { can } = useCapabilities();
   const [match, setMatch] = useState(null);
   const [loading, setLoading] = useState(true);
   const [disputeReason, setDisputeReason] = useState("");
   const [isDisputing, setIsDisputing] = useState(false);
+
+  // Permission Check
+  const canManage = can(PERMISSIONS.MANAGE_MATCH, session, match);
 
   useEffect(() => {
     fetchMatch();
@@ -35,7 +64,8 @@ export const MatchRoom = ({ matchId }) => {
         table: 'matches', 
         filter: `id=eq.${matchId}` 
       }, (payload) => {
-        fetchMatch(); 
+        setMatch(prev => ({ ...prev, ...payload.new })); // Optimistic
+        fetchMatch(); // Full refresh for relations
       })
       .subscribe();
 
@@ -60,128 +90,149 @@ export const MatchRoom = ({ matchId }) => {
   const handleDispute = async () => {
     if (!disputeReason) return;
     
-    // Note: RPC api_file_dispute must exist on backend
-    const { error } = await supabase.rpc('api_file_dispute', {
-      p_match_id: matchId,
-      p_reason: disputeReason
-    });
+    try {
+        const { error } = await supabase
+            .from('matches')
+            .update({ 
+                status: 'disputed', 
+                // In a real app, you'd save the reason to a separate 'match_notes' or 'disputes' table
+                admin_notes: `[DISPUTE FILED]: ${disputeReason}` 
+            })
+            .eq('id', matchId);
 
-    if (error) {
-      alert("Error filing dispute: " + error.message);
-    } else {
-      setIsDisputing(false);
-      setDisputeReason("");
-      alert("Dispute filed. Admin notified.");
+        if (error) throw error;
+
+        setIsDisputing(false);
+        setDisputeReason("");
+        toast.error("Dispute Filed. Match Locked.");
+    } catch (err) {
+        toast.error("Failed to file dispute.");
     }
   };
 
-  if (loading) return <div className="text-zinc-500 animate-pulse p-10 text-center flex justify-center"><RefreshCw className="animate-spin" /></div>;
+  if (loading) return <div className="h-screen bg-bg flex items-center justify-center text-zinc-500 animate-pulse font-mono">ESTABLISHING UPLINK...</div>;
+  if (!match) return <div className="h-screen bg-bg flex items-center justify-center text-red-500 font-mono">MATCH NOT FOUND</div>;
 
-  if (!match) return <div className="text-red-500 text-center p-10">Match data unavailable.</div>;
-
-  const canManage = can(PERM_CAPABILITIES.MANAGE_MATCH, match);
-
-  if (match.is_locked) {
+  // LOCKED STATE
+  if (match.is_locked || match.status === 'disputed') {
     return (
-      <div className="max-w-4xl mx-auto mt-8 p-8 bg-red-950/20 border border-red-500/50 rounded-lg text-center animate-in fade-in">
-        <Lock className="w-16 h-16 text-red-500 mx-auto mb-4" />
-        <h2 className="text-3xl font-['Teko'] text-white uppercase tracking-wide">Match Locked</h2>
-        <p className="text-red-300 font-mono mt-2 mb-6">
-          An integrity lock is active. Reason: <span className="text-white font-bold">"{match.locked_reason || 'Administrative Hold'}"</span>
-        </p>
-        <div className="inline-block px-4 py-2 bg-red-500/10 rounded border border-red-500/20 text-xs text-red-400 font-bold uppercase tracking-wider">
-          Waiting for Admin Resolution...
-        </div>
+      <div className="min-h-screen bg-bg flex items-center justify-center p-4">
+          <div className="max-w-2xl w-full p-12 bg-red-950/20 border border-red-500/20 rounded-lg text-center animate-in zoom-in-95">
+            <div className="w-24 h-24 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
+                <Lock className="w-12 h-12 text-red-500" />
+            </div>
+            <h2 className="text-4xl font-display font-black text-white uppercase tracking-wide">Match Locked</h2>
+            <p className="text-red-300 font-mono mt-4 mb-8 text-sm uppercase tracking-widest">
+              An integrity lock is active. <br/>
+              Reason: <span className="text-white font-bold">{match.admin_notes || 'Pending Admin Review'}</span>
+            </p>
+            <div className="inline-block px-6 py-3 bg-red-500/10 rounded border border-red-500/20 text-xs text-red-400 font-bold uppercase tracking-widest animate-pulse">
+              Awaiting Resolution...
+            </div>
+          </div>
       </div>
     );
   }
 
   return (
-    <div className="max-w-6xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-3 gap-6 text-white animate-in slide-in-from-bottom-4">
-      <TeamCard name={match.team1?.name || 'TBD'} isReady={false} />
-
-      <div className="space-y-6">
-        <div className="text-center">
-          <div className="text-xs font-mono text-zinc-500 uppercase tracking-widest mb-1">
-            Match #{match.match_no}
-          </div>
-          <div className="text-5xl font-['Teko'] font-bold text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">
-             {match.team1_score} <span className="text-zinc-600 px-2">-</span> {match.team2_score}
-          </div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 bg-fuchsia-900/20 border border-fuchsia-500/30 rounded-full text-xs text-fuchsia-400 mt-2 font-bold tracking-wider">
-            <div className="w-1.5 h-1.5 rounded-full bg-fuchsia-500 animate-pulse" />
-            {match.status?.toUpperCase() || 'SCHEDULED'}
-          </div>
-        </div>
-
-        {/* VETO SECTION */}
-        {match.status === 'veto' ? (
-            <VetoPanel match={match} />
-        ) : (
-            <div className="bg-zinc-900 border border-white/10 rounded-lg p-6 min-h-[200px] flex flex-col items-center justify-center text-center relative overflow-hidden group">
-                <div className="absolute inset-0 bg-gradient-to-br from-zinc-800/20 to-transparent pointer-events-none" />
-                <MapIcon className="w-8 h-8 text-zinc-700 mb-2 relative z-10" />
-                <h3 className="text-zinc-400 font-bold relative z-10">Map Veto Phase</h3>
-                <p className="text-zinc-600 text-xs mt-1 max-w-[200px] relative z-10">
-                Waiting for captains to initialize ban phase.
-                </p>
-
-                {/* START VETO BUTTON - Only visible if allowed */}
-                {canManage && (
-                    <button 
-                        className="mt-4 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-bold uppercase tracking-wider rounded border border-white/5 hover:border-white/20 transition-all relative z-10"
-                        // Add handler to trigger state change to 'veto' if needed
-                    >
-                    Start Veto
-                    </button>
-                )}
-            </div>
-        )}
-
-        <div className="grid grid-cols-2 gap-2">
-           {canManage ? (
-               <button className="p-3 bg-green-900/20 border border-green-500/30 hover:bg-green-900/40 text-green-400 font-bold uppercase text-xs rounded flex items-center justify-center gap-2 transition-colors">
-                 <CheckCircle className="w-4 h-4" /> Ready Up
-               </button>
-           ) : (
-               <div className="p-3 bg-zinc-900/50 border border-zinc-800 text-zinc-600 font-bold uppercase text-xs rounded flex items-center justify-center gap-2 cursor-not-allowed">
-                 <CheckCircle className="w-4 h-4" /> Not Ready
-               </div>
-           )}
-
-           <button 
-             onClick={() => setIsDisputing(!isDisputing)}
-             className="p-3 bg-red-900/20 border border-red-500/30 hover:bg-red-900/40 text-red-400 font-bold uppercase text-xs rounded flex items-center justify-center gap-2 transition-colors"
-           >
-             <AlertTriangle className="w-4 h-4" /> Report Issue
-           </button>
-        </div>
-
-        {isDisputing && (
-          <div className="p-4 bg-black/60 backdrop-blur-md border border-red-500/50 rounded-lg animate-in slide-in-from-top-2 shadow-2xl">
-            <h4 className="text-red-400 font-bold uppercase text-xs mb-2">File Official Dispute</h4>
-            <textarea 
-              className="w-full bg-zinc-950 border border-zinc-800 rounded p-3 text-sm text-white mb-3 focus:border-red-500 outline-none"
-              placeholder="Describe the issue (Cheating, Server Crash, Toxicity)..."
-              rows={3}
-              value={disputeReason}
-              onChange={(e) => setDisputeReason(e.target.value)}
-            />
-            <div className="flex justify-end gap-2">
-              <button onClick={() => setIsDisputing(false)} className="px-3 py-2 text-xs text-zinc-400 hover:text-white transition-colors">Cancel</button>
-
-              <button 
-                onClick={handleDispute}
-                className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded uppercase tracking-wider transition-colors shadow-lg shadow-red-900/20"
-              >
-                File Dispute & Lock Match
-              </button>
-            </div>
-          </div>
-        )}
+    <div className="min-h-screen bg-bg text-white p-6 md:p-12">
+      
+      {/* MATCH HEADER */}
+      <div className="text-center mb-12">
+         <div className="inline-flex items-center gap-2 px-3 py-1 bg-zinc-900 border border-zinc-800 rounded-full text-[10px] font-mono text-zinc-500 uppercase tracking-widest mb-4">
+             <Clock size={12} /> Match ID: {match.match_no} • Round {match.round}
+         </div>
+         <h1 className="text-6xl md:text-8xl font-display font-black text-zinc-800 italic uppercase tracking-tighter leading-none select-none">
+             BATTLEFIELD
+         </h1>
       </div>
 
-      <TeamCard name={match.team2?.name || 'TBD'} isReady={false} align="right" />
+      <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+        
+        {/* TEAM 1 */}
+        <TeamCard name={match.team1?.name} isReady={false} score={match.score_team1} />
+
+        {/* CENTER CONTROL */}
+        <div className="space-y-6">
+            
+            {/* VETO / MAP DISPLAY */}
+            {match.status === 'veto' ? (
+                <div className="bg-bg-panel border border-tactical rounded-lg p-6 shadow-xl animate-in fade-in">
+                    <VetoPanel match={match} />
+                </div>
+            ) : (
+                <div className="bg-zinc-900/50 border border-white/5 rounded-lg p-12 flex flex-col items-center justify-center text-center">
+                    {match.status === 'live' ? (
+                        <>
+                            <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mb-4 animate-pulse">
+                                <Swords className="w-8 h-8 text-red-500" />
+                            </div>
+                            <h3 className="text-xl font-bold text-white uppercase tracking-wider">Match Live</h3>
+                            <p className="text-zinc-500 text-xs mt-2 font-mono">GLHF</p>
+                        </>
+                    ) : (
+                        <>
+                            <div className="w-16 h-16 bg-zinc-800 rounded-full flex items-center justify-center mb-4">
+                                <MapIcon className="w-8 h-8 text-zinc-600" />
+                            </div>
+                            <h3 className="text-zinc-400 font-bold uppercase tracking-wider">Awaiting Veto</h3>
+                            <p className="text-zinc-600 text-xs mt-2 font-mono uppercase">Waiting for captains...</p>
+                        </>
+                    )}
+                </div>
+            )}
+
+            {/* ACTION BAR */}
+            <div className="grid grid-cols-2 gap-3">
+               <button 
+                  disabled={!canManage}
+                  className={cn(
+                      "p-4 rounded border font-bold uppercase text-xs tracking-widest flex items-center justify-center gap-2 transition-all",
+                      canManage 
+                        ? "bg-emerald-900/20 border-emerald-500/30 text-emerald-400 hover:bg-emerald-900/40" 
+                        : "bg-zinc-900 border-zinc-800 text-zinc-600 cursor-not-allowed"
+                  )}
+               >
+                  <CheckCircle size={16} /> Ready Check
+               </button>
+
+               <button 
+                  onClick={() => setIsDisputing(!isDisputing)}
+                  className="p-4 bg-red-950/20 border border-red-900/30 hover:bg-red-900/40 text-red-500 rounded font-bold uppercase text-xs tracking-widest flex items-center justify-center gap-2 transition-all"
+               >
+                  <AlertTriangle size={16} /> Dispute
+               </button>
+            </div>
+
+            {/* DISPUTE FORM */}
+            {isDisputing && (
+                <div className="p-6 bg-bg-elevated border border-red-500/50 rounded-lg animate-in slide-in-from-top-2 shadow-2xl relative">
+                    <div className="absolute top-0 left-0 w-full h-1 bg-red-500 animate-pulse" />
+                    <h4 className="text-red-500 font-bold uppercase text-xs tracking-widest mb-4">File Official Dispute</h4>
+                    <textarea 
+                        className="w-full bg-black border border-zinc-800 rounded p-4 text-sm text-white mb-4 focus:border-red-500 outline-none font-mono"
+                        placeholder="Describe the issue (Cheating, Server Crash, Toxicity)..."
+                        rows={4}
+                        value={disputeReason}
+                        onChange={(e) => setDisputeReason(e.target.value)}
+                    />
+                    <div className="flex justify-end gap-3">
+                        <button onClick={() => setIsDisputing(false)} className="px-4 py-2 text-xs text-zinc-500 hover:text-white transition-colors uppercase font-bold">Cancel</button>
+                        <button 
+                            onClick={handleDispute}
+                            className="px-6 py-2 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded uppercase tracking-widest transition-colors shadow-lg shadow-red-900/20"
+                        >
+                            Lock Match
+                        </button>
+                    </div>
+                </div>
+            )}
+        </div>
+
+        {/* TEAM 2 */}
+        <TeamCard name={match.team2?.name} isReady={false} score={match.score_team2} align="right" />
+
+      </div>
     </div>
   );
 };

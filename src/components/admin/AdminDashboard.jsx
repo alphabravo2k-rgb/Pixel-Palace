@@ -7,7 +7,7 @@ import {
 import { AdminToolbar } from './AdminToolbar';
 import { TeamRosterView } from './TeamRosterView';
 import { StaffManagement } from './StaffManagement';
-import { BracketView } from '../tournament/BracketView'; // Assuming this exists from Phase 2
+import { BracketView } from '../BracketView'; // ✅ FIXED IMPORT PATH (Moved up one level)
 import StatsCard from '../StatsCard';
 import { MatchWarRoom } from './MatchWarRoom';
 import { formatDistanceToNow } from 'date-fns';

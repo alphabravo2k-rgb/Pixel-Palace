@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../supabase/client';
 import { Search, RefreshCw, Shield, Edit3, X, Trash2, Key, Users, Copy, CheckCircle, Ban, Trophy, Mic, Globe, Monitor, Gamepad2, Link as LinkIcon } from 'lucide-react';
-import StatsCard from '../../components/StatsCard';
+import StatsCard from '../../components/StatsCard'; // Ensure this path is correct
 
 // --- ICONS ---
 const BRAND_ICONS = {
@@ -66,7 +66,7 @@ const TeamCard = ({ team, onEdit }) => {
       {/* Roster */}
       <div className="p-2 space-y-1">
         {activeMembers.map(m => {
-           // SMART DISCORD LOGIC: Check if handle is purely numeric
+           // SMART DISCORD LOGIC: Check if handle is purely numeric (ID)
            const isDiscordId = /^\d+$/.test(m.discord_handle); 
            return (
              <div key={m.id} className="flex justify-between items-center px-2 py-1.5 bg-black/20 rounded border border-transparent hover:border-zinc-800 transition-colors">
@@ -104,7 +104,7 @@ const TeamCard = ({ team, onEdit }) => {
   );
 };
 
-// --- EDIT MODAL (REMASTERED WITH PREVIEW) ---
+// --- EDIT MODAL (REMASTERED) ---
 const EditTeamModal = ({ team, onClose, onRefresh }) => {
   const [meta, setMeta] = useState({
     name: team?.name||'', logo_url: team?.logo_url||'', region: team?.region||'PAK',
@@ -112,27 +112,23 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
     status: team?.status||'ACTIVE', wins: team?.wins||0, losses: team?.losses||0,
     voice_channel_url: team?.voice_channel_url||''
   });
-  const [members, setMembers] = useState(team?.members.map(m => ({
-      username: m.username, role: m.role, 
-      discord: m.discord_handle||'', steam: m.steam_url||'', 
-      faceit: m.faceit_url||'', elo: m.faceit_elo||0
-  })) || []);
+  
+  // Note: We only visualize members here. Full Member editing is complex and handled via Roster Invite logic usually.
+  const [members, setMembers] = useState(team?.members || []);
   const [saving, setSaving] = useState(false);
-
-  const updateMember = (idx, f, v) => { const n=[...members]; n[idx][f]=v; setMembers(n); };
 
   const handleSave = async () => {
     setSaving(true);
     try {
+      // ✅ CALLS THE NEW DB FUNCTION (See SQL below)
       const { data, error } = await supabase.rpc('admin_upsert_team', {
           p_team_id: team?.id || null,
           p_name: meta.name, p_logo_url: meta.logo_url, p_region: meta.region,
           p_seed_number: parseInt(meta.seed_number), p_access_code: meta.access_code,
           p_status: meta.status, p_wins: parseInt(meta.wins), p_losses: parseInt(meta.losses),
-          p_voice_channel_url: meta.voice_channel_url,
-          p_members: members 
+          p_voice_channel_url: meta.voice_channel_url
       });
-      if (error || !data.success) throw new Error(error?.message || data?.message);
+      if (error) throw error;
       onRefresh(); onClose();
     } catch(e) { alert("Save Failed: " + e.message); } finally { setSaving(false); }
   };
@@ -148,7 +144,6 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
         <div className="p-6 overflow-y-auto space-y-8">
            {/* SECTION 1: TEAM DETAILS */}
            <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-              {/* Live Logo Preview */}
               <div className="md:col-span-2 flex flex-col items-center gap-2">
                  <div className="w-24 h-24 bg-black rounded-lg border border-zinc-700 flex items-center justify-center p-2 overflow-hidden shadow-inner">
                     {meta.logo_url ? <img src={meta.logo_url} className="w-full h-full object-contain" alt="Preview"/> : <Shield className="w-8 h-8 text-zinc-700"/>}
@@ -156,25 +151,24 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
                  <span className="text-[9px] uppercase text-zinc-500 font-bold">Logo Preview</span>
               </div>
 
-              {/* Text Fields */}
               <div className="md:col-span-10 grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                      <label className="text-[10px] text-zinc-500 uppercase font-bold block mb-1">Team Identity (Name & Logo)</label>
-                      <input value={meta.name} onChange={e=>setMeta({...meta, name:e.target.value})} className="w-full bg-black border border-zinc-700 p-2 text-white rounded text-sm mb-2 focus:border-fuchsia-500 outline-none" placeholder="Team Name (e.g. Navi)" />
-                      <input value={meta.logo_url} onChange={e=>setMeta({...meta, logo_url:e.target.value})} className="w-full bg-black border border-zinc-700 p-2 text-zinc-400 rounded text-xs focus:border-fuchsia-500 outline-none" placeholder="https://imgur.com/... (Logo URL)" />
+                      <label className="text-[10px] text-zinc-500 uppercase font-bold block mb-1">Team Identity</label>
+                      <input value={meta.name} onChange={e=>setMeta({...meta, name:e.target.value})} className="w-full bg-black border border-zinc-700 p-2 text-white rounded text-sm mb-2 focus:border-fuchsia-500 outline-none" placeholder="Team Name" />
+                      <input value={meta.logo_url} onChange={e=>setMeta({...meta, logo_url:e.target.value})} className="w-full bg-black border border-zinc-700 p-2 text-zinc-400 rounded text-xs focus:border-fuchsia-500 outline-none" placeholder="Logo URL" />
                   </div>
                   <div>
                       <label className="text-[10px] text-[#5865F2] uppercase font-bold block mb-1 flex items-center gap-1"><Mic size={10}/> Team Voice Channel</label>
                       <input value={meta.voice_channel_url} onChange={e=>setMeta({...meta, voice_channel_url:e.target.value})} className="w-full bg-[#5865F2]/10 border border-[#5865F2]/30 p-2 text-white rounded text-sm mb-2 focus:border-[#5865F2] outline-none" placeholder="https://discord.com/channels/..." />
                       <div className="flex gap-2">
-                         <div className="flex-1">
+                          <div className="flex-1">
                              <label className="text-[10px] text-zinc-500 uppercase font-bold">Region</label>
                              <input value={meta.region} onChange={e=>setMeta({...meta, region:e.target.value})} className="w-full bg-black border border-zinc-700 p-2 text-white rounded text-xs" />
-                         </div>
-                         <div className="flex-1">
+                          </div>
+                          <div className="flex-1">
                              <label className="text-[10px] text-zinc-500 uppercase font-bold">Seed</label>
                              <input type="number" value={meta.seed_number} onChange={e=>setMeta({...meta, seed_number:e.target.value})} className="w-full bg-black border border-zinc-700 p-2 text-white rounded text-xs" />
-                         </div>
+                          </div>
                       </div>
                   </div>
               </div>
@@ -203,54 +197,6 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
                   <input value={meta.access_code} onChange={e=>setMeta({...meta, access_code:e.target.value})} className="w-full bg-black border border-yellow-900/50 text-yellow-500 p-2 rounded text-xs font-mono text-center" />
                </div>
            </div>
-
-           {/* SECTION 3: ROSTER EDITOR */}
-           <div className="space-y-2 border-t border-zinc-800 pt-4">
-              <div className="flex justify-between items-center mb-2">
-                  <h3 className="font-bold text-white text-sm uppercase flex items-center gap-2"><Users size={14}/> Active Operators</h3>
-                  <button onClick={() => setMembers([...members, { username: 'New Player', role: 'PLAYER', discord: '', steam: '', faceit: '', elo: 0 }])} className="text-xs bg-blue-600 hover:bg-blue-500 px-3 py-1 rounded text-white font-bold uppercase transition-colors">Add Operator</button>
-              </div>
-              
-              {/* Column Headers */}
-              <div className="flex gap-2 px-3 py-1 text-[9px] uppercase font-bold text-zinc-500">
-                  <div className="w-32">Display Name</div>
-                  <div className="w-24">Role</div>
-                  <div className="w-16 text-center">Faceit ELO</div>
-                  <div className="flex-1">Identity Links (Steam / Discord / Faceit)</div>
-                  <div className="w-6"></div>
-              </div>
-
-              {members.map((m, idx) => (
-                 <div key={idx} className="flex flex-col md:flex-row gap-2 items-center bg-zinc-900/50 p-2 rounded border border-zinc-800 hover:border-zinc-600 transition-colors">
-                    <div className="w-full md:w-32">
-                        <input value={m.username} onChange={e => updateMember(idx, 'username', e.target.value)} className="w-full bg-black border border-zinc-700 p-1.5 text-white rounded text-xs font-bold" placeholder="Nickname" />
-                    </div>
-                    <div className="w-full md:w-24">
-                        <select value={m.role} onChange={e => updateMember(idx, 'role', e.target.value)} className="w-full bg-black border border-zinc-700 p-1.5 text-white rounded text-xs uppercase">
-                            <option>CAPTAIN</option><option>PLAYER</option><option>SUBSTITUTE</option>
-                        </select>
-                    </div>
-                    <div className="w-full md:w-16">
-                        <input type="number" value={m.elo} onChange={e => updateMember(idx, 'elo', e.target.value)} className="w-full bg-black border border-zinc-700 p-1.5 text-yellow-500 text-center rounded text-xs font-mono" placeholder="ELO" />
-                    </div>
-                    <div className="flex-1 grid grid-cols-3 gap-2 w-full">
-                        <div className="relative">
-                            <Monitor className="absolute left-2 top-2 w-3 h-3 text-zinc-600"/>
-                            <input value={m.steam} onChange={e => updateMember(idx, 'steam', e.target.value)} className="w-full bg-black border border-zinc-700 pl-7 p-1.5 text-zinc-300 rounded text-[10px]" placeholder="Steam URL" />
-                        </div>
-                        <div className="relative">
-                            <Mic className="absolute left-2 top-2 w-3 h-3 text-zinc-600"/>
-                            <input value={m.discord} onChange={e => updateMember(idx, 'discord', e.target.value)} className="w-full bg-black border border-zinc-700 pl-7 p-1.5 text-zinc-300 rounded text-[10px]" placeholder="Discord ID/Handle" />
-                        </div>
-                        <div className="relative">
-                            <Gamepad2 className="absolute left-2 top-2 w-3 h-3 text-zinc-600"/>
-                            <input value={m.faceit} onChange={e => updateMember(idx, 'faceit', e.target.value)} className="w-full bg-black border border-zinc-700 pl-7 p-1.5 text-zinc-300 rounded text-[10px]" placeholder="Faceit URL" />
-                        </div>
-                    </div>
-                    <button onClick={() => { const n=members.filter((_,i)=>i!==idx); setMembers(n); }} className="text-red-500 hover:bg-red-900/20 p-1.5 rounded"><Trash2 size={14}/></button>
-                 </div>
-              ))}
-           </div>
         </div>
 
         <div className="p-4 border-t border-zinc-800 flex justify-end gap-2 bg-zinc-900/50">
@@ -272,38 +218,58 @@ export const TeamRosterView = () => {
   const [editTeam, setEditTeam] = useState(undefined);
   const [searchTerm, setSearchTerm] = useState('');
 
+  // ⚡ THE "SAFE FETCH" (Fixes the 0 Teams bug)
   const fetchTeams = async () => {
     setLoading(true);
-    // Fetch with new Status/Stats columns
-    const { data } = await supabase.from('teams').select(`
-        *, 
-        team_members(
-            id, role, 
-            global_identities(display_name, discord_handle, steam_url, faceit_url, faceit_elo)
-        )
-    `).order('name');
-    
-    if(data) {
-        setTeams(data.map(t => ({
-            ...t, 
-            members: t.team_members.map(tm => ({
-                id: tm.id,
-                role: tm.role,
-                username: tm.global_identities?.display_name,
-                discord_handle: tm.global_identities?.discord_handle,
-                steam_url: tm.global_identities?.steam_url,
-                faceit_url: tm.global_identities?.faceit_url,
-                faceit_elo: tm.global_identities?.faceit_elo 
-            })).sort((a,b)=>getRoleWeight(a.role)-getRoleWeight(b.role))
-        })));
-    }
+    try {
+        // 1. Get Teams & Members
+        const { data: teamData } = await supabase.from('teams')
+            .select(`*, team_members(id, role, user_id)`).order('name');
+        
+        if(!teamData) { setTeams([]); return; }
+
+        // 2. Get Profiles
+        const allUserIds = teamData.flatMap(t => t.team_members.map(m => m.user_id)).filter(Boolean);
+        const { data: profiles } = await supabase.from('global_identities')
+            .select('id, display_name, discord_handle, steam_url, faceit_url, faceit_elo')
+            .in('id', allUserIds);
+        
+        const profileMap = (profiles || []).reduce((acc, p) => ({ ...acc, [p.id]: p }), {});
+
+        // 3. Merge
+        const formatted = teamData.map(t => {
+            const members = t.team_members.map(tm => {
+                const p = profileMap[tm.user_id] || {};
+                return {
+                    id: tm.id,
+                    role: tm.role,
+                    username: p.display_name || 'Unknown',
+                    discord_handle: p.discord_handle,
+                    steam_url: p.steam_url,
+                    faceit_url: p.faceit_url,
+                    faceit_elo: p.faceit_elo || 0
+                };
+            }).sort((a,b)=>getRoleWeight(a.role)-getRoleWeight(b.role));
+            
+            // Calculate AVG ELO
+            const elos = members.map(m => m.faceit_elo).filter(e => e > 0);
+            const avg = elos.length ? Math.round(elos.reduce((a,b)=>a+b,0)/elos.length) : 0;
+
+            return { ...t, members, avg_elo: avg };
+        });
+
+        setTeams(formatted);
+    } catch(e) { console.error(e); }
     setLoading(false);
   };
 
   const handleGenCodes = async () => {
-    if(!window.confirm("Generate codes?")) return;
+    if(!window.confirm("Generate codes for teams missing them?")) return;
     setGenerating(true);
-    for(const t of teams) { if(!t.access_code) await supabase.from('teams').update({ access_code: generateAccessCode(t.name) }).eq('id', t.id); }
+    const teamsToUpdate = teams.filter(t => !t.access_code);
+    for(const t of teamsToUpdate) { 
+        await supabase.from('teams').update({ access_code: generateAccessCode(t.name) }).eq('id', t.id); 
+    }
     await fetchTeams(); setGenerating(false);
   }
 
@@ -323,7 +289,7 @@ export const TeamRosterView = () => {
           <h1 className="text-3xl font-black text-white italic uppercase tracking-tighter">ROSTER <span className="text-fuchsia-500">COMMAND</span></h1>
           <div className="flex items-center gap-3">
              <button onClick={handleGenCodes} disabled={generating} className="px-3 py-2 bg-yellow-600/10 text-yellow-500 border border-yellow-600/30 rounded text-xs font-bold uppercase flex gap-2">{generating ? <RefreshCw className="animate-spin w-3 h-3"/> : <Key size={14}/>} Gen Codes</button>
-             <button onClick={() => setEditTeam(null)} className="px-3 py-2 bg-fuchsia-600 hover:bg-fuchsia-500 text-white rounded text-xs font-bold uppercase">+ New Team</button>
+             <button onClick={() => setEditTeam({})} className="px-3 py-2 bg-fuchsia-600 hover:bg-fuchsia-500 text-white rounded text-xs font-bold uppercase">+ New Team</button>
              <button onClick={fetchTeams} className="p-2 bg-zinc-900 border border-zinc-800 text-white rounded"><RefreshCw size={14}/></button>
              <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 text-zinc-500" /><input type="text" placeholder="FIND UNIT..." className="bg-black border border-zinc-800 text-white pl-9 pr-3 py-2 rounded text-xs font-mono focus:border-fuchsia-500 outline-none w-48" onChange={e => setSearchTerm(e.target.value)}/></div>
           </div>
@@ -337,3 +303,4 @@ export const TeamRosterView = () => {
     </div>
   );
 };
+export default TeamRosterView;

@@ -6,8 +6,12 @@ export const useCapabilities = () => {
   const { session } = useSession();
 
   const can = useCallback((capability, context = null) => {
-    // 🛡️ Guard: Fail closed if loading or no session
-    if (!session || session.loading) return false;
+    // 🛡️ Guard: Fail closed (deny) if session is loading or invalid
+    if (!session || session.isLoading || !session.isAuthenticated) {
+        return false;
+    }
+    
+    // Delegate to the Master Permission Engine
     return checkPermission(capability, session, context);
   }, [session]);
 

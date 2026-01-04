@@ -1,6 +1,8 @@
 import React from 'react';
-import { useCapabilities } from '../../auth/useCapabilities';
+import { useSession } from '../../auth/useSession';
+import { can } from '../../lib/permissions';
 import { Lock } from 'lucide-react';
+import { cn } from '../../lib/utils'; // Optional, but good for class merging if you have it
 
 export const RestrictedButton = ({ 
   action, 
@@ -9,26 +11,36 @@ export const RestrictedButton = ({
   fallback = null, 
   className = "", 
   disabled = false, 
+  silent = false, // New: If true, renders nothing instead of a lock button
   ...props 
 }) => {
-  const { can } = useCapabilities();
+  const { session } = useSession();
   
-  // Check if the user has the capability to perform the action
-  const allowed = can(action, context); 
+  // 🛡️ SECURITY CHECK
+  // Directly asks the Permission Engine
+  const allowed = can(action, session, context); 
 
   if (!allowed) {
+    // 1. Silent Mode: Vanish completely
+    if (silent) return null;
+
+    // 2. Custom Fallback: Render what the parent wants (e.g. a "Login to Vote" text)
     if (fallback) return fallback;
 
-    // Default fallback: A disabled, locked button
+    // 3. Default: Render a locked, grayed-out button
     return (
-      <button disabled className={`opacity-50 cursor-not-allowed flex items-center gap-2 ${className}`} title="Access Denied">
+      <button 
+        disabled 
+        className={`opacity-50 cursor-not-allowed flex items-center justify-center gap-2 grayscale pointer-events-none ${className}`} 
+        title="Access Denied: Insufficient Permissions"
+      >
         <Lock className="w-3 h-3" />
         {children}
       </button>
     );
   }
 
-  // Render the actual button if the user is allowed
+  // Render the actual button if allowed
   return (
     <button className={className} disabled={disabled} {...props}>
       {children}

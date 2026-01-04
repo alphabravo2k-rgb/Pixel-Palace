@@ -1,26 +1,35 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useSession } from '../auth/useSession';
 import { useTournament } from '../tournament/useTournament';
 import { useAdminConsole } from '../hooks/useAdminConsole';
-import { Loader2, ShieldAlert, Trophy, RefreshCw, Play } from 'lucide-react';
+import { Loader2, ShieldAlert, Trophy, RefreshCw, Play, AlertTriangle } from 'lucide-react';
 import { can } from '../lib/permissions';
-import { PERM_CAPABILITIES } from '../lib/permissions.actions';
+import { PERMISSIONS } from '../lib/roles'; // ✅ FIXED IMPORT
 import { BracketView } from './BracketView';
+import { toast } from 'react-hot-toast';
+import { cn } from '../lib/utils';
+import { Button } from '../ui/Components';
 
 export const TournamentWarRoom = () => {
   const { session, loading: authLoading } = useSession();
   const { selectedTournamentId, tournamentData, lifecycle } = useTournament();
   const { execute, loading: opsLoading } = useAdminConsole();
+  
+  // Local state for specific action loaders
+  const [generating, setGenerating] = useState(false);
 
-  if (authLoading) return <div className="h-screen flex items-center justify-center bg-black"><Loader2 className="animate-spin text-fuchsia-500" /></div>;
+  if (authLoading) return <div className="h-screen flex items-center justify-center bg-bg"><Loader2 className="animate-spin text-brand" /></div>;
 
   // 🛡️ PERMISSION CHECK
-  if (!can(PERM_CAPABILITIES.MANAGE_TOURNAMENT, session)) {
+  if (!can(PERMISSIONS.MANAGE_TOURNAMENT, session)) {
     return (
-      <div className="h-screen flex flex-col items-center justify-center bg-black text-red-500 p-8 text-center">
-        <ShieldAlert className="w-16 h-16 mb-4 animate-pulse" />
-        <h1 className="text-3xl font-black uppercase tracking-widest mb-2">Unauthorized</h1>
-        <p className="text-zinc-500 font-mono text-sm">Access Denied to War Room.</p>
+      <div className="h-screen flex flex-col items-center justify-center bg-bg text-red-500 p-8 text-center animate-in zoom-in-95 duration-300">
+        <ShieldAlert className="w-20 h-20 mb-6 animate-pulse" />
+        <h1 className="text-4xl font-display font-black uppercase tracking-widest mb-2">Unauthorized Access</h1>
+        <p className="text-zinc-500 font-mono text-sm uppercase tracking-wide">Clearance Level: {session?.role || 'NONE'}</p>
+        <div className="mt-8 p-4 bg-red-950/20 border border-red-900/50 rounded max-w-md">
+            <p className="text-red-400 text-xs">This incident has been logged. If you believe this is an error, contact the Tournament Director.</p>
+        </div>
       </div>
     );
   }
@@ -31,63 +40,88 @@ export const TournamentWarRoom = () => {
   // --- ⚡ ACTIONS ---
   
   const handleSync = async () => {
-     // Placeholder for future Discord sync integration
-     alert("Roster data is currently synchronized with the registration system.");
+      // Placeholder for future Discord sync integration
+      toast("Roster data is currently synchronized with the registration system.", {
+          icon: 'ℹ️',
+          style: { background: '#18181b', color: '#fff', border: '1px solid #27272a' }
+      });
   };
 
   const handleGenerate = async () => {
     if (!selectedTournamentId) return;
     
-    // ⚠️ CRITICAL WARNING
-    const confirm = window.confirm("⚠️ WARNING: This will WIPE all current matches and generate a new bracket based on registered teams. Continue?");
+    // ⚠️ CRITICAL WARNING (Browser Native is safest here to prevent accidental clicks)
+    const confirm = window.confirm("⚠️ WARNING: This will WIPE all current matches and generate a new bracket based on seeded teams.\n\nAre you sure?");
     if (!confirm) return;
 
-    // 🚀 EXECUTE DATABASE ENGINE
+    setGenerating(true);
     const result = await execute('admin_generate_bracket', { 
         p_tournament_id: selectedTournamentId 
     });
+    setGenerating(false);
 
     if (result.success) {
-        // Success feedback
-        console.log("Generation Stats:", result.data);
+        toast.success("Bracket Generated Successfully");
     }
   };
 
   return (
-    <div className="flex flex-col h-screen bg-zinc-950 text-white overflow-hidden">
+    <div className="flex flex-col h-screen bg-bg text-white overflow-hidden">
+      
       {/* 🎛️ COMMAND BAR */}
-      <div className="p-4 border-b border-white/5 bg-black/60 flex items-center justify-between backdrop-blur-md">
-         <div className="flex items-center gap-3">
-            <Trophy className="text-yellow-500 w-5 h-5" />
+      <div className="h-16 px-6 border-b border-tactical bg-bg-panel/80 backdrop-blur-md flex items-center justify-between z-50">
+         
+         {/* Title & Status */}
+         <div className="flex items-center gap-4">
+            <div className="p-2 bg-brand/10 rounded border border-brand/20">
+                <Trophy className="text-brand-glow w-5 h-5" />
+            </div>
             <div>
-               <h2 className="text-lg font-['Teko'] uppercase font-bold tracking-wide leading-none">{tournamentData?.name || 'Command Center'}</h2>
-               <div className="flex items-center gap-2">
-                 <span className={`w-2 h-2 rounded-full ${isLive ? 'bg-green-500 animate-pulse' : 'bg-zinc-500'}`} />
-                 <span className="text-[10px] text-zinc-500 font-mono">STATUS: {lifecycle?.status || 'UNKNOWN'}</span>
+               <h2 className="text-xl font-display uppercase font-bold tracking-wide leading-none text-white">
+                   {tournamentData?.name || 'Command Center'}
+               </h2>
+               <div className="flex items-center gap-2 mt-1">
+                 <span className={cn("w-1.5 h-1.5 rounded-full", isLive ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-500')} />
+                 <span className="text-[10px] text-zinc-400 font-mono tracking-widest uppercase">
+                    STATUS: <span className={isLive ? 'text-emerald-400' : 'text-zinc-500'}>{lifecycle?.status || 'OFFLINE'}</span>
+                 </span>
                </div>
             </div>
          </div>
 
-         <div className="flex gap-2">
-            <button 
+         {/* Action Buttons */}
+         <div className="flex gap-3">
+            <Button 
+               variant="ghost" 
+               size="sm"
                onClick={handleSync}
                disabled={!isSetupPhase || opsLoading}
-               className={`px-4 py-2 border rounded text-xs font-bold uppercase flex items-center gap-2 transition-all ${isSetupPhase ? 'bg-blue-600/20 text-blue-400 border-blue-600/50 hover:bg-blue-600/40' : 'bg-zinc-900 text-zinc-600 border-zinc-800 cursor-not-allowed opacity-50'}`}
+               className="border-zinc-800 text-zinc-400 hover:text-white"
             >
-               <RefreshCw size={14} className={opsLoading ? 'animate-spin' : ''} /> Sync Roster
-            </button>
-            <button 
+               <RefreshCw size={14} className={opsLoading ? 'animate-spin' : ''} /> 
+               Sync Rosters
+            </Button>
+            
+            <Button 
+               variant={isSetupPhase ? "brand" : "secondary"}
+               size="sm"
                onClick={handleGenerate}
+               loading={generating}
                disabled={!isSetupPhase || opsLoading}
-               className={`px-4 py-2 border rounded text-xs font-bold uppercase flex items-center gap-2 transition-all ${isSetupPhase ? 'bg-fuchsia-600/20 text-fuchsia-400 border-fuchsia-600/50 hover:bg-fuchsia-600/40' : 'bg-zinc-900 text-zinc-600 border-zinc-800 cursor-not-allowed opacity-50'}`}
+               title={!isSetupPhase ? "Tournament is locked" : "Generate Bracket"}
             >
-               <Play size={14} /> Generate Bracket
-            </button>
+               {!isSetupPhase ? <AlertTriangle size={14} /> : <Play size={14} />}
+               {generating ? 'GENERATING...' : 'GENERATE BRACKET'}
+            </Button>
          </div>
       </div>
 
       {/* 📊 THE VIEWPORT */}
-      <div className="flex-1 relative bg-black">
+      <div className="flex-1 relative bg-black overflow-hidden">
+        {/* Background Grid */}
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]" />
+        
+        {/* Bracket Engine */}
         <BracketView />
       </div>
     </div>

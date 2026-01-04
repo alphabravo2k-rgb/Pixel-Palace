@@ -9,57 +9,65 @@ const __dirname = path.dirname(__filename);
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
-  // Load env vars (useful if you need to access VITE_ vars inside config)
+  // Load env vars so we can use them in config if needed
   const env = loadEnv(mode, process.cwd(), '');
 
   return {
     plugins: [react()],
+    
+    // 📍 ALIASES: Makes imports cleaner (e.g. import Button from '@/components/Button')
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "./src"),
       },
     },
     
-    // ⚡ SERVER OPTIMIZATIONS
+    // ⚡ SERVER: Optimized for local network testing (Mobile debugging)
     server: {
       port: 5173,
-      strictPort: false, // Fallback if 5173 is taken
-      host: true,        // ✅ Allows access from local network (mobile testing)
-      cors: true,        // ✅ Fixes rare CORS issues during dev
+      strictPort: false, // Automatically tries 5174 if 5173 is busy
+      host: true,        // Exposes IP for phone testing
+      cors: true,        // Prevents API blocking during dev
     },
 
-    // 🏗️ BUILD "MASTER" OPTIMIZATIONS
+    // 🏗️ BUILD: The "Master" Production Setup
     build: {
-      target: 'esnext',  // ✅ Modern browsers = smaller, faster bundles
+      // 'es2020' is the sweet spot: Fast like 'esnext', but doesn't crash iPhone 12s
+      target: 'es2020', 
       outDir: 'dist',
-      sourcemap: mode !== 'production', // ✅ No source maps in prod (security/size)
-      minify: 'esbuild', // Fast minification
+      sourcemap: mode !== 'production', // Disable in Prod for security & speed
+      minify: 'esbuild', // 20x faster than Terser
       
-      // 🧹 CLEANUP: Remove console.logs in production automatically
+      // 🧹 CLEANUP: Automatically strip console.logs in production
       esbuild: {
         drop: mode === 'production' ? ['console', 'debugger'] : [],
       },
 
+      // 🧠 INTELLIGENT CHUNKING: The "Waterfall Prevention" Strategy
       rollupOptions: {
         output: {
-          // 🧠 INTELLIGENT CHUNKING STRATEGY
-          // Separates core engines (React) from Data (Supabase) from UI (Lucide)
           manualChunks: (id) => {
-            // 1. React Core (Changes rarely)
+            // 1. Core Engine (React) - Loads First
             if (id.includes('node_modules/react') || 
                 id.includes('node_modules/react-dom') || 
                 id.includes('node_modules/react-router-dom')) {
               return 'react-engine';
             }
-            // 2. Database Client (Critical for Data Backing)
+            
+            // 2. Data Layer (Supabase) - Loads Second (Critical)
             if (id.includes('@supabase')) {
               return 'database-connector';
             }
-            // 3. UI Library (Lucide/Tailwind utils)
-            if (id.includes('lucide-react') || id.includes('clsx') || id.includes('tailwind-merge')) {
-              return 'ui-components';
+
+            // 3. Heavy UI & Animations - Loads Last (Lazy)
+            if (id.includes('framer-motion')) {
+              return 'animation-engine';
             }
-            // 4. Everything else
+            if (id.includes('lucide-react') || id.includes('clsx') || id.includes('tailwind-merge')) {
+              return 'ui-utils';
+            }
+
+            // 4. Vendor (Everything else)
             if (id.includes('node_modules')) {
               return 'vendor';
             }
@@ -67,12 +75,17 @@ export default defineConfig(({ mode }) => {
         },
       },
       chunkSizeWarningLimit: 1000, 
-      cssCodeSplit: true,
+      cssCodeSplit: true, // Optimizes CSS loading
     },
 
-    // 🚀 SPEED: Pre-bundle these dependencies
+    // 🛡️ COMPATIBILITY: Polyfill 'process' for older libs to prevent crashes
+    define: {
+      'process.env': {},
+    },
+
+    // 🚀 SPEED: Pre-warm these packages in Dev mode
     optimizeDeps: {
-      include: ['react', 'react-dom', 'react-router-dom', '@supabase/supabase-js', 'lucide-react'],
+      include: ['react', 'react-dom', 'react-router-dom', '@supabase/supabase-js', 'lucide-react', 'framer-motion'],
     },
   };
 });

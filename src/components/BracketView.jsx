@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../supabase/client'; // Assumes file is in src/components/admin/
+import { supabase } from '../supabase/client'; // ✅ FIXED: Changed ../../ to ../
 import { X, Save, Shield, Monitor, Map, Clock, AlertTriangle } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 

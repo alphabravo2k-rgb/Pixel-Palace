@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../supabase/client';
-import { Search, RefreshCw, Shield, Edit3, X, Trash2, Key, Users, Copy, CheckCircle, Ban, Trophy, Mic, Globe, Monitor, Gamepad2, Link as LinkIcon } from 'lucide-react';
+import { 
+  Search, RefreshCw, Shield, Edit3, X, Trash2, Key, Users, 
+  Copy, CheckCircle, Ban, Trophy, Mic, Globe, Monitor, Gamepad2, Link as LinkIcon 
+} from 'lucide-react';
 import StatsCard from '../../components/StatsCard';
 
-// --- ICONS (YOUR CUSTOM ASSETS) ---
+// --- ICONS ---
 const BRAND_ICONS = {
   STEAM: <svg viewBox="0 0 24 24" className="w-3 h-3 fill-current" xmlns="http://www.w3.org/2000/svg"><path d="M11.979 0C5.666 0 .548 5.13.548 11.465c0 3.25 1.344 6.18 3.506 8.27l1.96-2.94a4.938 4.938 0 0 1-.366-1.874 4.975 4.975 0 0 1 4.97-4.97c.453 0 .89.066 1.306.184l3.194-4.79A11.378 11.378 0 0 0 11.98 0zm6.983 6.94l-3.33 4.995a4.933 4.933 0 0 1 2.25 2.126l4.634-2.857a11.385 11.385 0 0 0-3.554-4.264zM7.276 17.037l-1.897 2.846a11.37 11.37 0 0 0 5.23 1.94l1.19-4.167a4.966 4.966 0 0 1-4.523-.62zm9.11 1.07l-4.22 2.602a4.965 4.965 0 0 1-2.09.47L8.91 24.5a11.413 11.413 0 0 0 7.476-6.393z"/></svg>,
   DISCORD: <svg viewBox="0 0 24 24" className="w-3 h-3 fill-current" xmlns="http://www.w3.org/2000/svg"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg>,
@@ -20,7 +23,7 @@ const getRegionFlag = (code) => {
     : <span className="text-[9px] bg-zinc-800 text-zinc-400 px-1 rounded">{code.substring(0,2)}</span>;
 };
 
-// --- TEAM CARD (YOUR EXACT COMPONENT) ---
+// --- TEAM CARD ---
 const TeamCard = ({ team, onEdit }) => {
   const activeMembers = team.members.slice(0, 5);
   const reserveMembers = team.members.slice(5);
@@ -66,7 +69,6 @@ const TeamCard = ({ team, onEdit }) => {
       {/* Roster */}
       <div className="p-2 space-y-1">
         {activeMembers.map(m => {
-           // SMART DISCORD LOGIC: Check if handle is purely numeric
            const isDiscordId = /^\d+$/.test(m.discord_handle); 
            return (
              <div key={m.id} className="flex justify-between items-center px-2 py-1.5 bg-black/20 rounded border border-transparent hover:border-zinc-800 transition-colors">
@@ -78,7 +80,6 @@ const TeamCard = ({ team, onEdit }) => {
                     {m.faceit_elo > 0 && <span className="text-[9px] font-mono font-bold text-yellow-500 bg-yellow-900/10 px-1 rounded border border-yellow-500/20">{m.faceit_elo}</span>}
                     {m.steam_url && <a href={m.steam_url} target="_blank" rel="noreferrer" className="text-zinc-600 hover:text-[#171a21] hover:bg-white rounded-full p-0.5 transition-colors">{BRAND_ICONS.STEAM}</a>}
                     
-                    {/* SMART DISCORD BUTTON */}
                     {m.discord_handle && (
                         isDiscordId ? 
                         <a href={`https://discord.com/users/${m.discord_handle}`} target="_blank" rel="noreferrer" className="text-zinc-600 hover:text-[#5865F2] hover:bg-white rounded-full p-0.5 transition-colors cursor-pointer" title="Open Discord Profile">{BRAND_ICONS.DISCORD}</a>
@@ -104,7 +105,7 @@ const TeamCard = ({ team, onEdit }) => {
   );
 };
 
-// --- EDIT MODAL (YOUR EXACT COMPONENT) ---
+// --- FULL EDIT MODAL (RESTORED FEATURES) ---
 const EditTeamModal = ({ team, onClose, onRefresh }) => {
   const [meta, setMeta] = useState({
     name: team?.name||'', logo_url: team?.logo_url||'', region: team?.region||'PAK',
@@ -113,37 +114,75 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
     voice_channel_url: team?.voice_channel_url||''
   });
   
-  const [members, setMembers] = useState(team?.members || []);
+  // Initialize members with correct key mapping for UI
+  const [members, setMembers] = useState(team?.members.map(m => ({
+      username: m.username, 
+      role: m.role, 
+      discord: m.discord_handle||'', 
+      steam: m.steam_url||'', 
+      faceit: m.faceit_url||'', 
+      elo: m.faceit_elo||0
+  })) || []);
+  
   const [saving, setSaving] = useState(false);
 
-  // ⚡ UPDATED: SAVE FUNCTION WIRED TO DB RPC
+  const updateMember = (idx, field, value) => {
+      const updated = [...members];
+      updated[idx][field] = value;
+      setMembers(updated);
+  };
+
+  const addMember = () => {
+      setMembers([...members, { username: 'New Op', role: 'PLAYER', discord: '', steam: '', faceit: '', elo: 1000 }]);
+  };
+
+  const removeMember = (idx) => {
+      setMembers(members.filter((_, i) => i !== idx));
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
+      // Correctly maps frontend 'members' state to what SQL 'admin_upsert_team' expects
       const { data, error } = await supabase.rpc('admin_upsert_team', {
           p_team_id: team?.id || null,
-          p_name: meta.name, p_logo_url: meta.logo_url, p_region: meta.region,
-          p_seed_number: parseInt(meta.seed_number), p_access_code: meta.access_code,
-          p_status: meta.status, p_wins: parseInt(meta.wins), p_losses: parseInt(meta.losses),
-          p_voice_channel_url: meta.voice_channel_url
+          p_name: meta.name, 
+          p_logo_url: meta.logo_url, 
+          p_region: meta.region,
+          p_seed_number: parseInt(meta.seed_number), 
+          p_access_code: meta.access_code,
+          p_status: meta.status, 
+          p_wins: parseInt(meta.wins), 
+          p_losses: parseInt(meta.losses),
+          p_voice_channel_url: meta.voice_channel_url,
+          p_members: members // Passes the full array to the backend for processing
       });
+
       if (error) throw error;
-      onRefresh(); onClose();
-    } catch(e) { alert("Save Failed: " + e.message); } finally { setSaving(false); }
+      if (data && !data.success) throw new Error(data.message);
+
+      onRefresh(); 
+      onClose();
+    } catch(e) { 
+        alert("Save Failed: " + e.message); 
+    } finally { 
+        setSaving(false); 
+    }
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in">
       <div className="bg-[#0b0c0f] border border-zinc-700 w-full max-w-6xl rounded-2xl flex flex-col max-h-[95vh]">
+        
+        {/* Modal Header */}
         <div className="p-6 border-b border-zinc-800 bg-zinc-900/50 flex justify-between">
            <h2 className="text-xl font-black text-white uppercase italic">EDIT UNIT: <span className="text-fuchsia-500">{meta.name || 'NEW TEAM'}</span></h2>
            <button onClick={onClose}><X className="text-zinc-400 hover:text-white" /></button>
         </div>
         
-        <div className="p-6 overflow-y-auto space-y-8">
+        <div className="p-6 overflow-y-auto space-y-8 flex-1">
            {/* SECTION 1: TEAM DETAILS */}
            <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-              {/* Live Logo Preview */}
               <div className="md:col-span-2 flex flex-col items-center gap-2">
                  <div className="w-24 h-24 bg-black rounded-lg border border-zinc-700 flex items-center justify-center p-2 overflow-hidden shadow-inner">
                     {meta.logo_url ? <img src={meta.logo_url} className="w-full h-full object-contain" alt="Preview"/> : <Shield className="w-8 h-8 text-zinc-700"/>}
@@ -151,12 +190,11 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
                  <span className="text-[9px] uppercase text-zinc-500 font-bold">Logo Preview</span>
               </div>
 
-              {/* Text Fields */}
               <div className="md:col-span-10 grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                      <label className="text-[10px] text-zinc-500 uppercase font-bold block mb-1">Team Identity (Name & Logo)</label>
-                      <input value={meta.name} onChange={e=>setMeta({...meta, name:e.target.value})} className="w-full bg-black border border-zinc-700 p-2 text-white rounded text-sm mb-2 focus:border-fuchsia-500 outline-none" placeholder="Team Name (e.g. Navi)" />
-                      <input value={meta.logo_url} onChange={e=>setMeta({...meta, logo_url:e.target.value})} className="w-full bg-black border border-zinc-700 p-2 text-zinc-400 rounded text-xs focus:border-fuchsia-500 outline-none" placeholder="https://imgur.com/... (Logo URL)" />
+                      <label className="text-[10px] text-zinc-500 uppercase font-bold block mb-1">Team Identity</label>
+                      <input value={meta.name} onChange={e=>setMeta({...meta, name:e.target.value})} className="w-full bg-black border border-zinc-700 p-2 text-white rounded text-sm mb-2 focus:border-fuchsia-500 outline-none" placeholder="Team Name" />
+                      <input value={meta.logo_url} onChange={e=>setMeta({...meta, logo_url:e.target.value})} className="w-full bg-black border border-zinc-700 p-2 text-zinc-400 rounded text-xs focus:border-fuchsia-500 outline-none" placeholder="Logo URL" />
                   </div>
                   <div>
                       <label className="text-[10px] text-[#5865F2] uppercase font-bold block mb-1 flex items-center gap-1"><Mic size={10}/> Team Voice Channel</label>
@@ -198,9 +236,56 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
                   <input value={meta.access_code} onChange={e=>setMeta({...meta, access_code:e.target.value})} className="w-full bg-black border border-yellow-900/50 text-yellow-500 p-2 rounded text-xs font-mono text-center" />
                </div>
            </div>
+           
+           {/* SECTION 3: ROSTER EDITOR (RESTORED) */}
+           <div className="space-y-2 border-t border-zinc-800 pt-4">
+              <div className="flex justify-between items-center mb-2">
+                  <h3 className="font-bold text-white text-sm uppercase flex items-center gap-2"><Users size={14}/> Active Operators</h3>
+                  <button onClick={addMember} className="text-xs bg-blue-600 hover:bg-blue-500 px-3 py-1 rounded text-white font-bold uppercase transition-colors">Add Operator</button>
+              </div>
+              
+              <div className="flex gap-2 px-3 py-1 text-[9px] uppercase font-bold text-zinc-500">
+                  <div className="w-32">Display Name</div>
+                  <div className="w-24">Role</div>
+                  <div className="w-16 text-center">ELO</div>
+                  <div className="flex-1">Identity Links (Steam / Discord / Faceit)</div>
+                  <div className="w-6"></div>
+              </div>
+
+              {members.map((m, idx) => (
+                 <div key={idx} className="flex flex-col md:flex-row gap-2 items-center bg-zinc-900/50 p-2 rounded border border-zinc-800 hover:border-zinc-600 transition-colors">
+                    <div className="w-full md:w-32">
+                        <input value={m.username} onChange={e => updateMember(idx, 'username', e.target.value)} className="w-full bg-black border border-zinc-700 p-1.5 text-white rounded text-xs font-bold" placeholder="Nickname" />
+                    </div>
+                    <div className="w-full md:w-24">
+                        <select value={m.role} onChange={e => updateMember(idx, 'role', e.target.value)} className="w-full bg-black border border-zinc-700 p-1.5 text-white rounded text-xs uppercase">
+                            <option>CAPTAIN</option><option>PLAYER</option><option>SUBSTITUTE</option>
+                        </select>
+                    </div>
+                    <div className="w-full md:w-16">
+                        <input type="number" value={m.elo} onChange={e => updateMember(idx, 'elo', e.target.value)} className="w-full bg-black border border-zinc-700 p-1.5 text-yellow-500 text-center rounded text-xs font-mono" placeholder="ELO" />
+                    </div>
+                    <div className="flex-1 grid grid-cols-3 gap-2 w-full">
+                        <div className="relative">
+                            <Monitor className="absolute left-2 top-2 w-3 h-3 text-zinc-600"/>
+                            <input value={m.steam} onChange={e => updateMember(idx, 'steam', e.target.value)} className="w-full bg-black border border-zinc-700 pl-7 p-1.5 text-zinc-300 rounded text-[10px]" placeholder="Steam URL" />
+                        </div>
+                        <div className="relative">
+                            <Mic className="absolute left-2 top-2 w-3 h-3 text-zinc-600"/>
+                            <input value={m.discord} onChange={e => updateMember(idx, 'discord', e.target.value)} className="w-full bg-black border border-zinc-700 pl-7 p-1.5 text-zinc-300 rounded text-[10px]" placeholder="Discord ID/Handle" />
+                        </div>
+                        <div className="relative">
+                            <Gamepad2 className="absolute left-2 top-2 w-3 h-3 text-zinc-600"/>
+                            <input value={m.faceit} onChange={e => updateMember(idx, 'faceit', e.target.value)} className="w-full bg-black border border-zinc-700 pl-7 p-1.5 text-zinc-300 rounded text-[10px]" placeholder="Faceit URL" />
+                        </div>
+                    </div>
+                    <button onClick={() => removeMember(idx)} className="text-red-500 hover:bg-red-900/20 p-1.5 rounded"><Trash2 size={14}/></button>
+                 </div>
+              ))}
+           </div>
         </div>
 
-        <div className="p-4 border-t border-zinc-800 flex justify-end gap-2 bg-zinc-900/50">
+        <div className="p-4 border-t border-zinc-800 flex justify-end gap-2 bg-zinc-900/50 rounded-b-2xl">
            <button onClick={onClose} className="px-4 py-2 text-zinc-400 text-xs font-bold uppercase hover:text-white">Cancel</button>
            <button onClick={handleSave} disabled={saving} className="px-6 py-2 bg-fuchsia-600 hover:bg-fuchsia-500 text-white text-xs font-bold uppercase rounded shadow-lg transition-all">
               {saving ? 'Processing...' : 'Save Changes'}
@@ -211,7 +296,7 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
   );
 };
 
-// --- MAIN VIEW (UPDATED ENGINE) ---
+// --- MAIN VIEW ---
 export const TeamRosterView = () => {
   const [teams, setTeams] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -220,7 +305,6 @@ export const TeamRosterView = () => {
   const [searchTerm, setSearchTerm] = useState('');
 
   // ⚡ THE FIX: "Safe Fetch" Strategy 
-  // 
   const fetchTeams = async () => {
     setLoading(true);
     try {

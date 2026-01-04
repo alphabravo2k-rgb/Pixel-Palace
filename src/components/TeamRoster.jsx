@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../supabase/client';
+import { supabase } from '../supabase/client';
 import { 
   Search, RefreshCw, Shield, Crown, Minus, 
   ArrowUpRight, AlertTriangle
@@ -79,7 +79,7 @@ const PlayerRow = ({ member, idx }) => {
     const normalizedRole = member.role?.toUpperCase() || 'PLAYER';
     const isCaptain = normalizedRole === 'CAPTAIN';
     
-    // Fallback: If roster > 5 and not captain, assume SUB if not specified
+    // Fallback logic for sliders
     const isExplicitSub = normalizedRole === 'SUBSTITUTE';
     const isOverflow = idx >= 5 && !isCaptain && !isExplicitSub; 
     const isSub = isExplicitSub || isOverflow;
@@ -151,7 +151,7 @@ const GhostRow = () => (
 );
 
 // --- MAIN PAGE ---
-export const TeamRosterView = () => {
+export const TeamRoster = () => {
   const [teams, setTeams] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -161,41 +161,55 @@ export const TeamRosterView = () => {
     setLoading(true);
     setError(null);
     try {
-      // ⚡ QUERY OPTIMIZATION
-      // We alias global_identities to 'profile' for clarity
+      // 1. SAFE FETCH: Get Teams & Members only (No complex joins)
       const { data, error } = await supabase
         .from('teams')
         .select(`
           id, name, logo_url, region, access_code, seed_number,
           team_members (
             id, role,
-            profile:global_identities (
-                id, display_name, discord_handle, faceit_elo, faceit_url, steam_url, discord_id
-            )
+            user_id
           )
         `)
         .order('name', { ascending: true });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Supabase Error:", error);
+        throw error;
+      }
 
-      const formatted = data?.map(team => {
-        const sortedMembers = team.team_members.map(tm => ({
-          id: tm.id,
-          role: tm.role?.toUpperCase() || 'PLAYER',
-          username: tm.profile?.display_name || 'Unknown',
-          discord_id: tm.profile?.discord_id,
-          faceit_url: tm.profile?.faceit_url,
-          steam_url: tm.profile?.steam_url,
-          elo: tm.profile?.faceit_elo || 0
-        })).sort((a, b) => {
+      // 2. MANUAL MERGE: Fetch Profiles separately and link them in JS
+      // This bypasses RLS issues with joins
+      const allUserIds = data.flatMap(t => t.team_members.map(m => m.user_id)).filter(Boolean);
+      
+      let profileMap = {};
+      if (allUserIds.length > 0) {
+          const { data: profiles } = await supabase
+            .from('global_identities')
+            .select('id, display_name, faceit_elo, faceit_url, steam_url, discord_id')
+            .in('id', allUserIds);
+          
+          profileMap = (profiles || []).reduce((acc, p) => ({ ...acc, [p.id]: p }), {});
+      }
+
+      // 3. FORMAT DATA
+      const formatted = data.map(team => {
+        const sortedMembers = team.team_members.map(tm => {
+          const profile = profileMap[tm.user_id] || {};
+          return {
+            id: tm.id,
+            role: tm.role?.toUpperCase() || 'PLAYER',
+            username: profile.display_name || 'Unknown',
+            discord_id: profile.discord_id,
+            faceit_url: profile.faceit_url,
+            steam_url: profile.steam_url,
+            elo: profile.faceit_elo || 0
+          };
+        }).sort((a, b) => {
             const weightA = getRoleWeight(a.role);
             const weightB = getRoleWeight(b.role);
-            
-            // Primary Sort: Role (Captain > Player > Sub)
             if (weightA !== weightB) return weightA - weightB;
-            // Secondary Sort: ELO (Highest to Lowest)
             if (a.elo !== b.elo) return b.elo - a.elo;
-            // Tertiary Sort: Alphabetical
             return a.username.localeCompare(b.username);
         });
 
@@ -205,7 +219,7 @@ export const TeamRosterView = () => {
       setTeams(formatted || []);
     } catch (err) {
       console.error("Error fetching teams:", err);
-      setError("Failed to load roster data.");
+      setError("Failed to load roster data: " + err.message);
     } finally {
       setLoading(false);
     }
@@ -310,3 +324,5 @@ export const TeamRosterView = () => {
     </div>
   );
 };
+
+export default TeamRoster;

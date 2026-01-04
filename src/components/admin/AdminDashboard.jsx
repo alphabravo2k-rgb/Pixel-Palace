@@ -1,75 +1,185 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useSession } from '../../auth/useSession';
-import { ShieldAlert, Trophy, ScrollText, Users, LogOut } from 'lucide-react';
-
-// ✅ CORRECTED IMPORTS
-import { TournamentWarRoom } from '../TournamentWarRoom'; // As provided in previous batch
-import { AdminAuditLog } from './AdminAuditLog';
+import React, { useState, useEffect } from 'react';
+import { supabase } from '../../supabase/client';
+import { 
+  Shield, Activity, Users, AlertTriangle, 
+  Layout, Sword, FileText, CheckCircle 
+} from 'lucide-react';
+import { AdminToolbar } from './AdminToolbar';
 import { TeamRosterView } from './TeamRosterView';
+import { StaffManagement } from './StaffManagement';
+import { BracketView } from '../tournament/BracketView'; // Assuming this exists from Phase 2
+import StatsCard from '../StatsCard';
+import { MatchWarRoom } from './MatchWarRoom';
+import { formatDistanceToNow } from 'date-fns';
+
+// --- HELPER: Time Formatter ---
+const timeAgo = (date) => {
+    try { return formatDistanceToNow(new Date(date), { addSuffix: true }); } 
+    catch { return 'just now'; }
+};
 
 export const AdminDashboard = () => {
-  const { logout, session } = useSession();
-  const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('TEAMS'); 
+  const [activeTab, setActiveTab] = useState('OVERVIEW');
+  const [stats, setStats] = useState({ teams: 0, matches: 0, disputes: 0 });
+  const [liveMatches, setLiveMatches] = useState([]);
+  const [auditLogs, setAuditLogs] = useState([]);
+  const [activeWarRoomId, setActiveWarRoomId] = useState(null);
 
-  const handleLogout = async () => {
-    await logout();
-    navigate('/login');
+  // 1. DATA FETCHING (Intel Feed)
+  const fetchDashboardIntel = async () => {
+    try {
+        const [teamsRes, matchesRes, logsRes] = await Promise.all([
+            supabase.from('teams').select('id', { count: 'exact', head: true }),
+            supabase.from('matches').select('*').or('status.eq.live,status.eq.disputed,status.eq.veto').order('scheduled_at', { ascending: true }),
+            supabase.from('admin_audit_logs').select('*').order('created_at', { ascending: false }).limit(5)
+        ]);
+
+        setStats({
+            teams: teamsRes.count || 0,
+            matches: matchesRes.data?.length || 0,
+            disputes: matchesRes.data?.filter(m => m.status === 'disputed').length || 0
+        });
+
+        setLiveMatches(matchesRes.data || []);
+        setAuditLogs(logsRes.data || []);
+    } catch (err) {
+        console.error("Intel Fetch Error:", err);
+    }
   };
 
-  const operatorLabel = session?.identity?.display_name ?? session?.user?.email?.substring(0, 6) ?? 'SYSTEM ONLINE';
+  useEffect(() => {
+      fetchDashboardIntel();
+      const interval = setInterval(fetchDashboardIntel, 15000); // Poll every 15s
+      return () => clearInterval(interval);
+  }, []);
 
-  const renderTab = (id, label, Icon) => {
-    const isActive = activeTab === id;
-    return (
-      <button
-        onClick={() => setActiveTab(id)}
-        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wider transition-all
-          ${isActive 
-            ? 'bg-fuchsia-600 text-white shadow-[0_0_15px_rgba(192,38,211,0.4)]' 
-            : 'text-zinc-500 hover:bg-white/5 hover:text-zinc-300'}`}
-      >
-        <Icon className="w-4 h-4" />
-        {label}
-      </button>
-    );
+  // 2. TAB RENDERER
+  const renderContent = () => {
+      switch(activeTab) {
+          case 'BRACKET': return <div className="h-[80vh] border border-tactical rounded-lg overflow-hidden"><BracketView adminMode={true} /></div>;
+          case 'ROSTER': return <TeamRosterView />;
+          case 'STAFF': return <StaffManagement />;
+          case 'OVERVIEW':
+          default:
+              return (
+                <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2">
+                    {/* STATS ROW */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <StatsCard title="Active Operations" value={stats.matches} icon={Activity} color="text-blue-400" />
+                        <StatsCard title="Registered Units" value={stats.teams} icon={Users} color="text-zinc-300" />
+                        <StatsCard title="Critical Disputes" value={stats.disputes} icon={AlertTriangle} color={stats.disputes > 0 ? "text-red-500" : "text-emerald-500"} />
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        {/* LIVE OPS FEED */}
+                        <div className="lg:col-span-2 space-y-6">
+                            {stats.disputes > 0 && (
+                                <div className="bg-red-950/20 border border-red-500/50 rounded-lg p-4 animate-pulse">
+                                    <div className="flex items-center gap-2 text-red-500 font-bold uppercase tracking-widest text-sm mb-2">
+                                        <AlertTriangle size={16} /> Attention Required
+                                    </div>
+                                    <div className="space-y-2">
+                                        {liveMatches.filter(m => m.status === 'disputed').map(m => (
+                                            <div key={m.id} className="flex justify-between items-center bg-red-900/10 p-2 rounded border border-red-900/30">
+                                                <span className="text-white text-xs font-mono">MATCH #{m.match_no}</span>
+                                                <button onClick={() => setActiveWarRoomId(m.id)} className="px-3 py-1 bg-red-600 hover:bg-red-500 text-white text-[10px] font-bold uppercase rounded">Resolve</button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="bg-bg-panel border border-tactical rounded-lg overflow-hidden">
+                                <div className="p-4 border-b border-white/5 bg-zinc-900/50 flex justify-between items-center">
+                                    <h3 className="font-bold text-white text-sm uppercase flex items-center gap-2">
+                                        <Sword size={14} className="text-brand" /> Active Deployments
+                                    </h3>
+                                </div>
+                                <div className="divide-y divide-white/5">
+                                    {liveMatches.length === 0 ? (
+                                        <div className="p-8 text-center text-zinc-600 text-xs font-mono uppercase tracking-widest">No active matches on radar.</div>
+                                    ) : (
+                                        liveMatches.map(match => (
+                                            <div key={match.id} className="p-4 hover:bg-white/5 transition-colors flex items-center justify-between group">
+                                                <div>
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        {match.status === 'live' && <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />}
+                                                        <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border ${match.status === 'live' ? 'bg-red-900/20 text-red-500 border-red-900/50' : 'bg-fuchsia-900/20 text-fuchsia-500 border-fuchsia-900/50'}`}>{match.status}</span>
+                                                        <span className="text-xs font-mono text-zinc-500">#{match.match_no}</span>
+                                                    </div>
+                                                    <div className="text-sm font-bold text-white">ID: {match.id.substring(0,8)}...</div>
+                                                </div>
+                                                <button onClick={() => setActiveWarRoomId(match.id)} className="px-4 py-2 bg-zinc-800 hover:bg-brand text-white text-xs font-bold uppercase rounded border border-white/5 transition-all">War Room</button>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* AUDIT LOG */}
+                        <div className="bg-bg-panel border border-tactical rounded-lg overflow-hidden h-full max-h-[500px]">
+                            <div className="p-4 border-b border-white/5 bg-zinc-900/50">
+                                <h3 className="font-bold text-white text-sm uppercase flex items-center gap-2">
+                                    <FileText size={14} className="text-zinc-400" /> Recent Activity
+                                </h3>
+                            </div>
+                            <div className="p-4 space-y-4">
+                                {auditLogs.length === 0 ? <div className="text-zinc-600 text-xs font-mono text-center">Log Empty</div> : auditLogs.map(log => (
+                                    <div key={log.id} className="relative pl-4 border-l border-zinc-800 pb-1">
+                                        <div className="absolute left-[-5px] top-0 w-2.5 h-2.5 rounded-full bg-zinc-800 border-2 border-black" />
+                                        <div className="text-[10px] text-zinc-500 font-mono mb-0.5 uppercase">{timeAgo(log.created_at)}</div>
+                                        <div className="text-xs text-zinc-300 font-bold leading-tight">{log.action_type.replace(/_/g, ' ')}</div>
+                                        <div className="text-[10px] text-zinc-500 mt-1 truncate">Target: <span className="text-zinc-400">{log.target}</span></div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+              );
+      }
   };
 
   return (
-    <div className="min-h-screen bg-black text-white selection:bg-fuchsia-500/30">
-      <div className="sticky top-0 z-50 bg-zinc-950/80 backdrop-blur border-b border-white/10">
-        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-fuchsia-600 rounded flex items-center justify-center shadow-[0_0_10px_rgba(192,38,211,0.5)]">
-              <ShieldAlert className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <h1 className="font-['Teko'] text-2xl font-bold leading-none text-white tracking-wide">OVERWATCH</h1>
-              <span className="text-[10px] font-mono text-zinc-500 uppercase flex items-center gap-1">
-                <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
-                OP: {operatorLabel}
-              </span>
-            </div>
-          </div>
+    <div className="min-h-screen bg-bg text-white selection:bg-brand/30 pb-20">
+      <AdminToolbar />
+      
+      <div className="pt-20 px-6 max-w-[1600px] mx-auto space-y-6">
+         {/* SUB-NAV TABS */}
+         <div className="flex items-center gap-2 bg-bg-panel p-1 rounded-lg border border-tactical w-fit sticky top-20 z-40 shadow-xl backdrop-blur-md">
+            {[
+                { id: 'OVERVIEW', icon: Activity, label: 'Overview' },
+                { id: 'BRACKET', icon: Layout, label: 'Bracket' },
+                { id: 'ROSTER', icon: Users, label: 'Roster Cmd' },
+                { id: 'STAFF', icon: Shield, label: 'Staff' }
+            ].map(tab => (
+                <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`flex items-center gap-2 px-4 py-2 rounded text-xs font-bold uppercase tracking-wider transition-all
+                    ${activeTab === tab.id ? 'bg-brand text-white shadow-lg' : 'text-zinc-500 hover:bg-white/5 hover:text-white'}`}
+                >
+                    <tab.icon className="w-4 h-4" /> {tab.label}
+                </button>
+            ))}
+         </div>
 
-          <div className="flex items-center gap-2 bg-black/40 p-1 rounded-lg border border-white/5 overflow-x-auto">
-            {renderTab('TEAMS', 'Roster', Users)}
-            {renderTab('OPS', 'War Room', Trophy)}
-            {renderTab('LOGS', 'Audit', ScrollText)}
-          </div>
-
-          <button onClick={handleLogout} className="text-red-400 hover:text-red-300 text-xs font-bold uppercase flex items-center gap-2 transition-colors">
-            <LogOut className="w-3 h-3" /> <span className="hidden md:inline">Disconnect</span>
-          </button>
-        </div>
+         {/* MAIN CONTENT AREA */}
+         <main>
+            {renderContent()}
+         </main>
       </div>
 
-      <main className="max-w-7xl mx-auto p-6">
-        {activeTab === 'TEAMS' && <TeamRosterView />}
-        {activeTab === 'OPS' && <TournamentWarRoom />}
-        {activeTab === 'LOGS' && <AdminAuditLog />}
-      </main>
+      {/* WAR ROOM MODAL (From Overview) */}
+      {activeWarRoomId && (
+           <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4">
+               <MatchWarRoom 
+                  matchId={activeWarRoomId} 
+                  onClose={() => { setActiveWarRoomId(null); fetchDashboardIntel(); }} 
+               />
+           </div>
+       )}
     </div>
   );
 };

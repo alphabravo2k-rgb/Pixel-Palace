@@ -1,14 +1,19 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { supabase } from '../supabase/client';
 import { useTournament } from '../tournament/useTournament';
-import { useSession } from '../auth/useSession'; // ✅ Check for Admin Role
-import Bracket from './Bracket';
-import { RefreshCw, WifiOff, Loader2, Settings } from 'lucide-react';
-import { MatchWarRoom } from './admin/MatchWarRoom'; // ✅ Import War Room
-import { AdminMatchModal } from './admin/AdminMatchModal'; // Keep for standard details if needed
+import { useSession } from '../auth/useSession';
+import { ROLES, normalizeRole } from '../lib/roles'; // ✅ Mastered Roles
+import { RefreshCw, WifiOff, Loader2, Trophy, ZoomIn } from 'lucide-react';
+import { cn } from '../lib/utils';
+import { toast } from 'react-hot-toast';
+
+// SUB-COMPONENTS
+import Bracket from './Bracket'; // Assuming this is your D3/SVG renderer
+import { MatchWarRoom } from './admin/MatchWarRoom'; // 🛠️ Admin Control
+import { MatchModal } from './MatchModal'; // 🎮 Player Veto/Lobby
 
 export const BracketView = () => {
-  const { session } = useSession(); // ✅ Get User Role
+  const { session } = useSession();
   const { selectedTournamentId, tournamentData, loading: contextLoading } = useTournament();
   
   const [matches, setMatches] = useState([]);
@@ -16,10 +21,8 @@ export const BracketView = () => {
   const [error, setError] = useState(null);
   
   // Modals State
-  const [selectedMatch, setSelectedMatch] = useState(null); // Standard View
-  const [warRoomMatchId, setWarRoomMatchId] = useState(null); // ✅ War Room View
-
-  const channelRef = useRef(null);
+  const [selectedMatch, setSelectedMatch] = useState(null); // Player View
+  const [warRoomMatchId, setWarRoomMatchId] = useState(null); // Admin View
 
   const fetchBracket = async () => {
     if (!selectedTournamentId) return;
@@ -29,10 +32,11 @@ export const BracketView = () => {
         .from('matches')
         .select(`
           *,
-          team1:team1_id(id, name, logo_url),
-          team2:team2_id(id, name, logo_url)
+          team1:team1_id(id, name, logo_url, seed_number),
+          team2:team2_id(id, name, logo_url, seed_number)
         `)
         .eq('tournament_id', selectedTournamentId)
+        .order('round', { ascending: true })
         .order('match_no', { ascending: true });
 
       if (error) throw error;
@@ -40,21 +44,29 @@ export const BracketView = () => {
       setError(null);
     } catch (err) {
       console.error(err);
-      setError("Grid Sync Failure");
+      setError("Failed to sync bracket data");
+      toast.error("Bracket Sync Failed");
     } finally {
       setLoading(false);
     }
   };
 
+  // ⚡ REALTIME SYNC
   useEffect(() => {
     if (!selectedTournamentId) return;
     fetchBracket();
     
     const channel = supabase
       .channel(`bracket-${selectedTournamentId}`)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'matches', filter: `tournament_id=eq.${selectedTournamentId}` }, (payload) => {
-         // Optimistic update for smoothness
+      .on('postgres_changes', { 
+          event: 'UPDATE', 
+          schema: 'public', 
+          table: 'matches', 
+          filter: `tournament_id=eq.${selectedTournamentId}` 
+      }, (payload) => {
+         // Optimistic Update
          setMatches(prev => prev.map(m => m.id === payload.new.id ? { ...m, ...payload.new } : m));
+         // Background Refresh to get relations (Team Names etc)
          fetchBracket(); 
       })
       .subscribe();
@@ -62,52 +74,73 @@ export const BracketView = () => {
     return () => supabase.removeChannel(channel);
   }, [selectedTournamentId]);
 
-  // ✅ SMART CLICK HANDLER
+  // 🖱️ SMART CLICK HANDLER
   const handleMatchClick = (match) => {
-      // If user is ADMIN or OWNER, open the War Room immediately
-      if (session?.role === 'ADMIN' || session?.role === 'OWNER') {
+      if (!match.team1_id && !match.team2_id) return; // Ignore empty slots
+
+      const userRole = normalizeRole(session?.role);
+      const isStaff = [ROLES.OWNER, ROLES.ADMIN].includes(userRole);
+
+      if (isStaff) {
+          // 🛠️ Staff -> Open War Room
           setWarRoomMatchId(match.id);
       } else {
-          // Otherwise, open standard details (if you have one)
+          // 🎮 Player/Guest -> Open Match Lobby
           setSelectedMatch(match);
       }
   };
 
-  if (contextLoading) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-zinc-500" /></div>;
-  if (!selectedTournamentId) return <div className="h-screen flex items-center justify-center text-zinc-600 font-mono text-xs tracking-widest uppercase">Select a Tournament</div>;
+  if (contextLoading) return <div className="h-full flex items-center justify-center"><Loader2 className="animate-spin text-zinc-500" /></div>;
+  
+  if (!selectedTournamentId) return (
+      <div className="h-full flex flex-col items-center justify-center text-zinc-600">
+          <Trophy size={48} className="mb-4 opacity-20" />
+          <span className="font-mono text-xs tracking-widest uppercase">Select a Tournament to Initialize</span>
+      </div>
+  );
 
   return (
-    <div className="h-full flex flex-col bg-[#050505]">
-       <div className="flex justify-between items-center p-4 border-b border-white/5 bg-zinc-950">
-          <div>
-            <h2 className="text-xl font-black text-white italic uppercase tracking-tighter">
-               {tournamentData?.name || 'Tactical Bracket'}
-            </h2>
-            <span className="text-[10px] text-zinc-500 font-mono uppercase tracking-widest">
-               {matches.length} Nodes Active
-            </span>
-          </div>
-          <button onClick={fetchBracket} disabled={loading} className="p-2 hover:bg-white/10 rounded-full transition-colors">
-            <RefreshCw className={`w-4 h-4 text-zinc-400 ${loading ? 'animate-spin' : ''}`} />
-          </button>
+    <div className="h-full flex flex-col bg-black relative">
+       
+       {/* HEADER OVERLAY */}
+       <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-start pointer-events-none z-10">
+         <div className="bg-black/50 backdrop-blur border border-white/5 p-3 rounded pointer-events-auto">
+           <h2 className="text-xl font-display font-bold text-white italic uppercase tracking-tighter leading-none">
+              {tournamentData?.name || 'Tactical View'}
+           </h2>
+           <div className="flex items-center gap-2 mt-1">
+               <span className="text-[10px] text-zinc-500 font-mono uppercase tracking-widest">
+                  {matches.length} NODES ACTIVE
+               </span>
+               {loading && <Loader2 size={10} className="animate-spin text-brand" />}
+           </div>
+         </div>
+
+         <div className="flex gap-2 pointer-events-auto">
+             <button onClick={fetchBracket} disabled={loading} className="p-2 bg-black/50 backdrop-blur border border-white/5 hover:border-brand/50 rounded text-zinc-400 hover:text-white transition-all">
+               <RefreshCw className={cn("w-4 h-4", loading && "animate-spin")} />
+             </button>
+         </div>
        </div>
 
+       {/* ERROR BANNER */}
        {error && (
-         <div className="bg-red-900/20 p-2 text-center text-red-400 text-xs font-bold border-b border-red-900/50">
-           <WifiOff size={12} className="inline mr-2"/> {error}
+         <div className="absolute top-20 left-1/2 -translate-x-1/2 bg-red-950/90 border border-red-500/50 px-4 py-2 rounded text-red-200 text-xs font-bold z-20 flex items-center gap-2">
+           <WifiOff size={12} /> {error}
          </div>
        )}
 
-       <div className="flex-1 overflow-hidden relative">
-          {/* ✅ Pass the smart click handler to the Bracket */}
+       {/* 📊 BRACKET ENGINE */}
+       <div className="flex-1 overflow-hidden relative cursor-grab active:cursor-grabbing">
+          {/* Note: Bracket component handles its own panning/zooming */}
           <Bracket matches={matches} onMatchClick={handleMatchClick} />
        </div>
 
-       {/* ✅ WAR ROOM MODAL (ADMINS ONLY) */}
+       {/* 🛠️ WAR ROOM (ADMIN) */}
        {warRoomMatchId && (
-         <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 animate-in fade-in">
+         <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 animate-in fade-in duration-200">
             <div className="absolute inset-0" onClick={() => setWarRoomMatchId(null)} />
-            <div className="relative z-10 w-full max-w-6xl">
+            <div className="relative z-10 w-full max-w-7xl h-[95vh] flex flex-col">
                 <MatchWarRoom 
                     matchId={warRoomMatchId} 
                     onClose={() => setWarRoomMatchId(null)} 
@@ -116,13 +149,12 @@ export const BracketView = () => {
          </div>
        )}
 
-       {/* STANDARD MODAL (PLAYERS) */}
+       {/* 🎮 MATCH LOBBY (PLAYER) */}
        {selectedMatch && (
-         <AdminMatchModal 
+         <MatchModal 
             match={selectedMatch} 
             isOpen={!!selectedMatch}
             onClose={() => setSelectedMatch(null)} 
-            onUpdate={fetchBracket}
          />
        )}
     </div>

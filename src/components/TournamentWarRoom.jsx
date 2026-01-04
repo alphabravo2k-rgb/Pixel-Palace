@@ -14,7 +14,7 @@ export const TournamentWarRoom = () => {
 
   if (authLoading) return <div className="h-screen flex items-center justify-center bg-black"><Loader2 className="animate-spin text-fuchsia-500" /></div>;
 
-  // Permission Check
+  // 🛡️ PERMISSION CHECK
   if (!can(PERM_CAPABILITIES.MANAGE_TOURNAMENT, session)) {
     return (
       <div className="h-screen flex flex-col items-center justify-center bg-black text-red-500 p-8 text-center">
@@ -28,39 +28,39 @@ export const TournamentWarRoom = () => {
   const isSetupPhase = ['SETUP', 'SEEDING', 'REGISTRATION'].includes(lifecycle?.status);
   const isLive = ['ACTIVE', 'LIVE', 'PLAYOFFS'].includes(lifecycle?.status);
 
-  // --- ⚡ NEW: REAL ACTIONS ---
+  // --- ⚡ ACTIONS ---
   
   const handleSync = async () => {
-     if (!selectedTournamentId) return;
-     // Note: Ensure 'admin_sync_rosters' exists in backend, or this will fail quietly.
-     // For now, we focus on the bracket generation which is critical.
-     alert("Roster Sync is handled automatically by the import system.");
+     // Placeholder for future Discord sync integration
+     alert("Roster data is currently synchronized with the registration system.");
   };
 
   const handleGenerate = async () => {
     if (!selectedTournamentId) return;
     
-    const confirm = window.confirm("Are you sure? This will WIPE any existing matches and regenerate the bracket based on current seeds.");
+    // ⚠️ CRITICAL WARNING
+    const confirm = window.confirm("⚠️ WARNING: This will WIPE all current matches and generate a new bracket based on registered teams. Continue?");
     if (!confirm) return;
 
-    // Call the backend function we created in Code 23
+    // 🚀 EXECUTE DATABASE ENGINE
     const result = await execute('admin_generate_bracket', { 
         p_tournament_id: selectedTournamentId 
     });
 
     if (result.success) {
-        alert(`Bracket Generated: ${result.data.matches} matches created across ${result.data.rounds} rounds.`);
-        window.location.reload(); // Quick refresh to show the new bracket
+        // Success feedback
+        console.log("Generation Stats:", result.data);
     }
   };
 
   return (
     <div className="flex flex-col h-screen bg-zinc-950 text-white overflow-hidden">
-      <div className="p-4 border-b border-white/5 bg-black/60 flex items-center justify-between">
+      {/* 🎛️ COMMAND BAR */}
+      <div className="p-4 border-b border-white/5 bg-black/60 flex items-center justify-between backdrop-blur-md">
          <div className="flex items-center gap-3">
             <Trophy className="text-yellow-500 w-5 h-5" />
             <div>
-               <h2 className="text-lg font-['Teko'] uppercase font-bold tracking-wide leading-none">{tournamentData?.name || 'Loading...'}</h2>
+               <h2 className="text-lg font-['Teko'] uppercase font-bold tracking-wide leading-none">{tournamentData?.name || 'Command Center'}</h2>
                <div className="flex items-center gap-2">
                  <span className={`w-2 h-2 rounded-full ${isLive ? 'bg-green-500 animate-pulse' : 'bg-zinc-500'}`} />
                  <span className="text-[10px] text-zinc-500 font-mono">STATUS: {lifecycle?.status || 'UNKNOWN'}</span>
@@ -86,7 +86,8 @@ export const TournamentWarRoom = () => {
          </div>
       </div>
 
-      <div className="flex-1 relative">
+      {/* 📊 THE VIEWPORT */}
+      <div className="flex-1 relative bg-black">
         <BracketView />
       </div>
     </div>

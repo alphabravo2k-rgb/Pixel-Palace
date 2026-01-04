@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '../supabase/client';
 import { useSession } from '../auth/useSession';
-import { MATCH_FORMATS } from '../lib/constants';
+import { MATCH_FORMATS, MAP_POOL } from '../lib/constants';
+import { toast } from 'react-hot-toast';
 
 export const useCaptainVeto = (match) => {
   const { session } = useSession();
@@ -10,9 +11,12 @@ export const useCaptainVeto = (match) => {
   
   // 1️⃣ SCOPED IDENTITY: Are you a captain *of this match*?
   const myTeamId = useMemo(() => {
-    if (!session?.team_id || !match) return null;
-    if (match.team1_id === session.team_id) return match.team1_id;
-    if (match.team2_id === session.team_id) return match.team2_id;
+    // Note: useSession provides 'teamId', DB provides 'team_id'
+    const userTeamId = session?.teamId || session?.user?.user_metadata?.team_id; 
+    
+    if (!userTeamId || !match) return null;
+    if (match.team1_id === userTeamId) return match.team1_id;
+    if (match.team2_id === userTeamId) return match.team2_id;
     return null; 
   }, [match, session]);
 
@@ -26,27 +30,40 @@ export const useCaptainVeto = (match) => {
 
   // 3️⃣ STATE CALCULATION (Whose turn is it?)
   const vetoState = useMemo(() => {
-    if (!formatRules) return { isMyTurn: false, action: 'WAIT' };
+    if (!formatRules) return { isMyTurn: false, action: 'WAIT', availableMaps: [] };
 
     const totalSteps = formatRules.sequence.length;
     const currentStepIndex = vetoes.length;
     const isComplete = currentStepIndex >= totalSteps;
 
+    // 🗺️ Calculate Available Maps (Maps not yet in vetoes)
+    const usedMapIds = new Set(vetoes.map(v => v.map_name));
+    const availableMaps = MAP_POOL.filter(m => !usedMapIds.has(m.id));
+
     if (isComplete) {
-      return { isMyTurn: false, action: 'COMPLETE', activeTeamId: null };
+      return { 
+        isMyTurn: false, 
+        action: 'COMPLETE', 
+        activeTeamId: null, 
+        availableMaps 
+      };
     }
 
     // Logic: Look up the sequence step (e.g., Step 0 = Ban Team A)
     const currentStep = formatRules.sequence[currentStepIndex]; 
     
-    // Resolve 'A' (Team 1) or 'B' (Team 2)
-    // Team 1 is usually the "Home" or "High Seed" team
-    const activeTeamId = currentStep.team === 'A' ? match.team1_id : match.team2_id;
+    // Resolve 'A' (Team 1) or 'B' (Team 2) or 'SYSTEM' (Auto-Decider)
+    let activeTeamId = null;
+    if (currentStep.team === 'A') activeTeamId = match.team1_id;
+    else if (currentStep.team === 'B') activeTeamId = match.team2_id;
     
     return {
       isMyTurn: myTeamId === activeTeamId,
-      action: currentStep.type, // 'BAN' or 'PICK'
-      activeTeamId
+      action: currentStep.type, // 'BAN', 'PICK', or 'DECIDER'
+      activeTeamId,
+      stepIndex: currentStepIndex,
+      totalSteps,
+      availableMaps
     };
   }, [vetoes, formatRules, match, myTeamId]);
 
@@ -54,10 +71,10 @@ export const useCaptainVeto = (match) => {
   const fetchVetoes = useCallback(async () => {
     if (!match?.id) return;
     const { data, error } = await supabase
-      .from('match_vetoes') // ✅ FIXED: Plural
+      .from('match_vetoes')
       .select('*')
       .eq('match_id', match.id)
-      .order('pick_order', { ascending: true }); // ✅ FIXED: Correct Column
+      .order('pick_order', { ascending: true });
 
     if (!error) setVetoes(data || []);
   }, [match?.id]);
@@ -71,7 +88,7 @@ export const useCaptainVeto = (match) => {
       .on('postgres_changes', { 
         event: 'INSERT', 
         schema: 'public', 
-        table: 'match_vetoes', // ✅ FIXED: Plural
+        table: 'match_vetoes',
         filter: `match_id=eq.${match?.id}` 
       }, () => fetchVetoes())
       .subscribe();
@@ -85,9 +102,7 @@ export const useCaptainVeto = (match) => {
     setLoading(true);
 
     try {
-      // Determines if this is a BAN or PICK
       const type = vetoState.action; 
-      // Calculate next order index (0, 1, 2...)
       const nextOrder = vetoes.length; 
 
       const { error } = await supabase.rpc('api_submit_veto', {
@@ -99,13 +114,14 @@ export const useCaptainVeto = (match) => {
       });
 
       if (error) throw error;
-
-      // Immediate refresh to update UI
+      
+      // Optimistic UI update handled by Realtime, but we fetch to be safe
+      toast.success(`${type} Successful`);
       await fetchVetoes();
 
     } catch (err) {
       console.error("Veto Error:", err);
-      alert("Failed to update veto: " + err.message);
+      toast.error("Veto Failed: " + err.message);
     } finally {
       setLoading(false);
     }
@@ -116,6 +132,8 @@ export const useCaptainVeto = (match) => {
     isMyTurn: vetoState.isMyTurn,
     currentAction: vetoState.action,
     activeTeamId: vetoState.activeTeamId,
+    availableMaps: vetoState.availableMaps, // 👈 Critical for UI (Graying out buttons)
+    progress: `${vetoState.stepIndex + 1} / ${vetoState.totalSteps}`,
     submitVeto,
     loading
   };

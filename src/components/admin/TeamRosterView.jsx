@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import StatsCard from '../../components/StatsCard';
 
-// --- ASSETS: ICONS ---
+// --- ASSETS ---
 const BRAND_ICONS = {
   STEAM: <svg viewBox="0 0 24 24" className="w-3 h-3 fill-current" xmlns="http://www.w3.org/2000/svg"><path d="M11.979 0C5.666 0 .548 5.13.548 11.465c0 3.25 1.344 6.18 3.506 8.27l1.96-2.94a4.938 4.938 0 0 1-.366-1.874 4.975 4.975 0 0 1 4.97-4.97c.453 0 .89.066 1.306.184l3.194-4.79A11.378 11.378 0 0 0 11.98 0zm6.983 6.94l-3.33 4.995a4.933 4.933 0 0 1 2.25 2.126l4.634-2.857a11.385 11.385 0 0 0-3.554-4.264zM7.276 17.037l-1.897 2.846a11.37 11.37 0 0 0 5.23 1.94l1.19-4.167a4.966 4.966 0 0 1-4.523-.62zm9.11 1.07l-4.22 2.602a4.965 4.965 0 0 1-2.09.47L8.91 24.5a11.413 11.413 0 0 0 7.476-6.393z"/></svg>,
   DISCORD: <svg viewBox="0 0 24 24" className="w-3 h-3 fill-current" xmlns="http://www.w3.org/2000/svg"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg>,
@@ -23,7 +23,7 @@ const getRegionFlag = (code) => {
     : <span className="text-[9px] bg-zinc-800 text-zinc-400 px-1 rounded">{code.substring(0,2)}</span>;
 };
 
-// --- COMPONENT: TEAM CARD ---
+// --- TEAM CARD ---
 const TeamCard = ({ team, onEdit }) => {
   const activeMembers = team.members.slice(0, 5);
   const reserveMembers = team.members.slice(5);
@@ -69,7 +69,6 @@ const TeamCard = ({ team, onEdit }) => {
       {/* Roster */}
       <div className="p-2 space-y-1">
         {activeMembers.map(m => {
-           // Discord ID Check (Numeric or Handle)
            const isDiscordId = /^\d+$/.test(m.discord_handle); 
            return (
              <div key={m.id} className="flex justify-between items-center px-2 py-1.5 bg-black/20 rounded border border-transparent hover:border-zinc-800 transition-colors">
@@ -80,17 +79,14 @@ const TeamCard = ({ team, onEdit }) => {
                 <div className="flex items-center gap-1.5">
                     {m.faceit_elo > 0 && <span className="text-[9px] font-mono font-bold text-yellow-500 bg-yellow-900/10 px-1 rounded border border-yellow-500/20">{m.faceit_elo}</span>}
                     
-                    {/* Steam Link */}
                     {m.steam_url && <a href={m.steam_url} target="_blank" rel="noreferrer" className="text-zinc-600 hover:text-[#171a21] hover:bg-white rounded-full p-0.5 transition-colors">{BRAND_ICONS.STEAM}</a>}
                     
-                    {/* Discord Link */}
                     {m.discord_handle && (
                         isDiscordId ? 
                         <a href={`https://discord.com/users/${m.discord_handle}`} target="_blank" rel="noreferrer" className="text-zinc-600 hover:text-[#5865F2] hover:bg-white rounded-full p-0.5 transition-colors cursor-pointer" title="Open Discord Profile">{BRAND_ICONS.DISCORD}</a>
                         : <button onClick={() => { navigator.clipboard.writeText(m.discord_handle); alert(`Copied "${m.discord_handle}" to clipboard!`); }} className="text-zinc-600 hover:text-[#5865F2] hover:bg-white rounded-full p-0.5 transition-colors cursor-copy" title="Copy Handle (Text ID)">{BRAND_ICONS.DISCORD}</button>
                     )}
 
-                    {/* Faceit Link */}
                     {m.faceit_url && <a href={m.faceit_url} target="_blank" rel="noreferrer" className="text-zinc-600 hover:text-[#ff5500] hover:bg-white rounded-full p-0.5 transition-colors">{BRAND_ICONS.FACEIT}</a>}
                 </div>
              </div>
@@ -110,7 +106,7 @@ const TeamCard = ({ team, onEdit }) => {
   );
 };
 
-// --- COMPONENT: EDIT MODAL (Full Power) ---
+// --- EDIT MODAL (With Manual ELO Sync) ---
 const EditTeamModal = ({ team, onClose, onRefresh }) => {
   const [meta, setMeta] = useState({
     name: team?.name||'', logo_url: team?.logo_url||'', region: team?.region||'PAK',
@@ -120,12 +116,7 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
   });
   
   const [members, setMembers] = useState(team?.members.map(m => ({
-      username: m.username, 
-      role: m.role, 
-      discord: m.discord_handle||'', 
-      steam: m.steam_url||'', 
-      faceit: m.faceit_url||'', 
-      elo: m.faceit_elo||0
+      username: m.username, role: m.role, discord: m.discord_handle||'', steam: m.steam_url||'', faceit: m.faceit_url||'', elo: m.faceit_elo||0
   })) || []);
   
   const [saving, setSaving] = useState(false);
@@ -153,7 +144,7 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
           p_seed_number: parseInt(meta.seed_number), p_access_code: meta.access_code,
           p_status: meta.status, p_wins: parseInt(meta.wins), p_losses: parseInt(meta.losses),
           p_voice_channel_url: meta.voice_channel_url,
-          p_members: members // Sends the Modified Array
+          p_members: members 
       });
 
       if (error) throw error;
@@ -168,11 +159,35 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
     }
   };
 
+  // ⚡ MANUAL ELO SYNC FUNCTION
+  const handleForceSync = async (idx) => {
+      const member = members[idx];
+      let faceitName = member.faceit ? member.faceit.split('/').pop() : member.username;
+      
+      if(!faceitName) { alert("No Faceit URL or Username to check."); return; }
+
+      try {
+          // Note: Using client-side call for Admin Panel. Ideally move to Edge Function later.
+          // API Key hardcoded for demo, move to ENV in production.
+          const res = await fetch(`https://open.faceit.com/data/v4/players?nickname=${faceitName}`, {
+              headers: { 'Authorization': 'Bearer a77d0763-5fdd-4bde-a8a5-6e840408de2e' } 
+          });
+          
+          if(!res.ok) throw new Error("Player not found on Faceit");
+          
+          const data = await res.json();
+          const newElo = data.games?.cs2?.faceit_elo || data.games?.csgo?.faceit_elo || 1000;
+
+          updateMember(idx, 'elo', newElo);
+          alert(`✅ Synced! ${faceitName} is now ${newElo} ELO. Click 'Save Changes' to commit.`);
+      } catch(e) {
+          alert(`Sync Error: ${e.message}`);
+      }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in">
       <div className="bg-[#0b0c0f] border border-zinc-700 w-full max-w-6xl rounded-2xl flex flex-col max-h-[95vh]">
-        
-        {/* Modal Header */}
         <div className="p-6 border-b border-zinc-800 bg-zinc-900/50 flex justify-between">
            <h2 className="text-xl font-black text-white uppercase italic">EDIT UNIT: <span className="text-fuchsia-500">{meta.name || 'NEW TEAM'}</span></h2>
            <button onClick={onClose}><X className="text-zinc-400 hover:text-white" /></button>
@@ -235,12 +250,11 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
                </div>
            </div>
            
-           {/* SECTION 3: ROSTER EDITOR (WITH SYNC & LIMITS) */}
+           {/* SECTION 3: ROSTER EDITOR */}
            <div className="space-y-2 border-t border-zinc-800 pt-4">
               <div className="flex justify-between items-center mb-2">
                   <div className="flex items-center gap-2">
                       <h3 className="font-bold text-white text-sm uppercase flex items-center gap-2"><Users size={14}/> Active Operators</h3>
-                      {/* Count Indicator with Limits */}
                       <span className={`text-xs font-mono px-1.5 rounded ${members.length < 5 ? 'text-red-500 bg-red-900/20' : members.length > 6 ? 'text-yellow-500 bg-yellow-900/20' : 'text-green-500 bg-green-900/20'}`}>
                           {members.length}/6
                       </span>
@@ -250,11 +264,10 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
                   </button>
               </div>
               
-              {/* Validation Warning */}
               {members.length < 5 && <div className="text-[10px] text-red-500 flex items-center gap-1 mb-2"><AlertTriangle size={10}/> Team needs at least 5 players.</div>}
 
               <div className="flex gap-2 px-3 py-1 text-[9px] uppercase font-bold text-zinc-500">
-                  <div className="w-32">Display Name (Faceit)</div>
+                  <div className="w-32">Display Name</div>
                   <div className="w-24">Role</div>
                   <div className="w-20 text-center">ELO / Sync</div>
                   <div className="flex-1">Identity Links (Steam / Discord / Faceit)</div>
@@ -271,27 +284,15 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
                             <option>CAPTAIN</option><option>PLAYER</option><option>SUBSTITUTE</option>
                         </select>
                     </div>
-                    {/* ELO & Force Sync */}
                     <div className="w-full md:w-20 flex gap-1">
                         <input type="number" value={m.elo} onChange={e => updateMember(idx, 'elo', e.target.value)} className="w-full bg-black border border-zinc-700 p-1.5 text-yellow-500 text-center rounded text-xs font-mono" placeholder="ELO" />
-                        <button onClick={() => alert("Simulating Force Sync: ELO fetched for " + m.username)} className="bg-zinc-800 hover:bg-zinc-700 text-zinc-400 p-1.5 rounded" title="Force Sync ELO"><RefreshCw size={12}/></button>
+                        <button onClick={() => handleForceSync(idx)} className="bg-zinc-800 hover:bg-zinc-700 text-zinc-400 p-1.5 rounded" title="Force Sync ELO"><RefreshCw size={12}/></button>
                     </div>
-                    
                     <div className="flex-1 grid grid-cols-3 gap-2 w-full">
-                        <div className="relative">
-                            <Monitor className="absolute left-2 top-2 w-3 h-3 text-zinc-600"/>
-                            <input value={m.steam} onChange={e => updateMember(idx, 'steam', e.target.value)} className="w-full bg-black border border-zinc-700 pl-7 p-1.5 text-zinc-300 rounded text-[10px]" placeholder="Steam URL" />
-                        </div>
-                        <div className="relative">
-                            <Mic className="absolute left-2 top-2 w-3 h-3 text-zinc-600"/>
-                            <input value={m.discord} onChange={e => updateMember(idx, 'discord', e.target.value)} className="w-full bg-black border border-zinc-700 pl-7 p-1.5 text-zinc-300 rounded text-[10px]" placeholder="Discord ID/Handle" />
-                        </div>
-                        <div className="relative">
-                            <Gamepad2 className="absolute left-2 top-2 w-3 h-3 text-zinc-600"/>
-                            <input value={m.faceit} onChange={e => updateMember(idx, 'faceit', e.target.value)} className="w-full bg-black border border-zinc-700 pl-7 p-1.5 text-zinc-300 rounded text-[10px]" placeholder="Faceit URL" />
-                        </div>
+                        <div className="relative"><Monitor className="absolute left-2 top-2 w-3 h-3 text-zinc-600"/><input value={m.steam} onChange={e => updateMember(idx, 'steam', e.target.value)} className="w-full bg-black border border-zinc-700 pl-7 p-1.5 text-zinc-300 rounded text-[10px]" placeholder="Steam URL" /></div>
+                        <div className="relative"><Mic className="absolute left-2 top-2 w-3 h-3 text-zinc-600"/><input value={m.discord} onChange={e => updateMember(idx, 'discord', e.target.value)} className="w-full bg-black border border-zinc-700 pl-7 p-1.5 text-zinc-300 rounded text-[10px]" placeholder="Discord ID/Handle" /></div>
+                        <div className="relative"><Gamepad2 className="absolute left-2 top-2 w-3 h-3 text-zinc-600"/><input value={m.faceit} onChange={e => updateMember(idx, 'faceit', e.target.value)} className="w-full bg-black border border-zinc-700 pl-7 p-1.5 text-zinc-300 rounded text-[10px]" placeholder="Faceit URL" /></div>
                     </div>
-                    {/* Delete Button */}
                     <button onClick={() => removeMember(idx)} className="text-red-500 hover:bg-red-900/20 p-1.5 rounded" title="Remove Player"><Trash2 size={14}/></button>
                  </div>
               ))}
@@ -317,25 +318,15 @@ export const TeamRosterView = () => {
   const [editTeam, setEditTeam] = useState(undefined);
   const [searchTerm, setSearchTerm] = useState('');
 
-  // ⚡ ENGINE UPGRADE: "Safe Fetch"
   const fetchTeams = async () => {
-    setLoading(true);
     try {
-        // 1. Get Teams & Members
-        const { data: teamData } = await supabase.from('teams')
-            .select(`*, team_members(id, role, user_id)`).order('name');
-        
+        const { data: teamData } = await supabase.from('teams').select(`*, team_members(id, role, user_id)`).order('name');
         if(!teamData) { setTeams([]); return; }
-
-        // 2. Fetch Profiles Separately
-        const allUserIds = teamData.flatMap(t => t.team_members.map(m => m.user_id)).filter(Boolean);
-        const { data: profiles } = await supabase.from('global_identities')
-            .select('id, display_name, discord_handle, steam_url, faceit_url, faceit_elo')
-            .in('id', allUserIds);
         
+        const allUserIds = teamData.flatMap(t => t.team_members.map(m => m.user_id)).filter(Boolean);
+        const { data: profiles } = await supabase.from('global_identities').select('*').in('id', allUserIds);
         const profileMap = (profiles || []).reduce((acc, p) => ({ ...acc, [p.id]: p }), {});
 
-        // 3. Merge
         const formatted = teamData.map(t => {
             const members = t.team_members.map(tm => {
                 const p = profileMap[tm.user_id] || {};
@@ -352,26 +343,29 @@ export const TeamRosterView = () => {
             
             const elos = members.map(m => m.faceit_elo).filter(e => e > 0);
             const avg = elos.length ? Math.round(elos.reduce((a,b)=>a+b,0)/elos.length) : 0;
-
             return { ...t, members, avg_elo: avg };
         });
-
         setTeams(formatted);
-    } catch(e) { console.error(e); }
-    setLoading(false);
+        setLoading(false);
+    } catch(e) { console.error(e); setLoading(false); }
   };
 
   const handleGenCodes = async () => {
-    if(!window.confirm("Generate codes for teams missing them?")) return;
+    if(!window.confirm("Generate codes?")) return;
     setGenerating(true);
-    const teamsToUpdate = teams.filter(t => !t.access_code);
-    for(const t of teamsToUpdate) { 
+    for(const t of teams.filter(t => !t.access_code)) { 
         await supabase.from('teams').update({ access_code: generateAccessCode(t.name) }).eq('id', t.id); 
     }
     await fetchTeams(); setGenerating(false);
   }
 
-  useEffect(() => { fetchTeams(); }, []);
+  useEffect(() => { 
+      fetchTeams(); 
+      // ⚡ AUTO-REFRESH INTERVAL (3 Hours = 10800000 ms)
+      const interval = setInterval(fetchTeams, 3 * 60 * 60 * 1000); 
+      return () => clearInterval(interval);
+  }, []);
+
   const filtered = teams.filter(t => t.name.toLowerCase().includes(searchTerm.toLowerCase()));
   const totalP = teams.reduce((acc, t) => acc + t.members.length, 0);
 

@@ -1,156 +1,225 @@
-import React, { useState } from 'react';
-import { useAdminConsole } from '../../hooks/useAdminConsole';
-import { useCapabilities } from '../../auth/useCapabilities';
-import { PERM_CAPABILITIES } from '../../lib/permissions.actions';
-import { RefreshCw, ShieldAlert, Settings, Save, ArrowRightLeft } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { supabase } from '../../supabase/client';
+import { useNavigate } from 'react-router-dom';
+import { 
+  Shield, Activity, Users, AlertTriangle, 
+  Clock, ArrowRight, Sword, FileText, CheckCircle 
+} from 'lucide-react';
+import StatsCard from '../StatsCard';
+import { MatchWarRoom } from './MatchWarRoom';
+import { formatDistanceToNow } from 'date-fns'; // Ensure you have date-fns or use simple formatter
 
-export const AdminMatchControls = ({ match, onUpdate }) => {
-  const { execute, loading } = useAdminConsole();
-  const { can } = useCapabilities();
-  
-  // 🛡️ PERMISSION CHECK: Must have MANAGE_MATCH capability
-  const hasPermission = can(PERM_CAPABILITIES.MANAGE_MATCH, match);
-
-  const [selectedFormat, setSelectedFormat] = useState(match?.best_of || 1);
-  const [isSwapModalOpen, setIsSwapModalOpen] = useState(false);
-  const [reason, setReason] = useState('');
-  const [localError, setLocalError] = useState(null);
-  const [successMsg, setSuccessMsg] = useState('');
-
-  const isLocked = ['live', 'completed'].includes(match.status);
-
-  // If user cannot manage match, hide controls or show locked state
-  if (!hasPermission) return null; 
-
-  const handleSwapRequest = async () => {
-    if (reason.length < 5) {
-      setLocalError("Audit Reason requires at least 5 characters.");
-      return;
+// --- HELPER: Simple Time Formatter ---
+const timeAgo = (date) => {
+    try {
+        return formatDistanceToNow(new Date(date), { addSuffix: true });
+    } catch {
+        return 'just now';
     }
-    
-    setLocalError(null);
-    setSuccessMsg('');
+};
 
-    // 🛡️ SECURITY: Ensure parameters match RPC signature exactly
-    const result = await execute('api_swap_match_slots', {
-      p_match_id: match.id,
-      p_reason: reason 
-    });
+export const AdminDashboard = () => {
+  const navigate = useNavigate();
+  const [stats, setStats] = useState({ teams: 0, matches: 0, disputes: 0 });
+  const [liveMatches, setLiveMatches] = useState([]);
+  const [auditLogs, setAuditLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [activeWarRoomId, setActiveWarRoomId] = useState(null);
 
-    if (result.success) {
-      setIsSwapModalOpen(false);
-      setSuccessMsg("Teams Swapped Successfully");
-      setReason('');
-      if (onUpdate) onUpdate();
-    } else {
-      setLocalError(result.message);
-    }
-  };
+  // 1. DATA FETCHING
+  const fetchDashboardIntel = async () => {
+    setLoading(true);
+    try {
+        // Parallel Fetching for Speed
+        const [teamsRes, matchesRes, logsRes] = await Promise.all([
+            supabase.from('teams').select('id', { count: 'exact' }),
+            supabase.from('matches').select('*').or('status.eq.live,status.eq.disputed,status.eq.veto').order('scheduled_at', { ascending: true }),
+            supabase.from('admin_audit_logs').select('*').order('created_at', { ascending: false }).limit(5)
+        ]);
 
-  const handleFormatChange = async (e) => {
-    const newFormat = parseInt(e.target.value);
-    setSelectedFormat(newFormat);
-    
-    setLocalError(null);
-    setSuccessMsg('');
+        setStats({
+            teams: teamsRes.count || 0,
+            matches: matchesRes.data?.length || 0,
+            disputes: matchesRes.data?.filter(m => m.status === 'disputed').length || 0
+        });
 
-    // This matches Backend Code (Secure RPC)
-    const result = await execute('admin_update_match_format', {
-        p_match_id: match.id,
-        p_best_of: newFormat
-    });
+        setLiveMatches(matchesRes.data || []);
+        setAuditLogs(logsRes.data || []);
 
-    if (result.success) {
-        setSuccessMsg(`Format set to BO${newFormat}`);
-        if (onUpdate) onUpdate();
-    } else {
-        setLocalError('Error updating match format');
+    } catch (err) {
+        console.error("Intel Fetch Error:", err);
+    } finally {
+        setLoading(false);
     }
   };
+
+  useEffect(() => {
+      fetchDashboardIntel();
+      // Auto-refresh every 30s
+      const interval = setInterval(fetchDashboardIntel, 30000);
+      return () => clearInterval(interval);
+  }, []);
 
   return (
-    <div className="bg-zinc-900 border border-white/10 rounded-lg p-4 space-y-6 relative overflow-hidden">
-      {(localError || successMsg) && (
-        <div className={`flex items-center gap-2 p-2 text-xs rounded border ${localError ? 'bg-red-900/20 text-red-400 border-red-900/50' : 'bg-green-900/20 text-green-400 border-green-900/50'}`}>
-          {localError ? <ShieldAlert className="w-4 h-4" /> : <Save className="w-4 h-4" />}
-          <span>{localError || successMsg}</span>
-        </div>
-      )}
-
-      {/* SWAP SECTION */}
-      <div className="space-y-3 border-b border-white/5 pb-4">
-        <div className="flex items-center gap-2 text-zinc-400 text-xs font-bold uppercase tracking-wider">
-          <RefreshCw className="w-3 h-3" /> <span>Roster & Seeding</span>
-        </div>
-        
-        <div className="flex justify-between items-center bg-black/40 p-3 rounded border border-white/5">
-            <div className="text-sm font-bold text-blue-400">{match.team1?.name || 'TBD'}</div>
-            <ArrowRightLeft className="w-4 h-4 text-zinc-600" />
-            <div className="text-sm font-bold text-red-400">{match.team2?.name || 'TBD'}</div>
-        </div>
-        
-        <button
-          onClick={() => setIsSwapModalOpen(true)}
-          disabled={isLocked || loading}
-          className={`w-full py-2 text-xs font-bold uppercase rounded transition-colors flex items-center justify-center gap-2 ${isLocked ? 'bg-zinc-900 text-zinc-600 cursor-not-allowed border border-white/5' : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white'}`}
-        >
-          {loading ? 'Processing...' : isLocked ? 'Locked (Live Match)' : 'Swap Sides'}
-        </button>
-      </div>
-
-      {/* FORMAT */}
-      <div className="space-y-2">
-        <label className="text-xs text-zinc-500 uppercase flex items-center gap-1"><Settings className="w-3 h-3" /> Match Format</label>
-        <select 
-          className="w-full bg-black border border-white/10 p-2 text-xs text-white rounded focus:border-fuchsia-500 outline-none" 
-          value={selectedFormat} 
-          onChange={handleFormatChange}
-          disabled={isLocked}
-        >
-          <option value="1">Best of 1</option>
-          <option value="3">Best of 3</option>
-          <option value="5">Best of 5</option>
-        </select>
-      </div>
-
-      {/* INTEGRITY MODAL */}
-      {isSwapModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-4">
-          <div className="bg-zinc-950 border border-white/10 p-6 rounded-lg max-w-sm w-full shadow-2xl">
-            <div className="flex items-center gap-3 mb-4 text-fuchsia-500 border-b border-white/10 pb-4">
-              <ShieldAlert className="w-6 h-6" /> 
-              <div>
-                 <h3 className="font-bold text-lg uppercase leading-none">Integrity Check</h3>
-                 <p className="text-[10px] text-zinc-500 font-mono">MODIFYING MATCH {match.id.substring(0,8)}</p>
-              </div>
-            </div>
-            
-            <p className="text-sm text-zinc-300 mb-4 bg-blue-900/10 border border-blue-500/20 p-3 rounded">
-                You are requesting to manually swap the teams for this match. This action will be audited.
-            </p>
-
-            <label className="text-[10px] uppercase text-zinc-500 font-bold mb-1 block">Required Justification</label>
-            <textarea
-                autoFocus
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                placeholder="Why is this swap necessary?"
-                className="w-full bg-black border border-white/10 p-3 rounded text-sm h-24 mb-4 focus:border-fuchsia-500 outline-none"
-            />
-
-            <div className="flex gap-3">
-              <button onClick={() => setIsSwapModalOpen(false)} className="flex-1 py-3 bg-zinc-800 text-white rounded hover:bg-zinc-700 text-xs font-bold uppercase">Cancel</button>
+    <div className="p-6 space-y-8 animate-in fade-in">
+       
+       {/* 1. HEADER & STATS */}
+       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="md:col-span-1 space-y-2">
+              <h1 className="text-4xl font-display font-black text-white italic uppercase tracking-tighter leading-none">
+                  COMMAND <span className="text-brand">CENTER</span>
+              </h1>
+              <p className="text-zinc-500 text-xs font-mono uppercase tracking-widest">
+                  System Status: <span className="text-emerald-500 font-bold">ONLINE</span>
+              </p>
               <button 
-                onClick={handleSwapRequest} 
-                disabled={reason.length < 5 || loading}
-                className="flex-1 py-3 bg-fuchsia-600 text-white rounded hover:bg-fuchsia-500 text-xs font-bold uppercase disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={fetchDashboardIntel} 
+                className="text-[10px] text-zinc-600 hover:text-white underline cursor-pointer"
               >
-                Confirm Swap
+                Force Refresh Intel
               </button>
-            </div>
           </div>
-        </div>
-      )}
+          
+          <StatsCard title="Active Operations" value={stats.matches} icon={Activity} color="text-blue-400" />
+          <StatsCard title="Registered Units" value={stats.teams} icon={Users} color="text-zinc-300" />
+          <StatsCard title="Critical Disputes" value={stats.disputes} icon={AlertTriangle} color={stats.disputes > 0 ? "text-red-500" : "text-emerald-500"} />
+       </div>
+
+       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          
+          {/* 2. LIVE OPERATIONS FEED (Left Column) */}
+          <div className="lg:col-span-2 space-y-6">
+              
+              {/* DISPUTE ALERT */}
+              {stats.disputes > 0 && (
+                  <div className="bg-red-950/20 border border-red-500/50 rounded-lg p-4 animate-pulse">
+                      <div className="flex items-center gap-2 text-red-500 font-bold uppercase tracking-widest text-sm mb-2">
+                          <AlertTriangle size={16} /> Attention Required
+                      </div>
+                      <div className="space-y-2">
+                          {liveMatches.filter(m => m.status === 'disputed').map(m => (
+                              <div key={m.id} className="flex justify-between items-center bg-red-900/10 p-2 rounded border border-red-900/30">
+                                  <span className="text-white text-xs font-mono">MATCH #{m.match_no}</span>
+                                  <button 
+                                    onClick={() => setActiveWarRoomId(m.id)}
+                                    className="px-3 py-1 bg-red-600 hover:bg-red-500 text-white text-[10px] font-bold uppercase rounded"
+                                  >
+                                    Resolve
+                                  </button>
+                              </div>
+                          ))}
+                      </div>
+                  </div>
+              )}
+
+              {/* LIVE MATCHES TABLE */}
+              <div className="bg-bg-panel border border-tactical rounded-lg overflow-hidden">
+                  <div className="p-4 border-b border-white/5 bg-zinc-900/50 flex justify-between items-center">
+                      <h3 className="font-bold text-white text-sm uppercase flex items-center gap-2">
+                          <Sword size={14} className="text-brand" /> Active Deployments
+                      </h3>
+                      <span className="text-[10px] text-zinc-500 bg-black px-2 py-1 rounded border border-zinc-800">
+                          {liveMatches.length} MATCHES
+                      </span>
+                  </div>
+                  
+                  <div className="divide-y divide-white/5">
+                      {liveMatches.length === 0 ? (
+                          <div className="p-8 text-center text-zinc-600 text-xs font-mono uppercase tracking-widest">
+                              No active matches on radar.
+                          </div>
+                      ) : (
+                          liveMatches.map(match => (
+                              <div key={match.id} className="p-4 hover:bg-white/5 transition-colors flex items-center justify-between group">
+                                  <div>
+                                      <div className="flex items-center gap-2 mb-1">
+                                          {match.status === 'live' && <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />}
+                                          <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border ${match.status === 'live' ? 'bg-red-900/20 text-red-500 border-red-900/50' : 'bg-fuchsia-900/20 text-fuchsia-500 border-fuchsia-900/50'}`}>
+                                              {match.status}
+                                          </span>
+                                          <span className="text-xs font-mono text-zinc-500">#{match.match_no}</span>
+                                      </div>
+                                      <div className="text-sm font-bold text-white">
+                                          TBD vs TBD <span className="text-zinc-600 text-[10px] font-normal ml-2">(Data Syncing...)</span>
+                                      </div>
+                                  </div>
+                                  <button 
+                                    onClick={() => setActiveWarRoomId(match.id)}
+                                    className="opacity-0 group-hover:opacity-100 transition-opacity px-4 py-2 bg-zinc-800 hover:bg-brand text-white text-xs font-bold uppercase rounded"
+                                  >
+                                    War Room
+                                  </button>
+                              </div>
+                          ))
+                      )}
+                  </div>
+              </div>
+
+              {/* QUICK NAVIGATION */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <NavButton icon={Shield} label="Bracket View" onClick={() => navigate('/admin/bracket')} color="text-blue-400" />
+                  <NavButton icon={Users} label="Roster Cmd" onClick={() => navigate('/admin/roster')} color="text-green-400" />
+                  <NavButton icon={FileText} label="Staff Logs" onClick={() => navigate('/admin/staff')} color="text-yellow-400" />
+                  <NavButton icon={Activity} label="System Config" onClick={() => alert("Config Disabled in v1.0")} color="text-purple-400" />
+              </div>
+          </div>
+
+          {/* 3. AUDIT LOG (Right Column) */}
+          <div className="space-y-6">
+              <div className="bg-bg-panel border border-tactical rounded-lg overflow-hidden h-full">
+                  <div className="p-4 border-b border-white/5 bg-zinc-900/50">
+                      <h3 className="font-bold text-white text-sm uppercase flex items-center gap-2">
+                          <FileText size={14} className="text-zinc-400" /> Recent Activity
+                      </h3>
+                  </div>
+                  <div className="p-4 space-y-4">
+                      {auditLogs.length === 0 ? (
+                          <div className="text-zinc-600 text-xs font-mono text-center">Log Empty</div>
+                      ) : (
+                          auditLogs.map(log => (
+                              <div key={log.id} className="relative pl-4 border-l border-zinc-800 pb-1">
+                                  <div className="absolute left-[-5px] top-0 w-2.5 h-2.5 rounded-full bg-zinc-800 border-2 border-black" />
+                                  <div className="text-[10px] text-zinc-500 font-mono mb-0.5 uppercase">
+                                      {timeAgo(log.created_at)}
+                                  </div>
+                                  <div className="text-xs text-zinc-300 font-bold leading-tight">
+                                      {log.action_type.replace(/_/g, ' ')}
+                                  </div>
+                                  <div className="text-[10px] text-zinc-500 mt-1 truncate">
+                                      Target: <span className="text-zinc-400">{log.target}</span>
+                                  </div>
+                              </div>
+                          ))
+                      )}
+                  </div>
+              </div>
+          </div>
+
+       </div>
+
+       {/* MODALS */}
+       {activeWarRoomId && (
+           <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4">
+               <MatchWarRoom 
+                  matchId={activeWarRoomId} 
+                  onClose={() => { setActiveWarRoomId(null); fetchDashboardIntel(); }} 
+               />
+           </div>
+       )}
+
     </div>
   );
 };
+
+// Sub-component for buttons
+const NavButton = ({ icon: Icon, label, onClick, color }) => (
+    <button 
+        onClick={onClick}
+        className="flex flex-col items-center justify-center gap-2 p-4 bg-zinc-900/50 border border-zinc-800 hover:border-zinc-600 hover:bg-zinc-800 rounded-lg transition-all group"
+    >
+        <div className={`p-2 rounded-full bg-black border border-zinc-800 group-hover:scale-110 transition-transform ${color}`}>
+            <Icon size={20} />
+        </div>
+        <span className="text-xs font-bold uppercase text-zinc-400 group-hover:text-white">{label}</span>
+    </button>
+);

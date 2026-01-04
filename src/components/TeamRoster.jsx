@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../supabase/client';
 import { 
-  Search, RefreshCw, Shield, Crown, Pin, 
-  ArrowUpRight, Minus, AlertTriangle, Users 
+  Search, RefreshCw, Shield, Crown, Minus, 
+  ArrowUpRight, AlertTriangle
 } from 'lucide-react';
 
 // --- ASSETS: CUSTOM SVGs (Socials) ---
@@ -53,8 +53,8 @@ const SocialButton = ({ href, type }) => {
 };
 
 // --- CONFIG: LOGIC & SORTING ---
-const ROLE_WEIGHT = { 'CAPTAIN': 1, 'PLAYER': 2, 'SUBSTITUTE': 3, 'COACH': 4 };
-const getRoleWeight = (role) => ROLE_WEIGHT[role?.toUpperCase()] || 99; // Normalize case
+const ROLE_WEIGHT = { 'CAPTAIN': 1, 'PLAYER': 2, 'SUBSTITUTE': 3, 'COACH': 4, 'GUEST': 5 };
+const getRoleWeight = (role) => ROLE_WEIGHT[role?.toUpperCase()] || 99; 
 
 const StatsCard = ({ title, value, type }) => {
   const isGood = type === 'teams' || type === 'players';
@@ -74,13 +74,12 @@ const StatsCard = ({ title, value, type }) => {
   );
 };
 
-// --- COMPONENT: PLAYER ROW (THE "SLIDER") ---
+// --- COMPONENT: PLAYER ROW ---
 const PlayerRow = ({ member, idx }) => {
-    // Determine Role & Visuals
     const normalizedRole = member.role?.toUpperCase() || 'PLAYER';
     const isCaptain = normalizedRole === 'CAPTAIN';
     
-    // Treat 6th/7th players as Subs visually if not Captains and not explicitly Substitutes (fallback logic)
+    // Fallback: If roster > 5 and not captain, assume SUB if not specified
     const isExplicitSub = normalizedRole === 'SUBSTITUTE';
     const isOverflow = idx >= 5 && !isCaptain && !isExplicitSub; 
     const isSub = isExplicitSub || isOverflow;
@@ -89,7 +88,6 @@ const PlayerRow = ({ member, idx }) => {
     const accentColor = isCaptain ? 'bg-fuchsia-500' : isSub ? 'bg-yellow-500' : 'bg-zinc-700';
     const textColor = isCaptain ? 'text-white font-bold' : isSub ? 'text-zinc-500' : 'text-zinc-300';
     
-    // Fallback Initial
     const initial = member.username?.charAt(0).toUpperCase() || '?';
 
     return (
@@ -119,7 +117,6 @@ const PlayerRow = ({ member, idx }) => {
                             {member.elo}
                         </span>
                     )}
-                    {/* Tiny Status Dot */}
                     <div className={`w-1 h-1 rounded-full ${isCaptain ? 'bg-fuchsia-500' : isSub ? 'bg-yellow-500' : 'bg-green-500'}`} />
                 </div>
             </div>
@@ -164,13 +161,17 @@ export const TeamRosterView = () => {
     setLoading(true);
     setError(null);
     try {
+      // ⚡ QUERY OPTIMIZATION
+      // We alias global_identities to 'profile' for clarity
       const { data, error } = await supabase
         .from('teams')
         .select(`
           id, name, logo_url, region, access_code, seed_number,
           team_members (
             id, role,
-            global_identities (id, display_name, discord_handle, faceit_elo, faceit_url, steam_url, discord_id)
+            profile:global_identities (
+                id, display_name, discord_handle, faceit_elo, faceit_url, steam_url, discord_id
+            )
           )
         `)
         .order('name', { ascending: true });
@@ -181,21 +182,19 @@ export const TeamRosterView = () => {
         const sortedMembers = team.team_members.map(tm => ({
           id: tm.id,
           role: tm.role?.toUpperCase() || 'PLAYER',
-          username: tm.global_identities?.display_name || 'Unknown',
-          discord_id: tm.global_identities?.discord_id,
-          faceit_url: tm.global_identities?.faceit_url,
-          steam_url: tm.global_identities?.steam_url,
-          elo: tm.global_identities?.faceit_elo || 0
+          username: tm.profile?.display_name || 'Unknown',
+          discord_id: tm.profile?.discord_id,
+          faceit_url: tm.profile?.faceit_url,
+          steam_url: tm.profile?.steam_url,
+          elo: tm.profile?.faceit_elo || 0
         })).sort((a, b) => {
             const weightA = getRoleWeight(a.role);
             const weightB = getRoleWeight(b.role);
             
             // Primary Sort: Role (Captain > Player > Sub)
             if (weightA !== weightB) return weightA - weightB;
-            
-            // Secondary Sort: ELO (Highest to Lowest) for same roles
+            // Secondary Sort: ELO (Highest to Lowest)
             if (a.elo !== b.elo) return b.elo - a.elo;
-
             // Tertiary Sort: Alphabetical
             return a.username.localeCompare(b.username);
         });
@@ -221,7 +220,7 @@ export const TeamRosterView = () => {
   const readyTeams = teams.filter(t => (t.members?.length || 0) >= 5).length;
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
+    <div className="space-y-8 animate-in fade-in duration-500 p-8 bg-[#050505] min-h-screen text-white">
       {/* Header Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <StatsCard title="Total Teams" value={teams.length} type="teams" />
@@ -232,7 +231,7 @@ export const TeamRosterView = () => {
       {/* Toolbar */}
       <div className="flex flex-col md:flex-row justify-between items-end gap-4 border-b border-white/10 pb-6">
         <div>
-            <h2 className="text-3xl font-black text-white italic tracking-tighter uppercase font-['Teko']">
+            <h2 className="text-3xl font-black italic tracking-tighter uppercase font-['Teko']">
                 ROSTER <span className="text-fuchsia-500">INTEL</span>
             </h2>
             <p className="text-zinc-500 text-[10px] font-mono uppercase tracking-widest">
@@ -272,7 +271,7 @@ export const TeamRosterView = () => {
                 <div className="p-4 bg-gradient-to-r from-zinc-900 to-black border-b border-white/5 flex items-center justify-between relative z-10">
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded bg-black flex items-center justify-center overflow-hidden border border-white/10 shadow-inner">
-                            {team.logo_url ? <img src={team.logo_url} className="w-full h-full object-contain p-1" /> : <Shield className="w-5 h-5 text-zinc-700" />}
+                            {team.logo_url ? <img src={team.logo_url} className="w-full h-full object-contain p-1" alt={team.name} /> : <Shield className="w-5 h-5 text-zinc-700" />}
                         </div>
                         <div>
                             <h3 className="text-white font-black text-sm uppercase italic tracking-tighter truncate max-w-[120px]">
@@ -286,7 +285,7 @@ export const TeamRosterView = () => {
                             </div>
                         </div>
                     </div>
-                    {/* Region Flag Placeholder or Count */}
+                    {/* Count Indicator */}
                     <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${playerCount < 5 ? 'bg-red-500/10 text-red-500' : 'bg-white/5 text-zinc-500'}`}>
                         {playerCount} / 6
                     </span>

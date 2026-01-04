@@ -1,13 +1,13 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
 import { supabase } from '../supabase/client';
 import { useSession } from '../auth/useSession';
-import { ROLES } from '../lib/roles';
 
 const TournamentContext = createContext(null);
 
 export const TournamentProvider = ({ children, defaultId }) => {
   const { session } = useSession();
   
+  // 1. STATE
   const [selectedTournamentId, setSelectedTournamentId] = useState(defaultId || null);
   const [tournaments, setTournaments] = useState([]);
   const [tournamentData, setTournamentData] = useState(null);
@@ -21,7 +21,7 @@ export const TournamentProvider = ({ children, defaultId }) => {
     canGenerateBracket: false
   });
 
-  // 1. FETCH TOURNAMENT LIST
+  // 2. FETCH LIST (On Mount)
   useEffect(() => {
     const fetchTournaments = async () => {
       const { data, error: fetchError } = await supabase
@@ -36,8 +36,8 @@ export const TournamentProvider = ({ children, defaultId }) => {
 
       if (data) {
         setTournaments(data);
-        // Smart Selection: Remember last viewed or pick newest
-        if (!selectedTournamentId && data.length > 0 && !defaultId) {
+        // Smart Selection: Prioritize localStorage, then prop, then newest
+        if (!selectedTournamentId && data.length > 0) {
            const lastId = localStorage.getItem('pp_active_tid');
            const isValid = data.find(t => t.id === lastId);
            setSelectedTournamentId(isValid ? lastId : data[0].id);
@@ -47,7 +47,7 @@ export const TournamentProvider = ({ children, defaultId }) => {
     fetchTournaments();
   }, [defaultId, selectedTournamentId]);
 
-  // 2. LOAD DETAILS & REAL-TIME SUBSCRIPTION
+  // 3. LOAD ACTIVE TOURNAMENT & REAL-TIME
   useEffect(() => {
     if (!selectedTournamentId) return;
     
@@ -73,7 +73,7 @@ export const TournamentProvider = ({ children, defaultId }) => {
 
     fetchDetails(selectedTournamentId);
 
-    // ⚡ REAL-TIME: If Admin updates status/theme, clients update instantly
+    // ⚡ REAL-TIME: Listen for Phase Changes or Theme Updates
     const subscription = supabase
       .channel(`tournament_live_${selectedTournamentId}`)
       .on('postgres_changes', { 
@@ -89,7 +89,29 @@ export const TournamentProvider = ({ children, defaultId }) => {
     return () => { supabase.removeChannel(subscription); };
   }, [selectedTournamentId]);
 
-  // 3. STATE MACHINE
+  // 4. THEME PAINTER (The Magic 🎨)
+  // Automatically injects DB colors into Tailwind CSS Variables
+  useEffect(() => {
+    if (!tournamentData) return;
+
+    const root = document.documentElement;
+    const hexToRgb = (hex) => {
+        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+        return result ? `${parseInt(result[1], 16)} ${parseInt(result[2], 16)} ${parseInt(result[3], 16)}` : '192 38 211';
+    };
+
+    if (tournamentData.theme_color) {
+        root.style.setProperty('--color-brand', hexToRgb(tournamentData.theme_color));
+    }
+    if (tournamentData.theme_color_dim) {
+        root.style.setProperty('--color-brand-dim', hexToRgb(tournamentData.theme_color_dim));
+    }
+    if (tournamentData.theme_color_glow) {
+        root.style.setProperty('--color-brand-glow', hexToRgb(tournamentData.theme_color_glow));
+    }
+  }, [tournamentData]);
+
+  // 5. HELPER LOGIC
   const updateLocalState = (data) => {
     if (!data) return;
     setTournamentData(data);
@@ -103,16 +125,31 @@ export const TournamentProvider = ({ children, defaultId }) => {
     });
   };
 
+  // 6. ADMIN ACTIONS
+  const updateStatus = async (newStatus) => {
+      if (!selectedTournamentId) return;
+      const { error } = await supabase
+        .from('tournaments')
+        .update({ status: newStatus })
+        .eq('id', selectedTournamentId);
+      if (error) throw error;
+      // UI updates automatically via Realtime Subscription above
+  };
+
+  // 7. MEMOIZED CONTEXT
+  const value = useMemo(() => ({
+    selectedTournamentId,
+    setSelectedTournamentId,
+    tournaments,
+    tournamentData,
+    lifecycle,
+    loading,
+    error,
+    actions: { updateStatus }
+  }), [selectedTournamentId, tournaments, tournamentData, lifecycle, loading, error]);
+
   return (
-    <TournamentContext.Provider value={{
-      selectedTournamentId,
-      setSelectedTournamentId,
-      tournaments,
-      tournamentData,
-      lifecycle,
-      loading,
-      error
-    }}>
+    <TournamentContext.Provider value={value}>
       {children}
     </TournamentContext.Provider>
   );

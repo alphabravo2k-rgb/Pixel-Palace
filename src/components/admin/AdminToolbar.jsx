@@ -2,15 +2,17 @@ import React from 'react';
 import { useSession } from '../../auth/useSession';
 import { useTournament } from '../../tournament/useTournament';
 import { ROLE_THEMES, ROLES } from '../../lib/roles';
-import { User, LogOut, Lock, RefreshCw, ChevronDown } from 'lucide-react';
+import { User, LogOut, Lock, RefreshCw, ChevronDown, Radio } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { cn } from '../../lib/utils';
 
 export const AdminToolbar = () => {
   const { session, logout } = useSession();
-  const { selectedTournamentId, setSelectedTournamentId, tournaments = [], loading, lifecycle } = useTournament();
+  const { selectedTournamentId, setSelectedTournamentId, tournaments = [], loading, tournamentData } = useTournament();
   const navigate = useNavigate();
 
-  if (![ROLES.ADMIN, ROLES.OWNER].includes(session.role)) return null;
+  // Role Check
+  if (![ROLES.ADMIN, ROLES.OWNER, ROLES.REFEREE].includes(session.role)) return null;
 
   const theme = ROLE_THEMES[session.role] || ROLE_THEMES.GUEST;
 
@@ -25,10 +27,10 @@ export const AdminToolbar = () => {
     // 🛡️ CONTEXT FRICTION
     if (selectedTournamentId && newId !== selectedTournamentId) {
       const confirmSwitch = window.confirm(
-        "⚠️ CONTEXT SWITCH WARNING\n\nYou are changing the active tournament workspace.\nUnsaved actions in the current War Room will be lost.\n\nProceed?"
+        "⚠️ SWITCHING ACTIVE WAR ROOM\n\nYou are changing the active tournament context.\nEnsure all critical actions in the current event are saved.\n\nProceed?"
       );
       if (!confirmSwitch) {
-        e.target.value = selectedTournamentId; // Revert UI
+        e.target.value = selectedTournamentId; 
         return;
       }
     }
@@ -37,55 +39,75 @@ export const AdminToolbar = () => {
   };
 
   return (
-    <div className="fixed top-0 left-0 right-0 z-50 h-14 bg-zinc-950 border-b border-white/10 flex items-center justify-between px-6 shadow-2xl">
+    <div className="fixed top-0 left-0 right-0 z-[100] h-14 bg-zinc-950/95 backdrop-blur-md border-b border-white/5 flex items-center justify-between px-6 shadow-2xl">
       
+      {/* LEFT: Identity & Context */}
       <div className="flex items-center gap-4">
-        <div className={`flex items-center gap-2 px-3 py-1 rounded-full border ${theme.bg} ${theme.border} ${theme.color}`}>
+        
+        {/* Role Badge */}
+        <div className={cn("flex items-center gap-2 px-3 py-1 rounded-full border shadow-sm", theme.bg, theme.border, theme.color)}>
           <Lock className="w-3 h-3" />
           <span className="text-[10px] font-bold uppercase tracking-widest">{theme.label} MODE</span>
         </div>
         
+        <div className="h-4 w-px bg-white/10" />
+
+        {/* Tournament Selector */}
         <div className="relative group">
           <select 
             value={selectedTournamentId || ''}
             onChange={handleSwitch}
-            className="appearance-none bg-black border border-white/10 text-white text-xs font-bold uppercase py-1 pl-3 pr-8 rounded focus:border-fuchsia-500 outline-none cursor-pointer hover:bg-white/5 transition-colors"
+            className="appearance-none bg-transparent text-white text-xs font-bold uppercase py-1.5 pl-2 pr-8 rounded outline-none cursor-pointer hover:bg-white/5 transition-colors focus:bg-black focus:ring-1 focus:ring-brand"
           >
-            <option value="" disabled>-- SELECT EVENT --</option>
+            <option value="" disabled>-- SELECT OPERATION --</option>
             {tournaments && tournaments.map(t => (
-              <option key={t.id} value={t.id}>
+              <option key={t.id} value={t.id} className="bg-zinc-900 text-zinc-300">
                  {t.name} {t.status === 'LIVE' ? '🔴' : ''}
               </option>
             ))}
           </select>
-          <ChevronDown className="w-3 h-3 text-zinc-500 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <ChevronDown className="w-3 h-3 text-zinc-500 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-white transition-colors" />
         </div>
 
-        {lifecycle?.status === 'LIVE' && (
-            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border bg-red-900/20 text-red-400 border-red-500/30 animate-pulse">
-                <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
-                LIVE
+        {/* Live Indicator */}
+        {tournamentData?.status === 'live' && (
+            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded border bg-red-950/30 text-red-500 border-red-900/50 animate-pulse">
+                <Radio className="w-3 h-3" />
+                <span className="text-[9px] font-bold uppercase tracking-widest">LIVE</span>
             </div>
         )}
       </div>
 
+      {/* RIGHT: User & Actions */}
       <div className="flex items-center gap-4">
+        
+        {/* Sync Status */}
         {loading && (
-          <div className="flex items-center gap-2 text-[10px] text-fuchsia-500 animate-pulse">
+          <div className="flex items-center gap-2 text-[10px] text-brand animate-pulse">
             <RefreshCw className="w-3 h-3 animate-spin" />
-            SYNCING
+            UPLINK ACTIVE
           </div>
         )}
+        
         <div className="h-4 w-px bg-white/10" />
+        
+        {/* User Profile */}
         <div className="flex items-center gap-2 text-xs text-zinc-500">
-          <User className="w-3 h-3" />
-          <span className="font-mono text-zinc-300">{session.identity?.display_name || session.user?.email || 'Unknown'}</span>
+          <div className="w-6 h-6 rounded bg-zinc-900 border border-zinc-800 flex items-center justify-center">
+             <User className="w-3 h-3" />
+          </div>
+          <span className="font-mono text-zinc-300 hidden md:inline-block">
+             {session.identity?.full_name || session.user?.email || 'Commander'}
+          </span>
         </div>
+
+        {/* Logout */}
         <button 
           onClick={handleLogout}
-          className="flex items-center gap-2 px-3 py-1.5 hover:bg-red-900/20 text-zinc-500 hover:text-red-400 rounded transition-colors text-xs font-bold uppercase"
+          className="p-2 hover:bg-red-950/30 text-zinc-500 hover:text-red-500 rounded-full border border-transparent hover:border-red-900/30 transition-all"
+          title="Disconnect"
         >
-          <LogOut className="w-3 h-3" />
+          <LogOut className="w-4 h-4" />
         </button>
       </div>
     </div>

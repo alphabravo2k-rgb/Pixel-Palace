@@ -150,7 +150,7 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
   
   // ✅ IMPORTANT: Store user_id to prevent duplicates on save
   const [members, setMembers] = useState(team?.members.map(m => ({
-      user_id: m.user_id, // Keep the ID
+      user_id: m.user_id, // Keep the ID if exists
       username: m.username, 
       role: normalizeRole(m.role).toUpperCase(), 
       discord: m.discord_handle||'', 
@@ -168,6 +168,7 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
   };
 
   const addMember = () => {
+      // New members have NO user_id yet
       setMembers([...members, { user_id: null, username: 'New Operator', role: 'PLAYER', discord: '', steam: '', faceit: '', elo: 1000 }]);
   };
 
@@ -201,10 +202,13 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
           const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(`https://open.faceit.com/data/v4/players?nickname=${faceitNickname}`)}`;
           
           const res = await fetch(proxyUrl, {
-              headers: { 'Authorization': 'Bearer a77d0763-5fdd-4bde-a8a5-6e840408de2e' } // Note: Header might be stripped by some proxies, usually okay for demo
+              headers: { 'Authorization': 'Bearer a77d0763-5fdd-4bde-a8a5-6e840408de2e' } // Note: Header might be stripped by some proxies
           });
           
           const json = await res.json();
+          // Safety Check for Proxy Response
+          if (!json.contents) throw new Error("Proxy connection refused. Security Policy Block.");
+          
           const data = JSON.parse(json.contents); // AllOrigins returns data in 'contents' string
 
           if(!data.player_id) throw new Error("Player not found on Faceit");
@@ -228,7 +232,7 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
           updated[idx].username = realName; // Correct the name field
           updated[idx].elo = newElo;
           updated[idx].faceit = faceitUrl;
-          updated[idx].steam = steamUrl; // Auto-fill Steam if missing
+          updated[idx].steam = steamUrl;
 
           if (existingUser) {
               updated[idx].user_id = existingUser.id; // ✅ LINK EXISTING USER
@@ -241,7 +245,12 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
 
       } catch(e) {
           console.error(e);
-          toast.error(`Sync Error: ${e.message}`, { id: toastId });
+          // Fallback Alert
+          if(e.message.includes("Proxy")) {
+             toast.error("Security Block: Please update _headers or input manually.", { id: toastId });
+          } else {
+             toast.error(`Sync Error: ${e.message}`, { id: toastId });
+          }
       }
   };
 
@@ -326,7 +335,31 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
               </div>
            </div>
 
-           {/* SECTION 2: ROSTER EDITOR */}
+           {/* SECTION 2: STATUS & STATS */}
+           <div className="bg-zinc-900/30 p-4 rounded border border-zinc-800 grid grid-cols-2 md:grid-cols-4 gap-4">
+               <div>
+                  <label className="text-[10px] text-zinc-500 uppercase font-bold block mb-1">Status</label>
+                  <select value={meta.status} onChange={e=>setMeta({...meta, status:e.target.value})} className="w-full bg-black border border-zinc-700 p-2 text-white rounded text-xs uppercase font-bold focus:border-brand outline-none">
+                      <option value="ACTIVE">Active</option>
+                      <option value="DISQUALIFIED">Disqualified</option>
+                      <option value="ELIMINATED">Eliminated</option>
+                  </select>
+               </div>
+               <div>
+                  <label className="text-[10px] text-emerald-600 uppercase font-bold block mb-1">Wins</label>
+                  <input type="number" value={meta.wins} onChange={e=>setMeta({...meta, wins:e.target.value})} className="w-full bg-black border border-emerald-900/50 text-emerald-500 p-2 rounded text-xs font-bold text-center" />
+               </div>
+               <div>
+                  <label className="text-[10px] text-red-600 uppercase font-bold block mb-1">Losses</label>
+                  <input type="number" value={meta.losses} onChange={e=>setMeta({...meta, losses:e.target.value})} className="w-full bg-black border border-red-900/50 text-red-500 p-2 rounded text-xs font-bold text-center" />
+               </div>
+               <div>
+                  <label className="text-[10px] text-yellow-600 uppercase font-bold block mb-1">Access Key</label>
+                  <input value={meta.access_code} onChange={e=>setMeta({...meta, access_code:e.target.value})} className="w-full bg-black border border-yellow-900/50 text-yellow-500 p-2 rounded text-xs font-mono text-center tracking-wider" />
+               </div>
+           </div>
+           
+           {/* SECTION 3: ROSTER EDITOR */}
            <div className="space-y-4 border-t border-zinc-800 pt-6">
               <div className="flex justify-between items-center mb-2">
                   <div className="flex items-center gap-2">
@@ -338,7 +371,7 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
                           {members.length}/6
                       </span>
                   </div>
-                  <button onClick={addMember} disabled={members.length >= 7} className="text-xs bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-800 disabled:text-zinc-500 px-3 py-1.5 rounded text-white font-bold uppercase transition-colors shadow-lg">
+                  <button onClick={addMember} disabled={members.length >= 7} className="text-xs bg-brand hover:bg-brand-glow disabled:opacity-50 px-3 py-1.5 rounded text-white font-bold uppercase transition-colors shadow-lg">
                       {members.length >= 7 ? 'Max Limit' : '+ Add Operator'}
                   </button>
               </div>

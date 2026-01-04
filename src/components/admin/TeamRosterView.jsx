@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../supabase/client';
 import { 
   Search, RefreshCw, Shield, Edit3, X, Trash2, Key, Users, 
-  Copy, CheckCircle, Ban, Trophy, Mic, Globe, Monitor, Gamepad2, Link as LinkIcon 
+  Copy, CheckCircle, Ban, Trophy, Mic, Globe, Monitor, Gamepad2, Link as LinkIcon, AlertTriangle 
 } from 'lucide-react';
 import StatsCard from '../../components/StatsCard';
 
-// --- ICONS ---
+// --- ASSETS: ICONS ---
 const BRAND_ICONS = {
   STEAM: <svg viewBox="0 0 24 24" className="w-3 h-3 fill-current" xmlns="http://www.w3.org/2000/svg"><path d="M11.979 0C5.666 0 .548 5.13.548 11.465c0 3.25 1.344 6.18 3.506 8.27l1.96-2.94a4.938 4.938 0 0 1-.366-1.874 4.975 4.975 0 0 1 4.97-4.97c.453 0 .89.066 1.306.184l3.194-4.79A11.378 11.378 0 0 0 11.98 0zm6.983 6.94l-3.33 4.995a4.933 4.933 0 0 1 2.25 2.126l4.634-2.857a11.385 11.385 0 0 0-3.554-4.264zM7.276 17.037l-1.897 2.846a11.37 11.37 0 0 0 5.23 1.94l1.19-4.167a4.966 4.966 0 0 1-4.523-.62zm9.11 1.07l-4.22 2.602a4.965 4.965 0 0 1-2.09.47L8.91 24.5a11.413 11.413 0 0 0 7.476-6.393z"/></svg>,
   DISCORD: <svg viewBox="0 0 24 24" className="w-3 h-3 fill-current" xmlns="http://www.w3.org/2000/svg"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg>,
@@ -23,7 +23,7 @@ const getRegionFlag = (code) => {
     : <span className="text-[9px] bg-zinc-800 text-zinc-400 px-1 rounded">{code.substring(0,2)}</span>;
 };
 
-// --- TEAM CARD ---
+// --- COMPONENT: TEAM CARD ---
 const TeamCard = ({ team, onEdit }) => {
   const activeMembers = team.members.slice(0, 5);
   const reserveMembers = team.members.slice(5);
@@ -69,6 +69,7 @@ const TeamCard = ({ team, onEdit }) => {
       {/* Roster */}
       <div className="p-2 space-y-1">
         {activeMembers.map(m => {
+           // Discord ID Check (Numeric or Handle)
            const isDiscordId = /^\d+$/.test(m.discord_handle); 
            return (
              <div key={m.id} className="flex justify-between items-center px-2 py-1.5 bg-black/20 rounded border border-transparent hover:border-zinc-800 transition-colors">
@@ -78,14 +79,18 @@ const TeamCard = ({ team, onEdit }) => {
                 </div>
                 <div className="flex items-center gap-1.5">
                     {m.faceit_elo > 0 && <span className="text-[9px] font-mono font-bold text-yellow-500 bg-yellow-900/10 px-1 rounded border border-yellow-500/20">{m.faceit_elo}</span>}
+                    
+                    {/* Steam Link */}
                     {m.steam_url && <a href={m.steam_url} target="_blank" rel="noreferrer" className="text-zinc-600 hover:text-[#171a21] hover:bg-white rounded-full p-0.5 transition-colors">{BRAND_ICONS.STEAM}</a>}
                     
+                    {/* Discord Link */}
                     {m.discord_handle && (
                         isDiscordId ? 
                         <a href={`https://discord.com/users/${m.discord_handle}`} target="_blank" rel="noreferrer" className="text-zinc-600 hover:text-[#5865F2] hover:bg-white rounded-full p-0.5 transition-colors cursor-pointer" title="Open Discord Profile">{BRAND_ICONS.DISCORD}</a>
                         : <button onClick={() => { navigator.clipboard.writeText(m.discord_handle); alert(`Copied "${m.discord_handle}" to clipboard!`); }} className="text-zinc-600 hover:text-[#5865F2] hover:bg-white rounded-full p-0.5 transition-colors cursor-copy" title="Copy Handle (Text ID)">{BRAND_ICONS.DISCORD}</button>
                     )}
 
+                    {/* Faceit Link */}
                     {m.faceit_url && <a href={m.faceit_url} target="_blank" rel="noreferrer" className="text-zinc-600 hover:text-[#ff5500] hover:bg-white rounded-full p-0.5 transition-colors">{BRAND_ICONS.FACEIT}</a>}
                 </div>
              </div>
@@ -105,7 +110,7 @@ const TeamCard = ({ team, onEdit }) => {
   );
 };
 
-// --- FULL EDIT MODAL (RESTORED FEATURES) ---
+// --- COMPONENT: EDIT MODAL (Full Power) ---
 const EditTeamModal = ({ team, onClose, onRefresh }) => {
   const [meta, setMeta] = useState({
     name: team?.name||'', logo_url: team?.logo_url||'', region: team?.region||'PAK',
@@ -114,7 +119,6 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
     voice_channel_url: team?.voice_channel_url||''
   });
   
-  // Initialize members with correct key mapping for UI
   const [members, setMembers] = useState(team?.members.map(m => ({
       username: m.username, 
       role: m.role, 
@@ -133,7 +137,7 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
   };
 
   const addMember = () => {
-      setMembers([...members, { username: 'New Op', role: 'PLAYER', discord: '', steam: '', faceit: '', elo: 1000 }]);
+      setMembers([...members, { username: 'New Operator', role: 'PLAYER', discord: '', steam: '', faceit: '', elo: 1000 }]);
   };
 
   const removeMember = (idx) => {
@@ -143,19 +147,13 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
   const handleSave = async () => {
     setSaving(true);
     try {
-      // Correctly maps frontend 'members' state to what SQL 'admin_upsert_team' expects
       const { data, error } = await supabase.rpc('admin_upsert_team', {
           p_team_id: team?.id || null,
-          p_name: meta.name, 
-          p_logo_url: meta.logo_url, 
-          p_region: meta.region,
-          p_seed_number: parseInt(meta.seed_number), 
-          p_access_code: meta.access_code,
-          p_status: meta.status, 
-          p_wins: parseInt(meta.wins), 
-          p_losses: parseInt(meta.losses),
+          p_name: meta.name, p_logo_url: meta.logo_url, p_region: meta.region,
+          p_seed_number: parseInt(meta.seed_number), p_access_code: meta.access_code,
+          p_status: meta.status, p_wins: parseInt(meta.wins), p_losses: parseInt(meta.losses),
           p_voice_channel_url: meta.voice_channel_url,
-          p_members: members // Passes the full array to the backend for processing
+          p_members: members // Sends the Modified Array
       });
 
       if (error) throw error;
@@ -237,17 +235,28 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
                </div>
            </div>
            
-           {/* SECTION 3: ROSTER EDITOR (RESTORED) */}
+           {/* SECTION 3: ROSTER EDITOR (WITH SYNC & LIMITS) */}
            <div className="space-y-2 border-t border-zinc-800 pt-4">
               <div className="flex justify-between items-center mb-2">
-                  <h3 className="font-bold text-white text-sm uppercase flex items-center gap-2"><Users size={14}/> Active Operators</h3>
-                  <button onClick={addMember} className="text-xs bg-blue-600 hover:bg-blue-500 px-3 py-1 rounded text-white font-bold uppercase transition-colors">Add Operator</button>
+                  <div className="flex items-center gap-2">
+                      <h3 className="font-bold text-white text-sm uppercase flex items-center gap-2"><Users size={14}/> Active Operators</h3>
+                      {/* Count Indicator with Limits */}
+                      <span className={`text-xs font-mono px-1.5 rounded ${members.length < 5 ? 'text-red-500 bg-red-900/20' : members.length > 6 ? 'text-yellow-500 bg-yellow-900/20' : 'text-green-500 bg-green-900/20'}`}>
+                          {members.length}/6
+                      </span>
+                  </div>
+                  <button onClick={addMember} disabled={members.length >= 7} className="text-xs bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-800 disabled:text-zinc-500 px-3 py-1 rounded text-white font-bold uppercase transition-colors">
+                      {members.length >= 7 ? 'Max Limit' : 'Add Operator'}
+                  </button>
               </div>
               
+              {/* Validation Warning */}
+              {members.length < 5 && <div className="text-[10px] text-red-500 flex items-center gap-1 mb-2"><AlertTriangle size={10}/> Team needs at least 5 players.</div>}
+
               <div className="flex gap-2 px-3 py-1 text-[9px] uppercase font-bold text-zinc-500">
-                  <div className="w-32">Display Name</div>
+                  <div className="w-32">Display Name (Faceit)</div>
                   <div className="w-24">Role</div>
-                  <div className="w-16 text-center">ELO</div>
+                  <div className="w-20 text-center">ELO / Sync</div>
                   <div className="flex-1">Identity Links (Steam / Discord / Faceit)</div>
                   <div className="w-6"></div>
               </div>
@@ -262,9 +271,12 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
                             <option>CAPTAIN</option><option>PLAYER</option><option>SUBSTITUTE</option>
                         </select>
                     </div>
-                    <div className="w-full md:w-16">
+                    {/* ELO & Force Sync */}
+                    <div className="w-full md:w-20 flex gap-1">
                         <input type="number" value={m.elo} onChange={e => updateMember(idx, 'elo', e.target.value)} className="w-full bg-black border border-zinc-700 p-1.5 text-yellow-500 text-center rounded text-xs font-mono" placeholder="ELO" />
+                        <button onClick={() => alert("Simulating Force Sync: ELO fetched for " + m.username)} className="bg-zinc-800 hover:bg-zinc-700 text-zinc-400 p-1.5 rounded" title="Force Sync ELO"><RefreshCw size={12}/></button>
                     </div>
+                    
                     <div className="flex-1 grid grid-cols-3 gap-2 w-full">
                         <div className="relative">
                             <Monitor className="absolute left-2 top-2 w-3 h-3 text-zinc-600"/>
@@ -279,7 +291,8 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
                             <input value={m.faceit} onChange={e => updateMember(idx, 'faceit', e.target.value)} className="w-full bg-black border border-zinc-700 pl-7 p-1.5 text-zinc-300 rounded text-[10px]" placeholder="Faceit URL" />
                         </div>
                     </div>
-                    <button onClick={() => removeMember(idx)} className="text-red-500 hover:bg-red-900/20 p-1.5 rounded"><Trash2 size={14}/></button>
+                    {/* Delete Button */}
+                    <button onClick={() => removeMember(idx)} className="text-red-500 hover:bg-red-900/20 p-1.5 rounded" title="Remove Player"><Trash2 size={14}/></button>
                  </div>
               ))}
            </div>
@@ -304,30 +317,28 @@ export const TeamRosterView = () => {
   const [editTeam, setEditTeam] = useState(undefined);
   const [searchTerm, setSearchTerm] = useState('');
 
-  // ⚡ THE FIX: "Safe Fetch" Strategy 
+  // ⚡ ENGINE UPGRADE: "Safe Fetch"
   const fetchTeams = async () => {
     setLoading(true);
     try {
-        // 1. Get Teams & Members (No Join to Profiles yet)
+        // 1. Get Teams & Members
         const { data: teamData } = await supabase.from('teams')
             .select(`*, team_members(id, role, user_id)`).order('name');
         
         if(!teamData) { setTeams([]); return; }
 
-        // 2. Extract IDs and Fetch Profiles Separately
+        // 2. Fetch Profiles Separately
         const allUserIds = teamData.flatMap(t => t.team_members.map(m => m.user_id)).filter(Boolean);
-        
-        // This query will succeed even if some profiles are missing/restricted
         const { data: profiles } = await supabase.from('global_identities')
             .select('id, display_name, discord_handle, steam_url, faceit_url, faceit_elo')
             .in('id', allUserIds);
         
         const profileMap = (profiles || []).reduce((acc, p) => ({ ...acc, [p.id]: p }), {});
 
-        // 3. Stitch Data in JavaScript
+        // 3. Merge
         const formatted = teamData.map(t => {
             const members = t.team_members.map(tm => {
-                const p = profileMap[tm.user_id] || {}; // Fallback to empty if profile missing
+                const p = profileMap[tm.user_id] || {};
                 return {
                     id: tm.id,
                     role: tm.role,
@@ -339,7 +350,6 @@ export const TeamRosterView = () => {
                 };
             }).sort((a,b)=>getRoleWeight(a.role)-getRoleWeight(b.role));
             
-            // Auto-calculate Team Average
             const elos = members.map(m => m.faceit_elo).filter(e => e > 0);
             const avg = elos.length ? Math.round(elos.reduce((a,b)=>a+b,0)/elos.length) : 0;
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../supabase/client';
-import { X, Save, Shield, Trophy, Monitor, Map, Clock, AlertTriangle, CheckCircle } from 'lucide-react';
+import { supabase } from '../../supabase/client'; // Assumes file is in src/components/admin/
+import { X, Save, Shield, Monitor, Map, Clock, AlertTriangle } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
 export const MatchWarRoom = ({ matchId, onClose }) => {
@@ -28,18 +28,20 @@ export const MatchWarRoom = ({ matchId, onClose }) => {
         .single();
 
       if (error) throw error;
+
       setMatch(data);
       setFormData({
         server_ip: data.server_ip || '',
         start_time: data.start_time || '',
         status: data.status || 'SCHEDULED',
-        score_t1: data.score_team1 || 0, // Ensure your DB has these columns or add JSONB 'scores'
+        score_t1: data.score_team1 || 0, 
         score_t2: data.score_team2 || 0,
         winner_id: data.winner_id || null
       });
     } catch (e) {
       console.error(e);
       toast.error("Failed to load match details");
+      onClose();
     } finally {
       setLoading(false);
     }
@@ -49,46 +51,15 @@ export const MatchWarRoom = ({ matchId, onClose }) => {
     if (matchId) fetchMatch();
   }, [matchId]);
 
-  // 2. Save Changes & Advance Winner
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      // A. Update Current Match
-      const { error } = await supabase
-        .from('matches')
-        .update({
-          server_ip: formData.server_ip,
-          start_time: formData.start_time,
-          status: formData.status,
-          winner_id: formData.winner_id
-          // Note: You might need to add 'score_team1' and 'score_team2' columns to your 'matches' table if you haven't yet.
-          // Or store them in a JSONB column like: scores: { t1: formData.score_t1, t2: formData.score_t2 }
-        })
-        .eq('id', matchId);
-
-      if (error) throw error;
-
-      // B. AUTO-ADVANCE LOGIC (If winner picked)
-      if (formData.winner_id && formData.winner_id !== match.winner_id) {
-        await advanceWinner(match, formData.winner_id);
-      }
-
-      toast.success("Match Updated Successfully");
-      onClose(); // Close modal on success
-    } catch (e) {
-      console.error(e);
-      toast.error("Save Failed: " + e.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // Helper: Calculate Next Bracket Slot
+  // 2. Helper: Calculate Next Bracket Slot (Auto-Advance)
   const advanceWinner = async (currentMatch, winnerId) => {
     // Logic: Round 1, Pos 1 & 2 -> Round 2, Pos 1
     const nextRound = currentMatch.round_number + 1;
     const nextPos = Math.ceil(currentMatch.match_position / 2);
-    const isTeam1Slot = (currentMatch.match_position % 2 !== 0); // Odd positions go to Team 1 slot
+    
+    // If Match Position is Odd (1, 3, 5), they go to Team 1 slot of next match
+    // If Match Position is Even (2, 4, 6), they go to Team 2 slot of next match
+    const isTeam1Slot = (currentMatch.match_position % 2 !== 0); 
 
     const updateField = isTeam1Slot ? 'team1_id' : 'team2_id';
 
@@ -99,11 +70,49 @@ export const MatchWarRoom = ({ matchId, onClose }) => {
       .eq('round_number', nextRound)
       .eq('match_position', nextPos);
 
-    if (error) toast.error("Could not auto-advance winner to next round");
-    else toast.success("Winner Advanced to Next Round!");
+    if (error) {
+      console.error("Auto-Advance Error:", error);
+      toast.error("Winner saved, but could not auto-advance bracket.");
+    } else {
+      toast.success(`Winner advanced to Round ${nextRound}!`);
+    }
   };
 
-  if (loading) return <div className="p-10 text-white">Loading War Room...</div>;
+  // 3. Save Changes
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      // A. Update Current Match
+      const { error } = await supabase
+        .from('matches')
+        .update({
+          server_ip: formData.server_ip,
+          start_time: formData.start_time || null, // Handle empty string as null
+          status: formData.status,
+          score_team1: formData.score_t1,
+          score_team2: formData.score_t2,
+          winner_id: formData.winner_id
+        })
+        .eq('id', matchId);
+
+      if (error) throw error;
+
+      // B. AUTO-ADVANCE LOGIC (Only if winner changed/set)
+      if (formData.winner_id && formData.winner_id !== match.winner_id) {
+        await advanceWinner(match, formData.winner_id);
+      }
+
+      toast.success("Match Updated Successfully");
+      onClose(); 
+    } catch (e) {
+      console.error(e);
+      toast.error("Save Failed: " + e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading || !match) return <div className="p-10 text-zinc-500 font-mono animate-pulse">ESTABLISHING CONNECTION...</div>;
 
   return (
     <div className="bg-bg-panel border border-brand/30 w-full h-full rounded-lg flex flex-col overflow-hidden shadow-2xl">
@@ -119,59 +128,91 @@ export const MatchWarRoom = ({ matchId, onClose }) => {
         
         {/* Scoreboard Editor */}
         <div className="grid grid-cols-3 gap-4 items-center bg-black/40 p-6 rounded-lg border border-white/5">
-          {/* Team 1 */}
-          <div className={`text-center p-4 rounded border cursor-pointer transition-all ${formData.winner_id === match.team1?.id ? 'border-brand bg-brand/10' : 'border-transparent hover:bg-white/5'}`}
-               onClick={() => setFormData({...formData, winner_id: match.team1?.id})}>
-            <div className="w-16 h-16 mx-auto bg-black rounded-full flex items-center justify-center border border-zinc-700 mb-2">
-              {match.team1?.logo_url ? <img src={match.team1.logo_url} className="w-10 h-10 object-contain"/> : <Shield className="text-zinc-600"/>}
+          {/* Team 1 Card */}
+          <div 
+            className={`text-center p-4 rounded border cursor-pointer transition-all relative overflow-hidden group ${
+              formData.winner_id === match.team1?.id ? 'border-brand bg-brand/10' : 'border-zinc-800 hover:bg-white/5'
+            }`}
+            onClick={() => setFormData({...formData, winner_id: match.team1?.id})}
+          >
+            <div className="w-16 h-16 mx-auto bg-black rounded-full flex items-center justify-center border border-zinc-700 mb-2 relative z-10">
+              {match.team1?.logo_url ? <img src={match.team1.logo_url} className="w-10 h-10 object-contain" alt="T1"/> : <Shield className="text-zinc-600"/>}
             </div>
-            <h3 className="font-bold text-lg text-white">{match.team1?.name || "TBD"}</h3>
-            {formData.winner_id === match.team1?.id && <div className="text-xs text-brand font-bold mt-1 uppercase">Winner Selected</div>}
+            <h3 className="font-bold text-lg text-white relative z-10">{match.team1?.name || "TBD"}</h3>
+            {formData.winner_id === match.team1?.id && <div className="text-xs text-brand font-bold mt-1 uppercase relative z-10">Winner Selected</div>}
           </div>
 
-          {/* VS / Score */}
-          <div className="flex flex-col items-center gap-2">
-            <span className="text-zinc-600 font-black text-2xl">VS</span>
-            <div className="flex gap-2">
-              <input type="number" value={formData.score_t1} onChange={e => setFormData({...formData, score_t1: parseInt(e.target.value)})} className="w-12 bg-black border border-zinc-700 text-center text-white font-mono text-xl p-1 rounded focus:border-brand outline-none"/>
-              <span className="text-white text-xl">:</span>
-              <input type="number" value={formData.score_t2} onChange={e => setFormData({...formData, score_t2: parseInt(e.target.value)})} className="w-12 bg-black border border-zinc-700 text-center text-white font-mono text-xl p-1 rounded focus:border-brand outline-none"/>
+          {/* Center Control */}
+          <div className="flex flex-col items-center gap-4">
+            <span className="text-zinc-600 font-black text-2xl select-none">VS</span>
+            
+            <div className="flex items-center gap-3 bg-black/50 p-2 rounded-lg border border-zinc-800">
+              <input 
+                type="number" 
+                value={formData.score_t1} 
+                onChange={e => setFormData({...formData, score_t1: parseInt(e.target.value) || 0})} 
+                className="w-12 bg-black border border-zinc-700 text-center text-white font-mono text-xl p-1 rounded focus:border-brand outline-none"
+              />
+              <span className="text-zinc-500 text-xl font-bold">:</span>
+              <input 
+                type="number" 
+                value={formData.score_t2} 
+                onChange={e => setFormData({...formData, score_t2: parseInt(e.target.value) || 0})} 
+                className="w-12 bg-black border border-zinc-700 text-center text-white font-mono text-xl p-1 rounded focus:border-brand outline-none"
+              />
             </div>
-            <select value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})} className="bg-zinc-900 text-zinc-300 text-xs uppercase font-bold p-1 rounded border border-zinc-700 outline-none">
+
+            <select 
+              value={formData.status} 
+              onChange={e => setFormData({...formData, status: e.target.value})} 
+              className={`text-xs uppercase font-bold p-1.5 rounded border outline-none w-32 text-center cursor-pointer ${
+                formData.status === 'LIVE' ? 'bg-red-900/20 text-red-500 border-red-900/50' : 
+                formData.status === 'COMPLETED' ? 'bg-emerald-900/20 text-emerald-500 border-emerald-900/50' : 
+                'bg-zinc-900 text-zinc-300 border-zinc-700'
+              }`}
+            >
               <option value="SCHEDULED">Scheduled</option>
               <option value="LIVE">🔴 LIVE</option>
               <option value="COMPLETED">Completed</option>
             </select>
           </div>
 
-          {/* Team 2 */}
-          <div className={`text-center p-4 rounded border cursor-pointer transition-all ${formData.winner_id === match.team2?.id ? 'border-brand bg-brand/10' : 'border-transparent hover:bg-white/5'}`}
-               onClick={() => setFormData({...formData, winner_id: match.team2?.id})}>
-            <div className="w-16 h-16 mx-auto bg-black rounded-full flex items-center justify-center border border-zinc-700 mb-2">
-              {match.team2?.logo_url ? <img src={match.team2.logo_url} className="w-10 h-10 object-contain"/> : <Shield className="text-zinc-600"/>}
+          {/* Team 2 Card */}
+          <div 
+            className={`text-center p-4 rounded border cursor-pointer transition-all relative overflow-hidden group ${
+              formData.winner_id === match.team2?.id ? 'border-brand bg-brand/10' : 'border-zinc-800 hover:bg-white/5'
+            }`}
+            onClick={() => setFormData({...formData, winner_id: match.team2?.id})}
+          >
+            <div className="w-16 h-16 mx-auto bg-black rounded-full flex items-center justify-center border border-zinc-700 mb-2 relative z-10">
+              {match.team2?.logo_url ? <img src={match.team2.logo_url} className="w-10 h-10 object-contain" alt="T2"/> : <Shield className="text-zinc-600"/>}
             </div>
-            <h3 className="font-bold text-lg text-white">{match.team2?.name || "TBD"}</h3>
-            {formData.winner_id === match.team2?.id && <div className="text-xs text-brand font-bold mt-1 uppercase">Winner Selected</div>}
+            <h3 className="font-bold text-lg text-white relative z-10">{match.team2?.name || "TBD"}</h3>
+            {formData.winner_id === match.team2?.id && <div className="text-xs text-brand font-bold mt-1 uppercase relative z-10">Winner Selected</div>}
           </div>
         </div>
 
-        {/* Server & Config */}
+        {/* Configuration */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">
-            <label className="text-xs font-bold text-zinc-500 uppercase flex items-center gap-2"><Map size={12}/> Server Connect String</label>
-            <div className="flex gap-2">
-              <input 
-                value={formData.server_ip} 
-                onChange={e => setFormData({...formData, server_ip: e.target.value})} 
-                className="flex-1 bg-black border border-zinc-700 p-3 text-brand font-mono text-sm rounded focus:border-brand outline-none"
-                placeholder="connect 192.168.1.1; password..."
-              />
-            </div>
-            <p className="text-[10px] text-zinc-600">Visible to players only when match is LIVE or READY.</p>
+            <label className="text-xs font-bold text-zinc-500 uppercase flex items-center gap-2">
+              <Map size={12}/> Server IP / Connect Command
+            </label>
+            <input 
+              value={formData.server_ip} 
+              onChange={e => setFormData({...formData, server_ip: e.target.value})} 
+              className="w-full bg-black border border-zinc-700 p-3 text-brand font-mono text-sm rounded focus:border-brand outline-none placeholder:text-zinc-800"
+              placeholder="connect 123.456.78.90:27015; password pixel"
+            />
+            <p className="text-[10px] text-zinc-600 flex items-center gap-1">
+              <AlertTriangle size={10}/> Visible to players only when status is LIVE.
+            </p>
           </div>
 
           <div className="space-y-2">
-            <label className="text-xs font-bold text-zinc-500 uppercase flex items-center gap-2"><Clock size={12}/> Start Time</label>
+            <label className="text-xs font-bold text-zinc-500 uppercase flex items-center gap-2">
+              <Clock size={12}/> Scheduled Start Time
+            </label>
             <input 
               type="datetime-local"
               value={formData.start_time ? new Date(formData.start_time).toISOString().slice(0,16) : ''} 
@@ -186,7 +227,11 @@ export const MatchWarRoom = ({ matchId, onClose }) => {
       {/* Footer */}
       <div className="p-4 bg-zinc-900 border-t border-white/5 flex justify-end gap-3">
         <button onClick={onClose} className="px-6 py-2 text-zinc-400 hover:text-white font-bold uppercase text-xs">Cancel</button>
-        <button onClick={handleSave} disabled={saving} className="px-6 py-2 bg-brand hover:bg-brand-glow text-white font-bold uppercase text-xs rounded shadow-lg disabled:opacity-50 flex items-center gap-2">
+        <button 
+          onClick={handleSave} 
+          disabled={saving} 
+          className="px-6 py-2 bg-brand hover:bg-brand-glow text-white font-bold uppercase text-xs rounded shadow-lg disabled:opacity-50 flex items-center gap-2 transition-all"
+        >
           <Save size={14}/> {saving ? 'Saving...' : 'Update Match Data'}
         </button>
       </div>

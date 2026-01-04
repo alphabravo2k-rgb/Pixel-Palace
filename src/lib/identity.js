@@ -1,27 +1,35 @@
 /**
  * PIXEL PALACE IDENTITY SYSTEM
- * Single Source of Truth for Branding
+ * Single Source of Truth for Static Branding & Links.
+ * (Note: Dynamic Tournament Themes are handled by useTournament.jsx)
  */
 
 export const BRAND = {
   name: "Pixel Palace",
+  shortName: "PXP",
   domain: "pixel-palace.pages.dev",
-  description: "The Global Standard for Competitive Esports.",
-  version: "v2.5.0",
+  tagline: "The Global Standard for Competitive Esports.",
+  version: "v3.0.0 (Genesis)", // Updated for the new Master System
   
-  // 🎨 CORE COLORS (Matches Tailwind Config)
-  colors: {
-    primary: '#9333ea',   // Purple 600
-    secondary: '#db2777', // Pink 600
-    accent: '#22d3ee',    // Cyan 400
-    bg: '#050505',        // The Void
-  },
-
-  // 🔗 ASSETS
+  // 🔗 ASSETS (Hosted via GitHub for speed/reliability)
   logo: "https://raw.githubusercontent.com/alphabravo2k-rgb/pixel-palace-registration/1a7d90c43796fd037316bdaf4f3b4de9a485d615/image_4379f9.png",
-  
-  // 🌐 LINKS
+  favicon: "https://raw.githubusercontent.com/alphabravo2k-rgb/pixel-palace-registration/1a7d90c43796fd037316bdaf4f3b4de9a485d615/image_4379f9.png",
+
+  // 🌐 SOCIAL & COMMUNITY LINKS
   discord: "https://discord.gg/JdXheQbvec",
   twitch: "https://www.twitch.tv/pXpLgg",
-  support: "mailto:support@pixelpalace.gg"
+  twitter: "#",
+  supportEmail: "support@pixelpalace.gg",
+
+  // 📅 METADATA
+  copyrightYear: new Date().getFullYear(),
+  
+  // 🎨 FALLBACK THEME
+  // These are the colors used if the Database connection is slow or fails.
+  // Matches the defaults in index.css
+  fallbackColors: {
+    primary: '#c026d3', // Fuchsia 600
+    dim: '#701a75',     // Fuchsia 900
+    glow: '#e879f9'     // Fuchsia 400
+  }
 };

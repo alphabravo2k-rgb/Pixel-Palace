@@ -139,7 +139,7 @@ const TeamCard = ({ team, onEdit }) => {
   );
 };
 
-// --- EDIT MODAL (With Manual ELO Sync) ---
+// --- SMART EDIT MODAL (Hybrid Upgrade) ---
 const EditTeamModal = ({ team, onClose, onRefresh }) => {
   const [meta, setMeta] = useState({
     name: team?.name||'', logo_url: team?.logo_url||'', region: team?.region||'PAK',
@@ -148,7 +148,6 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
     voice_channel_url: team?.voice_channel_url||''
   });
   
-  // Normalize members for form state
   const [members, setMembers] = useState(team?.members.map(m => ({
       username: m.username, 
       role: normalizeRole(m.role).toUpperCase(), 
@@ -174,6 +173,60 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
       setMembers(members.filter((_, i) => i !== idx));
   };
 
+  // ⚡ SMART SYNC: Handles Nickname OR Full URL Input
+  const handleSmartSync = async (idx) => {
+      const member = members[idx];
+      // Logic: User can type name "-BRAVO-" OR paste URL "https://faceit.com/players/-BRAVO-"
+      let faceitInput = member.username || '';
+      let faceitNickname = faceitInput;
+
+      // 1. Detect if it's a URL
+      if (faceitInput.includes('faceit.com')) {
+          // Extract nickname from URL
+          const parts = faceitInput.split('/');
+          // Get last part, ignoring trailing slash
+          faceitNickname = parts.pop() || parts.pop(); 
+          // Clean query params just in case
+          faceitNickname = faceitNickname.split('?')[0];
+      }
+
+      if(!faceitNickname) { toast.error("Enter a Username or Faceit URL first."); return; }
+
+      const toastId = toast.loading(`Enriching data for ${faceitNickname}...`);
+
+      try {
+          // 2. Fetch Basic Profile
+          const res = await fetch(`https://open.faceit.com/data/v4/players?nickname=${faceitNickname}`, {
+              headers: { 'Authorization': 'Bearer a77d0763-5fdd-4bde-a8a5-6e840408de2e' } // Demo API Key
+          });
+          
+          if(!res.ok) throw new Error("Player not found on Faceit");
+          
+          const data = await res.json();
+          
+          // 3. Extract Data
+          const realName = data.nickname;
+          const newElo = data.games?.cs2?.faceit_elo || data.games?.csgo?.faceit_elo || 1000;
+          const faceitUrl = data.faceit_url.replace('{lang}', 'en');
+          const steamId64 = data.steam_id_64;
+          const steamUrl = steamId64 ? `https://steamcommunity.com/profiles/${steamId64}` : member.steam;
+
+          // 4. Update State (Overwrite local fields)
+          const updated = [...members];
+          updated[idx].username = realName; // Correct the name field
+          updated[idx].elo = newElo;
+          updated[idx].faceit = faceitUrl;
+          updated[idx].steam = steamUrl; // Auto-fill Steam if missing
+          
+          setMembers(updated);
+          toast.success(`Found ${realName}: ${newElo} ELO`, { id: toastId });
+
+      } catch(e) {
+          console.error(e);
+          toast.error(`Sync Error: ${e.message}`, { id: toastId });
+      }
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -194,42 +247,19 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
       if (error) throw error;
       if (data && !data.success) throw new Error(data.message);
 
-      toast.success("Team Database Updated");
+      toast.success("Roster Updated Successfully");
       onRefresh(); 
       onClose();
     } catch(e) { 
         console.error(e);
-        toast.error("Save Failed: " + e.message); 
+        if (e.message.includes('faceit_url_key')) {
+            toast.error("DATABASE CONFLICT: One of these Faceit URLs is already used by another player.");
+        } else {
+            toast.error("Save Failed: " + e.message); 
+        }
     } finally { 
         setSaving(false); 
     }
-  };
-
-  // ⚡ MANUAL ELO SYNC FUNCTION
-  const handleForceSync = async (idx) => {
-      const member = members[idx];
-      let faceitName = member.faceit ? member.faceit.split('/').pop() : member.username;
-      
-      if(!faceitName) { toast.error("No Faceit URL or Username to check."); return; }
-
-      const toastId = toast.loading(`Checking Faceit for ${faceitName}...`);
-
-      try {
-          // Note: Ideally move to Edge Function. Keeping logic as per request.
-          const res = await fetch(`https://open.faceit.com/data/v4/players?nickname=${faceitName}`, {
-              headers: { 'Authorization': 'Bearer a77d0763-5fdd-4bde-a8a5-6e840408de2e' } 
-          });
-          
-          if(!res.ok) throw new Error("Player not found");
-          
-          const data = await res.json();
-          const newElo = data.games?.cs2?.faceit_elo || data.games?.csgo?.faceit_elo || 1000;
-
-          updateMember(idx, 'elo', newElo);
-          toast.success(`${faceitName} updated to ${newElo} ELO`, { id: toastId });
-      } catch(e) {
-          toast.error(`Sync Error: ${e.message}`, { id: toastId });
-      }
   };
 
   return (
@@ -321,36 +351,54 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
               
               {members.length < 5 && <div className="text-[10px] text-red-500 flex items-center gap-1 mb-2 bg-red-900/10 p-2 rounded border border-red-900/30"><AlertTriangle size={10}/> Team needs at least 5 players to be eligible.</div>}
 
-              {/*  */}
-
               <div className="flex gap-2 px-3 py-1 text-[9px] uppercase font-bold text-zinc-500">
-                  <div className="w-32">Display Name</div>
+                  <div className="w-32">Display Name / Paste URL</div>
                   <div className="w-24">Role</div>
-                  <div className="w-24 text-center">ELO / Sync</div>
+                  <div className="w-24 text-center">ELO / Auto-Fill</div>
                   <div className="flex-1">Identity Links (Steam / Discord / Faceit)</div>
                   <div className="w-6"></div>
               </div>
 
               {members.map((m, idx) => (
                  <div key={idx} className="flex flex-col md:flex-row gap-2 items-center bg-zinc-900/50 p-2 rounded border border-zinc-800 hover:border-zinc-600 transition-colors">
-                    <div className="w-full md:w-32">
-                        <input value={m.username} onChange={e => updateMember(idx, 'username', e.target.value)} className="w-full bg-black border border-zinc-700 p-1.5 text-white rounded text-xs font-bold focus:border-brand outline-none" placeholder="Nickname" />
+                    {/* INPUT: NAME / URL */}
+                    <div className="w-full md:w-32 relative group">
+                        <input 
+                            value={m.username} 
+                            onChange={e => updateMember(idx, 'username', e.target.value)} 
+                            className="w-full bg-black border border-zinc-700 p-1.5 text-white rounded text-xs font-bold focus:border-brand outline-none" 
+                            placeholder="Nick or URL..." 
+                        />
+                        {/* ⚡ THE MAGIC BUTTON (Visible on Hover) */}
+                        <button 
+                            onClick={() => handleSmartSync(idx)}
+                            className="absolute right-1 top-1/2 -translate-y-1/2 p-1 text-zinc-500 hover:text-brand bg-zinc-900 rounded opacity-0 group-hover:opacity-100 transition-all"
+                            title="Auto-Fill details from Faceit"
+                        >
+                            <RefreshCw size={10} />
+                        </button>
                     </div>
+
                     <div className="w-full md:w-24">
                         <select value={m.role} onChange={e => updateMember(idx, 'role', e.target.value)} className="w-full bg-black border border-zinc-700 p-1.5 text-white rounded text-xs uppercase focus:border-brand outline-none">
-                            <option>CAPTAIN</option><option>PLAYER</option><option>SUBSTITUTE</option>
+                            <option value="CAPTAIN">CAPTAIN</option>
+                            <option value="PLAYER">PLAYER</option>
+                            <option value="SUBSTITUTE">SUBSTITUTE</option>
                         </select>
                     </div>
+
                     <div className="w-full md:w-24 flex gap-1">
                         <input type="number" value={m.elo} onChange={e => updateMember(idx, 'elo', e.target.value)} className="w-full bg-black border border-zinc-700 p-1.5 text-yellow-500 text-center rounded text-xs font-mono" placeholder="ELO" />
-                        <button onClick={() => handleForceSync(idx)} className="bg-zinc-800 hover:bg-zinc-700 text-zinc-400 p-1.5 rounded" title="Force Sync ELO"><RefreshCw size={12}/></button>
+                        <button onClick={() => handleSmartSync(idx)} className="bg-zinc-800 hover:bg-zinc-700 text-zinc-400 p-1.5 rounded" title="Force Sync"><RefreshCw size={12}/></button>
                     </div>
+
                     <div className="flex-1 grid grid-cols-3 gap-2 w-full">
                         <div className="relative"><Monitor className="absolute left-2 top-2 w-3 h-3 text-zinc-600"/><input value={m.steam} onChange={e => updateMember(idx, 'steam', e.target.value)} className="w-full bg-black border border-zinc-700 pl-7 p-1.5 text-zinc-300 rounded text-[10px] focus:border-blue-500 outline-none" placeholder="Steam URL" /></div>
-                        <div className="relative"><Mic className="absolute left-2 top-2 w-3 h-3 text-zinc-600"/><input value={m.discord} onChange={e => updateMember(idx, 'discord', e.target.value)} className="w-full bg-black border border-zinc-700 pl-7 p-1.5 text-zinc-300 rounded text-[10px] focus:border-indigo-500 outline-none" placeholder="Discord ID/Handle" /></div>
+                        <div className="relative"><Mic className="absolute left-2 top-2 w-3 h-3 text-zinc-600"/><input value={m.discord} onChange={e => updateMember(idx, 'discord', e.target.value)} className="w-full bg-black border border-zinc-700 pl-7 p-1.5 text-zinc-300 rounded text-[10px] focus:border-indigo-500 outline-none" placeholder="Discord" /></div>
                         <div className="relative"><Gamepad2 className="absolute left-2 top-2 w-3 h-3 text-zinc-600"/><input value={m.faceit} onChange={e => updateMember(idx, 'faceit', e.target.value)} className="w-full bg-black border border-zinc-700 pl-7 p-1.5 text-zinc-300 rounded text-[10px] focus:border-orange-500 outline-none" placeholder="Faceit URL" /></div>
                     </div>
-                    <button onClick={() => removeMember(idx)} className="text-zinc-600 hover:text-red-500 p-1.5 transition-colors" title="Remove Player"><Trash2 size={14}/></button>
+                    
+                    <button onClick={() => removeMember(idx)} className="text-zinc-600 hover:text-red-500 p-1.5 transition-colors" title="Remove"><Trash2 size={14}/></button>
                  </div>
               ))}
            </div>

@@ -1,64 +1,92 @@
-import { PERM_CAPABILITIES } from './permissions.actions';
-
 /**
- * ROLE CAPABILITY MATRIX (RBAC)
- * The ONLY place where roles are assigned permissions.
+ * 🛡️ ROLE & PERMISSION MATRIX (RBAC)
+ * The central brain for security checks.
  */
 
+// 1. DEFINITIONS (Aligned with DB)
 export const ROLES = {
-  OWNER: 'OWNER',
-  ADMIN: 'ADMIN',
-  REFEREE: 'REFEREE',
-  CAPTAIN: 'CAPTAIN',
-  PLAYER: 'PLAYER',
-  GUEST: 'GUEST'
+  OWNER: 'owner',     // Full Access
+  ADMIN: 'admin',     // Tournament Ops
+  CREW: 'crew',       // Read-Only Staff (Casters/Observers)
+  CAPTAIN: 'captain', // Team Leader
+  PLAYER: 'player',   // Regular User
+  GUEST: 'guest'      // Unauthenticated
 };
 
-// Define capabilities for each role
+// 2. CAPABILITIES (What can they do?)
+export const PERMISSIONS = {
+  // Admin Powers
+  VIEW_ADMIN_DASHBOARD: 'view_admin_dashboard',
+  MANAGE_TOURNAMENT: 'manage_tournament',   // Start/Stop, Settings
+  MANAGE_MATCH: 'manage_match',             // War Room: Set Scores, Servers
+  OVERRIDE_MATCH: 'override_match',         // Force Win, Revert Round
+  VIEW_HIDDEN_DATA: 'view_hidden_data',     // See Server Passwords/IPs
+  
+  // User Powers
+  ACT_AS_CAPTAIN: 'act_as_captain',
+  REPORT_SCORE: 'report_score',
+  EDIT_ROSTER: 'edit_roster'
+};
+
+// 3. THE MATRIX (Who gets what?)
 export const ROLE_CAPABILITIES = {
   [ROLES.OWNER]: [
-    PERM_CAPABILITIES.MANAGE_TOURNAMENT,
-    PERM_CAPABILITIES.VIEW_HIDDEN_DATA,
-    PERM_CAPABILITIES.MANAGE_MATCH,
-    PERM_CAPABILITIES.OVERRIDE_MATCH,
-    PERM_CAPABILITIES.EDIT_ROSTER,
-    PERM_CAPABILITIES.VIEW_ADMIN_DASHBOARD
+    PERMISSIONS.VIEW_ADMIN_DASHBOARD,
+    PERMISSIONS.MANAGE_TOURNAMENT,
+    PERMISSIONS.MANAGE_MATCH,
+    PERMISSIONS.OVERRIDE_MATCH,
+    PERMISSIONS.VIEW_HIDDEN_DATA,
+    PERMISSIONS.EDIT_ROSTER
   ],
   [ROLES.ADMIN]: [
-    PERM_CAPABILITIES.MANAGE_TOURNAMENT,
-    PERM_CAPABILITIES.MANAGE_MATCH,
-    PERM_CAPABILITIES.OVERRIDE_MATCH,
-    PERM_CAPABILITIES.VIEW_HIDDEN_DATA,
-    PERM_CAPABILITIES.VIEW_ADMIN_DASHBOARD
+    PERMISSIONS.VIEW_ADMIN_DASHBOARD,
+    PERMISSIONS.MANAGE_TOURNAMENT,
+    PERMISSIONS.MANAGE_MATCH,
+    PERMISSIONS.OVERRIDE_MATCH,
+    PERMISSIONS.VIEW_HIDDEN_DATA
   ],
-  [ROLES.REFEREE]: [
-    PERM_CAPABILITIES.MANAGE_MATCH, 
-    PERM_CAPABILITIES.VIEW_ADMIN_DASHBOARD
+  [ROLES.CREW]: [
+    PERMISSIONS.VIEW_ADMIN_DASHBOARD, // Can see dashboard
+    PERMISSIONS.VIEW_HIDDEN_DATA      // Can see IPs (for Casting)
+    // Cannot Edit/Manage matches
   ],
   [ROLES.CAPTAIN]: [
-    PERM_CAPABILITIES.ACT_AS_CAPTAIN,
-    PERM_CAPABILITIES.REPORT_SCORE,
-    PERM_CAPABILITIES.EDIT_ROSTER
+    PERMISSIONS.ACT_AS_CAPTAIN,
+    PERMISSIONS.REPORT_SCORE,
+    PERMISSIONS.EDIT_ROSTER
   ],
   [ROLES.PLAYER]: [],
   [ROLES.GUEST]: []
 };
 
-// UI Themes for Roles (Used by AdminToolbar)
+// 4. UI THEMES (For Badges & Toolbars)
 export const ROLE_THEMES = {
-  OWNER: { color: 'text-yellow-500', bg: 'bg-yellow-500/10', border: 'border-yellow-500/50', label: 'Owner' },
-  ADMIN: { color: 'text-fuchsia-500', bg: 'bg-fuchsia-500/10', border: 'border-fuchsia-500/50', label: 'Admin' },
-  REFEREE: { color: 'text-orange-500', bg: 'bg-orange-500/10', border: 'border-orange-500/50', label: 'Referee' },
-  CAPTAIN: { color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/50', label: 'Captain' },
-  GUEST: { color: 'text-zinc-500', bg: 'bg-zinc-800', border: 'border-zinc-700', label: 'Guest' }
+  owner:   { color: 'text-yellow-500', bg: 'bg-yellow-500/10', border: 'border-yellow-500/50', label: 'Owner' },
+  admin:   { color: 'text-brand-glow', bg: 'bg-brand/10',      border: 'border-brand/50',      label: 'Admin' },
+  crew:    { color: 'text-blue-400',   bg: 'bg-blue-500/10',   border: 'border-blue-500/50',   label: 'Crew' },
+  captain: { color: 'text-emerald-400',bg: 'bg-emerald-500/10',border: 'border-emerald-500/50',label: 'Captain' },
+  player:  { color: 'text-zinc-400',   bg: 'bg-zinc-800',      border: 'border-zinc-700',      label: 'Player' },
+  guest:   { color: 'text-zinc-600',   bg: 'bg-transparent',   border: 'border-transparent',   label: 'Guest' }
 };
 
+// 5. HELPER: Normalize DB values to constants
 export const normalizeRole = (role) => {
-  if (!role) return ROLES.PLAYER;
-  const r = role.toString().trim().toUpperCase();
-  if (['CAPTAIN', 'CAPT', 'IGL'].includes(r)) return ROLES.CAPTAIN;
-  if (['ADMIN', 'OFFICER'].includes(r)) return ROLES.ADMIN;
-  if (['OWNER', 'HOST'].includes(r)) return ROLES.OWNER;
-  if (['REFEREE', 'REF'].includes(r)) return ROLES.REFEREE;
-  return ROLES.PLAYER;
+  if (!role) return ROLES.GUEST;
+  
+  const r = role.toString().trim().toLowerCase(); // Always force lowercase
+  
+  if (['owner', 'host', 'founder'].includes(r)) return ROLES.OWNER;
+  if (['admin', 'administrator', 'mod'].includes(r)) return ROLES.ADMIN;
+  if (['crew', 'referee', 'observer', 'caster'].includes(r)) return ROLES.CREW;
+  if (['captain', 'igl', 'leader'].includes(r)) return ROLES.CAPTAIN;
+  if (['player', 'member', 'user'].includes(r)) return ROLES.PLAYER;
+  
+  return ROLES.GUEST;
+};
+
+// 6. HELPER: Check Permission
+export const hasPermission = (userRole, permission) => {
+    const normalized = normalizeRole(userRole);
+    const caps = ROLE_CAPABILITIES[normalized] || [];
+    return caps.includes(permission);
 };

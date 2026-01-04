@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://mbejyfwiuphpktospkga.supabase.co wss://mbejyfwiuphpktospkga.supabase.co https://api.iconify.design; img-src * data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:;" />
     
@@ -12,12 +12,36 @@
     <meta property="og:title" content="Pixel Palace | Tournament Command" />
     <meta property="og:description" content="Official Tournament Operations & Bracket Management System." />
     <meta property="og:image" content="https://raw.githubusercontent.com/alphabravo2k-rgb/pixel-palace-registration/1a7d90c43796fd037316bdaf4f3b4de9a485d615/image_4379f9.png" />
-    <meta name="theme-color" content="#c026d3" /> <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <meta name="theme-color" content="#c026d3" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Teko:wght@300..700&family=Inter:wght@400;600&display=swap" rel="stylesheet" />
+
+    <style>
+      body { margin: 0; background-color: #050505; color: white; }
+      .initial-loader {
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        height: 100vh; width: 100vw; font-family: 'Courier New', Courier, monospace;
+      }
+      .spinner {
+        width: 40px; height: 40px; border: 3px solid rgba(192, 38, 211, 0.3);
+        border-radius: 50%; border-top-color: #c026d3;
+        animation: spin 1s ease-in-out infinite; margin-bottom: 20px;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      .status-text { font-size: 0.8rem; color: #52525b; letter-spacing: 0.1em; animation: pulse 2s infinite; }
+      @keyframes pulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+    </style>
   </head>
-  <body class="bg-[#050505] text-white min-h-screen selection:bg-fuchsia-500/30">
-    <div id="root"></div>
+  
+  <body class="bg-bg text-gray-100 min-h-screen selection:bg-brand/30 selection:text-brand-glow">
+    <div id="root">
+      <div class="initial-loader">
+        <div class="spinner"></div>
+        <div class="status-text">INITIALIZING UPLINK...</div>
+      </div>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

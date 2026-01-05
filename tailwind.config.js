@@ -7,6 +7,7 @@ export default {
   ],
   
   // 🛡️ SAFETY: Prevent purging of dynamic status classes used in React components
+  // This ensures classes like 'bg-status-win' or 'text-brand' always exist
   safelist: [
     {
       pattern: /(bg|text|border|ring)-status-(win|loss|draw|active)/,
@@ -14,7 +15,7 @@ export default {
     },
     {
         pattern: /(bg|text|border)-brand/,
-        variants: ['hover']
+        variants: ['hover', 'focus']
     }
   ],
 
@@ -40,9 +41,9 @@ export default {
           highlight: '#52525b', // Text Secondary (Zinc-600)
         },
         status: {
-          win: '#10b981',   // Emerald-500
-          loss: '#ef4444',  // Red-500
-          draw: '#eab308',  // Yellow-500
+          win: '#10b981',    // Emerald-500
+          loss: '#ef4444',   // Red-500
+          draw: '#eab308',   // Yellow-500
           active: '#3b82f6', // Blue-500
         }
       },

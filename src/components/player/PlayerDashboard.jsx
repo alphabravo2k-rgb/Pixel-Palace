@@ -5,31 +5,28 @@ import { useNavigate } from 'react-router-dom';
 import { 
     Shield, Swords, Clock, LogOut, CheckCircle, Trophy, RefreshCw, 
     Users, Map as MapIcon, Mic, Monitor, Gamepad2, Calendar, 
-    AlertTriangle, User, Save, Link as LinkIcon, Globe
+    AlertTriangle, User, Save, Globe, Cpu, Activity
 } from 'lucide-react';
 import { MatchModal } from '../MatchModal'; 
 import { BracketView } from '../BracketView'; 
 import { cn } from '../../lib/utils';
 import { toast } from 'react-hot-toast';
 
-// --- HELPER: HAMMER TIME (Automatic Local Timezone) ---
+// --- HELPERS ---
 const getUserTimezone = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 const formatMatchTime = (isoString) => {
     if (!isoString) return 'TBD';
     const date = new Date(isoString);
     return new Intl.DateTimeFormat(undefined, {
-        month: 'short', 
-        day: 'numeric',
-        hour: 'numeric', 
-        minute: '2-digit',
-        hour12: true 
+        weekday: 'short', month: 'short', day: 'numeric',
+        hour: 'numeric', minute: '2-digit', hour12: true 
     }).format(date);
 };
 
 // --- SUB-COMPONENT: PLAYER PROFILE EDITOR ---
-const PlayerProfileEditor = ({ identity, onUpdate }) => {
-    // Local state for form inputs
+const PlayerProfileEditor = ({ identity, userId, onUpdate }) => {
+    // If no identity exists, we default to empty strings to allow creation
     const [form, setForm] = useState({
         display_name: identity?.display_name || '',
         discord_handle: identity?.discord_handle || '',
@@ -38,34 +35,24 @@ const PlayerProfileEditor = ({ identity, onUpdate }) => {
     });
     const [saving, setSaving] = useState(false);
 
-    // Update form when identity prop changes (e.g. initial load)
-    useEffect(() => {
-        if (identity) {
-            setForm({
-                display_name: identity.display_name || '',
-                discord_handle: identity.discord_handle || '',
-                steam_url: identity.steam_url || '',
-                faceit_url: identity.faceit_url || ''
-            });
-        }
-    }, [identity]);
-
     const handleSave = async () => {
         setSaving(true);
         try {
+            // Upsert: Works for both Update AND Create (First-time Link)
             const { error } = await supabase
                 .from('global_identities')
-                .update({
-                    display_name: form.display_name,
+                .upsert({
+                    id: userId, // CRITICAL: Use the Auth ID
+                    display_name: form.display_name || 'Operator',
                     discord_handle: form.discord_handle,
                     steam_url: form.steam_url,
-                    faceit_url: form.faceit_url
-                })
-                .eq('id', identity.id);
+                    faceit_url: form.faceit_url,
+                    updated_at: new Date().toISOString()
+                });
 
             if (error) throw error;
-            toast.success("Profile Updated");
-            onUpdate(); // Refresh parent
+            toast.success("Identity Record Updated");
+            onUpdate(); 
         } catch (e) {
             toast.error("Update Failed: " + e.message);
         } finally {
@@ -76,25 +63,30 @@ const PlayerProfileEditor = ({ identity, onUpdate }) => {
     return (
         <div className="max-w-2xl mx-auto bg-[#0b0c0f] border border-zinc-800 rounded-xl p-8 animate-in fade-in slide-in-from-bottom-4">
             <div className="flex items-center gap-4 mb-8 border-b border-white/5 pb-6">
-                <div className="w-16 h-16 bg-fuchsia-900/10 rounded-full flex items-center justify-center border border-fuchsia-500/20">
-                    <User className="w-8 h-8 text-fuchsia-500" />
+                <div className="w-16 h-16 bg-brand/10 rounded-full flex items-center justify-center border border-brand/20 shadow-[0_0_15px_rgba(var(--color-brand)/0.2)]">
+                    <User className="w-8 h-8 text-brand" />
                 </div>
                 <div>
-                    <h2 className="text-xl font-display font-black text-white uppercase italic">Operator Profile</h2>
-                    <p className="text-xs text-zinc-500 font-mono">ID: {identity?.id?.split('-')[0]}...</p>
+                    <h2 className="text-xl font-display font-black text-white uppercase italic">
+                        {identity ? 'Operator Profile' : 'Initialize Identity'}
+                    </h2>
+                    <p className="text-xs text-zinc-500 font-mono flex items-center gap-2">
+                        ID: <span className="bg-zinc-900 px-1 rounded">{userId?.split('-')[0]}...</span>
+                        {!identity && <span className="text-brand animate-pulse">● ACTION REQUIRED</span>}
+                    </p>
                 </div>
             </div>
 
             <div className="space-y-6">
                 <div className="group">
-                    <label className="text-[10px] uppercase font-bold text-zinc-500 mb-1 block group-focus-within:text-fuchsia-500 transition-colors">Display Name</label>
+                    <label className="text-[10px] uppercase font-bold text-zinc-500 mb-1 block group-focus-within:text-brand transition-colors">Callsign (Display Name)</label>
                     <div className="relative">
                         <User className="absolute left-3 top-2.5 w-4 h-4 text-zinc-600" />
                         <input 
                             value={form.display_name} 
                             onChange={e => setForm({...form, display_name: e.target.value})} 
-                            className="w-full bg-black border border-zinc-800 rounded pl-10 pr-4 py-2 text-white text-sm focus:border-fuchsia-500 outline-none transition-all"
-                            placeholder="Your In-Game Name"
+                            className="w-full bg-black border border-zinc-800 rounded pl-10 pr-4 py-2 text-white text-sm focus:border-brand outline-none transition-all placeholder:text-zinc-700"
+                            placeholder="Enter In-Game Name..."
                         />
                     </div>
                 </div>
@@ -142,10 +134,10 @@ const PlayerProfileEditor = ({ identity, onUpdate }) => {
                     <button 
                         onClick={handleSave} 
                         disabled={saving}
-                        className="px-6 py-2 bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-bold uppercase text-xs rounded flex items-center gap-2 transition-all disabled:opacity-50"
+                        className="px-6 py-2 bg-brand hover:bg-brand-glow text-white font-bold uppercase text-xs rounded flex items-center gap-2 transition-all disabled:opacity-50 shadow-lg shadow-brand/10"
                     >
                         {saving ? <RefreshCw className="animate-spin w-4 h-4" /> : <Save className="w-4 h-4" />}
-                        Save Profile
+                        {identity ? 'Update Credentials' : 'Initialize Profile'}
                     </button>
                 </div>
             </div>
@@ -164,17 +156,20 @@ const SocialBadge = ({ icon: Icon, link, color, label }) => {
 };
 
 const TeammateRow = ({ member }) => (
-    <div className="flex items-center justify-between p-3 bg-white/5 rounded border border-white/5 hover:border-white/10 transition-all">
+    <div className="flex items-center justify-between p-3 bg-white/5 rounded border border-white/5 hover:border-white/10 transition-all group">
         <div className="flex items-center gap-3">
-            <div className={`w-8 h-8 rounded flex items-center justify-center text-xs font-black uppercase ${member.role === 'captain' ? 'bg-fuchsia-900/40 text-fuchsia-400 border border-fuchsia-500/30' : 'bg-zinc-800 text-zinc-500'}`}>
+            <div className={`w-10 h-10 rounded flex items-center justify-center text-sm font-black uppercase ${member.role === 'captain' ? 'bg-fuchsia-900/40 text-fuchsia-400 border border-fuchsia-500/30' : 'bg-zinc-800 text-zinc-500'}`}>
                 {member.username.substring(0, 1)}
             </div>
             <div>
-                <div className="text-sm font-bold text-white leading-none">{member.username}</div>
+                <div className="text-sm font-bold text-white leading-none flex items-center gap-2">
+                    {member.username}
+                    {!member.user_id && <span className="text-[8px] bg-zinc-800 text-zinc-500 px-1 rounded uppercase font-mono">Ghost</span>}
+                </div>
                 <div className="text-[9px] text-zinc-500 uppercase tracking-wider font-mono mt-1">{member.role}</div>
             </div>
         </div>
-        <div className="flex gap-1">
+        <div className="flex gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
             <SocialBadge icon={Monitor} link={member.steam_url} color="text-blue-400 hover:bg-blue-600" label="Steam" />
             <SocialBadge icon={Gamepad2} link={member.faceit_url} color="text-orange-500 hover:bg-orange-600" label="Faceit" />
             <SocialBadge icon={Mic} link={member.discord_handle ? `https://discord.com/users/${member.discord_handle}` : null} color="text-indigo-400 hover:bg-indigo-600" label="Discord" />
@@ -194,7 +189,7 @@ export const PlayerDashboard = () => {
   const [isMatchModalOpen, setMatchModalOpen] = useState(false);
   const [isReady, setIsReady] = useState(false); 
 
-  // 1. Identity Logic (Simplified to avoid loops)
+  // 1. Identity Logic
   const teamId = session?.identity?.team_id || session?.team_id || session?.user?.user_metadata?.team_id;
   const currentUserId = session?.identity?.id || session?.user?.id;
 
@@ -203,8 +198,9 @@ export const PlayerDashboard = () => {
     if (!teamId) { setLoading(false); return; }
     
     try {
-      // A. Fetch Team & Roster
-      const { data: teamData } = await supabase
+      // A. Fetch Team & Roster (LEFT JOIN for Safety)
+      // We use !inner on teams to ensure we have a team, but left join on members
+      const { data: teamData, error: teamError } = await supabase
         .from('teams')
         .select(`
             *, 
@@ -220,12 +216,13 @@ export const PlayerDashboard = () => {
           const formattedMembers = (teamData.team_members || []).map(m => ({
               id: m.id,
               user_id: m.user_id, // Important for Profile Tab
+              // FALLBACK: If global_identities is null, use placeholder
               username: m.global_identities?.display_name || 'Unknown Operator',
               role: m.role,
               steam_url: m.global_identities?.steam_url,
               faceit_url: m.global_identities?.faceit_url,
               discord_handle: m.global_identities?.discord_handle,
-              profile_data: m.global_identities // Pass full object for editor
+              profile_data: m.global_identities // might be null
           })).sort((a,b) => a.role === 'captain' ? -1 : 1);
           
           setMyTeam({ ...teamData, members: formattedMembers });
@@ -269,8 +266,16 @@ export const PlayerDashboard = () => {
 
   // Safe Profile Finder
   const myProfileData = myTeam?.members?.find(
-      m => m.user_id === currentUserId || (m.profile_data?.id === currentUserId)
+      m => m.user_id === currentUserId
   )?.profile_data;
+
+  // Auto-switch to PROFILE if identity is missing
+  useEffect(() => {
+      if (!loading && myTeam && !myProfileData && activeTab === 'OVERVIEW') {
+          // Optional: Force them to setup profile? For now, just a toast.
+          // toast('Please set up your operator profile', { icon: '👋' });
+      }
+  }, [loading, myTeam, myProfileData]);
 
   if (loading) return (
       <div className="min-h-screen bg-bg flex items-center justify-center flex-col gap-4">
@@ -293,9 +298,9 @@ export const PlayerDashboard = () => {
                       {myTeam?.name || 'OPERATOR DASHBOARD'}
                   </h1>
                   <div className="flex items-center gap-2 mt-0.5">
-                      <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"/>
+                      <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${myProfileData ? 'bg-emerald-500' : 'bg-yellow-500'}`}/>
                       <span className="text-[9px] text-zinc-500 font-mono uppercase tracking-widest">
-                          ONLINE // {myProfileData?.display_name || session?.user?.email}
+                          {myProfileData ? `ONLINE // ${myProfileData.display_name}` : 'UNREGISTERED IDENTITY'}
                       </span>
                   </div>
               </div>
@@ -361,6 +366,7 @@ export const PlayerDashboard = () => {
                                       
                                       <div className="flex flex-col items-center">
                                           <span className="text-4xl font-black text-zinc-700 italic">VS</span>
+                                          {/* ✅ TIMEZONE FIX: Shows Date and Local Time */}
                                           {activeMatch.scheduled_at && (
                                               <div className="flex flex-col items-center mt-4">
                                                   <div className="flex items-center gap-2 bg-fuchsia-950/30 px-3 py-1.5 rounded border border-fuchsia-500/20" title={`Your Timezone: ${getUserTimezone()}`}>
@@ -426,7 +432,7 @@ export const PlayerDashboard = () => {
                                   myTeam.members.slice(0,5).map(member => (
                                       <div key={member.id} className="flex justify-between items-center text-sm">
                                           <div className="flex items-center gap-2">
-                                              <div className={`w-2 h-2 rounded-full ${member.id ? 'bg-emerald-500 shadow-[0_0_5px_#10b981]' : 'bg-zinc-700'}`}></div>
+                                              <div className={`w-2 h-2 rounded-full ${member.profile_data ? 'bg-emerald-500 shadow-[0_0_5px_#10b981]' : 'bg-yellow-500'}`}></div>
                                               <span className="text-zinc-300 font-bold">{member.username}</span>
                                           </div>
                                           {member.role === 'captain' && <Shield size={10} className="text-fuchsia-500"/>}
@@ -444,12 +450,10 @@ export const PlayerDashboard = () => {
                       <div className="mt-auto pt-6 border-t border-white/5">
                           <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-3">Quick Actions</h3>
                           <div className="grid grid-cols-2 gap-2">
-                              {myTeam?.voice_channel_url && (
-                                  <a href={myTeam.voice_channel_url} target="_blank" className="p-3 bg-[#5865F2]/10 border border-[#5865F2]/30 rounded text-[#5865F2] hover:bg-[#5865F2] hover:text-white transition-all flex items-center justify-center" title="Discord Voice">
-                                      <Mic size={16}/>
-                                  </a>
-                              )}
-                              <button onClick={() => setActiveTab('BRACKET')} className="p-3 bg-zinc-800 border border-zinc-700 rounded text-zinc-400 hover:text-white hover:bg-zinc-700 transition-all flex items-center justify-center gap-2 col-span-2 text-[10px] font-bold uppercase">
+                              <button onClick={() => setActiveTab('PROFILE')} className="p-3 bg-zinc-800 border border-zinc-700 rounded text-zinc-400 hover:text-white hover:bg-zinc-700 transition-all flex items-center justify-center gap-2 text-[10px] font-bold uppercase">
+                                  <User size={14}/> My Profile
+                              </button>
+                              <button onClick={() => setActiveTab('BRACKET')} className="p-3 bg-zinc-800 border border-zinc-700 rounded text-zinc-400 hover:text-white hover:bg-zinc-700 transition-all flex items-center justify-center gap-2 text-[10px] font-bold uppercase">
                                   <MapIcon size={14}/> View Bracket
                               </button>
                           </div>
@@ -480,18 +484,14 @@ export const PlayerDashboard = () => {
               </div>
           )}
 
-          {/* === TAB 4: PROFILE (NEW) === */}
+          {/* === TAB 4: PROFILE (NEW & FIXED) === */}
           {activeTab === 'PROFILE' && (
-              myProfileData ? (
-                  <PlayerProfileEditor identity={myProfileData} onUpdate={fetchData} />
-              ) : (
-                  <div className="text-center p-12 text-zinc-500 font-mono text-xs uppercase flex flex-col items-center">
-                      <AlertTriangle className="mb-4 w-8 h-8 text-yellow-500/50"/>
-                      <span className="font-bold text-white mb-2">Profile Not Linked</span>
-                      <p className="max-w-md mx-auto mb-4">Your current session is not linked to a player profile in this team. This usually happens if you were added manually by a captain without an account.</p>
-                      <p className="text-[10px]">Contact your Team Captain or Admin to link your account.</p>
-                  </div>
-              )
+              // We pass currentUserId to ensure we edit OUR profile, even if not linked perfectly yet
+              <PlayerProfileEditor 
+                  identity={myProfileData} 
+                  userId={currentUserId} 
+                  onUpdate={fetchData} 
+              />
           )}
 
       </div>

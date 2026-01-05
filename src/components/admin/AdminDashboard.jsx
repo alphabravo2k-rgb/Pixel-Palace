@@ -2,12 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../supabase/client';
 import { 
   Shield, Activity, Users, AlertTriangle, 
-  Layout, Sword, FileText
+  Layout, Sword, FileText, UserCircle 
 } from 'lucide-react';
 import { AdminToolbar } from './AdminToolbar';
 import { TeamRosterView } from './TeamRosterView';
 import { StaffManagement } from './StaffManagement';
-import BracketView from '../BracketView'; // ✅ FIXED: Default Import
+import AdminProfile from './AdminProfile'; // ✅ NEW: Import the profile component
+import BracketView from '../BracketView'; 
 import StatsCard from '../StatsCard';
 import { MatchWarRoom } from './MatchWarRoom';
 import { formatDistanceToNow } from 'date-fns';
@@ -28,7 +29,6 @@ export const AdminDashboard = () => {
   // 1. DATA FETCHING (Intel Feed)
   const fetchDashboardIntel = async () => {
     try {
-        // Fetch stats and active matches
         const [teamsRes, matchesRes, logsRes] = await Promise.all([
             supabase.from('teams').select('id', { count: 'exact', head: true }),
             supabase.from('matches')
@@ -56,7 +56,7 @@ export const AdminDashboard = () => {
 
   useEffect(() => {
       fetchDashboardIntel();
-      const interval = setInterval(fetchDashboardIntel, 15000); // Poll every 15s
+      const interval = setInterval(fetchDashboardIntel, 15000); 
       return () => clearInterval(interval);
   }, []);
 
@@ -69,11 +69,12 @@ export const AdminDashboard = () => {
             return <TeamRosterView />;
           case 'STAFF': 
             return <StaffManagement />;
+          case 'PROFILE': // ✅ NEW: Profile Tab Case
+            return <AdminProfile />;
           case 'OVERVIEW':
           default:
               return (
                 <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2">
-                    {/* STATS ROW */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <StatsCard title="Active Operations" value={stats.matches} icon={Activity} color="text-blue-400" />
                         <StatsCard title="Registered Units" value={stats.teams} icon={Users} color="text-zinc-300" />
@@ -81,7 +82,6 @@ export const AdminDashboard = () => {
                     </div>
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                        {/* LIVE OPS FEED */}
                         <div className="lg:col-span-2 space-y-6">
                             {stats.disputes > 0 && (
                                 <div className="bg-red-950/20 border border-red-500/50 rounded-lg p-4 animate-pulse">
@@ -129,7 +129,6 @@ export const AdminDashboard = () => {
                             </div>
                         </div>
 
-                        {/* AUDIT LOG */}
                         <div className="bg-zinc-900/50 border border-white/10 rounded-lg overflow-hidden h-fit">
                             <div className="p-4 border-b border-white/5 bg-zinc-900">
                                 <h3 className="font-bold text-white text-sm uppercase flex items-center gap-2">
@@ -164,7 +163,8 @@ export const AdminDashboard = () => {
                 { id: 'OVERVIEW', icon: Activity, label: 'Overview' },
                 { id: 'BRACKET', icon: Layout, label: 'Bracket' },
                 { id: 'ROSTER', icon: Users, label: 'Roster Cmd' },
-                { id: 'STAFF', icon: Shield, label: 'Staff' }
+                { id: 'STAFF', icon: Shield, label: 'Staff' },
+                { id: 'PROFILE', icon: UserCircle, label: 'My Profile' } // ✅ NEW: Profile Tab Button
             ].map(tab => (
                 <button
                     key={tab.id}

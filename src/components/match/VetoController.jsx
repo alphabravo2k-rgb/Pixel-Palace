@@ -1,20 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../supabase/client';
 import { useSession } from '../../auth/useSession';
-import { Ban, CheckCircle, Clock, Lock, Trophy, Loader2, Check, Map as MapIcon } from 'lucide-react';
+import { Ban, CheckCircle, Clock, Lock, Trophy, Loader2, Check } from 'lucide-react';
 
-// ✅ FIXED: Stable, Public Map Images (No 403 Errors)
+// ✅ RELIABLE IMAGE SOURCE (Liquipedia/Wiki) - Matches your Registration Form Pool
 const MAP_POOL = [
-  { id: 'de_mirage', name: 'Mirage', img: 'https://upload.wikimedia.org/wikipedia/en/2/25/CSGO_Mirage.jpg' },
-  { id: 'de_inferno', name: 'Inferno', img: 'https://upload.wikimedia.org/wikipedia/en/0/06/InfernoCS2.jpg' },
-  { id: 'de_nuke', name: 'Nuke', img: 'https://upload.wikimedia.org/wikipedia/en/e/e7/Nuke_CSGO.jpg' },
-  { id: 'de_vertigo', name: 'Vertigo', img: 'https://upload.wikimedia.org/wikipedia/en/4/4b/Vertigo_CS2.jpg' },
-  { id: 'de_ancient', name: 'Ancient', img: 'https://upload.wikimedia.org/wikipedia/en/6/62/Ancient_CSGO.jpg' },
-  { id: 'de_anubis', name: 'Anubis', img: 'https://upload.wikimedia.org/wikipedia/en/6/6f/Anubis_CS2.jpg' },
-  { id: 'de_dust2', name: 'Dust 2', img: 'https://upload.wikimedia.org/wikipedia/en/3/3d/Dust_II_CS2.jpg' }
+  { id: 'de_mirage', name: 'Mirage', img: 'https://liquipedia.net/commons/images/f/f3/Csgo_mirage.jpg' },
+  { id: 'de_inferno', name: 'Inferno', img: 'https://liquipedia.net/commons/images/2/2b/De_inferno_cs2.jpg' },
+  { id: 'de_nuke', name: 'Nuke', img: 'https://liquipedia.net/commons/images/5/5e/Nuke_cs2.jpg' },
+  { id: 'de_overpass', name: 'Overpass', img: 'https://liquipedia.net/commons/images/0/0f/Cs2_overpass.jpg' },
+  { id: 'de_train', name: 'Train', img: 'https://liquipedia.net/commons/images/5/56/Train_cs2.jpg' },
+  { id: 'de_ancient', name: 'Ancient', img: 'https://liquipedia.net/commons/images/d/d9/Ancient_cs2.jpg' },
+  { id: 'de_dust2', name: 'Dust 2', img: 'https://liquipedia.net/commons/images/1/12/Dust2_cs2.jpg' }
 ];
 
-// ✅ LOGIC: Exact Veto Sequences based on your rules
+// ✅ TOURNAMENT RULES (Custom Veto Sequences)
 const VETO_SEQUENCES = {
     // BO1: A Bans 2 -> B Bans 3 -> A Bans 1 -> Leftover
     1: [
@@ -64,25 +64,22 @@ export const VetoController = ({ match, onUpdate }) => {
     return () => supabase.removeChannel(sub);
   }, [match.id]);
 
-  // --- ENGINE ---
   const bestOf = match.best_of || 1; 
   const sequence = VETO_SEQUENCES[bestOf] || VETO_SEQUENCES[1];
   const currentStepIndex = vetoLog.length;
   const isComplete = currentStepIndex >= sequence.length;
 
-  // Determine State
+  // Determine Current State
   const currentStepData = !isComplete ? sequence[currentStepIndex] : null;
   const currentAction = currentStepData?.type || 'WAIT';
   const currentActorTeamId = currentStepData ? match[`${currentStepData.team}_id`] : null;
   
-  // Auth Check
-  const myTeamId = session?.identity?.team_id; 
+  const myTeamId = session?.identity?.team_id || session?.team_id; 
   const isMyTurn = myTeamId === currentActorTeamId && !isComplete;
 
   const handleAction = async (mapId) => {
     if (loading || !isMyTurn) return;
     
-    // UI Confirmation
     const actionText = currentAction === 'BAN' ? "BAN" : "PICK";
     const mapName = MAP_POOL.find(m => m.id === mapId)?.name;
     if (!window.confirm(`Confirm: ${actionText} ${mapName}?`)) return;
@@ -104,14 +101,12 @@ export const VetoController = ({ match, onUpdate }) => {
     return 'AVAILABLE';
   };
 
-  // --- RENDER: COMPLETION VIEW ---
+  // --- RENDER COMPLETION ---
   if (isComplete) {
      const pickedMaps = vetoLog.filter(v => v.type === 'PICK').map(v => v.map_name);
      const bannedMaps = vetoLog.filter(v => v.type === 'BAN').map(v => v.map_name);
-     // The decider is whatever map hasn't been mentioned in the log
      const deciderId = MAP_POOL.find(m => !pickedMaps.includes(m.id) && !bannedMaps.includes(m.id))?.id;
      
-     // Construct Final List
      let finalMapIds = [];
      if (bestOf === 1) finalMapIds = [deciderId];
      else finalMapIds = [...pickedMaps, deciderId];
@@ -134,9 +129,8 @@ export const VetoController = ({ match, onUpdate }) => {
                              <span className="absolute bottom-2 left-0 right-0 text-center text-white font-black text-xl uppercase tracking-wider font-['Teko'] drop-shadow-md">{m?.name}</span>
                              {bestOf > 1 && <div className="absolute top-2 right-2 bg-emerald-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow-lg">MAP {idx + 1}</div>}
                         </div>
-                        {/* Side Selection Hint */}
                         <span className="text-[10px] text-zinc-500 mt-2 font-mono uppercase">
-                            {bestOf === 1 ? "Team B picks side" : (idx === displayMaps.length -1 ? "Knife for Side" : "Opponent picks side")}
+                            {bestOf === 1 ? "Team B picks side" : "Knife for Side"}
                         </span>
                     </div>
                 ))}
@@ -145,7 +139,7 @@ export const VetoController = ({ match, onUpdate }) => {
      );
   }
 
-  // --- RENDER: ACTIVE VETO ---
+  // --- RENDER ACTIVE GAME ---
   return (
     <div className="space-y-6 animate-in slide-in-from-bottom-2">
        
@@ -159,13 +153,10 @@ export const VetoController = ({ match, onUpdate }) => {
                 <h3 className={`text-xl font-black uppercase leading-none font-['Teko'] tracking-wide ${isMyTurn ? "text-white" : "text-zinc-500"}`}>
                     {isMyTurn ? `Your Turn to ${currentAction}` : `Opponent is ${currentAction}ING...`}
                 </h3>
-                {isMyTurn && <p className={`text-xs font-mono mt-1 uppercase tracking-wider ${currentAction === 'BAN' ? 'text-red-400' : 'text-emerald-400'}`}>Select a map to {currentAction}</p>}
+                <p className="text-xs font-mono mt-1 uppercase tracking-wider text-zinc-400">
+                    Step {currentStepIndex + 1} of {sequence.length} • {currentAction === 'BAN' ? 'Remove a map' : 'Pick a map'}
+                </p>
              </div>
-          </div>
-          {/* Step Indicator */}
-          <div className="text-right hidden md:block">
-              <div className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Veto Progress</div>
-              <div className="text-2xl font-black text-zinc-300 font-['Teko']">{currentStepIndex} / {sequence.length}</div>
           </div>
        </div>
 
@@ -192,21 +183,16 @@ export const VetoController = ({ match, onUpdate }) => {
              return (
                <button key={map.id} disabled={!isAvailable || !isMyTurn || loading} onClick={() => handleAction(map.id)}
                  onMouseEnter={() => setHoveredMap(map.id)} onMouseLeave={() => setHoveredMap(null)}
-                 className={`relative h-28 md:h-36 rounded-xl overflow-hidden border-2 transition-all duration-300 group ${borderClass} ${contentClass} ${isAvailable && isMyTurn ? 'hover:scale-[1.02]' : ''}`}
+                 className={`relative h-32 md:h-40 rounded-xl overflow-hidden border-2 transition-all duration-300 group ${borderClass} ${contentClass} ${isAvailable && isMyTurn ? 'hover:scale-[1.02]' : ''}`}
                >
                  <div className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-110" style={{ backgroundImage: `url(${map.img})` }} />
                  <div className="absolute inset-0 bg-black/50 group-hover:bg-black/30 transition-colors" />
-                 
-                 <div className="absolute bottom-0 inset-x-0 p-2 bg-gradient-to-t from-black via-black/80 to-transparent">
-                     <span className="text-white font-black text-lg uppercase tracking-widest font-['Teko'] drop-shadow-md">{map.name}</span>
+                 <div className="absolute bottom-0 inset-x-0 p-3 bg-gradient-to-t from-black via-black/80 to-transparent">
+                     <span className="text-white font-black text-xl uppercase tracking-widest font-['Teko'] drop-shadow-md">{map.name}</span>
                  </div>
-
-                 {/* Icons Overlay */}
                  <div className="absolute inset-0 flex items-center justify-center">
-                     {isBanned && <Ban className="w-12 h-12 text-red-600 rotate-12 drop-shadow-lg" />}
-                     {isPicked && <CheckCircle className="w-12 h-12 text-emerald-500 drop-shadow-lg" />}
-                     
-                     {/* Preview Hover */}
+                     {isBanned && <Ban className="w-14 h-14 text-red-600 rotate-12 drop-shadow-lg" />}
+                     {isPicked && <CheckCircle className="w-14 h-14 text-emerald-500 drop-shadow-lg" />}
                      {isAvailable && isMyTurn && hoveredMap === map.id && (
                          <div className={`px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest shadow-xl animate-in zoom-in ${currentAction === 'BAN' ? "bg-red-600 text-white" : "bg-emerald-600 text-white"}`}>
                             {currentAction}

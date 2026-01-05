@@ -3,15 +3,16 @@ import { supabase } from '../../supabase/client';
 import { useSession } from '../../auth/useSession';
 import { PERMISSIONS } from '../../lib/roles';
 import { can } from '../../lib/permissions';
-import { Shield, AlertTriangle, CheckCircle, Lock, Map as MapIcon, RefreshCw, MessageSquare, Trophy, Clock } from 'lucide-react';
-import { VetoPanel } from '../VetoPanel'; // Shared Component
+import { Shield, AlertTriangle, CheckCircle, Lock, Map as MapIcon, RefreshCw, Clock, Swords } from 'lucide-react';
+// 🚨 CRITICAL FIX: Use the Master Veto Controller (not VetoPanel)
+import { VetoController } from './VetoController'; 
 import { cn } from '../../lib/utils';
 import { toast } from 'react-hot-toast';
 
 // Inline Team Card for Layout
 const TeamCard = ({ team, isReady, align = 'left', score }) => (
   <div className={cn(
-      "flex flex-col p-8 bg-bg-panel border border-tactical rounded-lg shadow-glass relative overflow-hidden transition-all duration-300 hover:border-brand/30",
+      "flex flex-col p-8 bg-[#09090b] border border-[#27272a] rounded-lg shadow-xl relative overflow-hidden transition-all duration-300 hover:border-fuchsia-500/30",
       align === 'right' ? 'items-end text-right' : 'items-start text-left'
   )}>
     {/* Background Logo Watermark */}
@@ -53,25 +54,6 @@ export const MatchRoom = ({ matchId }) => {
   // Permission Check
   const canManage = can(PERMISSIONS.MANAGE_MATCH, session, match);
 
-  useEffect(() => {
-    fetchMatch();
-
-    const subscription = supabase
-      .channel(`match_room_${matchId}`)
-      .on('postgres_changes', { 
-        event: 'UPDATE', 
-        schema: 'public', 
-        table: 'matches', 
-        filter: `id=eq.${matchId}` 
-      }, (payload) => {
-        setMatch(prev => ({ ...prev, ...payload.new })); // Optimistic
-        fetchMatch(); // Full refresh for relations
-      })
-      .subscribe();
-
-    return () => { supabase.removeChannel(subscription); };
-  }, [matchId]);
-
   const fetchMatch = async () => {
     const { data, error } = await supabase
       .from('matches')
@@ -87,6 +69,27 @@ export const MatchRoom = ({ matchId }) => {
     setLoading(false);
   };
 
+  useEffect(() => {
+    fetchMatch();
+
+    const subscription = supabase
+      .channel(`match_room_${matchId}`)
+      .on('postgres_changes', { 
+        event: 'UPDATE', 
+        schema: 'public', 
+        table: 'matches', 
+        filter: `id=eq.${matchId}` 
+      }, (payload) => {
+        // Optimistic update for speed
+        setMatch(prev => ({ ...prev, ...payload.new })); 
+        // Full fetch to ensure relations (team names) remain intact
+        fetchMatch(); 
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(subscription); };
+  }, [matchId]);
+
   const handleDispute = async () => {
     if (!disputeReason) return;
     
@@ -95,7 +98,6 @@ export const MatchRoom = ({ matchId }) => {
             .from('matches')
             .update({ 
                 status: 'disputed', 
-                // In a real app, you'd save the reason to a separate 'match_notes' or 'disputes' table
                 admin_notes: `[DISPUTE FILED]: ${disputeReason}` 
             })
             .eq('id', matchId);
@@ -138,27 +140,32 @@ export const MatchRoom = ({ matchId }) => {
     <div className="min-h-screen bg-bg text-white p-6 md:p-12">
       
       {/* MATCH HEADER */}
-      <div className="text-center mb-12">
+      <div className="text-center mb-12 flex flex-col items-center">
          <div className="inline-flex items-center gap-2 px-3 py-1 bg-zinc-900 border border-zinc-800 rounded-full text-[10px] font-mono text-zinc-500 uppercase tracking-widest mb-4">
              <Clock size={12} /> Match ID: {match.match_no} • Round {match.round}
          </div>
          <h1 className="text-6xl md:text-8xl font-display font-black text-zinc-800 italic uppercase tracking-tighter leading-none select-none">
              BATTLEFIELD
          </h1>
+         {/* DYNAMIC FORMAT BADGE */}
+         <div className="mt-4 px-3 py-1 rounded bg-fuchsia-900/20 border border-fuchsia-500/30 text-fuchsia-400 text-xs font-bold uppercase tracking-widest">
+            Best of {match.best_of || 1}
+         </div>
       </div>
 
       <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
         
         {/* TEAM 1 */}
-        <TeamCard name={match.team1?.name} isReady={false} score={match.score_team1} />
+        <TeamCard team={match.team1} isReady={false} score={match.team1_score} />
 
         {/* CENTER CONTROL */}
         <div className="space-y-6">
             
             {/* VETO / MAP DISPLAY */}
             {match.status === 'veto' ? (
-                <div className="bg-bg-panel border border-tactical rounded-lg p-6 shadow-xl animate-in fade-in">
-                    <VetoPanel match={match} />
+                <div className="bg-[#09090b] border border-zinc-800 rounded-lg p-6 shadow-xl animate-in fade-in">
+                    {/* ✅ BRIDGE FIXED: Using the Master VetoController */}
+                    <VetoController match={match} onUpdate={fetchMatch} />
                 </div>
             ) : (
                 <div className="bg-zinc-900/50 border border-white/5 rounded-lg p-12 flex flex-col items-center justify-center text-center">
@@ -192,6 +199,7 @@ export const MatchRoom = ({ matchId }) => {
                         ? "bg-emerald-900/20 border-emerald-500/30 text-emerald-400 hover:bg-emerald-900/40" 
                         : "bg-zinc-900 border-zinc-800 text-zinc-600 cursor-not-allowed"
                   )}
+                  onClick={() => toast.success("Ready Check Sent")}
                >
                   <CheckCircle size={16} /> Ready Check
                </button>
@@ -206,7 +214,7 @@ export const MatchRoom = ({ matchId }) => {
 
             {/* DISPUTE FORM */}
             {isDisputing && (
-                <div className="p-6 bg-bg-elevated border border-red-500/50 rounded-lg animate-in slide-in-from-top-2 shadow-2xl relative">
+                <div className="p-6 bg-[#18181b] border border-red-500/50 rounded-lg animate-in slide-in-from-top-2 shadow-2xl relative">
                     <div className="absolute top-0 left-0 w-full h-1 bg-red-500 animate-pulse" />
                     <h4 className="text-red-500 font-bold uppercase text-xs tracking-widest mb-4">File Official Dispute</h4>
                     <textarea 
@@ -230,7 +238,7 @@ export const MatchRoom = ({ matchId }) => {
         </div>
 
         {/* TEAM 2 */}
-        <TeamCard name={match.team2?.name} isReady={false} score={match.score_team2} align="right" />
+        <TeamCard team={match.team2} isReady={false} score={match.team2_score} align="right" />
 
       </div>
     </div>

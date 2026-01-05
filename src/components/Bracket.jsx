@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { MatchNode } from './bracket/MatchNode';
 import { ZoomableBracket } from './bracket/ZoomableBracket';
-import { Wifi } from 'lucide-react';
+import { Wifi, Trophy } from 'lucide-react';
 
 const CARD_WIDTH = 240;
 const CARD_HEIGHT = 110;
@@ -13,7 +13,7 @@ const Bracket = ({ matches = [], onMatchClick }) => {
   const { nodes, paths, totalWidth, totalHeight } = useMemo(() => {
     if (!matches.length) return { nodes: [], paths: [], totalWidth: 0, totalHeight: 0 };
 
-    // 1. Group by Round (Using DB column: round_number)
+    // 1. Group by Round
     const rounds = {};
     matches.forEach(m => {
       const r = m.round_number || 1;
@@ -21,7 +21,7 @@ const Bracket = ({ matches = [], onMatchClick }) => {
       rounds[r].push(m);
     });
 
-    // 2. Sort Matches (Using DB column: match_position)
+    // 2. Sort Matches by Position (Critical for Tree Layout)
     Object.keys(rounds).forEach(r => {
       rounds[r].sort((a, b) => (a.match_position || 0) - (b.match_position || 0));
     });
@@ -29,9 +29,9 @@ const Bracket = ({ matches = [], onMatchClick }) => {
     const roundKeys = Object.keys(rounds).sort((a, b) => Number(a) - Number(b));
     const calculatedNodes = [];
     const calculatedPaths = [];
-    const positions = new Map();
+    const positions = new Map(); // Store (x,y) by Match ID
 
-    // 3. Calculate XY Positions
+    // 3. Calculate XY Positions (Recursive Tree Layout)
     roundKeys.forEach((rKey, rIndex) => {
       const roundMatches = rounds[rKey];
       const x = rIndex * (CARD_WIDTH + GAP_X);
@@ -40,19 +40,23 @@ const Bracket = ({ matches = [], onMatchClick }) => {
         let y;
         
         if (rIndex === 0) {
+          // Round 1: Simple linear stacking
           y = mIndex * (CARD_HEIGHT + BASE_GAP_Y);
         } else {
-          // Find parent matches from previous round
-          const feeders = matches.filter(m => 
-            m.round_number === match.round_number - 1 && 
-            Math.ceil(m.match_position / 2) === match.match_position
-          );
+          // Subsequent Rounds: Center between feeders
+          // Logic: Match 1 in Round 2 is fed by Match 1 & 2 in Round 1
+          const expectedFeederPos1 = (match.match_position * 2) - 1;
+          const expectedFeederPos2 = (match.match_position * 2);
+
+          const feeder1 = matches.find(m => m.round_number === match.round_number - 1 && m.match_position === expectedFeederPos1);
+          const feeder2 = matches.find(m => m.round_number === match.round_number - 1 && m.match_position === expectedFeederPos2);
           
-          if (feeders.length === 2) {
-             const y1 = positions.get(feeders[0].id)?.y || 0;
-             const y2 = positions.get(feeders[1].id)?.y || 0;
+          if (feeder1 && feeder2) {
+             const y1 = positions.get(feeder1.id)?.y || 0;
+             const y2 = positions.get(feeder2.id)?.y || 0;
              y = (y1 + y2) / 2;
           } else {
+             // Fallback if bracket is sparse (e.g. Byes)
              y = mIndex * (CARD_HEIGHT + BASE_GAP_Y) * Math.pow(2, rIndex); 
           }
         }
@@ -74,10 +78,11 @@ const Bracket = ({ matches = [], onMatchClick }) => {
 
     // 4. Generate Connector Paths
     matches.forEach(match => {
-      const nextMatch = matches.find(m => 
-        m.round_number === match.round_number + 1 && 
-        m.match_position === Math.ceil(match.match_position / 2)
-      );
+      // Logic: Match 1 in Round 1 feeds into Match 1 in Round 2
+      const nextRound = match.round_number + 1;
+      const nextPos = Math.ceil(match.match_position / 2);
+
+      const nextMatch = matches.find(m => m.round_number === nextRound && m.match_position === nextPos);
 
       if (!nextMatch) return;
       
@@ -91,6 +96,7 @@ const Bracket = ({ matches = [], onMatchClick }) => {
       const endX = end.x;
       const endY = end.y + (CARD_HEIGHT / 2);
 
+      // Bezier Curve Logic
       const cp1x = startX + (endX - startX) * 0.5;
       const cp2x = endX - (endX - startX) * 0.5;
 
@@ -99,14 +105,15 @@ const Bracket = ({ matches = [], onMatchClick }) => {
         d: `M ${startX} ${startY} C ${cp1x} ${startY}, ${cp2x} ${endY}, ${endX} ${endY}`,
         startX, startY, endX, endY,
         status: match.status,
-        isCompleted: match.status === 'COMPLETED'
+        // Path is "active" if match is live or completed
+        isActive: ['live', 'completed'].includes(match.status)
       });
     });
 
-    const totalWidth = roundKeys.length * (CARD_WIDTH + GAP_X);
+    const totalW = roundKeys.length * (CARD_WIDTH + GAP_X);
     const maxY = Math.max(...Array.from(positions.values()).map(p => p.y), 0) + CARD_HEIGHT;
 
-    return { nodes: calculatedNodes, paths: calculatedPaths, totalWidth, totalHeight: maxY };
+    return { nodes: calculatedNodes, paths: calculatedPaths, totalWidth: totalW, totalHeight: maxY };
 
   }, [matches]);
 
@@ -122,7 +129,7 @@ const Bracket = ({ matches = [], onMatchClick }) => {
   return (
     <div className="w-full h-full flex flex-col bg-[#050505]">
        <ZoomableBracket>
-          <div style={{ width: totalWidth + 200, height: totalHeight + 200, position: 'relative', padding: '100px' }}>
+          <div style={{ width: totalWidth + 400, height: totalHeight + 400, position: 'relative', padding: '100px' }}>
             <svg className="absolute inset-0 w-full h-full pointer-events-none overflow-visible z-0">
               <defs>
                  <linearGradient id="gradient-live" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -132,9 +139,9 @@ const Bracket = ({ matches = [], onMatchClick }) => {
               </defs>
 
               {paths.map(path => {
-                const isLive = path.status === 'LIVE';
-                const isDone = path.isCompleted;
-                const strokeColor = isLive ? 'url(#gradient-live)' : isDone ? '#3f3f46' : '#27272a';
+                const isLive = path.status === 'live';
+                const isDone = path.status === 'completed';
+                const strokeColor = isLive ? 'url(#gradient-live)' : isDone ? '#52525b' : '#27272a';
                 
                 return (
                   <g key={path.id}>
@@ -143,7 +150,7 @@ const Bracket = ({ matches = [], onMatchClick }) => {
                       fill="none"
                       stroke={strokeColor}
                       strokeWidth={isLive ? 3 : 2}
-                      className={`transition-all duration-700 ${isLive ? 'opacity-100' : 'opacity-60'}`}
+                      className={`transition-all duration-700 ${isLive ? 'opacity-100' : 'opacity-40'}`}
                       strokeDasharray={isLive ? "5,5" : "0"}
                     >
                         {isLive && <animate attributeName="stroke-dashoffset" from="100" to="0" dur="2s" repeatCount="indefinite" />}

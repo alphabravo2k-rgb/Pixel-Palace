@@ -1,10 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../supabase/client';
-import { 
-  Search, RefreshCw, Shield, Edit3, X, Trash2, Key, Users, 
-  Copy, CheckCircle, Ban, Trophy, Mic, Globe, Monitor, Gamepad2, AlertTriangle, Save, Link as LinkIcon 
-} from 'lucide-react';
-import StatsCard from '../../components/StatsCard';
+import { Search, RefreshCw, Shield, Edit3, X, Trash2, Key, Users, Copy, CheckCircle, Ban, Trophy, Mic, Monitor, Gamepad2, AlertTriangle, Save, Link as LinkIcon } from 'lucide-react';
+import StatsCard from '../StatsCard';
 import { toast } from 'react-hot-toast';
 import { cn, copyToClipboard } from '../../lib/utils';
 import { normalizeRole } from '../../lib/roles';
@@ -27,8 +24,8 @@ const TeamCard = ({ team, onEdit }) => {
 
   return (
     <div className={cn(
-        "group relative bg-bg-panel border flex flex-col h-full transition-all duration-300 rounded-lg overflow-hidden shadow-sm hover:shadow-lg",
-        isDQ ? "border-red-900/50 opacity-75" : "border-tactical hover:border-brand/50"
+        "group relative bg-[#0b0c0f] border flex flex-col h-full transition-all duration-300 rounded-lg overflow-hidden shadow-sm hover:shadow-lg",
+        isDQ ? "border-red-900/50 opacity-75" : "border-zinc-800 hover:border-fuchsia-500/50"
     )}>
       
       {/* Header */}
@@ -36,7 +33,7 @@ const TeamCard = ({ team, onEdit }) => {
         <div className="flex items-start gap-3">
           {/* Logo Box */}
           <div className="w-12 h-12 bg-black rounded border border-white/10 flex items-center justify-center p-1 relative shadow-inner">
-            {team.logo_url ? <img src={team.logo_url} className="w-full h-full object-contain" alt={team.name} /> : <Shield className="w-6 h-6 text-zinc-700"/>}
+            {team.logo_url ? <img src={team.logo_url} className="w-full h-full object-contain" alt={team.name} onError={(e)=>e.target.style.display='none'} /> : <Shield className="w-6 h-6 text-zinc-700"/>}
             {isDQ && <div className="absolute inset-0 bg-black/80 flex items-center justify-center rounded"><Ban className="w-6 h-6 text-red-600"/></div>}
           </div>
           
@@ -73,14 +70,14 @@ const TeamCard = ({ team, onEdit }) => {
                     <Mic size={14} />
                 </a>
             )}
-            <button onClick={() => onEdit(team)} className="p-2 bg-zinc-900 hover:bg-brand text-zinc-500 hover:text-white rounded border border-zinc-800 hover:border-brand/50 transition-colors">
+            <button onClick={() => onEdit(team)} className="p-2 bg-zinc-900 hover:bg-fuchsia-600 text-zinc-500 hover:text-white rounded border border-zinc-800 hover:border-fuchsia-500 transition-colors">
                 <Edit3 size={14} />
             </button>
         </div>
       </div>
 
       {/* Roster List */}
-      <div className="p-2 space-y-1 bg-bg-surface/30 flex-1">
+      <div className="p-2 space-y-1 bg-black/20 flex-1">
         {activeMembers.map(m => {
            const role = normalizeRole(m.role);
            const isDiscordId = /^\d+$/.test(m.discord_handle); 
@@ -90,7 +87,7 @@ const TeamCard = ({ team, onEdit }) => {
                 <div className="flex flex-col">
                     <span className={cn(
                         "text-xs font-bold leading-none",
-                        role === 'captain' ? "text-brand-glow" : "text-zinc-300"
+                        role === 'captain' ? "text-fuchsia-400" : "text-zinc-300"
                     )}>
                         {m.username || 'Unknown Agent'}
                     </span>
@@ -120,7 +117,7 @@ const TeamCard = ({ team, onEdit }) => {
         {/* Reserve List (Tooltip Style) */}
         {reserveMembers.length > 0 && (
             <div className="relative group text-center pt-2 pb-1 cursor-help z-20">
-                <div className="text-[10px] text-zinc-600 font-bold italic group-hover:text-brand transition-colors">
+                <div className="text-[10px] text-zinc-600 font-bold italic group-hover:text-fuchsia-500 transition-colors">
                     +{reserveMembers.length} Reserves Available
                 </div>
                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-zinc-950 border border-zinc-700 rounded-lg p-2 shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none z-50">
@@ -179,17 +176,12 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
   // ⚡ SMART SYNC: Handles Nickname OR Full URL Input
   const handleSmartSync = async (idx) => {
       const member = members[idx];
-      // Logic: User can type name "-BRAVO-" OR paste URL "https://faceit.com/players/-BRAVO-"
       let faceitInput = member.username || '';
       let faceitNickname = faceitInput;
 
-      // 1. Detect if it's a URL
       if (faceitInput.includes('faceit.com')) {
-          // Extract nickname from URL
           const parts = faceitInput.split('/');
-          // Get last part, ignoring trailing slash
           faceitNickname = parts.pop() || parts.pop(); 
-          // Clean query params just in case
           faceitNickname = faceitNickname.split('?')[0];
       }
 
@@ -198,30 +190,25 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
       const toastId = toast.loading(`Enriching data for ${faceitNickname}...`);
 
       try {
-          // 2. Fetch via Proxy (Fixes "Failed to Fetch")
           const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(`https://open.faceit.com/data/v4/players?nickname=${faceitNickname}`)}`;
           
           const res = await fetch(proxyUrl, {
-              headers: { 'Authorization': 'Bearer a77d0763-5fdd-4bde-a8a5-6e840408de2e' } // Note: Header might be stripped by some proxies
+              headers: { 'Authorization': 'Bearer a77d0763-5fdd-4bde-a8a5-6e840408de2e' }
           });
           
           const json = await res.json();
-          // Safety Check for Proxy Response
           if (!json.contents) throw new Error("Proxy connection refused. Security Policy Block.");
           
-          const data = JSON.parse(json.contents); // AllOrigins returns data in 'contents' string
+          const data = JSON.parse(json.contents);
 
           if(!data.player_id) throw new Error("Player not found on Faceit");
           
-          // 3. Extract Data
           const realName = data.nickname;
           const newElo = data.games?.cs2?.faceit_elo || data.games?.csgo?.faceit_elo || 1000;
           const faceitUrl = data.faceit_url.replace('{lang}', 'en');
           const steamId64 = data.steam_id_64;
           const steamUrl = steamId64 ? `https://steamcommunity.com/profiles/${steamId64}` : member.steam;
 
-          // 4. 🛡️ DATABASE CONFLICT CHECK
-          // Check if this Faceit URL already exists in our DB
           const { data: existingUser } = await supabase
             .from('global_identities')
             .select('id')
@@ -229,7 +216,7 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
             .maybeSingle();
 
           const updated = [...members];
-          updated[idx].username = realName; // Correct the name field
+          updated[idx].username = realName;
           updated[idx].elo = newElo;
           updated[idx].faceit = faceitUrl;
           updated[idx].steam = steamUrl;
@@ -245,7 +232,6 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
 
       } catch(e) {
           console.error(e);
-          // Fallback Alert
           if(e.message.includes("Proxy")) {
              toast.error("Security Block: Please update _headers or input manually.", { id: toastId });
           } else {
@@ -291,17 +277,17 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in">
-      <div className="bg-bg-panel border border-tactical w-full max-w-6xl rounded-lg flex flex-col max-h-[95vh] shadow-2xl overflow-hidden">
+      <div className="bg-[#0b0c0f] border border-zinc-800 w-full max-w-6xl rounded-lg flex flex-col max-h-[95vh] shadow-2xl overflow-hidden">
         
         {/* Modal Header */}
         <div className="p-6 border-b border-white/5 bg-zinc-900/90 flex justify-between items-center">
            <h2 className="text-xl font-display font-black text-white uppercase italic tracking-wider">
-               EDIT UNIT: <span className="text-brand">{meta.name || 'NEW TEAM'}</span>
+               EDIT UNIT: <span className="text-fuchsia-500">{meta.name || 'NEW TEAM'}</span>
            </h2>
            <button onClick={onClose} className="text-zinc-500 hover:text-white transition-colors"><X /></button>
         </div>
         
-        <div className="p-8 overflow-y-auto space-y-8 flex-1 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-100">
+        <div className="p-8 overflow-y-auto custom-scrollbar space-y-8 flex-1 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-100">
            
            {/* SECTION 1: TEAM DETAILS */}
            <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
@@ -315,8 +301,8 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
               <div className="md:col-span-10 grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                       <label className="text-[10px] text-zinc-500 uppercase font-bold block mb-1">Team Identity</label>
-                      <input value={meta.name} onChange={e=>setMeta({...meta, name:e.target.value})} className="w-full bg-black border border-zinc-700 p-2 text-white rounded text-sm mb-2 focus:border-brand outline-none" placeholder="Team Name" />
-                      <input value={meta.logo_url} onChange={e=>setMeta({...meta, logo_url:e.target.value})} className="w-full bg-black border border-zinc-700 p-2 text-zinc-400 rounded text-xs focus:border-brand outline-none" placeholder="Logo URL" />
+                      <input value={meta.name} onChange={e=>setMeta({...meta, name:e.target.value})} className="w-full bg-black border border-zinc-700 p-2 text-white rounded text-sm mb-2 focus:border-fuchsia-500 outline-none" placeholder="Team Name" />
+                      <input value={meta.logo_url} onChange={e=>setMeta({...meta, logo_url:e.target.value})} className="w-full bg-black border border-zinc-700 p-2 text-zinc-400 rounded text-xs focus:border-fuchsia-500 outline-none" placeholder="Logo URL" />
                   </div>
                   <div>
                       <label className="text-[10px] text-[#5865F2] uppercase font-bold block mb-1 flex items-center gap-1"><Mic size={10}/> Team Voice Channel</label>
@@ -339,7 +325,7 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
            <div className="bg-zinc-900/30 p-4 rounded border border-zinc-800 grid grid-cols-2 md:grid-cols-4 gap-4">
                <div>
                   <label className="text-[10px] text-zinc-500 uppercase font-bold block mb-1">Status</label>
-                  <select value={meta.status} onChange={e=>setMeta({...meta, status:e.target.value})} className="w-full bg-black border border-zinc-700 p-2 text-white rounded text-xs uppercase font-bold focus:border-brand outline-none">
+                  <select value={meta.status} onChange={e=>setMeta({...meta, status:e.target.value})} className="w-full bg-black border border-zinc-700 p-2 text-white rounded text-xs uppercase font-bold focus:border-fuchsia-500 outline-none">
                       <option value="ACTIVE">Active</option>
                       <option value="DISQUALIFIED">Disqualified</option>
                       <option value="ELIMINATED">Eliminated</option>
@@ -371,7 +357,7 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
                           {members.length}/6
                       </span>
                   </div>
-                  <button onClick={addMember} disabled={members.length >= 7} className="text-xs bg-brand hover:bg-brand-glow disabled:opacity-50 px-3 py-1.5 rounded text-white font-bold uppercase transition-colors shadow-lg">
+                  <button onClick={addMember} disabled={members.length >= 7} className="text-xs bg-fuchsia-600 hover:bg-fuchsia-500 disabled:opacity-50 px-3 py-1.5 rounded text-white font-bold uppercase transition-colors shadow-lg">
                       {members.length >= 7 ? 'Max Limit' : '+ Add Operator'}
                   </button>
               </div>
@@ -393,13 +379,13 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
                         <input 
                             value={m.username} 
                             onChange={e => updateMember(idx, 'username', e.target.value)} 
-                            className="w-full bg-black border border-zinc-700 p-1.5 text-white rounded text-xs font-bold focus:border-brand outline-none" 
+                            className="w-full bg-black border border-zinc-700 p-1.5 text-white rounded text-xs font-bold focus:border-fuchsia-500 outline-none" 
                             placeholder="Nick or URL..." 
                         />
                         {/* ⚡ THE MAGIC BUTTON (Visible on Hover) */}
                         <button 
                             onClick={() => handleSmartSync(idx)}
-                            className="absolute right-1 top-1/2 -translate-y-1/2 p-1 text-zinc-500 hover:text-brand bg-zinc-900 rounded opacity-0 group-hover:opacity-100 transition-all"
+                            className="absolute right-1 top-1/2 -translate-y-1/2 p-1 text-zinc-500 hover:text-fuchsia-500 bg-zinc-900 rounded opacity-0 group-hover:opacity-100 transition-all"
                             title="Auto-Fill details from Faceit"
                         >
                             <RefreshCw size={10} />
@@ -407,7 +393,7 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
                     </div>
 
                     <div className="w-full md:w-24">
-                        <select value={m.role} onChange={e => updateMember(idx, 'role', e.target.value)} className="w-full bg-black border border-zinc-700 p-1.5 text-white rounded text-xs uppercase focus:border-brand outline-none">
+                        <select value={m.role} onChange={e => updateMember(idx, 'role', e.target.value)} className="w-full bg-black border border-zinc-700 p-1.5 text-white rounded text-xs uppercase focus:border-fuchsia-500 outline-none">
                             <option value="CAPTAIN">CAPTAIN</option>
                             <option value="PLAYER">PLAYER</option>
                             <option value="SUBSTITUTE">SUBSTITUTE</option>
@@ -437,7 +423,7 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
         {/* Footer Actions */}
         <div className="p-4 border-t border-zinc-800 flex justify-end gap-3 bg-zinc-900/90 rounded-b-lg">
            <button onClick={onClose} className="px-4 py-2 text-zinc-400 text-xs font-bold uppercase hover:text-white transition-colors">Cancel</button>
-           <button onClick={handleSave} disabled={saving} className="px-6 py-2 bg-brand hover:bg-brand-glow text-white text-xs font-bold uppercase rounded shadow-lg transition-all disabled:opacity-50 disabled:cursor-wait">
+           <button onClick={handleSave} disabled={saving} className="px-6 py-2 bg-fuchsia-600 hover:bg-fuchsia-500 text-white text-xs font-bold uppercase rounded shadow-lg transition-all disabled:opacity-50 disabled:cursor-wait">
               {saving ? 'Processing...' : 'Save Database Changes'}
            </button>
         </div>
@@ -509,11 +495,12 @@ export const TeamRosterView = () => {
   const totalP = teams.reduce((acc, t) => acc + t.members.length, 0);
 
   return (
-    <div className="space-y-8 animate-in fade-in p-6">
+    // ✅ SCROLL FIX: Added h-screen and overflow handling to outer container
+    <div className="space-y-8 animate-in fade-in p-6 h-screen overflow-y-auto custom-scrollbar pb-32">
        {/* Top Stats */}
        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <StatsCard title="Total Teams" value={teams.length} icon={Shield} color="text-white" />
-          <StatsCard title="Active Operators" value={totalP} icon={Users} color="text-brand-glow" />
+          <StatsCard title="Active Operators" value={totalP} icon={Users} color="text-fuchsia-400" />
           <StatsCard title="Combat Ready" value={teams.filter(t=>t.members.length>=5).length} icon={CheckCircle} color="text-emerald-500" />
        </div>
 
@@ -521,7 +508,7 @@ export const TeamRosterView = () => {
        <div className="flex flex-col md:flex-row justify-between items-end border-b border-white/10 pb-6 gap-4">
           <div>
               <h1 className="text-4xl font-display font-black text-white italic uppercase tracking-tighter">
-                  ROSTER <span className="text-brand">COMMAND</span>
+                  ROSTER <span className="text-fuchsia-600">COMMAND</span>
               </h1>
               <p className="text-zinc-500 text-xs font-mono uppercase tracking-widest mt-1">Database Administration // V3.1</p>
           </div>
@@ -531,7 +518,7 @@ export const TeamRosterView = () => {
                 {generating ? <RefreshCw className="animate-spin w-3 h-3"/> : <Key size={14}/>} Gen Codes
              </button>
              
-             <button onClick={() => setEditTeam({})} className="px-4 py-2 bg-brand hover:bg-brand-glow text-white rounded text-xs font-bold uppercase shadow-lg shadow-brand/20 transition-all flex items-center gap-2">
+             <button onClick={() => setEditTeam({})} className="px-4 py-2 bg-fuchsia-600 hover:bg-fuchsia-500 text-white rounded text-xs font-bold uppercase shadow-lg shadow-fuchsia-900/20 transition-all flex items-center gap-2">
                 <Edit3 size={14} /> New Team
              </button>
              
@@ -542,7 +529,7 @@ export const TeamRosterView = () => {
                 <input 
                     type="text" 
                     placeholder="FIND UNIT..." 
-                    className="bg-black border border-zinc-800 text-white pl-9 pr-3 py-2 rounded text-xs font-mono focus:border-brand outline-none w-64 uppercase placeholder:text-zinc-700" 
+                    className="bg-black border border-zinc-800 text-white pl-9 pr-3 py-2 rounded text-xs font-mono focus:border-fuchsia-500 outline-none w-64 uppercase placeholder:text-zinc-700" 
                     onChange={e => setSearchTerm(e.target.value)}
                 />
              </div>

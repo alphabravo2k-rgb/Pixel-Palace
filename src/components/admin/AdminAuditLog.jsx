@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../../supabase/client';
-import { ScrollText, RefreshCw, ShieldAlert, FileJson, Terminal } from 'lucide-react';
+import { ScrollText, RefreshCw, ShieldAlert, FileJson, Terminal, Activity } from 'lucide-react';
 import { useSession } from '../../auth/useSession';
 import { ROLES } from '../../lib/roles';
 import { cn } from '../../lib/utils';
@@ -19,9 +19,14 @@ export const AdminAuditLog = () => {
     setLoading(true);
     setError(null);
     try {
+      // Fetch Logs + Attempt to join with app_admins to get the name
+      // Note: This relies on a Foreign Key existing. If not, it falls back gracefully.
       const { data, error } = await supabase
         .from('admin_audit_logs')
-        .select('id, created_at, operator_id, action_type, details, target')
+        .select(`
+            id, created_at, operator_id, action_type, details, target,
+            app_admins:operator_id ( full_name )
+        `)
         .order('created_at', { ascending: false })
         .limit(100);
         
@@ -29,14 +34,32 @@ export const AdminAuditLog = () => {
       setLogs(data || []);
     } catch (error) {
       console.error('Error fetching logs:', error.message);
-      setError('Error loading audit trail.');
+      // Fallback fetch if the join failed
+      const { data } = await supabase.from('admin_audit_logs').select('*').order('created_at', { ascending: false }).limit(50);
+      if (data) setLogs(data);
     } finally {
       setLoading(false);
     }
   }, []);
 
+  // 🔄 REAL-TIME SUBSCRIPTION
   useEffect(() => {
-    if (canViewLogs) fetchLogs();
+    if (!canViewLogs) return;
+
+    fetchLogs();
+
+    // Listen for ANY new log entry from ANY component
+    const channel = supabase.channel('audit-live')
+        .on('postgres_changes', 
+            { event: 'INSERT', schema: 'public', table: 'admin_audit_logs' }, 
+            (payload) => {
+                // Prepend the new log instantly
+                setLogs(prev => [payload.new, ...prev]);
+            }
+        )
+        .subscribe();
+
+    return () => supabase.removeChannel(channel);
   }, [canViewLogs, fetchLogs]);
 
   if (!canViewLogs) {
@@ -56,7 +79,7 @@ export const AdminAuditLog = () => {
   const renderDetails = (log) => {
     let d = log.details || {};
     
-    // 🛡️ SAFELY HANDLE DATA TYPES
+    // 🛡️ SAFELY HANDLE DATA TYPES (JSONB vs Text)
     try {
         if (typeof d === 'string') d = JSON.parse(d);
     } catch (e) {
@@ -71,7 +94,7 @@ export const AdminAuditLog = () => {
         {log.target && (
             <div className="flex items-center gap-2">
                 <span className="text-[9px] bg-zinc-800 text-zinc-400 px-1.5 rounded uppercase font-bold tracking-wider">TARGET</span>
-                <span className="text-zinc-300 text-xs font-mono truncate">{log.target}</span>
+                <span className="text-zinc-300 text-xs font-mono truncate max-w-[200px]" title={log.target}>{log.target}</span>
             </div>
         )}
         <div className="relative group">
@@ -85,18 +108,18 @@ export const AdminAuditLog = () => {
   };
 
   return (
-    <div className="w-full bg-bg-panel border border-tactical rounded-lg flex flex-col h-[600px] shadow-lg animate-in fade-in">
+    <div className="w-full bg-[#0b0c0f] border border-zinc-800 rounded-lg flex flex-col h-[600px] shadow-lg animate-in fade-in">
       
       {/* Header */}
       <div className="p-4 border-b border-white/5 bg-zinc-900/50 flex justify-between items-center rounded-t-lg">
         <div className="flex items-center gap-3">
             <div className="w-8 h-8 bg-zinc-800 rounded flex items-center justify-center border border-white/5">
-                <ScrollText className="w-4 h-4 text-brand" />
+                <ScrollText className="w-4 h-4 text-fuchsia-500" />
             </div>
             <div>
                 <h3 className="font-display text-xl font-black uppercase text-white leading-none tracking-wide">Immutable Audit Trail</h3>
                 <p className="text-[10px] text-zinc-500 font-mono flex items-center gap-1.5">
-                    <Terminal size={10} /> ENCRYPTED LOGS // LAST 100 OPS
+                    <Activity size={10} className="text-green-500 animate-pulse" /> LIVE FEED // ENCRYPTED
                 </p>
             </div>
         </div>
@@ -105,12 +128,12 @@ export const AdminAuditLog = () => {
             disabled={loading}
             className="p-2 hover:bg-white/5 text-zinc-400 hover:text-white rounded transition-colors border border-transparent hover:border-white/10"
         >
-          <RefreshCw className={cn("w-4 h-4", loading && "animate-spin text-brand")} />
+          <RefreshCw className={cn("w-4 h-4", loading && "animate-spin text-fuchsia-500")} />
         </button>
       </div>
 
       {error && (
-        <div className="p-4 text-center text-red-500 bg-red-950/20 text-xs font-bold uppercase">{error}</div>
+        <div className="p-4 text-center text-red-500 bg-red-950/20 text-xs font-bold uppercase border-b border-red-900/20">{error}</div>
       )}
 
       {/* Table Area */}
@@ -126,15 +149,20 @@ export const AdminAuditLog = () => {
           </thead>
           <tbody className="divide-y divide-white/5">
             {logs.length === 0 ? (
-                <tr><td colSpan="4" className="text-center text-zinc-600 py-20 italic font-mono uppercase tracking-widest">No audit records found in secure storage.</td></tr>
+                <tr><td colSpan="4" className="text-center text-zinc-600 py-20 italic font-mono uppercase tracking-widest">No audit records found.</td></tr>
             ) : (
                 logs.map((log) => {
                 const actionName = log.action_type || 'UNKNOWN';
                 
                 // Color coding actions
-                const isDestructive = ['DELETE', 'KICK', 'BAN', 'FORCE'].some(k => actionName.includes(k));
+                const isDestructive = ['DELETE', 'KICK', 'BAN', 'FORCE', 'RESET'].some(k => actionName.includes(k));
                 const isAuth = ['LOGIN', 'REGISTER', 'PROMOTE'].some(k => actionName.includes(k));
+                const isUpdate = ['UPDATE', 'SWAP', 'CHANGE'].some(k => actionName.includes(k));
                 
+                // Resolving Operator Name
+                const operatorName = log.app_admins?.full_name || 'System / Unlinked';
+                const operatorDisplay = log.operator_id ? operatorName : 'SYSTEM';
+
                 return (
                     <tr key={log.id} className="hover:bg-white/[0.02] transition-colors group">
                         <td className="p-4 text-zinc-500 text-xs whitespace-nowrap align-top font-mono">
@@ -143,8 +171,8 @@ export const AdminAuditLog = () => {
                         </td>
                         
                         <td className="p-4 align-top">
-                            <span className="font-mono text-[10px] text-brand-glow bg-brand/10 px-1.5 py-0.5 rounded border border-brand/20 whitespace-nowrap">
-                                OP:{log.operator_id ? log.operator_id.substring(0, 6) : 'SYSTEM'}
+                            <span className="font-mono text-[10px] text-fuchsia-300 bg-fuchsia-900/10 px-1.5 py-0.5 rounded border border-fuchsia-500/20 whitespace-nowrap" title={log.operator_id}>
+                                {operatorDisplay}
                             </span>
                         </td>
                         
@@ -152,7 +180,8 @@ export const AdminAuditLog = () => {
                             <span className={cn(
                                 "px-2 py-1 rounded text-[9px] font-black uppercase tracking-wider border shadow-sm block w-fit",
                                 isDestructive ? "bg-red-950/40 text-red-500 border-red-500/30" : 
-                                isAuth ? "bg-fuchsia-950/40 text-fuchsia-500 border-fuchsia-500/30" :
+                                isAuth ? "bg-blue-950/40 text-blue-400 border-blue-500/30" :
+                                isUpdate ? "bg-yellow-950/40 text-yellow-500 border-yellow-500/30" :
                                 "bg-zinc-800 text-zinc-400 border-zinc-700"
                             )}>
                                 {actionName.replace(/_/g, ' ')}

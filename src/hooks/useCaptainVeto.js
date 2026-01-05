@@ -4,37 +4,27 @@ import { useSession } from '../auth/useSession';
 import { MATCH_FORMATS, MAP_POOL } from '../lib/constants';
 import { toast } from 'react-hot-toast';
 
-// ✅ Added passedTeamId as an argument
 export const useCaptainVeto = (match, passedTeamId) => {
   const { session } = useSession();
   const [vetoes, setVetoes] = useState([]);
   const [loading, setLoading] = useState(false);
   
-  // 1️⃣ RESOLVE IDENTITY: Use the passed ID or look it up from session
   const myTeamId = useMemo(() => {
-    // Priority 1: The ID passed from the Modal
     if (passedTeamId) return passedTeamId;
-
-    // Priority 2: PIN Login Session property
     const sessionTeamId = session?.team_id || session?.teamId || session?.user?.user_metadata?.team_id; 
     
     if (!sessionTeamId || !match) return null;
-    
-    // Validate that the user belongs to this match
     if (match.team1_id === sessionTeamId) return match.team1_id;
     if (match.team2_id === sessionTeamId) return match.team2_id;
-    
     return null; 
   }, [match, session, passedTeamId]);
 
-  // 2️⃣ FORMAT DERIVATION (BO1 vs BO3)
   const formatRules = useMemo(() => {
     if (!match) return MATCH_FORMATS['BO1'];
     const type = match.best_of === 3 ? 'BO3' : 'BO1'; 
     return MATCH_FORMATS[type] || MATCH_FORMATS['BO1'];
   }, [match]);
 
-  // 3️⃣ STATE CALCULATION (Whose turn is it?)
   const vetoState = useMemo(() => {
     if (!formatRules || !match) return { isMyTurn: false, action: 'WAIT', availableMaps: [] };
 
@@ -46,23 +36,16 @@ export const useCaptainVeto = (match, passedTeamId) => {
     const availableMaps = MAP_POOL.filter(m => !usedMapIds.has(m.id));
 
     if (isComplete) {
-      return { 
-        isMyTurn: false, 
-        action: 'COMPLETE', 
-        activeTeamId: null, 
-        availableMaps 
-      };
+      return { isMyTurn: false, action: 'COMPLETE', activeTeamId: null, availableMaps };
     }
 
     const currentStep = formatRules.sequence[currentStepIndex]; 
-    
     let activeTeamId = null;
     if (currentStep.team === 'A') activeTeamId = match.team1_id;
     else if (currentStep.team === 'B') activeTeamId = match.team2_id;
     
     return {
-      // ✅ Critical Comparison
-      isMyTurn: String(myTeamId) === String(activeTeamId), 
+      isMyTurn: String(myTeamId).toLowerCase() === String(activeTeamId).toLowerCase(), 
       action: currentStep.type, 
       activeTeamId,
       stepIndex: currentStepIndex,
@@ -71,7 +54,6 @@ export const useCaptainVeto = (match, passedTeamId) => {
     };
   }, [vetoes, formatRules, match, myTeamId]);
 
-  // 4️⃣ DATA FETCHING
   const fetchVetoes = useCallback(async () => {
     if (!match?.id) return;
     const { data, error } = await supabase
@@ -85,11 +67,10 @@ export const useCaptainVeto = (match, passedTeamId) => {
 
   useEffect(() => {
     fetchVetoes();
-
     const subscription = supabase
       .channel(`veto_sync_${match?.id}`)
       .on('postgres_changes', { 
-        event: '*', // Listen for all changes (inserts/deletes)
+        event: '*', 
         schema: 'public', 
         table: 'match_vetoes',
         filter: `match_id=eq.${match?.id}` 
@@ -99,34 +80,36 @@ export const useCaptainVeto = (match, passedTeamId) => {
     return () => { supabase.removeChannel(subscription); };
   }, [match?.id, fetchVetoes]);
 
-  // 5️⃣ SUBMIT ACTION
   const submitVeto = async (mapId) => {
+    // 🛡️ FRONTEND PROTECTION: Prevents duplicate picks if they already exist in local state
+    const isAlreadyVetoed = vetoes.some(v => v.map_name === mapId);
+    if (isAlreadyVetoed) {
+      toast.error("Map already selected");
+      return;
+    }
+
     if (!vetoState.isMyTurn || loading) {
-        toast.error("It is not your turn!");
+        toast.error("Wait for your turn!");
         return;
     }
     setLoading(true);
 
     try {
-      const type = vetoState.action; 
-      const nextOrder = vetoes.length; 
-
       const { error } = await supabase.rpc('api_submit_veto', {
         p_match_id: match.id,
         p_team_id: myTeamId,
         p_map_name: mapId,
-        p_type: type,
-        p_pick_order: nextOrder
+        p_type: vetoState.action,
+        p_pick_order: vetoes.length + 1 // Postgres matches often use 1-based indexing for orders
       });
 
       if (error) throw error;
-      
-      toast.success(`${mapId} ${type}ED`);
+      toast.success(`${mapId} Processed`);
       await fetchVetoes();
 
     } catch (err) {
       console.error("Veto Error:", err);
-      toast.error("Veto Failed: " + err.message);
+      toast.error(err.message);
     } finally {
       setLoading(false);
     }

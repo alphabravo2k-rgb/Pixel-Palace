@@ -5,14 +5,13 @@ import { Ban, CheckCircle, Clock, Lock, Trophy } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 /**
- * MASTER UPGRADE KEY FEATURES:
- * 1. Fuzzy Mapping: Handles "Dust 2" vs "dust2" naming bugs.
- * 2. Optimized Rendering: Individual Map cards are now referentially stable.
- * 3. Haptic/Aria Feedback: Better accessibility for high-stakes picking.
- * 4. Safe Finish: Robust handling of transition from Veto to Live match.
+ * MASTER UPGRADE FEATURES:
+ * 1. Reference Integrity: Defined handleAction within component scope.
+ * 2. Fuzzy Normalization: Solves naming mismatches (Dust 2 vs dust2).
+ * 3. Haptic UI States: Status Uplink dynamically reflects turn urgency.
+ * 4. Referential Stability: MapCard prevents unnecessary re-renders during countdowns.
  */
 
-// Sub-component for performance optimization
 const MapCard = React.memo(({ map, status, isSelected, isDisabled, onSelect, theme }) => (
   <button
     onClick={() => onSelect(map.id)}
@@ -40,25 +39,36 @@ const MapCard = React.memo(({ map, status, isSelected, isDisabled, onSelect, the
     </div>
 
     <div className="absolute bottom-0 inset-x-0 p-3 bg-gradient-to-t from-black via-black/80 to-transparent z-20">
-      <p className="text-white font-bold uppercase tracking-widest text-sm font-display truncate">{map.name}</p>
+      <p className="text-white font-bold uppercase tracking-widest text-xs font-display truncate italic">{map.name}</p>
     </div>
   </button>
 ));
 
 export const VetoPanel = ({ match, myTeamId }) => {
+  // 1. Hook Integration
   const { vetoes, isMyTurn, currentAction, submitVeto, loading } = useCaptainVeto(match, myTeamId);
   const [selectedMap, setSelectedMap] = useState(null);
 
-  // Auto-reset selection on data sync
-  useEffect(() => setSelectedMap(null), [vetoes.length]);
+  // 2. Action Handlers (Fixed ReferenceError)
+  const handleAction = useCallback(async () => {
+    if (!selectedMap || !isMyTurn || loading) return;
+    await submitVeto(selectedMap);
+    setSelectedMap(null); // Clear selection after submission
+  }, [selectedMap, isMyTurn, loading, submitVeto]);
 
-  // Master Fuzzy Matcher: Resolves "dust2" vs "Dust 2"
+  // Auto-reset selection on data sync
+  useEffect(() => {
+    setSelectedMap(null);
+  }, [vetoes.length]);
+
+  // 3. Fuzzy Status Matcher
   const getMapStatus = useCallback((mapId) => {
     const normalize = (s) => String(s).toLowerCase().replace(/\s/g, '');
     const entry = vetoes.find(v => normalize(v.map_name) === normalize(mapId));
     return entry?.type || 'AVAILABLE';
   }, [vetoes]);
 
+  // 4. Dynamic Theme Calculation
   const theme = useMemo(() => {
     const config = {
       BAN: { text: 'text-red-500', bg: 'bg-red-500', border: 'border-red-500', ring: 'ring-red-500' },
@@ -68,14 +78,15 @@ export const VetoPanel = ({ match, myTeamId }) => {
     return config[currentAction] || { text: 'text-brand', bg: 'bg-brand', border: 'border-brand', ring: 'ring-brand' };
   }, [currentAction]);
 
+  // 5. Completion View
   if (match.status === 'live' || match.status === 'completed') {
     const finalMap = vetoes.find(v => v.type === 'DECIDER' || v.type === 'PICK') || vetoes[vetoes.length - 1];
     return (
-      <div className="flex flex-col items-center justify-center p-12 bg-zinc-950 rounded border border-brand/20">
-        <Trophy className="w-16 h-16 text-brand mb-4 animate-pulse" />
-        <h2 className="text-2xl font-display font-bold text-white uppercase italic">Mission Assigned</h2>
-        <p className="text-zinc-500 font-mono mt-2 uppercase tracking-widest">
-          {MAP_POOL.find(m => m.id === finalMap?.map_name)?.name || "Battlefield Ready"}
+      <div className="flex flex-col items-center justify-center p-12 bg-zinc-950 rounded border border-brand/20 animate-in fade-in zoom-in-95">
+        <Trophy className="w-16 h-16 text-brand mb-4 animate-bounce" />
+        <h2 className="text-2xl font-display font-bold text-white uppercase italic tracking-tighter">Mission Assigned</h2>
+        <p className="text-zinc-500 font-mono mt-2 uppercase tracking-[0.3em] text-xs">
+          Battlefield: <span className="text-white">{MAP_POOL.find(m => m.id === finalMap?.map_name)?.name || "Ready"}</span>
         </p>
       </div>
     );
@@ -84,33 +95,33 @@ export const VetoPanel = ({ match, myTeamId }) => {
   return (
     <div className="w-full flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-32">
       
-      {/* 1. STATUS UPLINK */}
+      {/* STATUS UPLINK */}
       <div className={cn(
         "relative rounded-lg border-2 p-6 flex flex-col md:flex-row items-center justify-between transition-all overflow-hidden",
-        isMyTurn ? "bg-brand/5 border-brand/40 shadow-2xl" : "bg-black/40 border-zinc-900"
+        isMyTurn ? "bg-brand/5 border-brand/40 shadow-[0_0_30px_rgba(var(--brand-rgb),0.1)]" : "bg-black/40 border-zinc-900"
       )}>
         <div className="flex items-center gap-10">
           <div className="text-left">
-            <p className="text-[10px] text-zinc-500 font-black uppercase tracking-tighter">Initiator</p>
-            <h4 className="text-xl font-display font-bold text-white uppercase truncate max-w-[150px]">{match.team1?.name}</h4>
+            <p className="text-[10px] text-zinc-500 font-black uppercase tracking-widest">Team Alpha</p>
+            <h4 className="text-xl font-display font-bold text-white uppercase truncate max-w-[150px] italic">{match.team1?.name}</h4>
           </div>
-          <div className="text-2xl font-black italic text-zinc-800">VS</div>
+          <div className="text-2xl font-black italic text-zinc-800 select-none">VS</div>
           <div className="text-right">
-            <p className="text-[10px] text-zinc-500 font-black uppercase tracking-tighter">Opponent</p>
-            <h4 className="text-xl font-display font-bold text-white uppercase truncate max-w-[150px]">{match.team2?.name}</h4>
+            <p className="text-[10px] text-zinc-500 font-black uppercase tracking-widest">Team Bravo</p>
+            <h4 className="text-xl font-display font-bold text-white uppercase truncate max-w-[150px] italic">{match.team2?.name}</h4>
           </div>
         </div>
 
         <div className={cn(
-          "mt-4 md:mt-0 px-6 py-3 rounded font-black text-sm uppercase flex items-center gap-3 transition-colors",
-          isMyTurn ? "bg-brand text-black shadow-brand-glow animate-pulse" : "bg-zinc-800 text-zinc-500"
+          "mt-4 md:mt-0 px-6 py-3 rounded font-black text-xs uppercase flex items-center gap-3 transition-all tracking-[0.1em]",
+          isMyTurn ? "bg-brand text-black shadow-[0_0_15px_rgba(var(--brand-rgb),0.5)] animate-pulse" : "bg-zinc-800 text-zinc-500"
         )}>
-          {isMyTurn ? <Clock className="w-5 h-5" /> : <Lock className="w-5 h-5" />}
-          {isMyTurn ? `AWAITING YOUR ${currentAction}` : "OPPONENT CALCULATING..."}
+          {isMyTurn ? <Clock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+          {isMyTurn ? `COMMAND REQUIRED: ${currentAction}` : "WAITING FOR OPPONENT..."}
         </div>
       </div>
 
-      {/* 2. OPERATIONAL GRID */}
+      {/* OPERATIONAL GRID */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {MAP_POOL.map(map => (
           <MapCard 
@@ -125,15 +136,15 @@ export const VetoPanel = ({ match, myTeamId }) => {
         ))}
       </div>
 
-      {/* 3. TACTICAL CONFIRMATION */}
+      {/* TACTICAL CONFIRMATION (FAB) */}
       <div className={cn(
-        "fixed bottom-10 left-1/2 -translate-x-1/2 w-full max-w-lg px-4 transition-all duration-500",
-        selectedMap ? "translate-y-0 opacity-100" : "translate-y-24 opacity-0"
+        "fixed bottom-10 left-1/2 -translate-x-1/2 w-full max-w-lg px-4 transition-all duration-500 z-50",
+        selectedMap ? "translate-y-0 opacity-100" : "translate-y-24 opacity-0 pointer-events-none"
       )}>
-        <div className="bg-zinc-900/90 backdrop-blur-xl border border-white/10 rounded-xl p-5 shadow-[0_20px_50px_rgba(0,0,0,0.5)] flex items-center justify-between">
-          <div>
-            <p className="text-[10px] text-zinc-500 font-bold uppercase">Executing Protocol</p>
-            <p className={cn("text-xl font-display font-black uppercase italic", theme.text)}>
+        <div className="bg-zinc-900/95 backdrop-blur-xl border border-white/10 rounded-xl p-5 shadow-2xl flex items-center justify-between ring-1 ring-white/5">
+          <div className="overflow-hidden">
+            <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Awaiting Confirmation</p>
+            <p className={cn("text-xl font-display font-black uppercase italic truncate", theme.text)}>
               {currentAction}: {MAP_POOL.find(m => m.id === selectedMap)?.name}
             </p>
           </div>
@@ -141,14 +152,16 @@ export const VetoPanel = ({ match, myTeamId }) => {
             onClick={handleAction}
             disabled={loading}
             className={cn(
-              "px-10 py-4 rounded font-black uppercase tracking-tighter text-white shadow-xl hover:scale-105 active:scale-95 transition-all",
+              "px-8 py-4 rounded font-black uppercase tracking-tighter text-white shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center gap-2",
               theme.bg
             )}
           >
-            {loading ? "PROCESSING..." : "COMMIT"}
+            {loading ? <Clock className="animate-spin w-4 h-4" /> : "COMMIT"}
           </button>
         </div>
       </div>
     </div>
   );
 };
+
+export default VetoPanel;

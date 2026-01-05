@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { MatchNode } from './bracket/MatchNode';
 import { ZoomableBracket } from './bracket/ZoomableBracket';
-import { Loader2, Wifi, Zap } from 'lucide-react';
+import { Wifi } from 'lucide-react';
 
 const CARD_WIDTH = 240;
 const CARD_HEIGHT = 110;
@@ -10,21 +10,20 @@ const BASE_GAP_Y = 50;
 
 const Bracket = ({ matches = [], onMatchClick }) => {
   
-  // 🧠 LAYOUT ENGINE (Memoized for Performance)
   const { nodes, paths, totalWidth, totalHeight } = useMemo(() => {
     if (!matches.length) return { nodes: [], paths: [], totalWidth: 0, totalHeight: 0 };
 
-    // 1. Group by Round
+    // 1. Group by Round (Using DB column: round_number)
     const rounds = {};
     matches.forEach(m => {
-      const r = m.round || 1;
+      const r = m.round_number || 1;
       if (!rounds[r]) rounds[r] = [];
       rounds[r].push(m);
     });
 
-    // 2. Sort Matches within Rounds (Critical for Vertical Alignment)
+    // 2. Sort Matches (Using DB column: match_position)
     Object.keys(rounds).forEach(r => {
-      rounds[r].sort((a, b) => (a.match_no || 0) - (b.match_no || 0));
+      rounds[r].sort((a, b) => (a.match_position || 0) - (b.match_position || 0));
     });
 
     const roundKeys = Object.keys(rounds).sort((a, b) => Number(a) - Number(b));
@@ -40,21 +39,20 @@ const Bracket = ({ matches = [], onMatchClick }) => {
       roundMatches.forEach((match, mIndex) => {
         let y;
         
-        // Round 1: Stack vertically
         if (rIndex === 0) {
           y = mIndex * (CARD_HEIGHT + BASE_GAP_Y);
         } else {
-          // Later Rounds: Center relative to "Feeders" (Previous matches)
-          const feeders = matches.filter(m => m.next_match_id === match.id);
+          // Find parent matches from previous round
+          const feeders = matches.filter(m => 
+            m.round_number === match.round_number - 1 && 
+            Math.ceil(m.match_position / 2) === match.match_position
+          );
           
           if (feeders.length === 2) {
              const y1 = positions.get(feeders[0].id)?.y || 0;
              const y2 = positions.get(feeders[1].id)?.y || 0;
              y = (y1 + y2) / 2;
-          } else if (feeders.length === 1) {
-             y = positions.get(feeders[0].id)?.y || 0;
           } else {
-             // Fallback if structure is broken
              y = mIndex * (CARD_HEIGHT + BASE_GAP_Y) * Math.pow(2, rIndex); 
           }
         }
@@ -74,12 +72,17 @@ const Bracket = ({ matches = [], onMatchClick }) => {
       });
     });
 
-    // 4. Generate Connector Paths (Bezier Curves)
+    // 4. Generate Connector Paths
     matches.forEach(match => {
-      if (!match.next_match_id) return;
+      const nextMatch = matches.find(m => 
+        m.round_number === match.round_number + 1 && 
+        m.match_position === Math.ceil(match.match_position / 2)
+      );
+
+      if (!nextMatch) return;
       
       const start = positions.get(match.id);
-      const end = positions.get(match.next_match_id);
+      const end = positions.get(nextMatch.id);
       
       if (!start || !end) return;
 
@@ -92,22 +95,20 @@ const Bracket = ({ matches = [], onMatchClick }) => {
       const cp2x = endX - (endX - startX) * 0.5;
 
       calculatedPaths.push({
-        id: `${match.id}->${match.next_match_id}`,
+        id: `${match.id}->${nextMatch.id}`,
         d: `M ${startX} ${startY} C ${cp1x} ${startY}, ${cp2x} ${endY}, ${endX} ${endY}`,
-        startX, startY, endX, endY, // Store coords for "Dots"
+        startX, startY, endX, endY,
         status: match.status,
-        isCompleted: match.status === 'completed'
+        isCompleted: match.status === 'COMPLETED'
       });
     });
 
     const totalWidth = roundKeys.length * (CARD_WIDTH + GAP_X);
-    const maxY = Math.max(...Array.from(positions.values()).map(p => p.y)) + CARD_HEIGHT;
+    const maxY = Math.max(...Array.from(positions.values()).map(p => p.y), 0) + CARD_HEIGHT;
 
     return { nodes: calculatedNodes, paths: calculatedPaths, totalWidth, totalHeight: maxY };
 
   }, [matches]);
-
-  // --- RENDER ---
 
   if (matches.length === 0) {
     return (
@@ -120,12 +121,8 @@ const Bracket = ({ matches = [], onMatchClick }) => {
 
   return (
     <div className="w-full h-full flex flex-col bg-[#050505]">
-       
-       {/* 🔍 ZOOM CONTROLLER */}
        <ZoomableBracket>
-          <div style={{ width: totalWidth + 100, height: totalHeight + 100, position: 'relative', padding: '50px' }}>
-            
-            {/* 🕸️ CONNECTORS LAYER */}
+          <div style={{ width: totalWidth + 200, height: totalHeight + 200, position: 'relative', padding: '100px' }}>
             <svg className="absolute inset-0 w-full h-full pointer-events-none overflow-visible z-0">
               <defs>
                  <linearGradient id="gradient-live" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -135,13 +132,12 @@ const Bracket = ({ matches = [], onMatchClick }) => {
               </defs>
 
               {paths.map(path => {
-                const isLive = path.status === 'live';
+                const isLive = path.status === 'LIVE';
                 const isDone = path.isCompleted;
-                const strokeColor = isLive ? 'url(#gradient-live)' : isDone ? '#3f3f46' : '#27272a'; // Zinc-700 vs Zinc-800
+                const strokeColor = isLive ? 'url(#gradient-live)' : isDone ? '#3f3f46' : '#27272a';
                 
                 return (
                   <g key={path.id}>
-                    {/* The Wire */}
                     <path
                       d={path.d}
                       fill="none"
@@ -152,8 +148,6 @@ const Bracket = ({ matches = [], onMatchClick }) => {
                     >
                         {isLive && <animate attributeName="stroke-dashoffset" from="100" to="0" dur="2s" repeatCount="indefinite" />}
                     </path>
-
-                    {/* Circuit Dots (Start/End) */}
                     <circle cx={path.startX} cy={path.startY} r="3" fill={isLive ? "#10b981" : "#27272a"} />
                     <circle cx={path.endX} cy={path.endY} r="3" fill={isLive ? "#10b981" : "#27272a"} />
                   </g>
@@ -161,7 +155,6 @@ const Bracket = ({ matches = [], onMatchClick }) => {
               })}
             </svg>
 
-            {/* 🟦 NODES LAYER */}
             {nodes.map(({ match, style }) => (
               <div key={match.id} style={style} className="z-10">
                 <MatchNode match={match} onClick={onMatchClick} />
@@ -169,13 +162,6 @@ const Bracket = ({ matches = [], onMatchClick }) => {
             ))}
           </div>
        </ZoomableBracket>
-
-       {/* Overlay Controls / Info */}
-       <div className="absolute bottom-6 right-6 pointer-events-none z-20 flex gap-4">
-          <div className="bg-black/80 backdrop-blur px-3 py-1 rounded border border-white/5 text-[10px] text-zinc-500 font-mono uppercase">
-             CTRL + SCROLL TO ZOOM
-          </div>
-       </div>
     </div>
   );
 };

@@ -1,52 +1,70 @@
 import React, { useState } from 'react';
 import { supabase } from '../../supabase/client';
-import { Settings, RefreshCw, ArrowRightLeft, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Settings, RefreshCw, ArrowRightLeft, Save, Trash2 } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 
 export const AdminMatchControls = ({ match, onUpdate }) => {
-  const [selectedFormat, setSelectedFormat] = useState(match?.best_of || 1);
   const [loading, setLoading] = useState(false);
-  const [statusMsg, setStatusMsg] = useState(null);
+  const selectedFormat = match?.best_of || 1;
 
-  const isLocked = ['live', 'completed'].includes(match.status);
+  const isLocked = ['completed'].includes(match.status); // Allow edits in 'live' if needed
 
   // 1. Format Toggle
   const handleFormatChange = async (newFormat) => {
-    if (isLocked) return;
+    if (isLocked || loading) return;
+    if (newFormat === selectedFormat) return;
+
     setLoading(true);
-    
     const { error } = await supabase.rpc('admin_update_match_format', {
         p_match_id: match.id,
         p_best_of: newFormat
     });
 
     if (error) {
-        setStatusMsg({ type: 'error', msg: error.message });
+        toast.error(error.message);
     } else {
-        setSelectedFormat(newFormat);
-        setStatusMsg({ type: 'success', msg: `Updated to Best of ${newFormat}` });
+        toast.success(`Format changed to Best of ${newFormat}`);
         if(onUpdate) onUpdate();
     }
     setLoading(false);
-    setTimeout(() => setStatusMsg(null), 3000);
   };
 
   // 2. Team Swap
   const handleSwap = async () => {
-      if(isLocked || !window.confirm("Swap Team 1 and Team 2?")) return;
-      setLoading(true);
+      if(isLocked || loading) return;
+      if(!window.confirm("Swap Team 1 (Left) and Team 2 (Right)?\n\nThis will also swap their scores.")) return;
       
-      const { error } = await supabase.rpc('api_swap_match_slots', { 
-          p_match_id: match.id, 
-          p_reason: "Manual Admin Swap" 
+      setLoading(true);
+      const { error } = await supabase.rpc('admin_swap_teams', { 
+          p_match_id: match.id 
       });
 
-      if(error) setStatusMsg({ type: 'error', msg: error.message });
+      if(error) toast.error(error.message);
       else {
-          setStatusMsg({ type: 'success', msg: 'Teams Swapped' });
+          toast.success('Teams & Scores Swapped');
           if(onUpdate) onUpdate();
       }
       setLoading(false);
-      setTimeout(() => setStatusMsg(null), 3000);
+  };
+
+  // 3. Hard Reset
+  const handleReset = async () => {
+      const confirmText = "RESET MATCH";
+      const input = window.prompt(`⚠️ DANGER ZONE\n\nThis will:\n- Wipe all vetoes\n- Reset scores to 0-0\n- Set status to 'Scheduled'\n\nType "${confirmText}" to confirm:`);
+      
+      if (input !== confirmText) return;
+
+      setLoading(true);
+      const { error } = await supabase.rpc('admin_reset_match', { 
+          p_match_id: match.id 
+      });
+
+      if (error) toast.error(error.message);
+      else {
+          toast.success('Match Hard Reset Complete');
+          if(onUpdate) onUpdate();
+      }
+      setLoading(false);
   };
 
   return (
@@ -57,12 +75,6 @@ export const AdminMatchControls = ({ match, onUpdate }) => {
           <div className="flex items-center gap-2 text-zinc-400 text-xs font-bold uppercase tracking-widest">
               <Settings size={14} /> Mission Configuration
           </div>
-          {statusMsg && (
-              <div className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded flex items-center gap-1 ${statusMsg.type === 'success' ? 'text-green-400 bg-green-900/20' : 'text-red-400 bg-red-900/20'}`}>
-                  {statusMsg.type === 'success' ? <CheckCircle size={10}/> : <AlertTriangle size={10}/>}
-                  {statusMsg.msg}
-              </div>
-          )}
       </div>
 
       {/* CONTROLS GRID */}
@@ -90,7 +102,7 @@ export const AdminMatchControls = ({ match, onUpdate }) => {
               </div>
           </div>
 
-          {/* SWAP & RESET */}
+          {/* ACTIONS */}
           <div className="space-y-2">
               <label className="text-[10px] text-zinc-500 uppercase font-mono">Roster Management</label>
               <div className="flex gap-2">
@@ -102,11 +114,11 @@ export const AdminMatchControls = ({ match, onUpdate }) => {
                       <ArrowRightLeft size={14} /> Swap Sides
                   </button>
                   <button 
-                      disabled 
-                      className="flex-1 py-2 bg-red-900/20 text-red-500 text-xs font-bold uppercase rounded border border-red-900/30 flex items-center justify-center gap-2 opacity-50 cursor-not-allowed"
-                      title="Coming Soon"
+                      onClick={handleReset}
+                      disabled={loading}
+                      className="flex-1 py-2 bg-red-900/20 hover:bg-red-900/40 text-red-500 text-xs font-bold uppercase rounded border border-red-900/30 flex items-center justify-center gap-2 transition-all disabled:opacity-50"
                   >
-                      <RefreshCw size={14} /> Reset Match
+                      <Trash2 size={14} /> Reset Data
                   </button>
               </div>
           </div>

@@ -7,7 +7,7 @@ import {
 import { AdminToolbar } from './AdminToolbar';
 import { TeamRosterView } from './TeamRosterView';
 import { StaffManagement } from './StaffManagement';
-import BracketView from '../BracketView'; // ✅ FIXED: Removed curly braces for Default Import
+import BracketView from '../BracketView'; // ✅ FIXED: Default Import
 import StatsCard from '../StatsCard';
 import { MatchWarRoom } from './MatchWarRoom';
 import { formatDistanceToNow } from 'date-fns';
@@ -28,22 +28,29 @@ export const AdminDashboard = () => {
   // 1. DATA FETCHING (Intel Feed)
   const fetchDashboardIntel = async () => {
     try {
+        // Fetch stats and active matches
         const [teamsRes, matchesRes, logsRes] = await Promise.all([
             supabase.from('teams').select('id', { count: 'exact', head: true }),
-            supabase.from('matches').select('*').or('status.eq.live,status.eq.disputed,status.eq.veto').order('start_time', { ascending: true }),
-            supabase.from('admin_audit_logs').select('*').order('created_at', { ascending: false }).limit(5)
+            supabase.from('matches')
+              .select('*, team1:team1_id(name), team2:team2_id(name)')
+              .or('status.eq.LIVE,status.eq.disputed,status.eq.veto')
+              .order('round_number', { ascending: true }),
+            supabase.from('admin_audit_logs')
+              .select('*')
+              .order('created_at', { ascending: false })
+              .limit(5)
         ]);
 
         setStats({
             teams: teamsRes.count || 0,
             matches: matchesRes.data?.length || 0,
-            disputes: matchesRes.data?.filter(m => m.status === 'disputed').length || 0
+            disputes: matchesRes.data?.filter(m => m.status?.toLowerCase() === 'disputed').length || 0
         });
 
         setLiveMatches(matchesRes.data || []);
         setAuditLogs(logsRes.data || []);
     } catch (err) {
-        console.error("Intel Fetch Error:", err);
+        console.error("Dashboard Intel Fetch Error:", err);
     }
   };
 
@@ -56,9 +63,12 @@ export const AdminDashboard = () => {
   // 2. TAB RENDERER
   const renderContent = () => {
       switch(activeTab) {
-          case 'BRACKET': return <div className="h-[80vh] border border-tactical rounded-lg overflow-hidden"><BracketView adminMode={true} /></div>;
-          case 'ROSTER': return <TeamRosterView />;
-          case 'STAFF': return <StaffManagement />;
+          case 'BRACKET': 
+            return <div className="h-[80vh] border border-white/10 rounded-lg overflow-hidden bg-black"><BracketView adminMode={true} /></div>;
+          case 'ROSTER': 
+            return <TeamRosterView />;
+          case 'STAFF': 
+            return <StaffManagement />;
           case 'OVERVIEW':
           default:
               return (
@@ -79,9 +89,9 @@ export const AdminDashboard = () => {
                                         <AlertTriangle size={16} /> Attention Required
                                     </div>
                                     <div className="space-y-2">
-                                        {liveMatches.filter(m => m.status === 'disputed').map(m => (
+                                        {liveMatches.filter(m => m.status?.toLowerCase() === 'disputed').map(m => (
                                             <div key={m.id} className="flex justify-between items-center bg-red-900/10 p-2 rounded border border-red-900/30">
-                                                <span className="text-white text-xs font-mono">MATCH #{m.match_position}</span>
+                                                <span className="text-white text-xs font-mono">MATCH #{m.match_position} (DISPUTED)</span>
                                                 <button onClick={() => setActiveWarRoomId(m.id)} className="px-3 py-1 bg-red-600 hover:bg-red-500 text-white text-[10px] font-bold uppercase rounded">Resolve</button>
                                             </div>
                                         ))}
@@ -89,8 +99,8 @@ export const AdminDashboard = () => {
                                 </div>
                             )}
 
-                            <div className="bg-bg-panel border border-tactical rounded-lg overflow-hidden">
-                                <div className="p-4 border-b border-white/5 bg-zinc-900/50 flex justify-between items-center">
+                            <div className="bg-zinc-900/50 border border-white/10 rounded-lg overflow-hidden">
+                                <div className="p-4 border-b border-white/5 bg-zinc-900 flex justify-between items-center">
                                     <h3 className="font-bold text-white text-sm uppercase flex items-center gap-2">
                                         <Sword size={14} className="text-brand" /> Active Deployments
                                     </h3>
@@ -103,11 +113,13 @@ export const AdminDashboard = () => {
                                             <div key={match.id} className="p-4 hover:bg-white/5 transition-colors flex items-center justify-between group">
                                                 <div>
                                                     <div className="flex items-center gap-2 mb-1">
-                                                        {match.status === 'live' && <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />}
-                                                        <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border ${match.status === 'live' ? 'bg-red-900/20 text-red-500 border-red-900/50' : 'bg-fuchsia-900/20 text-fuchsia-500 border-fuchsia-900/50'}`}>{match.status}</span>
-                                                        <span className="text-xs font-mono text-zinc-500">#{match.match_position}</span>
+                                                        {match.status === 'LIVE' && <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />}
+                                                        <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border ${match.status === 'LIVE' ? 'bg-red-900/20 text-red-500 border-red-900/50' : 'bg-zinc-800 text-zinc-400 border-white/10'}`}>{match.status}</span>
+                                                        <span className="text-xs font-mono text-zinc-500">R{match.round_number} | POS {match.match_position}</span>
                                                     </div>
-                                                    <div className="text-sm font-bold text-white">ID: {match.id.substring(0,8)}...</div>
+                                                    <div className="text-sm font-bold text-white">
+                                                        {match.team1?.name || 'TBD'} vs {match.team2?.name || 'TBD'}
+                                                    </div>
                                                 </div>
                                                 <button onClick={() => setActiveWarRoomId(match.id)} className="px-4 py-2 bg-zinc-800 hover:bg-brand text-white text-xs font-bold uppercase rounded border border-white/5 transition-all">War Room</button>
                                             </div>
@@ -118,14 +130,14 @@ export const AdminDashboard = () => {
                         </div>
 
                         {/* AUDIT LOG */}
-                        <div className="bg-bg-panel border border-tactical rounded-lg overflow-hidden h-full max-h-[500px]">
-                            <div className="p-4 border-b border-white/5 bg-zinc-900/50">
+                        <div className="bg-zinc-900/50 border border-white/10 rounded-lg overflow-hidden h-fit">
+                            <div className="p-4 border-b border-white/5 bg-zinc-900">
                                 <h3 className="font-bold text-white text-sm uppercase flex items-center gap-2">
                                     <FileText size={14} className="text-zinc-400" /> Recent Activity
                                 </h3>
                             </div>
                             <div className="p-4 space-y-4">
-                                {auditLogs.length === 0 ? <div className="text-zinc-600 text-xs font-mono text-center">Log Empty</div> : auditLogs.map(log => (
+                                {auditLogs.length === 0 ? <div className="text-zinc-600 text-xs font-mono text-center py-4">Log Empty</div> : auditLogs.map(log => (
                                     <div key={log.id} className="relative pl-4 border-l border-zinc-800 pb-1">
                                         <div className="absolute left-[-5px] top-0 w-2.5 h-2.5 rounded-full bg-zinc-800 border-2 border-black" />
                                         <div className="text-[10px] text-zinc-500 font-mono mb-0.5 uppercase">{timeAgo(log.created_at)}</div>
@@ -142,12 +154,12 @@ export const AdminDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-bg text-white selection:bg-brand/30 pb-20">
+    <div className="min-h-screen bg-black text-white selection:bg-brand/30 pb-20">
       <AdminToolbar />
       
       <div className="pt-20 px-6 max-w-[1600px] mx-auto space-y-6">
          {/* SUB-NAV TABS */}
-         <div className="flex items-center gap-2 bg-bg-panel p-1 rounded-lg border border-tactical w-fit sticky top-20 z-40 shadow-xl backdrop-blur-md">
+         <div className="flex items-center gap-2 bg-zinc-900/80 p-1 rounded-lg border border-white/10 w-fit sticky top-20 z-40 shadow-xl backdrop-blur-md">
             {[
                 { id: 'OVERVIEW', icon: Activity, label: 'Overview' },
                 { id: 'BRACKET', icon: Layout, label: 'Bracket' },
@@ -171,13 +183,15 @@ export const AdminDashboard = () => {
          </main>
       </div>
 
-      {/* WAR ROOM MODAL (From Overview) */}
+      {/* WAR ROOM MODAL */}
       {activeWarRoomId && (
-           <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4">
-               <MatchWarRoom 
-                  matchId={activeWarRoomId} 
-                  onClose={() => { setActiveWarRoomId(null); fetchDashboardIntel(); }} 
-               />
+           <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/95 backdrop-blur-sm p-4 animate-in fade-in duration-300">
+               <div className="relative w-full max-w-5xl h-[85vh]">
+                    <MatchWarRoom 
+                        matchId={activeWarRoomId} 
+                        onClose={() => { setActiveWarRoomId(null); fetchDashboardIntel(); }} 
+                    />
+               </div>
            </div>
        )}
     </div>

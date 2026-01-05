@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../supabase/client';
 import { useNavigate } from 'react-router-dom';
-import { Shield, Activity, Users, AlertTriangle, Sword } from 'lucide-react';
+import { Shield, Activity, Users, AlertTriangle, Sword, Loader2 } from 'lucide-react';
 import StatsCard from '../StatsCard';
 import { MatchWarRoom } from './MatchWarRoom';
-import { AdminAuditLog } from './AdminAuditLog'; // ✅ Importing the Real-Time Component
+import { AdminAuditLog } from './AdminAuditLog';
 
 export const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -14,10 +14,10 @@ export const AdminDashboard = () => {
   const [activeWarRoomId, setActiveWarRoomId] = useState(null);
 
   const fetchDashboardIntel = async () => {
-    setLoading(true);
+    // Note: Don't set global loading true on refresh to avoid UI flicker
     try {
         const [teamsRes, matchesRes] = await Promise.all([
-            supabase.from('teams').select('id', { count: 'exact' }),
+            supabase.from('teams').select('id', { count: 'exact', head: true }),
             supabase.from('matches').select('*').or('status.eq.live,status.eq.disputed,status.eq.veto').order('scheduled_at', { ascending: true })
         ]);
 
@@ -37,10 +37,12 @@ export const AdminDashboard = () => {
 
   useEffect(() => {
       fetchDashboardIntel();
-      // Poll stats every 30s (Audit Log handles its own real-time)
-      const interval = setInterval(fetchDashboardIntel, 30000);
+      // Poll stats every 15s for "Live" feel
+      const interval = setInterval(fetchDashboardIntel, 15000);
       return () => clearInterval(interval);
   }, []);
+
+  if (loading) return <div className="h-full flex items-center justify-center"><Loader2 className="animate-spin text-zinc-500" /></div>;
 
   return (
     <div className="p-6 space-y-6 animate-in fade-in h-[calc(100vh-60px)] overflow-y-auto custom-scrollbar">
@@ -105,11 +107,11 @@ export const AdminDashboard = () => {
                                           <span className="text-[10px] font-mono text-zinc-500">#{match.match_no}</span>
                                       </div>
                                       <span className="text-xs font-bold text-zinc-300 group-hover:text-white transition-colors">
-                                          Match in progress...
+                                          {match.team1_id ? 'Team A' : 'TBD'} vs {match.team2_id ? 'Team B' : 'TBD'}
                                       </span>
                                   </div>
                                   <button onClick={() => setActiveWarRoomId(match.id)} className="opacity-0 group-hover:opacity-100 transition-opacity px-3 py-1.5 bg-zinc-800 hover:bg-fuchsia-600 text-white text-[10px] font-bold uppercase rounded border border-zinc-700 hover:border-fuchsia-500">
-                                    War Room
+                                      War Room
                                   </button>
                               </div>
                           ))
@@ -126,10 +128,9 @@ export const AdminDashboard = () => {
               </div>
           </div>
 
-          {/* RIGHT: REAL-TIME AUDIT LOG (1/3 width) */}
-          <div className="h-full">
-              {/* ✅ THIS IS THE LINK: Dashboard now uses the dedicated Audit Component */}
-              <AdminAuditLog className="h-full" limit={50} />
+          {/* RIGHT: REAL-TIME AUDIT LOG */}
+          <div className="h-full bg-[#050505] border border-zinc-800 rounded-lg overflow-hidden">
+              <AdminAuditLog />
           </div>
 
        </div>

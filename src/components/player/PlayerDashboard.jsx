@@ -6,12 +6,11 @@ import {
     Shield, Swords, Clock, LogOut, CheckCircle, Trophy, RefreshCw, 
     Users, Map as MapIcon, Mic, Monitor, Gamepad2, Calendar, 
     AlertTriangle, User, Save, Link as LinkIcon, Globe
-} from 'lucide-react'; // ✅ AlertTriangle is now definitely imported
+} from 'lucide-react';
 import { MatchModal } from '../MatchModal'; 
 import { BracketView } from '../BracketView'; 
 import { cn } from '../../lib/utils';
 import { toast } from 'react-hot-toast';
-import { Input, Button } from '../../ui/Components'; // Assuming you have these, if not, standard HTML inputs work too
 
 // --- HELPER: HAMMER TIME (Automatic Local Timezone) ---
 const getUserTimezone = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -30,6 +29,7 @@ const formatMatchTime = (isoString) => {
 
 // --- SUB-COMPONENT: PLAYER PROFILE EDITOR ---
 const PlayerProfileEditor = ({ identity, onUpdate }) => {
+    // Local state for form inputs
     const [form, setForm] = useState({
         display_name: identity?.display_name || '',
         discord_handle: identity?.discord_handle || '',
@@ -37,6 +37,18 @@ const PlayerProfileEditor = ({ identity, onUpdate }) => {
         faceit_url: identity?.faceit_url || ''
     });
     const [saving, setSaving] = useState(false);
+
+    // Update form when identity prop changes (e.g. initial load)
+    useEffect(() => {
+        if (identity) {
+            setForm({
+                display_name: identity.display_name || '',
+                discord_handle: identity.discord_handle || '',
+                steam_url: identity.steam_url || '',
+                faceit_url: identity.faceit_url || ''
+            });
+        }
+    }, [identity]);
 
     const handleSave = async () => {
         setSaving(true);
@@ -64,24 +76,24 @@ const PlayerProfileEditor = ({ identity, onUpdate }) => {
     return (
         <div className="max-w-2xl mx-auto bg-[#0b0c0f] border border-zinc-800 rounded-xl p-8 animate-in fade-in slide-in-from-bottom-4">
             <div className="flex items-center gap-4 mb-8 border-b border-white/5 pb-6">
-                <div className="w-16 h-16 bg-brand/10 rounded-full flex items-center justify-center border border-brand/20">
-                    <User className="w-8 h-8 text-brand" />
+                <div className="w-16 h-16 bg-fuchsia-900/10 rounded-full flex items-center justify-center border border-fuchsia-500/20">
+                    <User className="w-8 h-8 text-fuchsia-500" />
                 </div>
                 <div>
                     <h2 className="text-xl font-display font-black text-white uppercase italic">Operator Profile</h2>
-                    <p className="text-xs text-zinc-500 font-mono">ID: {identity?.id}</p>
+                    <p className="text-xs text-zinc-500 font-mono">ID: {identity?.id?.split('-')[0]}...</p>
                 </div>
             </div>
 
             <div className="space-y-6">
                 <div className="group">
-                    <label className="text-[10px] uppercase font-bold text-zinc-500 mb-1 block group-focus-within:text-brand transition-colors">Display Name</label>
+                    <label className="text-[10px] uppercase font-bold text-zinc-500 mb-1 block group-focus-within:text-fuchsia-500 transition-colors">Display Name</label>
                     <div className="relative">
                         <User className="absolute left-3 top-2.5 w-4 h-4 text-zinc-600" />
                         <input 
                             value={form.display_name} 
                             onChange={e => setForm({...form, display_name: e.target.value})} 
-                            className="w-full bg-black border border-zinc-800 rounded pl-10 pr-4 py-2 text-white text-sm focus:border-brand outline-none transition-all"
+                            className="w-full bg-black border border-zinc-800 rounded pl-10 pr-4 py-2 text-white text-sm focus:border-fuchsia-500 outline-none transition-all"
                             placeholder="Your In-Game Name"
                         />
                     </div>
@@ -130,7 +142,7 @@ const PlayerProfileEditor = ({ identity, onUpdate }) => {
                     <button 
                         onClick={handleSave} 
                         disabled={saving}
-                        className="px-6 py-2 bg-brand hover:bg-brand-glow text-white font-bold uppercase text-xs rounded flex items-center gap-2 transition-all disabled:opacity-50"
+                        className="px-6 py-2 bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-bold uppercase text-xs rounded flex items-center gap-2 transition-all disabled:opacity-50"
                     >
                         {saving ? <RefreshCw className="animate-spin w-4 h-4" /> : <Save className="w-4 h-4" />}
                         Save Profile
@@ -181,25 +193,18 @@ export const PlayerDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [isMatchModalOpen, setMatchModalOpen] = useState(false);
   const [isReady, setIsReady] = useState(false); 
-  const [userId, setUserId] = useState(null);
 
-  // 1. Identity Logic
-  const getTeamId = useCallback(() => {
-    const tid = session?.identity?.team_id || session?.team_id || session?.user?.user_metadata?.team_id;
-    // Also store the User ID to find *their* profile specifically
-    if (session?.identity?.id) setUserId(session.identity.id);
-    return tid;
-  }, [session]);
-
-  const teamId = getTeamId();
+  // 1. Identity Logic (Simplified to avoid loops)
+  const teamId = session?.identity?.team_id || session?.team_id || session?.user?.user_metadata?.team_id;
+  const currentUserId = session?.identity?.id || session?.user?.id;
 
   // 2. Data Fetching
   const fetchData = useCallback(async () => {
     if (!teamId) { setLoading(false); return; }
     
     try {
-      // A. Fetch Team & Roster (Robust Query)
-      const { data: teamData, error: teamError } = await supabase
+      // A. Fetch Team & Roster
+      const { data: teamData } = await supabase
         .from('teams')
         .select(`
             *, 
@@ -262,8 +267,10 @@ export const PlayerDashboard = () => {
     navigate('/login');
   };
 
-  // Find CURRENT USER'S Profile Data for the Profile Tab
-  const myProfileData = myTeam?.members?.find(m => m.user_id === userId || m.user_id === session?.user?.id)?.profile_data;
+  // Safe Profile Finder
+  const myProfileData = myTeam?.members?.find(
+      m => m.user_id === currentUserId || (m.profile_data?.id === currentUserId)
+  )?.profile_data;
 
   if (loading) return (
       <div className="min-h-screen bg-bg flex items-center justify-center flex-col gap-4">
@@ -473,14 +480,16 @@ export const PlayerDashboard = () => {
               </div>
           )}
 
-          {/* === TAB 4: PROFILE EDITOR (NEW) === */}
+          {/* === TAB 4: PROFILE (NEW) === */}
           {activeTab === 'PROFILE' && (
               myProfileData ? (
                   <PlayerProfileEditor identity={myProfileData} onUpdate={fetchData} />
               ) : (
-                  <div className="text-center p-12 text-zinc-500 font-mono text-xs uppercase">
-                      <AlertTriangle className="mx-auto mb-2 w-6 h-6 opacity-50 text-yellow-500"/>
-                      Profile Not Linked. Please ask your captain to add your details.
+                  <div className="text-center p-12 text-zinc-500 font-mono text-xs uppercase flex flex-col items-center">
+                      <AlertTriangle className="mb-4 w-8 h-8 text-yellow-500/50"/>
+                      <span className="font-bold text-white mb-2">Profile Not Linked</span>
+                      <p className="max-w-md mx-auto mb-4">Your current session is not linked to a player profile in this team. This usually happens if you were added manually by a captain without an account.</p>
+                      <p className="text-[10px]">Contact your Team Captain or Admin to link your account.</p>
                   </div>
               )
           )}

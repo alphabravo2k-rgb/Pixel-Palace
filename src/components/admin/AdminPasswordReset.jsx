@@ -22,10 +22,12 @@ export const AdminPasswordReset = () => {
     setLoading(true);
     setError('');
 
-    // Send OTP (Sign in with OTP)
+    // Ensure we are logged out first to avoid session conflicts
+    await supabase.auth.signOut();
+
     const { error } = await supabase.auth.signInWithOtp({
       email: formData.email,
-      options: { shouldCreateUser: false } // Only allow existing admins
+      options: { shouldCreateUser: false } 
     });
 
     setLoading(false);
@@ -34,7 +36,7 @@ export const AdminPasswordReset = () => {
       setError(error.message);
       toast.error(error.message);
     } else {
-      setStep(2); // Move to PIN entry
+      setStep(2); 
       toast.success("Recovery Code Sent");
     }
   };
@@ -57,8 +59,7 @@ export const AdminPasswordReset = () => {
       setError("Invalid PIN code.");
       toast.error("Invalid Code");
     } else if (data.session) {
-      // PIN Correct - User is now technically logged in
-      setStep(3); // Move to Password Update
+      setStep(3); 
       toast.success("Identity Verified");
     }
   };
@@ -91,18 +92,13 @@ export const AdminPasswordReset = () => {
   };
 
   return (
-    <div className="min-h-screen bg-bg flex items-center justify-center p-4 relative overflow-hidden">
-      
-      {/* Background Ambience */}
-      <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 pointer-events-none" />
-      <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-brand to-transparent opacity-50" />
-
-      <div className="w-full max-w-md bg-bg-panel border border-tactical rounded-lg shadow-2xl p-8 relative z-10 animate-in zoom-in-95 duration-300">
+    <div className="min-h-screen bg-black flex items-center justify-center p-4 relative overflow-hidden">
+      <div className="w-full max-w-md bg-zinc-950 border border-zinc-800 rounded-lg shadow-2xl p-8 relative z-10 overflow-hidden">
         
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-zinc-900 rounded-full flex items-center justify-center mx-auto mb-4 border border-zinc-800 shadow-inner">
-            <Shield className="text-brand w-8 h-8" />
+          <div className="w-16 h-16 bg-zinc-900 rounded-full flex items-center justify-center mx-auto mb-4 border border-zinc-800">
+            <Shield className="text-white w-8 h-8" />
           </div>
           <h1 className="text-2xl font-display font-black text-white uppercase italic tracking-tighter">
             {step === 1 && 'Recovery Protocol'}
@@ -115,7 +111,7 @@ export const AdminPasswordReset = () => {
         </div>
 
         {error && (
-          <div className="mb-6 p-3 bg-red-950/30 border border-red-500/30 rounded text-red-400 text-xs font-bold text-center uppercase animate-in shake">
+          <div className="mb-6 p-3 bg-red-950/30 border border-red-500/30 rounded text-red-400 text-xs font-bold text-center uppercase animate-pulse">
             ⚠️ {error}
           </div>
         )}
@@ -126,12 +122,12 @@ export const AdminPasswordReset = () => {
             <div className="space-y-1">
               <label className="text-[10px] uppercase font-bold text-zinc-500">Admin Email</label>
               <div className="relative group">
-                <Mail className="absolute left-3 top-3 w-4 h-4 text-zinc-500 group-focus-within:text-brand transition-colors" />
+                <Mail className="absolute left-3 top-3 w-4 h-4 text-zinc-500 group-focus-within:text-white transition-colors" />
                 <input 
                   type="email" 
                   value={formData.email}
                   onChange={e => setFormData({...formData, email: e.target.value})}
-                  className="w-full bg-black border border-zinc-800 rounded p-3 pl-10 text-white focus:border-brand outline-none text-sm transition-all shadow-[0_0_10px_rgba(0,0,0,0.5)]"
+                  className="w-full bg-black border border-zinc-800 rounded p-3 pl-10 text-white focus:border-white outline-none text-sm transition-all"
                   placeholder="admin@pixelpalace.gg"
                   required
                   autoFocus
@@ -150,12 +146,12 @@ export const AdminPasswordReset = () => {
              <div className="space-y-1">
               <label className="text-[10px] uppercase font-bold text-zinc-500">6-Digit Code</label>
               <div className="relative group">
-                <Key className="absolute left-3 top-3 w-4 h-4 text-zinc-500 group-focus-within:text-fuchsia-500 transition-colors" />
+                <Key className="absolute left-3 top-3 w-4 h-4 text-zinc-500 group-focus-within:text-white transition-colors" />
                 <input 
                   type="text" 
                   value={formData.pin}
                   onChange={e => setFormData({...formData, pin: e.target.value})}
-                  className="w-full bg-black border border-zinc-800 rounded p-3 pl-10 text-white focus:border-fuchsia-500 outline-none text-xl font-mono tracking-widest text-center transition-all"
+                  className="w-full bg-black border border-zinc-800 rounded p-3 pl-10 text-white focus:border-white outline-none text-xl font-mono tracking-widest text-center transition-all"
                   placeholder="000000"
                   maxLength={6}
                   required
@@ -163,7 +159,7 @@ export const AdminPasswordReset = () => {
                 />
               </div>
             </div>
-            <button disabled={loading} className="w-full py-4 bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-bold uppercase text-xs tracking-widest rounded shadow-lg shadow-fuchsia-900/20 transition-all flex items-center justify-center gap-2">
+            <button disabled={loading} className="w-full py-4 bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-bold uppercase text-xs tracking-widest rounded shadow-lg transition-all flex items-center justify-center gap-2">
               {loading ? <Loader2 className="animate-spin w-4 h-4"/> : 'Verify Identity'}
             </button>
             <button type="button" onClick={() => setStep(1)} className="w-full py-2 text-zinc-500 text-xs hover:text-white transition-colors">Try different email</button>
@@ -189,7 +185,7 @@ export const AdminPasswordReset = () => {
                 />
               </div>
             </div>
-            <button disabled={loading} className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold uppercase text-xs tracking-widest rounded shadow-lg shadow-emerald-900/20 transition-all flex items-center justify-center gap-2">
+            <button disabled={loading} className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold uppercase text-xs tracking-widest rounded shadow-lg transition-all flex items-center justify-center gap-2">
               {loading ? <Loader2 className="animate-spin w-4 h-4"/> : <><CheckCircle className="w-4 h-4" /> Save Credentials</>}
             </button>
           </form>

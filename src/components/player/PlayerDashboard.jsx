@@ -4,12 +4,27 @@ import { supabase } from '../../supabase/client';
 import { useNavigate } from 'react-router-dom';
 import { 
     Shield, Swords, Clock, LogOut, CheckCircle, Trophy, RefreshCw, 
-    Users, Map as MapIcon, Mic, Monitor, Gamepad2, AlertTriangle, ChevronRight 
+    Users, Map as MapIcon, Mic, Monitor, Gamepad2, Calendar
 } from 'lucide-react';
 import { MatchModal } from '../MatchModal'; 
-import { BracketView } from '../BracketView'; // ✅ Reusing your Bracket Component
-import { cn, copyToClipboard } from '../../lib/utils';
+import { BracketView } from '../BracketView'; 
+import { cn } from '../../lib/utils';
 import { toast } from 'react-hot-toast';
+
+// --- HELPER: HAMMER TIME (Automatic Local Timezone) ---
+const formatMatchTime = (isoString) => {
+    if (!isoString) return 'TBD';
+    const date = new Date(isoString);
+    
+    // This automatically detects the user's browser timezone
+    return new Intl.DateTimeFormat(undefined, {
+        month: 'short', 
+        day: 'numeric',
+        hour: 'numeric', 
+        minute: '2-digit',
+        hour12: true // e.g. "Jan 24, 5:00 PM"
+    }).format(date);
+};
 
 // --- SUB-COMPONENTS ---
 
@@ -25,7 +40,7 @@ const SocialBadge = ({ icon: Icon, link, color, label }) => {
 const TeammateRow = ({ member }) => (
     <div className="flex items-center justify-between p-3 bg-white/5 rounded border border-white/5 hover:border-white/10 transition-all">
         <div className="flex items-center gap-3">
-            <div className={`w-8 h-8 rounded flex items-center justify-center text-xs font-black uppercase ${member.role === 'captain' ? 'bg-brand/20 text-brand border border-brand/30' : 'bg-zinc-800 text-zinc-500'}`}>
+            <div className={`w-8 h-8 rounded flex items-center justify-center text-xs font-black uppercase ${member.role === 'captain' ? 'bg-fuchsia-900/40 text-fuchsia-400 border border-fuchsia-500/30' : 'bg-zinc-800 text-zinc-500'}`}>
                 {member.username.substring(0, 1)}
             </div>
             <div>
@@ -45,15 +60,16 @@ export const PlayerDashboard = () => {
   const { session, logout } = useSession();
   const navigate = useNavigate();
   
-  const [activeTab, setActiveTab] = useState('OVERVIEW'); // 'OVERVIEW' | 'BRACKET' | 'ROSTER'
+  const [activeTab, setActiveTab] = useState('OVERVIEW'); 
   const [myTeam, setMyTeam] = useState(null);
   const [activeMatch, setActiveMatch] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isMatchModalOpen, setMatchModalOpen] = useState(false);
-  const [isReady, setIsReady] = useState(false); // Local ready state simulation
+  const [isReady, setIsReady] = useState(false); 
 
   // 1. Identity Logic
   const getTeamId = useCallback(() => {
+    // Check all possible locations for the ID
     return session?.identity?.team_id || session?.team_id || session?.user?.user_metadata?.team_id;
   }, [session]);
 
@@ -64,21 +80,29 @@ export const PlayerDashboard = () => {
     if (!teamId) { setLoading(false); return; }
     
     try {
-      // A. Fetch Team & Roster
-      const { data: teamData } = await supabase
+      // A. Fetch Team & Roster (Robust Query)
+      // Note: We use 'team_members' and join 'global_identities' to get player names
+      const { data: teamData, error: teamError } = await supabase
         .from('teams')
-        .select(`*, members:team_members(*, player:global_identities(*))`)
+        .select(`
+            *, 
+            team_members (
+                id, role, user_id,
+                global_identities (display_name, steam_url, faceit_url, discord_handle)
+            )
+        `)
         .eq('id', teamId)
         .single();
 
       if (teamData) {
-          const formattedMembers = teamData.members.map(m => ({
+          // Flatten the nested structure for easier display
+          const formattedMembers = (teamData.team_members || []).map(m => ({
               id: m.id,
-              username: m.player?.display_name || 'Operator',
+              username: m.global_identities?.display_name || 'Unknown Operator',
               role: m.role,
-              steam_url: m.player?.steam_url,
-              faceit_url: m.player?.faceit_url,
-              discord_handle: m.player?.discord_handle
+              steam_url: m.global_identities?.steam_url,
+              faceit_url: m.global_identities?.faceit_url,
+              discord_handle: m.global_identities?.discord_handle
           })).sort((a,b) => a.role === 'captain' ? -1 : 1);
           
           setMyTeam({ ...teamData, members: formattedMembers });
@@ -113,7 +137,6 @@ export const PlayerDashboard = () => {
       if(!activeMatch) return;
       setIsReady(true);
       toast.success("Unit Marked as READY");
-      // In a real DB, you'd update a 'ready_status' column here
   };
 
   const handleLogout = async () => {
@@ -132,10 +155,10 @@ export const PlayerDashboard = () => {
     <div className="min-h-screen bg-bg text-white selection:bg-brand/30 pb-20">
       
       {/* --- TOP NAVIGATION BAR --- */}
-      <div className="sticky top-0 z-50 bg-bg-panel/80 backdrop-blur-md border-b border-white/5 px-6 h-16 flex items-center justify-between">
+      <div className="sticky top-0 z-50 bg-[#09090b]/80 backdrop-blur-md border-b border-white/5 px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-4">
-              <div className="w-10 h-10 bg-brand/10 border border-brand/20 rounded flex items-center justify-center">
-                  <Shield className="w-5 h-5 text-brand" />
+              <div className="w-10 h-10 bg-fuchsia-900/20 border border-fuchsia-500/30 rounded flex items-center justify-center">
+                  <Shield className="w-5 h-5 text-fuchsia-500" />
               </div>
               <div>
                   <h1 className="text-lg font-display font-black uppercase italic tracking-tighter leading-none">
@@ -143,7 +166,10 @@ export const PlayerDashboard = () => {
                   </h1>
                   <div className="flex items-center gap-2 mt-0.5">
                       <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"/>
-                      <span className="text-[9px] text-zinc-500 font-mono uppercase tracking-widest">ONLINE // {session?.user?.email}</span>
+                      {/* FIX: Use the loaded user name or fallback */}
+                      <span className="text-[9px] text-zinc-500 font-mono uppercase tracking-widest">
+                          ONLINE // {myTeam?.members?.find(m => m.id === session?.identity?.id)?.username || session?.user?.email}
+                      </span>
                   </div>
               </div>
           </div>
@@ -168,11 +194,11 @@ export const PlayerDashboard = () => {
                     onClick={() => setActiveTab(tab)}
                     className={cn(
                         "pb-4 text-xs font-bold uppercase tracking-widest transition-all relative",
-                        activeTab === tab ? "text-brand" : "text-zinc-500 hover:text-white"
+                        activeTab === tab ? "text-fuchsia-500" : "text-zinc-500 hover:text-white"
                     )}
                   >
                       {tab}
-                      {activeTab === tab && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-brand animate-in slide-in-from-left duration-300"/>}
+                      {activeTab === tab && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-fuchsia-500 animate-in slide-in-from-left duration-300"/>}
                   </button>
               ))}
           </div>
@@ -185,7 +211,7 @@ export const PlayerDashboard = () => {
                   <div className="lg:col-span-2">
                       <div className={cn(
                           "relative rounded-xl border overflow-hidden min-h-[300px] flex flex-col justify-center items-center p-8 text-center",
-                          activeMatch ? "bg-bg-panel border-brand/30 shadow-[0_0_50px_rgba(var(--color-brand)/0.1)]" : "bg-zinc-900/20 border-white/5 border-dashed"
+                          activeMatch ? "bg-[#0b0c0f] border-fuchsia-500/30 shadow-[0_0_50px_rgba(192,38,211,0.1)]" : "bg-zinc-900/20 border-white/5 border-dashed"
                       )}>
                           {activeMatch ? (
                               <>
@@ -200,24 +226,30 @@ export const PlayerDashboard = () => {
 
                                   <div className="flex items-center gap-8 mb-8">
                                       <div className="text-center">
-                                          <div className="w-20 h-20 bg-black rounded-full border border-zinc-800 flex items-center justify-center mb-2">
-                                              {activeMatch.team1?.logo_url ? <img src={activeMatch.team1.logo_url} className="w-12 h-12 object-contain"/> : <Shield className="w-8 h-8 text-zinc-700"/>}
+                                          <div className="w-20 h-20 bg-black rounded-full border border-zinc-800 flex items-center justify-center mb-2 mx-auto">
+                                              {activeMatch.team1?.logo_url ? <img src={activeMatch.team1.logo_url} className="w-12 h-12 object-contain" onError={(e)=>e.target.style.display='none'}/> : <Shield className="w-8 h-8 text-zinc-700"/>}
                                           </div>
-                                          <h3 className="text-xl font-black italic uppercase text-white">{activeMatch.team1?.name}</h3>
+                                          <h3 className="text-xl font-black italic uppercase text-white truncate max-w-[150px]">{activeMatch.team1?.name}</h3>
                                       </div>
+                                      
                                       <div className="flex flex-col items-center">
                                           <span className="text-4xl font-black text-zinc-700 italic">VS</span>
+                                          {/* ✅ TIMEZONE FIX: Shows Date and Local Time */}
                                           {activeMatch.scheduled_at && (
-                                              <span className="text-xs font-mono text-brand mt-2 flex items-center gap-1">
-                                                  <Clock size={12}/> {new Date(activeMatch.scheduled_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                                              </span>
+                                              <div className="flex flex-col items-center mt-2">
+                                                  <span className="text-xs font-mono text-fuchsia-400 flex items-center gap-1 bg-fuchsia-950/30 px-2 py-1 rounded border border-fuchsia-500/20">
+                                                      <Calendar size={12}/> {formatMatchTime(activeMatch.scheduled_at)}
+                                                  </span>
+                                                  <span className="text-[9px] text-zinc-600 mt-1 font-mono uppercase">Local Time</span>
+                                              </div>
                                           )}
                                       </div>
+
                                       <div className="text-center">
-                                          <div className="w-20 h-20 bg-black rounded-full border border-zinc-800 flex items-center justify-center mb-2">
-                                              {activeMatch.team2?.logo_url ? <img src={activeMatch.team2.logo_url} className="w-12 h-12 object-contain"/> : <Shield className="w-8 h-8 text-zinc-700"/>}
+                                          <div className="w-20 h-20 bg-black rounded-full border border-zinc-800 flex items-center justify-center mb-2 mx-auto">
+                                              {activeMatch.team2?.logo_url ? <img src={activeMatch.team2.logo_url} className="w-12 h-12 object-contain" onError={(e)=>e.target.style.display='none'}/> : <Shield className="w-8 h-8 text-zinc-700"/>}
                                           </div>
-                                          <h3 className="text-xl font-black italic uppercase text-white">{activeMatch.team2?.name}</h3>
+                                          <h3 className="text-xl font-black italic uppercase text-white truncate max-w-[150px]">{activeMatch.team2?.name}</h3>
                                       </div>
                                   </div>
 
@@ -236,7 +268,7 @@ export const PlayerDashboard = () => {
                                       ) : (
                                           <button 
                                             onClick={() => setMatchModalOpen(true)}
-                                            className="flex-1 py-4 bg-brand hover:bg-brand-glow text-white font-black uppercase tracking-widest text-xs rounded shadow-lg shadow-brand/20 transition-all flex items-center justify-center gap-2"
+                                            className="flex-1 py-4 bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-black uppercase tracking-widest text-xs rounded shadow-lg shadow-fuchsia-900/20 transition-all flex items-center justify-center gap-2"
                                           >
                                               <Swords size={14}/> ENTER MATCH ROOM
                                           </button>
@@ -260,15 +292,23 @@ export const PlayerDashboard = () => {
                               <Users size={12}/> Unit Roster
                           </h3>
                           <div className="space-y-2">
-                              {myTeam?.members?.slice(0,5).map(member => (
-                                  <div key={member.id} className="flex justify-between items-center text-sm">
-                                      <div className="flex items-center gap-2">
-                                          <div className={`w-2 h-2 rounded-full ${member.id ? 'bg-emerald-500 shadow-[0_0_5px_#10b981]' : 'bg-zinc-700'}`}></div>
-                                          <span className="text-zinc-300 font-bold">{member.username}</span>
+                              {/* ROSTER FETCH FIX: Check if members exist before mapping */}
+                              {myTeam?.members && myTeam.members.length > 0 ? (
+                                  myTeam.members.slice(0,5).map(member => (
+                                      <div key={member.id} className="flex justify-between items-center text-sm">
+                                          <div className="flex items-center gap-2">
+                                              <div className={`w-2 h-2 rounded-full ${member.id ? 'bg-emerald-500 shadow-[0_0_5px_#10b981]' : 'bg-zinc-700'}`}></div>
+                                              <span className="text-zinc-300 font-bold">{member.username}</span>
+                                          </div>
+                                          {member.role === 'captain' && <Shield size={10} className="text-fuchsia-500"/>}
                                       </div>
-                                      {member.role === 'captain' && <Shield size={10} className="text-brand"/>}
+                                  ))
+                              ) : (
+                                  <div className="text-center py-4">
+                                      <div className="text-zinc-600 text-[10px] uppercase font-mono mb-2">No Operators Found</div>
+                                      <button onClick={fetchData} className="text-fuchsia-500 text-[10px] font-bold underline">Retry Sync</button>
                                   </div>
-                              ))}
+                              )}
                           </div>
                       </div>
 
@@ -303,7 +343,10 @@ export const PlayerDashboard = () => {
                       <TeammateRow key={member.id} member={member} />
                   ))}
                   {(!myTeam?.members || myTeam.members.length === 0) && (
-                      <div className="col-span-2 text-center p-12 text-zinc-500 font-mono text-xs uppercase">Roster Data Unavailable</div>
+                      <div className="col-span-2 text-center p-12 text-zinc-500 font-mono text-xs uppercase">
+                          <AlertTriangle className="mx-auto mb-2 w-6 h-6 opacity-50"/>
+                          Roster Data Unavailable
+                      </div>
                   )}
               </div>
           )}

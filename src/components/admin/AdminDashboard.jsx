@@ -2,12 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../supabase/client';
 import { 
   Shield, Activity, Users, AlertTriangle, 
-  Layout, Sword, FileText, CheckCircle 
+  Layout, Sword, FileText
 } from 'lucide-react';
 import { AdminToolbar } from './AdminToolbar';
 import { TeamRosterView } from './TeamRosterView';
 import { StaffManagement } from './StaffManagement';
-import { BracketView } from '../BracketView'; // ✅ FIXED IMPORT PATH (Moved up one level)
+import BracketView from '../BracketView'; // ✅ FIXED: Removed curly braces for Default Import
 import StatsCard from '../StatsCard';
 import { MatchWarRoom } from './MatchWarRoom';
 import { formatDistanceToNow } from 'date-fns';
@@ -30,7 +30,7 @@ export const AdminDashboard = () => {
     try {
         const [teamsRes, matchesRes, logsRes] = await Promise.all([
             supabase.from('teams').select('id', { count: 'exact', head: true }),
-            supabase.from('matches').select('*').or('status.eq.live,status.eq.disputed,status.eq.veto').order('scheduled_at', { ascending: true }),
+            supabase.from('matches').select('*').or('status.eq.live,status.eq.disputed,status.eq.veto').order('start_time', { ascending: true }),
             supabase.from('admin_audit_logs').select('*').order('created_at', { ascending: false }).limit(5)
         ]);
 
@@ -81,7 +81,7 @@ export const AdminDashboard = () => {
                                     <div className="space-y-2">
                                         {liveMatches.filter(m => m.status === 'disputed').map(m => (
                                             <div key={m.id} className="flex justify-between items-center bg-red-900/10 p-2 rounded border border-red-900/30">
-                                                <span className="text-white text-xs font-mono">MATCH #{m.match_no}</span>
+                                                <span className="text-white text-xs font-mono">MATCH #{m.match_position}</span>
                                                 <button onClick={() => setActiveWarRoomId(m.id)} className="px-3 py-1 bg-red-600 hover:bg-red-500 text-white text-[10px] font-bold uppercase rounded">Resolve</button>
                                             </div>
                                         ))}
@@ -105,7 +105,7 @@ export const AdminDashboard = () => {
                                                     <div className="flex items-center gap-2 mb-1">
                                                         {match.status === 'live' && <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />}
                                                         <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border ${match.status === 'live' ? 'bg-red-900/20 text-red-500 border-red-900/50' : 'bg-fuchsia-900/20 text-fuchsia-500 border-fuchsia-900/50'}`}>{match.status}</span>
-                                                        <span className="text-xs font-mono text-zinc-500">#{match.match_no}</span>
+                                                        <span className="text-xs font-mono text-zinc-500">#{match.match_position}</span>
                                                     </div>
                                                     <div className="text-sm font-bold text-white">ID: {match.id.substring(0,8)}...</div>
                                                 </div>
@@ -129,8 +129,8 @@ export const AdminDashboard = () => {
                                     <div key={log.id} className="relative pl-4 border-l border-zinc-800 pb-1">
                                         <div className="absolute left-[-5px] top-0 w-2.5 h-2.5 rounded-full bg-zinc-800 border-2 border-black" />
                                         <div className="text-[10px] text-zinc-500 font-mono mb-0.5 uppercase">{timeAgo(log.created_at)}</div>
-                                        <div className="text-xs text-zinc-300 font-bold leading-tight">{log.action_type.replace(/_/g, ' ')}</div>
-                                        <div className="text-[10px] text-zinc-500 mt-1 truncate">Target: <span className="text-zinc-400">{log.target}</span></div>
+                                        <div className="text-xs text-zinc-300 font-bold leading-tight">{log.action_type?.replace(/_/g, ' ') || 'Action'}</div>
+                                        <div className="text-[10px] text-zinc-500 mt-1 truncate">Target: <span className="text-zinc-400">{log.target || 'N/A'}</span></div>
                                     </div>
                                 ))}
                             </div>

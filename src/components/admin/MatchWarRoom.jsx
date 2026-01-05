@@ -2,19 +2,25 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../supabase/client';
 import { 
   Shield, RefreshCw, Server, Eye, EyeOff, Calendar, 
-  Map as MapIcon, Save, AlertTriangle, X, Tv, FileCode, 
-  StickyNote, PauseCircle, PlayCircle, Mic2, Skull, Copy, Trophy
+  Map as MapIcon, Save, AlertTriangle, X, Tv, 
+  StickyNote, PauseCircle, PlayCircle, Mic2, Skull, Copy
 } from 'lucide-react';
-import { MAP_POOL } from '../../lib/constants'; // ✅ Linked to global source of truth
+import { MAP_POOL } from '../../lib/constants'; 
 import { toast } from 'react-hot-toast';
 import { cn, copyToClipboard } from '../../lib/utils';
 
-// --- TIMEZONE HELPER ---
+// --- FIXED TIMEZONE HELPER ---
+// Browser datetime-local inputs REQUIRE YYYY-MM-DDTHH:MM format exactly.
 const toLocalInputString = (isoString) => {
     if (!isoString) return '';
     const date = new Date(isoString);
-    const offset = date.getTimezoneOffset() * 60000;
-    return (new Date(date - offset)).toISOString().slice(0, 16);
+    if (isNaN(date.getTime())) return '';
+    
+    // Using Swedish locale (sv-SE) because it naturally uses ISO 8601 format
+    // We slice to 16 characters to get "YYYY-MM-DDTHH:MM"
+    return new Date(date.getTime() - (date.getTimezoneOffset() * 60000))
+        .toISOString()
+        .slice(0, 16);
 };
 
 export const MatchWarRoom = ({ matchId, onClose }) => {
@@ -47,47 +53,35 @@ export const MatchWarRoom = ({ matchId, onClose }) => {
   const fetchWarRoomData = async () => {
     setLoading(true);
     
-    // Get Match
-    const { data: matchData } = await supabase
-      .from('matches')
-      .select(`*, team1:team1_id(id, name), team2:team2_id(id, name)`)
-      .eq('id', matchId)
-      .single();
+    // Get Match, Vetoes, and Teams in parallel for speed
+    const [matchRes, vetoRes, teamRes] = await Promise.all([
+      supabase.from('matches').select(`*, team1:team1_id(id, name), team2:team2_id(id, name)`).eq('id', matchId).single(),
+      supabase.from('match_vetoes').select('*').eq('match_id', matchId).order('pick_order', { ascending: true }),
+      supabase.from('teams').select('id, name').order('name')
+    ]);
 
-    // Get Veto History
-    const { data: vetoData } = await supabase
-      .from('match_vetoes') // Fixed table name from 'match_veto' to match Schema
-      .select('*')
-      .eq('match_id', matchId)
-      .order('pick_order', { ascending: true }); // Fixed sorting column
-
-    // Get All Teams (For swapping)
-    const { data: teamList } = await supabase
-      .from('teams')
-      .select('id, name')
-      .order('name');
-
-    if (matchData) {
-      setMatch(matchData);
-      setVetoes(vetoData || []);
-      setAllTeams(teamList || []);
+    if (matchRes.data) {
+      const m = matchRes.data;
+      setMatch(m);
+      setVetoes(vetoRes.data || []);
+      setAllTeams(teamRes.data || []);
       
       setFormData({
-        status: matchData.status,
-        team1_score: matchData.score_team1 || 0, // Fixed column name
-        team2_score: matchData.score_team2 || 0, // Fixed column name
-        server_ip: matchData.server_ip || '',
-        server_pass: matchData.server_pass || '',
-        is_server_visible: matchData.is_server_visible || false,
-        scheduled_at: toLocalInputString(matchData.scheduled_at),
-        team1_id: matchData.team1_id,
-        team2_id: matchData.team2_id,
-        stream_url: matchData.stream_url || '',
-        demo_url: matchData.demo_url || '',
-        admin_notes: matchData.admin_notes || '',
-        is_paused: matchData.is_paused || false,
-        map_name: matchData.map_name || '',
-        caster_name: matchData.caster_name || ''
+        status: m.status,
+        team1_score: m.team1_score || 0, 
+        team2_score: m.team2_score || 0,
+        server_ip: m.server_ip || '',
+        server_pass: m.server_pass || '',
+        is_server_visible: m.is_server_visible || false,
+        scheduled_at: toLocalInputString(m.scheduled_at), // ✅ Use Fixed Helper
+        team1_id: m.team1_id,
+        team2_id: m.team2_id,
+        stream_url: m.stream_url || '',
+        demo_url: m.demo_url || '',
+        admin_notes: m.admin_notes || '',
+        is_paused: m.is_paused || false,
+        map_name: m.map_name || '',
+        caster_name: m.caster_name || ''
       });
     }
     setLoading(false);
@@ -95,7 +89,7 @@ export const MatchWarRoom = ({ matchId, onClose }) => {
 
   useEffect(() => { fetchWarRoomData(); }, [matchId]);
 
-  // 2. "The Nuclear Option" - Auto Forfeit Logic
+  // 2. Auto Forfeit Logic
   const handleForfeit = (winner) => {
       const winnerName = winner === 1 ? match?.team1?.name || 'Team A' : match?.team2?.name || 'Team B';
       if(!window.confirm(`⚠️ DANGER: FORCE WIN\n\nAward win to ${winnerName}?\nThis sets score to 1-0 and ends match.`)) return;
@@ -106,16 +100,16 @@ export const MatchWarRoom = ({ matchId, onClose }) => {
           team1_score: winner === 1 ? 1 : 0,
           team2_score: winner === 2 ? 1 : 0
       }));
-      toast("Forfeit parameters set. Click Save to commit.", { icon: '💀' });
+      toast("Forfeit parameters set. Click Commit to save.", { icon: '💀' });
   };
 
   // 3. Save Changes
   const handleSave = async () => {
     setSaving(true);
-    const toastId = toast.loading("Updating Match State...");
+    const toastId = toast.loading("Syncing with Command Center...");
     
-    // Convert Local Input back to UTC for DB
-    let finalDate = formData.scheduled_at ? new Date(formData.scheduled_at).toISOString() : null;
+    // Convert local datetime-local string back to proper ISO for Database
+    const finalDate = formData.scheduled_at ? new Date(formData.scheduled_at).toISOString() : null;
 
     const { error } = await supabase.rpc('admin_update_match_state', {
       p_match_id: matchId,
@@ -146,8 +140,8 @@ export const MatchWarRoom = ({ matchId, onClose }) => {
   };
 
   if (loading) return (
-      <div className="flex items-center justify-center h-96 text-zinc-500 gap-2 font-mono">
-          <RefreshCw className="animate-spin" /> ACCESSING WAR ROOM...
+      <div className="flex items-center justify-center h-96 text-zinc-500 gap-2 font-mono bg-black">
+          <RefreshCw className="animate-spin text-brand" /> ACCESSING WAR ROOM...
       </div>
   );
 
@@ -176,11 +170,11 @@ export const MatchWarRoom = ({ matchId, onClose }) => {
                     "grid grid-cols-3 items-center gap-4 p-6 rounded-lg border transition-all",
                     formData.is_paused ? "bg-yellow-900/10 border-yellow-500/50" : "bg-zinc-900/30 border-zinc-800"
                 )}>
-                    {/* Team A */}
                     <div className="text-center">
                         <label className="text-[10px] text-brand-glow font-bold uppercase mb-2 block">Team A (Home)</label>
                         <select 
-                            value={formData.team1_id || ''} onChange={e => setFormData({...formData, team1_id: e.target.value})}
+                            value={formData.team1_id || ''} 
+                            onChange={e => setFormData({...formData, team1_id: e.target.value})}
                             className="w-full bg-black border border-zinc-700 text-white text-sm p-2 rounded mb-4 text-center font-bold outline-none focus:border-brand"
                         >
                             <option value="">TBD</option>
@@ -189,7 +183,6 @@ export const MatchWarRoom = ({ matchId, onClose }) => {
                         <input type="number" value={formData.team1_score} onChange={e => setFormData({...formData, team1_score: e.target.value})} className="w-24 bg-black border border-zinc-600 text-5xl font-display font-black text-white text-center p-2 rounded focus:border-brand outline-none"/>
                     </div>
 
-                    {/* Status & Pause */}
                     <div className="flex flex-col items-center gap-4">
                         <span className="text-zinc-700 font-black text-3xl italic">VS</span>
                         <select value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})} className={cn(
@@ -213,10 +206,13 @@ export const MatchWarRoom = ({ matchId, onClose }) => {
                         </button>
                     </div>
 
-                    {/* Team B */}
                     <div className="text-center">
                         <label className="text-[10px] text-brand-glow font-bold uppercase mb-2 block">Team B (Away)</label>
-                        <select value={formData.team2_id || ''} onChange={e => setFormData({...formData, team2_id: e.target.value})} className="w-full bg-black border border-zinc-700 text-white text-sm p-2 rounded mb-4 text-center font-bold outline-none focus:border-brand">
+                        <select 
+                            value={formData.team2_id || ''} 
+                            onChange={e => setFormData({...formData, team2_id: e.target.value})} 
+                            className="w-full bg-black border border-zinc-700 text-white text-sm p-2 rounded mb-4 text-center font-bold outline-none focus:border-brand"
+                        >
                             <option value="">TBD</option>
                             {allTeams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                         </select>
@@ -226,7 +222,6 @@ export const MatchWarRoom = ({ matchId, onClose }) => {
 
                 {/* 2. SERVER & MAP */}
                 <div className="grid grid-cols-2 gap-6">
-                    {/* Server */}
                     <div className="space-y-4">
                         <h3 className="text-sm font-bold text-white uppercase flex items-center gap-2 border-b border-white/5 pb-2">
                             <Server size={14} className="text-emerald-500" /> Connection
@@ -251,7 +246,6 @@ export const MatchWarRoom = ({ matchId, onClose }) => {
                         </div>
                     </div>
 
-                    {/* Map Override */}
                     <div className="space-y-4">
                         <h3 className="text-sm font-bold text-white uppercase flex items-center gap-2 border-b border-white/5 pb-2">
                             <MapIcon size={14} className="text-yellow-500" /> Map Selection
@@ -271,7 +265,7 @@ export const MatchWarRoom = ({ matchId, onClose }) => {
                                 </div>
                             </div>
                             <div className="p-2 bg-yellow-900/10 border border-yellow-900/30 rounded text-[10px] text-yellow-600/80 italic leading-tight">
-                                * Setting this overrides the Veto system results. 
+                                * Manual setting overrides the Veto system results. 
                             </div>
                         </div>
                     </div>
@@ -281,8 +275,13 @@ export const MatchWarRoom = ({ matchId, onClose }) => {
                 <div className="grid grid-cols-2 gap-6">
                     <div className="space-y-2">
                         <h3 className="text-sm font-bold text-white uppercase flex items-center gap-2"><Calendar size={14} className="text-blue-500" /> Schedule</h3>
-                        <input type="datetime-local" value={formData.scheduled_at} onChange={e => setFormData({...formData, scheduled_at: e.target.value})} className="bg-black border border-zinc-700 text-white p-2 rounded text-xs w-full font-mono outline-none focus:border-blue-500"/>
-                        <div className="text-[9px] text-zinc-600 italic">* Input in YOUR local time. Auto-converts to UTC.</div>
+                        <input 
+                            type="datetime-local" 
+                            value={formData.scheduled_at} 
+                            onChange={e => setFormData({...formData, scheduled_at: e.target.value})} 
+                            className="bg-black border border-zinc-700 text-white p-2.5 rounded text-xs w-full font-mono outline-none focus:border-blue-500"
+                        />
+                        <div className="text-[9px] text-zinc-600 italic">* Input in YOUR local time. Auto-converts to UTC for DB.</div>
                     </div>
                     <div className="space-y-2">
                         <h3 className="text-sm font-bold text-white uppercase flex items-center gap-2"><Tv size={14} className="text-purple-500" /> Production</h3>
@@ -298,13 +297,11 @@ export const MatchWarRoom = ({ matchId, onClose }) => {
             {/* === RIGHT COLUMN: LOGS & ACTIONS === */}
             <div className="p-6 bg-zinc-950/50 flex flex-col h-full border-l border-zinc-800">
                 
-                {/* Admin Logs */}
                 <div className="mb-6 flex-1">
                     <h3 className="text-sm font-bold text-white uppercase mb-2 flex items-center gap-2"><StickyNote size={14} className="text-blue-500"/> Admin Log</h3>
                     <textarea value={formData.admin_notes} onChange={e => setFormData({...formData, admin_notes: e.target.value})} className="w-full h-full min-h-[150px] bg-yellow-900/5 border border-yellow-600/20 text-yellow-100 text-xs p-3 rounded resize-none focus:border-yellow-600 outline-none font-mono" placeholder="Internal notes (warnings, disputes, forfeit reasons)..."/>
                 </div>
 
-                {/* Veto History */}
                 <div className="mb-6 flex-1 max-h-[300px] flex flex-col">
                     <h3 className="text-sm font-bold text-white uppercase mb-2">Veto History</h3>
                     <div className="space-y-1 overflow-y-auto flex-1 pr-1 custom-scrollbar">
@@ -318,7 +315,6 @@ export const MatchWarRoom = ({ matchId, onClose }) => {
                     </div>
                 </div>
 
-                {/* DANGER ZONE (Forfeits) */}
                 <div className="mb-6 p-4 bg-red-950/10 border border-red-900/30 rounded relative overflow-hidden shrink-0">
                     <div className="absolute top-0 left-0 w-1 h-full bg-red-600/50"></div>
                     <h3 className="text-[10px] font-black text-red-500 uppercase mb-2 flex items-center gap-1"><Skull size={12}/> Danger Zone: Force Win</h3>
@@ -328,9 +324,8 @@ export const MatchWarRoom = ({ matchId, onClose }) => {
                     </div>
                 </div>
 
-                {/* Save Button */}
                 <div className="space-y-4 pt-4 border-t border-zinc-800 mt-auto shrink-0">
-                    <button onClick={handleSave} disabled={saving} className="w-full py-4 bg-brand hover:bg-brand-glow text-white font-bold uppercase text-sm rounded shadow-lg flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50">
+                    <button onClick={handleSave} disabled={saving} className="w-full py-4 bg-brand hover:bg-brand-glow text-white font-black uppercase text-sm rounded shadow-lg flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50">
                         {saving ? <RefreshCw className="animate-spin"/> : <Save size={16}/>} Commit Changes
                     </button>
                     <div className="flex items-center justify-center gap-2 text-[10px] text-zinc-500">

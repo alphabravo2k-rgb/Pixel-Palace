@@ -129,6 +129,7 @@ export const router = createBrowserRouter([
           { path: 'dashboard', element: <AdminDashboard /> },
           { path: 'roster', element: <TeamRosterView /> },
           { path: 'staff', element: <StaffManagement /> },
+          { path: 'bracket', element: <BracketView adminMode={true} /> }, // ✅ ADDED: Admin Bracket View
           // Redirect root /admin to dashboard
           { index: true, element: <Navigate to="dashboard" replace /> }
         ]

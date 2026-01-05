@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../supabase/client';
-import { X, Save, ShieldAlert, RefreshCw, Trophy, AlertTriangle, Monitor, Calendar, Server } from 'lucide-react';
+import { X, Save, Server, Calendar, Trophy, AlertTriangle, Monitor, Shield } from 'lucide-react';
 import { AdminMatchControls } from './AdminMatchControls';
+import { MatchActivityLog } from '../match/MatchActivityLog';
+import { VetoController } from '../match/VetoController'; // ✅ HYBRID: Visual Veto for Admins
+import { cn } from '../../lib/utils';
 import { toast } from 'react-hot-toast';
 
 // Helper for date inputs
@@ -17,14 +20,8 @@ export const MatchWarRoom = ({ matchId, onClose }) => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   
-  // Editable State
   const [formData, setFormData] = useState({
-    server_ip: '',
-    server_pass: '',
-    map_name: '',
-    scheduled_at: '',
-    stream_url: '',
-    status: 'scheduled'
+    server_ip: '', server_pass: '', map_name: '', scheduled_at: '', stream_url: '', status: 'scheduled'
   });
 
   // 1. Fetch Data
@@ -55,7 +52,16 @@ export const MatchWarRoom = ({ matchId, onClose }) => {
     }
   };
 
-  useEffect(() => { fetchMatch(); }, [matchId]);
+  useEffect(() => { 
+      fetchMatch(); 
+      // Realtime Listener to keep Admin UI in sync with Captain actions
+      const sub = supabase.channel(`war-room-${matchId}`)
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'matches', filter: `id=eq.${matchId}` }, payload => {
+            fetchMatch(); 
+        })
+        .subscribe();
+      return () => supabase.removeChannel(sub);
+  }, [matchId]);
 
   // 2. Save Handlers
   const handleSave = async () => {
@@ -71,10 +77,10 @@ export const MatchWarRoom = ({ matchId, onClose }) => {
         status: formData.status
     }).eq('id', matchId);
     
-    if (error) alert("Error saving: " + error.message);
+    if (error) toast.error("Save Failed: " + error.message);
     else {
         await fetchMatch();
-        alert("Match settings saved.");
+        toast.success("Match Configuration Saved");
     }
     setSaving(false);
   };
@@ -85,14 +91,14 @@ export const MatchWarRoom = ({ matchId, onClose }) => {
           p_match_id: matchId,
           p_winner_id: winnerId
       });
-      if (error) alert("Error: " + error.message);
+      if (error) toast.error(error.message);
       else fetchMatch();
   };
 
   if (!match) return null;
 
   return (
-    <div className="w-full max-w-6xl bg-[#0b0c0f] border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="w-full max-w-7xl bg-[#0b0c0f] border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
       
       {/* HEADER */}
       <div className="p-4 border-b border-white/10 flex justify-between items-center bg-zinc-900/50">
@@ -101,7 +107,9 @@ export const MatchWarRoom = ({ matchId, onClose }) => {
              <h2 className="text-xl font-black text-white uppercase italic tracking-tighter">
                  WAR ROOM: MATCH #{match.match_no}
              </h2>
-             <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-zinc-800 border border-zinc-700 text-zinc-400">
+             <span className={cn("px-2 py-0.5 rounded text-[10px] font-bold uppercase border", 
+                match.status === 'live' ? "bg-red-900/20 border-red-500 text-red-500" : "bg-zinc-800 border-zinc-700 text-zinc-400"
+             )}>
                  {match.status}
              </span>
          </div>
@@ -110,23 +118,36 @@ export const MatchWarRoom = ({ matchId, onClose }) => {
 
       <div className="flex-1 overflow-y-auto p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
          
-         {/* LEFT COL: TEAMS & CONFIG */}
+         {/* LEFT COL: OPS CENTER */}
          <div className="lg:col-span-2 space-y-6">
              
-             {/* TEAM VS DISPLAY */}
+             {/* TEAM VS DISPLAY + FORCE WIN */}
              <div className="grid grid-cols-3 gap-4 items-center bg-zinc-900/30 border border-zinc-800 rounded-xl p-6">
                  <div className="text-center">
                      <h3 className="text-lg font-black text-blue-400 uppercase truncate">{match.team1?.name || 'TBD'}</h3>
                      <button onClick={() => handleForceWin(match.team1_id)} disabled={!match.team1_id} className="mt-2 text-[10px] font-bold uppercase bg-blue-900/20 text-blue-400 border border-blue-900/50 px-2 py-1 rounded hover:bg-blue-900/40 transition-colors disabled:opacity-50">Force Win</button>
                  </div>
-                 <div className="text-center">
-                     <span className="text-2xl font-black text-zinc-700 italic">VS</span>
+                 <div className="text-center flex flex-col items-center">
+                     <span className="text-2xl font-black text-white italic">VS</span>
+                     <span className="text-[10px] text-zinc-500 font-mono mt-1">BO{match.best_of}</span>
                  </div>
                  <div className="text-center">
                      <h3 className="text-lg font-black text-red-400 uppercase truncate">{match.team2?.name || 'TBD'}</h3>
                      <button onClick={() => handleForceWin(match.team2_id)} disabled={!match.team2_id} className="mt-2 text-[10px] font-bold uppercase bg-red-900/20 text-red-400 border border-red-900/50 px-2 py-1 rounded hover:bg-red-900/40 transition-colors disabled:opacity-50">Force Win</button>
                  </div>
              </div>
+
+             {/* 🚨 HYBRID UPGRADE: VISUAL VETO PANEL FOR ADMINS */}
+             {/* This lets admins watch the veto process live without just guessing */}
+             {match.status === 'veto' && (
+                 <div className="bg-[#050505] border border-zinc-800 rounded-xl p-4 shadow-inner">
+                     <div className="flex justify-between items-center mb-4">
+                         <h3 className="text-xs font-bold text-fuchsia-500 uppercase flex items-center gap-2"><Monitor size={14}/> Live Veto Monitor</h3>
+                         <span className="text-[9px] text-zinc-600 font-mono uppercase">Read Only View</span>
+                     </div>
+                     <VetoController match={match} onUpdate={fetchMatch} />
+                 </div>
+             )}
 
              {/* SERVER SETTINGS */}
              <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-5 space-y-4">
@@ -155,7 +176,9 @@ export const MatchWarRoom = ({ matchId, onClose }) => {
                      <button 
                         key={s}
                         onClick={() => setFormData({...formData, status: s})}
-                        className={`flex-1 py-2 rounded text-[10px] font-bold uppercase transition-all border ${formData.status === s ? 'bg-white text-black border-white' : 'bg-black text-zinc-500 border-zinc-800 hover:border-zinc-600'}`}
+                        className={cn("flex-1 py-2 rounded text-[10px] font-bold uppercase transition-all border",
+                            formData.status === s ? 'bg-white text-black border-white' : 'bg-black text-zinc-500 border-zinc-800 hover:border-zinc-600'
+                        )}
                      >
                         {s}
                      </button>
@@ -164,10 +187,10 @@ export const MatchWarRoom = ({ matchId, onClose }) => {
 
          </div>
 
-         {/* RIGHT COL: TOOLS */}
+         {/* RIGHT COL: LOGS & LOGIC */}
          <div className="space-y-6">
              
-             {/* MATCH CONTROLS (BO1/3/5 Logic) */}
+             {/* Match Logic Controls (BO1/BO3 etc) */}
              <AdminMatchControls match={match} onUpdate={fetchMatch} />
 
              {/* SCHEDULING */}
@@ -188,6 +211,11 @@ export const MatchWarRoom = ({ matchId, onClose }) => {
                  >
                     <Save size={14} /> {saving ? "Saving..." : "Commit Changes"}
                  </button>
+             </div>
+
+             {/* ACTIVITY LOG (Security) */}
+             <div className="bg-[#050505] border border-zinc-800 rounded-xl overflow-hidden flex flex-col h-64">
+                 <MatchActivityLog matchId={matchId} />
              </div>
 
              {/* MANUAL MAP OVERRIDE */}

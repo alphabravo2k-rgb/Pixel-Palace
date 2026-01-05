@@ -48,13 +48,12 @@ const getStatusStyles = (status) => {
 const TeamSlot = ({ team, score, isWinner, seed }) => (
   <div className={cn(
       "flex items-center justify-between px-3 py-2.5 transition-colors relative overflow-hidden",
-      isWinner ? "bg-white/5" : ""
+      isWinner ? "bg-emerald-500/10" : ""
   )}>
     {/* Winner Highlight Bar */}
     {isWinner && <div className="absolute left-0 top-0 bottom-0 w-1 bg-emerald-500" />}
 
     <div className="flex items-center gap-3 overflow-hidden pl-2">
-      {/* Logo */}
       <div className={cn(
           "w-6 h-6 rounded bg-zinc-900 flex-shrink-0 flex items-center justify-center border",
           isWinner ? "border-emerald-500/50 shadow-[0_0_10px_rgba(16,185,129,0.2)]" : "border-zinc-800"
@@ -66,7 +65,6 @@ const TeamSlot = ({ team, score, isWinner, seed }) => (
         )}
       </div>
       
-      {/* Name & Seed */}
       <div className="flex flex-col leading-none">
           <span className={cn(
               "text-[11px] font-bold uppercase truncate font-display tracking-wide",
@@ -80,7 +78,6 @@ const TeamSlot = ({ team, score, isWinner, seed }) => (
       </div>
     </div>
 
-    {/* Score */}
     <div className={cn(
         "font-mono font-bold text-xs w-6 text-center",
         isWinner ? "text-emerald-400" : "text-zinc-600"
@@ -90,33 +87,22 @@ const TeamSlot = ({ team, score, isWinner, seed }) => (
   </div>
 );
 
-// 🟦 MAIN COMPONENT
 export const MatchNode = ({ match, onClick }) => {
   const theme = getStatusStyles(match.status);
   
-  // LOGIC: Parse Scores
-  let s1 = match.score_team1;
-  let s2 = match.score_team2;
-
-  // Fallback: Legacy String Format "16-14"
-  if ((s1 == null || s2 == null) && typeof match.score === 'string') {
-      const parts = match.score.split('-');
-      if (parts.length === 2) {
-          s1 = parts[0];
-          s2 = parts[1];
-      }
-  }
+  // LOGIC: Parse Scores (Robust fallback)
+  let s1 = match.score_team1 || 0;
+  let s2 = match.score_team2 || 0;
 
   const hasTeams = match.team1 || match.team2; 
   const isLocked = match.is_locked;
   const canOpen = hasTeams; 
-  const isActionable = hasTeams && !isLocked && match.status !== 'completed';
 
   return (
     <div className={cn(
         "relative w-full h-full flex flex-col rounded border backdrop-blur-md transition-all duration-300 group",
         theme.border, theme.bg, theme.glow,
-        canOpen ? "hover:scale-[1.02] hover:brightness-110 cursor-pointer" : "opacity-80"
+        canOpen ? "hover:scale-[1.02] hover:brightness-110 cursor-pointer hover:shadow-2xl" : "opacity-80"
     )}
     onClick={() => canOpen && onClick(match)}
     >
@@ -156,10 +142,9 @@ export const MatchNode = ({ match, onClick }) => {
             {match.status === 'disputed' && <AlertCircle size={10} className="text-red-500" />}
             {match.stream_url && <Tv size={10} className="text-purple-500" />}
             
-            {!hasTeams ? 'WAITING FOR OPPONENTS' : isLocked ? 'LOCKED' : match.status === 'completed' ? 'DETAILS' : 'MANAGE'}
+            {!hasTeams ? 'WAITING...' : isLocked ? 'LOCKED' : match.status === 'completed' ? 'DETAILS' : 'MANAGE'}
         </span>
         
-        {/* Hover Arrow  */}
         {canOpen && <ChevronRight size={12} className="opacity-0 group-hover:opacity-100 transition-opacity" />}
       </div>
     </div>

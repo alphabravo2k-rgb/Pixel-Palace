@@ -1,58 +1,125 @@
-import React, { useState } from 'react';
-import { useCaptainVeto } from '../../hooks/useCaptainVeto';
-import { MAP_POOL } from '../../lib/constants';
-import { Ban, CheckCircle, Clock, Lock, Trophy, AlertTriangle } from 'lucide-react';
-import { cn } from '../../lib/utils';
-import { Loader2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { supabase } from '../../supabase/client';
+import { useSession } from '../../auth/useSession';
+import { Ban, CheckCircle, Clock, Lock, Trophy, Loader2, Check } from 'lucide-react';
 
-export const VetoController = ({ match }) => {
-  // 🪝 Use the Master Hook for Logic (Realtime, State, Permissions)
-  const { 
-    vetoes, 
-    isMyTurn, 
-    currentAction, 
-    submitVeto, 
-    loading 
-  } = useCaptainVeto(match);
+const MAP_POOL = [
+  { id: 'de_mirage', name: 'Mirage', img: 'https://img.youtube.com/vi/F91V3V6Qh6U/maxresdefault.jpg' },
+  { id: 'de_inferno', name: 'Inferno', img: 'https://blob.faceit.com/static/img/maps/cs2/inferno_bg.jpg' },
+  { id: 'de_nuke', name: 'Nuke', img: 'https://blob.faceit.com/static/img/maps/cs2/nuke_bg.jpg' },
+  { id: 'de_overpass', name: 'Overpass', img: 'https://blob.faceit.com/static/img/maps/cs2/overpass_bg.jpg' },
+  { id: 'de_vertigo', name: 'Vertigo', img: 'https://blob.faceit.com/static/img/maps/cs2/vertigo_bg.jpg' },
+  { id: 'de_ancient', name: 'Ancient', img: 'https://blob.faceit.com/static/img/maps/cs2/ancient_bg.jpg' },
+  { id: 'de_anubis', name: 'Anubis', img: 'https://blob.faceit.com/static/img/maps/cs2/anubis_bg.jpg' },
+  { id: 'de_dust2', name: 'Dust 2', img: 'https://blob.faceit.com/static/img/maps/cs2/dust2_bg.jpg' }
+];
 
+export const VetoController = ({ match, onUpdate }) => {
+  const { session } = useSession();
+  const [vetoLog, setVetoLog] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [hoveredMap, setHoveredMap] = useState(null);
 
-  // Helper to check map status
-  const getMapStatus = (mapId) => {
-    const entry = vetoes.find(v => v.map_name === mapId);
-    if (entry) return entry.type; // 'BAN', 'PICK', 'DECIDER'
-    return 'AVAILABLE';
-  };
+  // 1. Fetch & Subscribe
+  useEffect(() => {
+    const fetch = async () => {
+        const { data } = await supabase.from('match_vetoes').select('*').eq('match_id', match.id).order('pick_order');
+        setVetoLog(data || []);
+    };
+    fetch();
+    const sub = supabase.channel(`veto-${match.id}`).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'match_vetoes', filter: `match_id=eq.${match.id}` }, p => {
+        setVetoLog(prev => [...prev, p.new]);
+        if(onUpdate) onUpdate();
+    }).subscribe();
+    return () => supabase.removeChannel(sub);
+  }, [match.id]);
 
-  // Safe Submit Handler
+  // 2. Logic Engine
+  const bestOf = match.best_of || 1; 
+  const totalSteps = 6; // Fixed for 7-map pool (1 left over)
+  const isComplete = match.status === 'completed' || match.status === 'live' || vetoLog.length >= totalSteps;
+  
+  const turnTeamId = vetoLog.length % 2 === 0 ? match.team1_id : match.team2_id;
+  const isMyTurn = session?.identity?.team_id === turnTeamId;
+
+  // 3. Dynamic Action Calculator
+  let currentAction = 'BAN';
+  const step = vetoLog.length;
+
+  if (bestOf === 1) {
+      // BO1: Always BAN until 1 remains
+      currentAction = 'BAN';
+  } else if (bestOf === 3) {
+      // BO3: Ban, Ban, Pick, Pick, Ban, Ban (Decider remains)
+      if (step === 2 || step === 3) currentAction = 'PICK';
+      else currentAction = 'BAN';
+  } else if (bestOf === 5) {
+      // BO5: Ban, Ban, Pick, Pick, Pick, Pick (Decider remains)
+      if (step >= 2) currentAction = 'PICK';
+      else currentAction = 'BAN';
+  }
+
   const handleAction = async (mapId) => {
     if (loading || !isMyTurn) return;
     
-    // Safety confirm for BAN actions
+    // Only confirm bans, picks are usually exciting/positive
     if (currentAction === 'BAN') {
-        const confirm = window.confirm(`Confirm BAN for ${MAP_POOL.find(m => m.id === mapId)?.name}?`);
-        if (!confirm) return;
+       if(!window.confirm(`Confirm BAN for ${MAP_POOL.find(m => m.id === mapId)?.name}?`)) return;
     }
     
-    await submitVeto(mapId);
+    setLoading(true);
+    try {
+        const { error } = await supabase.rpc('api_submit_veto', { 
+            p_match_id: match.id, 
+            p_map_name: mapId, 
+            p_type: currentAction 
+        });
+        if(error) throw error;
+    } catch(e) { alert(e.message); } finally { setLoading(false); }
   };
 
-  const isComplete = match.status === 'completed' || match.status === 'live' || (vetoes.length >= (match.best_of === 3 ? 6 : 6));
+  const getMapStatus = (mapId) => {
+    const entry = vetoLog.find(v => v.map_name === mapId);
+    if (entry) return entry.type; 
+    return 'AVAILABLE';
+  };
 
-  // 🏁 COMPLETION VIEW
+  // 4. Render Completion View
   if (isComplete) {
-     const finalMaps = vetoes.filter(v => v.type === 'PICK' || v.type === 'DECIDER');
+     const pickedMaps = vetoLog.filter(v => v.type === 'PICK').map(v => v.map_name);
+     const bannedMaps = vetoLog.filter(v => v.type === 'BAN').map(v => v.map_name);
+     
+     // Find the one remaining map (The Decider)
+     const deciderId = MAP_POOL.find(m => !pickedMaps.includes(m.id) && !bannedMaps.includes(m.id))?.id;
+     
+     // For BO1, the played map is the Decider. For others, it's Picks + Decider.
+     const mapsToPlayIds = bestOf === 1 ? [deciderId] : [...pickedMaps, deciderId];
+     
+     const displayMaps = mapsToPlayIds
+        .filter(id => id) // Remove undefined
+        .map(id => MAP_POOL.find(m => m.id === id));
+
      return (
-        <div className="text-center p-6 bg-emerald-950/20 border border-emerald-500/20 rounded-lg animate-in fade-in">
-            <Trophy className="w-12 h-12 text-emerald-500 mx-auto mb-4" />
-            <h3 className="text-xl font-display font-bold text-white uppercase tracking-wider">Veto Sequence Complete</h3>
-            <div className="flex justify-center gap-4 mt-4">
-                {finalMaps.map(m => (
-                    <div key={m.map_name} className="flex flex-col items-center">
-                        <div className="w-24 h-14 rounded overflow-hidden border border-emerald-500/50 relative">
-                             <img src={MAP_POOL.find(p => p.id === m.map_name)?.image} className="w-full h-full object-cover" />
+        <div className="text-center p-8 bg-emerald-950/20 border border-emerald-500/20 rounded-xl animate-in fade-in slide-in-from-bottom-4">
+            <Trophy className="w-16 h-16 text-emerald-500 mx-auto mb-4 drop-shadow-[0_0_15px_rgba(16,185,129,0.5)]" />
+            <h3 className="text-2xl font-black text-white uppercase tracking-widest font-['Teko']">Veto Sequence Complete</h3>
+            <p className="text-emerald-400/60 font-mono text-sm uppercase tracking-wider mb-6">
+                {bestOf === 1 ? "Battlefield Selected" : "Map Rotation Set"}
+            </p>
+            
+            <div className="flex justify-center gap-6 flex-wrap">
+                {displayMaps.map((m, idx) => (
+                    <div key={idx} className="flex flex-col items-center group animate-in zoom-in duration-500" style={{ animationDelay: `${idx * 150}ms` }}>
+                        <div className="w-40 h-24 rounded-lg overflow-hidden border-2 border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.3)] relative transition-transform group-hover:scale-105">
+                             <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${m?.img})` }} />
+                             <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent" />
+                             <span className="absolute bottom-2 left-0 right-0 text-center text-white font-black text-lg uppercase tracking-wider font-['Teko']">{m?.name}</span>
+                             {bestOf > 1 && (
+                                 <div className="absolute top-2 right-2 bg-emerald-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
+                                     MAP {idx + 1}
+                                 </div>
+                             )}
                         </div>
-                        <span className="text-xs font-mono text-emerald-400 mt-1 uppercase">{m.map_name.replace('de_', '')}</span>
                     </div>
                 ))}
             </div>
@@ -60,29 +127,21 @@ export const VetoController = ({ match }) => {
      );
   }
 
-  // 🎮 ACTIVE INTERFACE
+  // 5. Active Render
   return (
     <div className="space-y-6 animate-in slide-in-from-bottom-2">
        
-       {/* TURN INDICATOR */}
-       <div className={cn(
-           "p-4 rounded-lg border flex items-center justify-between transition-all duration-300",
-           isMyTurn 
-             ? "bg-bg-panel border-brand shadow-[0_0_15px_rgba(var(--color-brand)/0.2)]" 
-             : "bg-zinc-900 border-zinc-800 opacity-80"
-       )}>
+       {/* STATUS BAR */}
+       <div className={`p-4 rounded-xl border flex items-center justify-between transition-all duration-500 ${isMyTurn ? "bg-zinc-900 border-fuchsia-500 shadow-[0_0_20px_rgba(192,38,211,0.15)]" : "bg-zinc-950 border-zinc-800 opacity-60 grayscale"}`}>
           <div className="flex items-center gap-4">
-             <div className={cn(
-                 "w-10 h-10 rounded-full flex items-center justify-center border",
-                 isMyTurn ? "bg-brand/20 border-brand text-brand-glow animate-pulse" : "bg-zinc-800 border-zinc-700 text-zinc-500"
-             )}>
-                {loading ? <Loader2 className="animate-spin" /> : isMyTurn ? <Clock /> : <Lock />}
+             <div className={`w-12 h-12 rounded-full flex items-center justify-center border-2 ${isMyTurn ? "bg-fuchsia-500/10 border-fuchsia-500 text-fuchsia-400 animate-pulse" : "bg-zinc-900 border-zinc-700 text-zinc-600"}`}>
+                {loading ? <Loader2 className="animate-spin" /> : isMyTurn ? <Clock size={24} /> : <Lock size={24} />}
              </div>
              <div>
-                <h3 className={cn("text-lg font-bold uppercase leading-none", isMyTurn ? "text-white" : "text-zinc-500")}>
+                <h3 className={`text-xl font-black uppercase leading-none font-['Teko'] tracking-wide ${isMyTurn ? "text-white" : "text-zinc-500"}`}>
                     {isMyTurn ? `Your Turn to ${currentAction}` : `Opponent is ${currentAction}ING...`}
                 </h3>
-                {isMyTurn && <p className="text-[10px] text-brand-glow font-mono mt-1">SELECT A MAP BELOW</p>}
+                {isMyTurn && <p className={`text-xs font-mono mt-1 uppercase tracking-wider ${currentAction === 'BAN' ? 'text-red-400' : 'text-emerald-400'}`}>Select a map to {currentAction}</p>}
              </div>
           </div>
        </div>
@@ -90,22 +149,22 @@ export const VetoController = ({ match }) => {
        {/* MAP GRID */}
        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {MAP_POOL.map(map => {
-             const status = getMapStatus(map.id); // 'BAN', 'PICK', 'AVAILABLE'
+             const status = getMapStatus(map.id);
              const isBanned = status === 'BAN';
              const isPicked = status === 'PICK';
              const isAvailable = status === 'AVAILABLE';
              
-             // Dynamic Styling
-             let borderColor = "border-zinc-800";
-             let opacity = "opacity-100";
+             // Dynamic Classes
+             let borderClass = "border-zinc-800";
+             let contentClass = "opacity-100";
              
              if (isBanned) {
-                 borderColor = "border-red-900";
-                 opacity = "opacity-40 grayscale";
+                 borderClass = "border-red-900/50";
+                 contentClass = "opacity-20 grayscale";
              } else if (isPicked) {
-                 borderColor = "border-emerald-500";
+                 borderClass = "border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.3)]";
              } else if (isAvailable && isMyTurn) {
-                 borderColor = currentAction === 'BAN' ? "hover:border-red-500" : "hover:border-emerald-500";
+                 borderClass = currentAction === 'BAN' ? "hover:border-red-500 cursor-pointer" : "hover:border-emerald-500 cursor-pointer";
              }
 
              return (
@@ -115,39 +174,29 @@ export const VetoController = ({ match }) => {
                  onClick={() => handleAction(map.id)}
                  onMouseEnter={() => setHoveredMap(map.id)}
                  onMouseLeave={() => setHoveredMap(null)}
-                 className={cn(
-                    "relative h-32 md:h-40 rounded-lg overflow-hidden border-2 transition-all duration-300 group",
-                    borderColor,
-                    opacity,
-                    isAvailable && isMyTurn ? "cursor-pointer hover:scale-[1.02] hover:shadow-lg" : "cursor-not-allowed"
-                 )}
+                 className={`relative h-32 md:h-40 rounded-xl overflow-hidden border-2 transition-all duration-300 group ${borderClass} ${contentClass} ${isAvailable && isMyTurn ? 'hover:scale-[1.02]' : ''}`}
                >
-                  {/* Background Image */}
-                  <div className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-110" style={{ backgroundImage: `url(${map.image})` }} />
-                  <div className="absolute inset-0 bg-black/50 group-hover:bg-black/30 transition-colors" />
-                  
-                  {/* Label */}
-                  <div className="absolute bottom-0 inset-x-0 p-3 bg-gradient-to-t from-black to-transparent">
-                     <span className="text-white font-black text-lg uppercase tracking-widest font-display shadow-black drop-shadow-md">
+                 <div className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-110" style={{ backgroundImage: `url(${map.img})` }} />
+                 <div className="absolute inset-0 bg-black/60 group-hover:bg-black/40 transition-colors" />
+                 
+                 <div className="absolute bottom-0 inset-x-0 p-3 bg-gradient-to-t from-black via-black/80 to-transparent">
+                     <span className="text-white font-black text-xl uppercase tracking-widest font-['Teko'] drop-shadow-md">
                         {map.name}
                      </span>
-                  </div>
+                 </div>
 
-                  {/* Status Overlay Icons */}
-                  <div className="absolute inset-0 flex items-center justify-center">
-                      {isBanned && <Ban className="w-12 h-12 text-red-600 rotate-12 drop-shadow-lg" />}
-                      {isPicked && <CheckCircle className="w-12 h-12 text-emerald-500 drop-shadow-lg" />}
-                      
-                      {/* Hover Action Preview */}
-                      {isAvailable && isMyTurn && hoveredMap === map.id && (
-                          <div className={cn(
-                              "px-3 py-1 rounded text-xs font-bold uppercase shadow-lg animate-in zoom-in",
-                              currentAction === 'BAN' ? "bg-red-600 text-white" : "bg-emerald-600 text-white"
-                          )}>
-                             {currentAction}
-                          </div>
-                      )}
-                  </div>
+                 {/* Icons Overlay */}
+                 <div className="absolute inset-0 flex items-center justify-center">
+                     {isBanned && <Ban className="w-14 h-14 text-red-600 rotate-12 drop-shadow-lg" />}
+                     {isPicked && <CheckCircle className="w-14 h-14 text-emerald-500 drop-shadow-lg" />}
+                     
+                     {/* Preview Hover */}
+                     {isAvailable && isMyTurn && hoveredMap === map.id && (
+                         <div className={`px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest shadow-xl animate-in zoom-in ${currentAction === 'BAN' ? "bg-red-600 text-white" : "bg-emerald-600 text-white"}`}>
+                            {currentAction}
+                         </div>
+                     )}
+                 </div>
                </button>
              );
           })}

@@ -33,13 +33,13 @@ export const SessionProvider = ({ children }) => {
   useEffect(() => {
     const initialize = async () => {
       try {
-        // 1. Check Supabase (Staff/Admins)
+        // 1. Check Supabase (Staff/Admins) - Priority 1
         const { data } = await supabase.auth.getSession();
         
         if (data?.session?.user) {
           await hydrateAdmin(data.session.user);
         } else {
-          // 2. Check Local Storage (Captain/Players)
+          // 2. Check Local Storage (Captain/Players) - Priority 2
           const localCap = localStorage.getItem('pixel_captain_session');
           if (localCap) {
             try {
@@ -49,10 +49,14 @@ export const SessionProvider = ({ children }) => {
                  if (result.success) {
                    finalize({ ...result.session });
                    return;
+                 } else {
+                   // Invalid code found in storage? WIPE IT.
+                   console.warn("Stale Captain Session Detected. Purging.");
+                   localStorage.removeItem('pixel_captain_session');
                  }
               }
             } catch (e) {
-              console.warn("Invalid Session Storage", e);
+              console.warn("Corrupt Session Storage", e);
               localStorage.removeItem('pixel_captain_session');
             }
           }
@@ -144,7 +148,7 @@ export const SessionProvider = ({ children }) => {
                 identity: { 
                     id: data.team_id, 
                     display_name: `Captain (${data.team_name})`, 
-                    team_id: data.team_id,
+                    team_id: data.team_id, 
                     team_name: data.team_name
                 },
                 authType: 'CAPTAIN_PIN'
@@ -157,19 +161,18 @@ export const SessionProvider = ({ children }) => {
 
   // --- PUBLIC ACTIONS ---
   const loginAdmin = async (email, password) => {
-    // Clear any captain sessions first
+    // 🛡️ SECURITY: Clear any captain sessions first to prevent "State Pollution"
     localStorage.removeItem('pixel_captain_session');
     
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) return { success: false, message: error.message };
     
     // State update happens via onAuthStateChange listener
-    // We return success here to let UI know
     return { success: true }; 
   };
 
   const loginCaptain = async (accessCode) => {
-    // Clear any admin sessions (if possible, though unlikely to mix)
+    // 🛡️ SECURITY: Clear any admin sessions first
     if (state.authType === 'SUPABASE') await supabase.auth.signOut();
 
     const result = await verifyCaptain(accessCode);
@@ -182,6 +185,7 @@ export const SessionProvider = ({ children }) => {
   };
 
   const logout = async () => {
+    // 🧹 CLEANUP: Nuke everything
     localStorage.removeItem('pixel_captain_session');
     if (state.authType === 'SUPABASE') {
         await supabase.auth.signOut();
@@ -190,8 +194,8 @@ export const SessionProvider = ({ children }) => {
         isAuthenticated: false, 
         user: null, 
         role: ROLES.GUEST, 
-        team_id: null,
-        identity: null,
+        team_id: null, 
+        identity: null, 
         authType: 'GUEST' 
     });
   };

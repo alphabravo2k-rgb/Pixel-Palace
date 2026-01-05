@@ -2,63 +2,101 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useSession } from '../../auth/useSession';
 import { supabase } from '../../supabase/client';
 import { useNavigate } from 'react-router-dom';
-import { Shield, Swords, Clock, LogOut, CheckCircle, Trophy, RefreshCw, Info } from 'lucide-react';
-import { normalizeRole } from '../../lib/roles';
+import { 
+    Shield, Swords, Clock, LogOut, CheckCircle, Trophy, RefreshCw, 
+    Users, Map as MapIcon, Mic, Monitor, Gamepad2, AlertTriangle, ChevronRight 
+} from 'lucide-react';
 import { MatchModal } from '../MatchModal'; 
-import { cn } from '../../lib/utils';
-import { Button } from '../../ui/Components';
+import { BracketView } from '../BracketView'; // ✅ Reusing your Bracket Component
+import { cn, copyToClipboard } from '../../lib/utils';
+import { toast } from 'react-hot-toast';
+
+// --- SUB-COMPONENTS ---
+
+const SocialBadge = ({ icon: Icon, link, color, label }) => {
+    if (!link) return null;
+    return (
+        <a href={link} target="_blank" rel="noreferrer" className={`p-1.5 rounded-full bg-zinc-900 border border-zinc-800 ${color} hover:text-white transition-colors`} title={label}>
+            <Icon size={12} />
+        </a>
+    );
+};
+
+const TeammateRow = ({ member }) => (
+    <div className="flex items-center justify-between p-3 bg-white/5 rounded border border-white/5 hover:border-white/10 transition-all">
+        <div className="flex items-center gap-3">
+            <div className={`w-8 h-8 rounded flex items-center justify-center text-xs font-black uppercase ${member.role === 'captain' ? 'bg-brand/20 text-brand border border-brand/30' : 'bg-zinc-800 text-zinc-500'}`}>
+                {member.username.substring(0, 1)}
+            </div>
+            <div>
+                <div className="text-sm font-bold text-white leading-none">{member.username}</div>
+                <div className="text-[9px] text-zinc-500 uppercase tracking-wider font-mono mt-1">{member.role}</div>
+            </div>
+        </div>
+        <div className="flex gap-1">
+            <SocialBadge icon={Monitor} link={member.steam_url} color="text-blue-400 hover:bg-blue-600" label="Steam" />
+            <SocialBadge icon={Gamepad2} link={member.faceit_url} color="text-orange-500 hover:bg-orange-600" label="Faceit" />
+            <SocialBadge icon={Mic} link={member.discord_handle ? `https://discord.com/users/${member.discord_handle}` : null} color="text-indigo-400 hover:bg-indigo-600" label="Discord" />
+        </div>
+    </div>
+);
 
 export const PlayerDashboard = () => {
   const { session, logout } = useSession();
   const navigate = useNavigate();
   
+  const [activeTab, setActiveTab] = useState('OVERVIEW'); // 'OVERVIEW' | 'BRACKET' | 'ROSTER'
+  const [myTeam, setMyTeam] = useState(null);
   const [activeMatch, setActiveMatch] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isMatchModalOpen, setMatchModalOpen] = useState(false);
-  const [showDebug, setShowDebug] = useState(false);
+  const [isReady, setIsReady] = useState(false); // Local ready state simulation
 
-  // --- IDENTITY RESOLVER ---
+  // 1. Identity Logic
   const getTeamId = useCallback(() => {
-    // Priority 1: Direct session property (PIN Login)
-    if (session?.team_id) return session.team_id;
-    if (session?.teamId) return session.teamId;
-    
-    // Priority 2: User Metadata (Email Login)
-    if (session?.user?.user_metadata?.team_id) return session.user.user_metadata.team_id;
-    
-    // Priority 3: Persistence Layer
-    const saved = localStorage.getItem('pixel_captain_session');
-    if (saved) {
-      try { return JSON.parse(saved).team_id; } catch (e) { return null; }
-    }
-    return null;
+    return session?.identity?.team_id || session?.team_id || session?.user?.user_metadata?.team_id;
   }, [session]);
 
   const teamId = getTeamId();
-  const userRole = normalizeRole(session?.role);
-  const displayName = session?.teamName || session?.user?.user_metadata?.display_name || 'Operator';
 
+  // 2. Data Fetching
   const fetchData = useCallback(async () => {
-    if (!teamId) {
-        setLoading(false);
-        return;
-    }
+    if (!teamId) { setLoading(false); return; }
     
     try {
-      const { data: match, error } = await supabase
+      // A. Fetch Team & Roster
+      const { data: teamData } = await supabase
+        .from('teams')
+        .select(`*, members:team_members(*, player:global_identities(*))`)
+        .eq('id', teamId)
+        .single();
+
+      if (teamData) {
+          const formattedMembers = teamData.members.map(m => ({
+              id: m.id,
+              username: m.player?.display_name || 'Operator',
+              role: m.role,
+              steam_url: m.player?.steam_url,
+              faceit_url: m.player?.faceit_url,
+              discord_handle: m.player?.discord_handle
+          })).sort((a,b) => a.role === 'captain' ? -1 : 1);
+          
+          setMyTeam({ ...teamData, members: formattedMembers });
+      }
+
+      // B. Fetch Next Match
+      const { data: match } = await supabase
         .from('matches')
         .select(`*, team1:team1_id(name, logo_url), team2:team2_id(name, logo_url)`)
         .or(`team1_id.eq.${teamId},team2_id.eq.${teamId}`)
-        // We include 'scheduled' so they can see their next opponent immediately
         .in('status', ['scheduled', 'veto', 'live', 'disputed']) 
         .order('scheduled_at', { ascending: true }) 
-        .limit(1)
         .maybeSingle();
 
-      if (error) throw error;
       setActiveMatch(match);
+
     } catch (err) {
-      console.error("Dashboard Linkage Error:", err);
+      console.error("Dashboard Sync Error:", err);
     } finally {
       setLoading(false);
     }
@@ -66,177 +104,213 @@ export const PlayerDashboard = () => {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 20000); // Polling every 20s
+    const interval = setInterval(fetchData, 30000);
     return () => clearInterval(interval);
   }, [fetchData]);
 
+  // 3. Actions
+  const handleCheckIn = async () => {
+      if(!activeMatch) return;
+      setIsReady(true);
+      toast.success("Unit Marked as READY");
+      // In a real DB, you'd update a 'ready_status' column here
+  };
+
   const handleLogout = async () => {
     await logout();
-    localStorage.removeItem('pixel_captain_session');
     navigate('/login');
   };
 
   if (loading) return (
       <div className="min-h-screen bg-bg flex items-center justify-center flex-col gap-4">
-          <div className="w-12 h-12 border-4 border-brand border-t-transparent rounded-full animate-spin shadow-[0_0_15px_rgba(var(--color-brand)/0.5)]"></div>
-          <div className="text-zinc-500 animate-pulse font-mono uppercase tracking-widest text-[10px]">Establishing Uplink...</div>
+          <div className="w-12 h-12 border-4 border-brand border-t-transparent rounded-full animate-spin"></div>
+          <div className="text-zinc-500 font-mono text-xs uppercase tracking-widest">Loading Tactical Data...</div>
       </div>
   );
 
   return (
-    <div className="min-h-screen bg-bg text-white p-6 selection:bg-brand/30">
+    <div className="min-h-screen bg-bg text-white selection:bg-brand/30 pb-20">
       
-      {/* 1. TOP NAVIGATION */}
-      <div className="max-w-5xl mx-auto flex justify-between items-center border-b border-white/5 pb-6 mb-8">
-          <div>
-            <h1 className="text-4xl font-display font-black italic uppercase tracking-tighter">
-               OPERATOR <span className="text-brand">DASHBOARD</span>
-            </h1>
-            <div className="flex items-center gap-3 mt-2">
-               <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest flex items-center gap-2 bg-zinc-900/50 px-2 py-1 rounded border border-white/5">
-                  <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_5px_#10b981]"/>
-                  ONLINE // {displayName}
-               </span>
-               
-               {teamId && (
-                   <button 
-                    onClick={() => setShowDebug(!showDebug)}
-                    className="px-2 py-1 bg-brand/10 text-brand-glow text-[10px] font-bold uppercase rounded border border-brand/20 font-mono hover:bg-brand/20 transition-all"
-                   >
-                      UNIT ID: {teamId.slice(0,8)}
-                   </button>
-               )}
-            </div>
+      {/* --- TOP NAVIGATION BAR --- */}
+      <div className="sticky top-0 z-50 bg-bg-panel/80 backdrop-blur-md border-b border-white/5 px-6 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+              <div className="w-10 h-10 bg-brand/10 border border-brand/20 rounded flex items-center justify-center">
+                  <Shield className="w-5 h-5 text-brand" />
+              </div>
+              <div>
+                  <h1 className="text-lg font-display font-black uppercase italic tracking-tighter leading-none">
+                      {myTeam?.name || 'OPERATOR DASHBOARD'}
+                  </h1>
+                  <div className="flex items-center gap-2 mt-0.5">
+                      <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"/>
+                      <span className="text-[9px] text-zinc-500 font-mono uppercase tracking-widest">ONLINE // {session?.user?.email}</span>
+                  </div>
+              </div>
           </div>
-          
-          <div className="flex gap-2">
-            <button onClick={fetchData} className="p-3 bg-zinc-900 hover:bg-zinc-800 rounded-full border border-zinc-800 text-zinc-400 hover:text-white transition-all shadow-lg">
-                <RefreshCw size={18} />
-            </button>
-            <button onClick={handleLogout} className="group p-3 bg-zinc-900 hover:bg-red-950/30 rounded-full border border-zinc-800 hover:border-red-900/50 text-zinc-500 hover:text-red-400 transition-all shadow-lg">
-                <LogOut size={18} className="group-hover:translate-x-0.5 transition-transform"/>
-            </button>
+
+          <div className="flex items-center gap-3">
+              <button onClick={fetchData} className="p-2 hover:bg-white/5 rounded-full text-zinc-500 hover:text-white transition-colors"><RefreshCw size={16}/></button>
+              <div className="h-6 w-px bg-white/10 mx-2 hidden md:block"></div>
+              <button onClick={handleLogout} className="flex items-center gap-2 px-4 py-2 bg-red-950/20 hover:bg-red-900/40 text-red-500 border border-red-900/30 rounded text-[10px] font-bold uppercase transition-all">
+                  <LogOut size={12}/> <span className="hidden md:inline">Disconnect</span>
+              </button>
           </div>
       </div>
 
-      <div className="max-w-5xl mx-auto grid gap-8">
+      {/* --- MAIN CONTENT AREA --- */}
+      <div className="max-w-7xl mx-auto p-6">
           
-          {/* DEBUG INFO (Hidden by default) */}
-          {showDebug && (
-            <div className="bg-blue-950/20 border border-blue-500/30 p-4 rounded text-[10px] font-mono text-blue-400 animate-in slide-in-from-top-2">
-               <Info size={12} className="inline mr-2" />
-               SYSTEM_DEBUG: Full UID [{teamId}] | Status [{activeMatch?.status || 'no_match'}] | Auth [PIN]
-            </div>
+          {/* TAB SWITCHER */}
+          <div className="flex gap-4 border-b border-white/5 mb-8">
+              {['OVERVIEW', 'BRACKET', 'ROSTER'].map(tab => (
+                  <button 
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    className={cn(
+                        "pb-4 text-xs font-bold uppercase tracking-widest transition-all relative",
+                        activeTab === tab ? "text-brand" : "text-zinc-500 hover:text-white"
+                    )}
+                  >
+                      {tab}
+                      {activeTab === tab && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-brand animate-in slide-in-from-left duration-300"/>}
+                  </button>
+              ))}
+          </div>
+
+          {/* === TAB 1: OVERVIEW === */}
+          {activeTab === 'OVERVIEW' && (
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4">
+                  
+                  {/* HERO CARD: NEXT MATCH */}
+                  <div className="lg:col-span-2">
+                      <div className={cn(
+                          "relative rounded-xl border overflow-hidden min-h-[300px] flex flex-col justify-center items-center p-8 text-center",
+                          activeMatch ? "bg-bg-panel border-brand/30 shadow-[0_0_50px_rgba(var(--color-brand)/0.1)]" : "bg-zinc-900/20 border-white/5 border-dashed"
+                      )}>
+                          {activeMatch ? (
+                              <>
+                                  <div className="absolute top-4 left-4 flex gap-2">
+                                      <span className={cn("px-2 py-1 rounded text-[9px] font-black uppercase border", activeMatch.status === 'live' ? "bg-red-500 text-white border-red-600 animate-pulse" : "bg-zinc-900 text-zinc-500 border-zinc-700")}>
+                                          {activeMatch.status}
+                                      </span>
+                                      <span className="px-2 py-1 rounded text-[9px] font-mono text-zinc-400 bg-zinc-900 border border-zinc-800">
+                                          BO{activeMatch.best_of}
+                                      </span>
+                                  </div>
+
+                                  <div className="flex items-center gap-8 mb-8">
+                                      <div className="text-center">
+                                          <div className="w-20 h-20 bg-black rounded-full border border-zinc-800 flex items-center justify-center mb-2">
+                                              {activeMatch.team1?.logo_url ? <img src={activeMatch.team1.logo_url} className="w-12 h-12 object-contain"/> : <Shield className="w-8 h-8 text-zinc-700"/>}
+                                          </div>
+                                          <h3 className="text-xl font-black italic uppercase text-white">{activeMatch.team1?.name}</h3>
+                                      </div>
+                                      <div className="flex flex-col items-center">
+                                          <span className="text-4xl font-black text-zinc-700 italic">VS</span>
+                                          {activeMatch.scheduled_at && (
+                                              <span className="text-xs font-mono text-brand mt-2 flex items-center gap-1">
+                                                  <Clock size={12}/> {new Date(activeMatch.scheduled_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                              </span>
+                                          )}
+                                      </div>
+                                      <div className="text-center">
+                                          <div className="w-20 h-20 bg-black rounded-full border border-zinc-800 flex items-center justify-center mb-2">
+                                              {activeMatch.team2?.logo_url ? <img src={activeMatch.team2.logo_url} className="w-12 h-12 object-contain"/> : <Shield className="w-8 h-8 text-zinc-700"/>}
+                                          </div>
+                                          <h3 className="text-xl font-black italic uppercase text-white">{activeMatch.team2?.name}</h3>
+                                      </div>
+                                  </div>
+
+                                  <div className="flex gap-3 w-full max-w-md">
+                                      {activeMatch.status === 'scheduled' ? (
+                                          <button 
+                                            onClick={handleCheckIn}
+                                            disabled={isReady}
+                                            className={cn(
+                                                "flex-1 py-4 rounded font-black uppercase tracking-widest text-xs transition-all flex items-center justify-center gap-2",
+                                                isReady ? "bg-emerald-600 text-white cursor-default" : "bg-zinc-800 hover:bg-zinc-700 text-white"
+                                            )}
+                                          >
+                                              {isReady ? <><CheckCircle size={14}/> READY</> : "CHECK IN"}
+                                          </button>
+                                      ) : (
+                                          <button 
+                                            onClick={() => setMatchModalOpen(true)}
+                                            className="flex-1 py-4 bg-brand hover:bg-brand-glow text-white font-black uppercase tracking-widest text-xs rounded shadow-lg shadow-brand/20 transition-all flex items-center justify-center gap-2"
+                                          >
+                                              <Swords size={14}/> ENTER MATCH ROOM
+                                          </button>
+                                      )}
+                                  </div>
+                              </>
+                          ) : (
+                              <div className="opacity-50">
+                                  <Trophy size={48} className="mx-auto mb-4 text-zinc-700"/>
+                                  <h3 className="text-lg font-bold text-white uppercase tracking-widest">No Active Missions</h3>
+                                  <p className="text-xs text-zinc-500 font-mono mt-2">Waiting for Tournament Director...</p>
+                              </div>
+                          )}
+                      </div>
+                  </div>
+
+                  {/* SIDEBAR: TEAM STATUS */}
+                  <div className="bg-[#0b0c0f] border border-zinc-800 rounded-xl p-6 flex flex-col gap-6">
+                      <div>
+                          <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+                              <Users size={12}/> Unit Roster
+                          </h3>
+                          <div className="space-y-2">
+                              {myTeam?.members?.slice(0,5).map(member => (
+                                  <div key={member.id} className="flex justify-between items-center text-sm">
+                                      <div className="flex items-center gap-2">
+                                          <div className={`w-2 h-2 rounded-full ${member.id ? 'bg-emerald-500 shadow-[0_0_5px_#10b981]' : 'bg-zinc-700'}`}></div>
+                                          <span className="text-zinc-300 font-bold">{member.username}</span>
+                                      </div>
+                                      {member.role === 'captain' && <Shield size={10} className="text-brand"/>}
+                                  </div>
+                              ))}
+                          </div>
+                      </div>
+
+                      <div className="mt-auto pt-6 border-t border-white/5">
+                          <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-3">Quick Actions</h3>
+                          <div className="grid grid-cols-2 gap-2">
+                              {myTeam?.voice_channel_url && (
+                                  <a href={myTeam.voice_channel_url} target="_blank" className="p-3 bg-[#5865F2]/10 border border-[#5865F2]/30 rounded text-[#5865F2] hover:bg-[#5865F2] hover:text-white transition-all flex items-center justify-center" title="Discord Voice">
+                                      <Mic size={16}/>
+                                  </a>
+                              )}
+                              <button onClick={() => setActiveTab('BRACKET')} className="p-3 bg-zinc-800 border border-zinc-700 rounded text-zinc-400 hover:text-white hover:bg-zinc-700 transition-all flex items-center justify-center gap-2 col-span-2 text-[10px] font-bold uppercase">
+                                  <MapIcon size={14}/> View Bracket
+                              </button>
+                          </div>
+                      </div>
+                  </div>
+              </div>
           )}
 
-          {/* 2. MAIN MISSION CARD */}
-          <div className={cn(
-              "relative overflow-hidden rounded-lg border transition-all duration-500",
-              activeMatch ? "bg-bg-panel border-brand/40 shadow-[0_0_40px_rgba(0,0,0,0.5)]" : "bg-zinc-900/10 border-zinc-800/50"
-          )}>
-            <div className="absolute top-0 left-0 w-1 h-full bg-brand shadow-[0_0_15px_rgba(var(--color-brand)/0.5)]"></div>
-            
-            {activeMatch ? (
-               <div className="p-8 relative z-10 animate-in fade-in duration-700">
-                  <div className="flex justify-between items-start mb-8">
-                     <div>
-                        <h2 className="text-xl font-bold uppercase flex items-center gap-2 text-white italic tracking-tight">
-                           <Swords className="text-brand" /> Active Operational Protocol
-                        </h2>
-                        <p className="text-zinc-500 text-[10px] font-mono mt-1 tracking-[0.2em] uppercase">
-                           Match Location: Sector {activeMatch.match_position} // Status: <span className={cn(activeMatch.status === 'live' ? "text-red-500" : "text-brand-glow")}>{activeMatch.status}</span>
-                        </p>
-                     </div>
-                     {activeMatch.status === 'live' && (
-                        <div className="flex items-center gap-2 px-3 py-1 bg-red-500/10 border border-red-500/20 rounded text-red-500 text-[10px] font-black uppercase animate-pulse">
-                           LIVE ENGAGEMENT
-                        </div>
-                     )}
-                  </div>
+          {/* === TAB 2: BRACKET === */}
+          {activeTab === 'BRACKET' && (
+              <div className="h-[600px] border border-zinc-800 rounded-xl overflow-hidden bg-black animate-in fade-in zoom-in-95">
+                  <BracketView />
+              </div>
+          )}
 
-                  <div className="flex items-center justify-between bg-black/60 p-10 rounded-xl border border-white/5 mb-8 backdrop-blur-md relative overflow-hidden group-hover:border-brand/20 transition-all">
-                      <div className="flex flex-col items-center gap-3 z-10">
-                          <div className="w-16 h-16 bg-zinc-900 rounded-lg p-2 border border-white/5 flex items-center justify-center">
-                            <img src={activeMatch.team1?.logo_url || "/placeholder-team.png"} className="max-w-full max-h-full object-contain" alt="" />
-                          </div>
-                          <span className="text-2xl font-display font-black uppercase text-white tracking-tighter italic">{activeMatch.team1?.name}</span>
-                      </div>
-                      
-                      <div className="flex flex-col items-center z-10">
-                        <div className="text-4xl font-display font-black text-zinc-800 italic select-none">VS</div>
-                        <div className="text-[10px] font-mono text-zinc-600 tracking-widest mt-2 uppercase italic">{activeMatch.map_name || 'VETO PENDING'}</div>
-                      </div>
-                      
-                      <div className="flex flex-col items-center gap-3 z-10">
-                          <div className="w-16 h-16 bg-zinc-900 rounded-lg p-2 border border-white/5 flex items-center justify-center">
-                            <img src={activeMatch.team2?.logo_url || "/placeholder-team.png"} className="max-w-full max-h-full object-contain" alt="" />
-                          </div>
-                          <span className="text-2xl font-display font-black uppercase text-white tracking-tighter italic">{activeMatch.team2?.name}</span>
-                      </div>
-                      
-                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.02] group-hover:opacity-[0.04] transition-opacity">
-                          <Swords size={300} />
-                      </div>
-                  </div>
-
-                  <Button 
-                      variant="brand" 
-                      className="w-full py-8 text-xl font-black italic tracking-[0.3em] hover:scale-[1.01] active:scale-[0.99] transition-all shadow-[0_10px_20px_rgba(0,0,0,0.3)]"
-                      onClick={() => setMatchModalOpen(true)}
-                  >
-                      ENTER COMBAT ZONE
-                  </Button>
-               </div>
-            ) : (
-               <div className="p-16 text-center animate-in fade-in duration-500">
-                  <div className="w-24 h-24 bg-zinc-900/50 rounded-full flex items-center justify-center mx-auto mb-6 border border-zinc-800 shadow-inner">
-                     <Clock className="text-zinc-700 w-10 h-10" />
-                  </div>
-                  <h3 className="text-3xl font-display font-black text-white uppercase tracking-tighter italic">Standby Phase</h3>
-                  <p className="text-zinc-500 text-xs mt-3 max-w-sm mx-auto font-mono leading-relaxed uppercase tracking-widest">
-                      No active combat protocols assigned to your unit. 
-                      <br/>awaiting bracket update from command.
-                  </p>
-                  
-                  {!teamId && (
-                      <div className="mt-8 bg-red-950/20 border border-red-500/30 p-4 rounded text-red-500 text-[10px] font-black uppercase tracking-[0.2em] animate-pulse">
-                          ⚠️ AUTHENTICATION ERROR: NO UNIT ASSIGNED
-                      </div>
+          {/* === TAB 3: ROSTER DETAILS === */}
+          {activeTab === 'ROSTER' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in">
+                  {myTeam?.members?.map(member => (
+                      <TeammateRow key={member.id} member={member} />
+                  ))}
+                  {(!myTeam?.members || myTeam.members.length === 0) && (
+                      <div className="col-span-2 text-center p-12 text-zinc-500 font-mono text-xs uppercase">Roster Data Unavailable</div>
                   )}
-               </div>
-            )}
-          </div>
-
-          {/* 3. FOOTER INTEL */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-zinc-900/30 border border-white/5 p-6 rounded-lg flex items-start gap-4 hover:border-brand/20 transition-all group">
-               <div className="p-3 bg-zinc-950 rounded border border-white/5 text-zinc-500 group-hover:text-brand transition-colors">
-                  <Shield size={20}/>
-               </div>
-               <div>
-                   <h3 className="text-[11px] font-black uppercase text-zinc-400 tracking-widest mb-1">Unit Verification</h3>
-                   <div className="flex items-center gap-2 text-[10px] text-emerald-500 font-black uppercase tracking-tighter">
-                      <CheckCircle size={12}/> Biometric Link Active
-                   </div>
-                   <p className="text-[9px] text-zinc-600 mt-1 uppercase font-mono">Role Access: {userRole}</p>
-               </div>
-            </div>
-            
-            <div className="bg-zinc-900/30 border border-white/5 p-6 rounded-lg flex items-start gap-4 hover:border-brand/20 transition-all group">
-               <div className="p-3 bg-zinc-950 rounded border border-white/5 text-zinc-500 group-hover:text-brand transition-colors">
-                  <Trophy size={20}/>
-               </div>
-               <div>
-                   <h3 className="text-[11px] font-black uppercase text-zinc-400 tracking-widest mb-1">Support Uplink</h3>
-                   <p className="text-[10px] text-zinc-500 leading-relaxed uppercase font-mono italic">
-                      Use the "Dispute" tool in the lobby for emergency staff intervention.
-                   </p>
-               </div>
-            </div>
-          </div>
+              </div>
+          )}
 
       </div>
 
+      {/* MATCH MODAL POPUP */}
       <MatchModal 
         match={activeMatch} 
         isOpen={isMatchModalOpen} 

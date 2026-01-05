@@ -3,15 +3,15 @@ import { supabase } from '../../supabase/client';
 import { useSession } from '../../auth/useSession';
 import { Ban, CheckCircle, Clock, Lock, Trophy, Loader2, Check } from 'lucide-react';
 
-// ✅ FIXED: Updated to standard 7-Map Active Duty Pool (Removed Overpass)
+// ✅ FIXED: Stable, Secure HTTPS Images for the 7 Active Duty Maps
 const MAP_POOL = [
-  { id: 'de_mirage', name: 'Mirage', img: 'https://img.youtube.com/vi/F91V3V6Qh6U/maxresdefault.jpg' },
-  { id: 'de_inferno', name: 'Inferno', img: 'https://blob.faceit.com/static/img/maps/cs2/inferno_bg.jpg' },
-  { id: 'de_nuke', name: 'Nuke', img: 'https://blob.faceit.com/static/img/maps/cs2/nuke_bg.jpg' },
-  { id: 'de_vertigo', name: 'Vertigo', img: 'https://blob.faceit.com/static/img/maps/cs2/vertigo_bg.jpg' },
-  { id: 'de_ancient', name: 'Ancient', img: 'https://blob.faceit.com/static/img/maps/cs2/ancient_bg.jpg' },
-  { id: 'de_anubis', name: 'Anubis', img: 'https://blob.faceit.com/static/img/maps/cs2/anubis_bg.jpg' },
-  { id: 'de_dust2', name: 'Dust 2', img: 'https://blob.faceit.com/static/img/maps/cs2/dust2_bg.jpg' }
+  { id: 'de_mirage', name: 'Mirage', img: 'https://assets.faceit-cdn.net/third_party/games/cs2/maps/mirage.jpg' },
+  { id: 'de_inferno', name: 'Inferno', img: 'https://assets.faceit-cdn.net/third_party/games/cs2/maps/inferno.jpg' },
+  { id: 'de_nuke', name: 'Nuke', img: 'https://assets.faceit-cdn.net/third_party/games/cs2/maps/nuke.jpg' },
+  { id: 'de_vertigo', name: 'Vertigo', img: 'https://assets.faceit-cdn.net/third_party/games/cs2/maps/vertigo.jpg' },
+  { id: 'de_ancient', name: 'Ancient', img: 'https://assets.faceit-cdn.net/third_party/games/cs2/maps/ancient.jpg' },
+  { id: 'de_anubis', name: 'Anubis', img: 'https://assets.faceit-cdn.net/third_party/games/cs2/maps/anubis.jpg' },
+  { id: 'de_dust2', name: 'Dust 2', img: 'https://assets.faceit-cdn.net/third_party/games/cs2/maps/dust2.jpg' }
 ];
 
 export const VetoController = ({ match, onUpdate }) => {
@@ -34,7 +34,7 @@ export const VetoController = ({ match, onUpdate }) => {
   }, [match.id]);
 
   const bestOf = match.best_of || 1; 
-  const totalSteps = 6; // 7 maps - 1 decider = 6 steps
+  const totalSteps = 6; // Fixed for 7-map pool (1 left over)
   const isComplete = match.status === 'completed' || match.status === 'live' || vetoLog.length >= totalSteps;
   
   const turnTeamId = vetoLog.length % 2 === 0 ? match.team1_id : match.team2_id;
@@ -81,12 +81,10 @@ export const VetoController = ({ match, onUpdate }) => {
      const bannedMaps = vetoLog.filter(v => v.type === 'BAN').map(v => v.map_name);
      const deciderId = MAP_POOL.find(m => !pickedMaps.includes(m.id) && !bannedMaps.includes(m.id))?.id;
      
-     // Determine exactly which maps are being played
      let finalMapIds = [];
      if (bestOf === 1) finalMapIds = [deciderId];
      else finalMapIds = [...pickedMaps, deciderId];
 
-     // Filter out undefined in case of data errors
      const displayMaps = finalMapIds.filter(id=>id).map(id => MAP_POOL.find(m => m.id === id));
 
      return (

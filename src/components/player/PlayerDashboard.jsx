@@ -4,30 +4,144 @@ import { supabase } from '../../supabase/client';
 import { useNavigate } from 'react-router-dom';
 import { 
     Shield, Swords, Clock, LogOut, CheckCircle, Trophy, RefreshCw, 
-    Users, Map as MapIcon, Mic, Monitor, Gamepad2, Calendar
-} from 'lucide-react';
+    Users, Map as MapIcon, Mic, Monitor, Gamepad2, Calendar, 
+    AlertTriangle, User, Save, Link as LinkIcon, Globe
+} from 'lucide-react'; // ✅ AlertTriangle is now definitely imported
 import { MatchModal } from '../MatchModal'; 
 import { BracketView } from '../BracketView'; 
 import { cn } from '../../lib/utils';
 import { toast } from 'react-hot-toast';
+import { Input, Button } from '../../ui/Components'; // Assuming you have these, if not, standard HTML inputs work too
 
 // --- HELPER: HAMMER TIME (Automatic Local Timezone) ---
+const getUserTimezone = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
+
 const formatMatchTime = (isoString) => {
     if (!isoString) return 'TBD';
     const date = new Date(isoString);
-    
-    // This automatically detects the user's browser timezone
     return new Intl.DateTimeFormat(undefined, {
         month: 'short', 
         day: 'numeric',
         hour: 'numeric', 
         minute: '2-digit',
-        hour12: true // e.g. "Jan 24, 5:00 PM"
+        hour12: true 
     }).format(date);
 };
 
-// --- SUB-COMPONENTS ---
+// --- SUB-COMPONENT: PLAYER PROFILE EDITOR ---
+const PlayerProfileEditor = ({ identity, onUpdate }) => {
+    const [form, setForm] = useState({
+        display_name: identity?.display_name || '',
+        discord_handle: identity?.discord_handle || '',
+        steam_url: identity?.steam_url || '',
+        faceit_url: identity?.faceit_url || ''
+    });
+    const [saving, setSaving] = useState(false);
 
+    const handleSave = async () => {
+        setSaving(true);
+        try {
+            const { error } = await supabase
+                .from('global_identities')
+                .update({
+                    display_name: form.display_name,
+                    discord_handle: form.discord_handle,
+                    steam_url: form.steam_url,
+                    faceit_url: form.faceit_url
+                })
+                .eq('id', identity.id);
+
+            if (error) throw error;
+            toast.success("Profile Updated");
+            onUpdate(); // Refresh parent
+        } catch (e) {
+            toast.error("Update Failed: " + e.message);
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    return (
+        <div className="max-w-2xl mx-auto bg-[#0b0c0f] border border-zinc-800 rounded-xl p-8 animate-in fade-in slide-in-from-bottom-4">
+            <div className="flex items-center gap-4 mb-8 border-b border-white/5 pb-6">
+                <div className="w-16 h-16 bg-brand/10 rounded-full flex items-center justify-center border border-brand/20">
+                    <User className="w-8 h-8 text-brand" />
+                </div>
+                <div>
+                    <h2 className="text-xl font-display font-black text-white uppercase italic">Operator Profile</h2>
+                    <p className="text-xs text-zinc-500 font-mono">ID: {identity?.id}</p>
+                </div>
+            </div>
+
+            <div className="space-y-6">
+                <div className="group">
+                    <label className="text-[10px] uppercase font-bold text-zinc-500 mb-1 block group-focus-within:text-brand transition-colors">Display Name</label>
+                    <div className="relative">
+                        <User className="absolute left-3 top-2.5 w-4 h-4 text-zinc-600" />
+                        <input 
+                            value={form.display_name} 
+                            onChange={e => setForm({...form, display_name: e.target.value})} 
+                            className="w-full bg-black border border-zinc-800 rounded pl-10 pr-4 py-2 text-white text-sm focus:border-brand outline-none transition-all"
+                            placeholder="Your In-Game Name"
+                        />
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="group">
+                        <label className="text-[10px] uppercase font-bold text-zinc-500 mb-1 block group-focus-within:text-[#5865F2] transition-colors">Discord</label>
+                        <div className="relative">
+                            <Mic className="absolute left-3 top-2.5 w-4 h-4 text-zinc-600" />
+                            <input 
+                                value={form.discord_handle} 
+                                onChange={e => setForm({...form, discord_handle: e.target.value})} 
+                                className="w-full bg-black border border-zinc-800 rounded pl-10 pr-4 py-2 text-white text-sm focus:border-[#5865F2] outline-none transition-all"
+                                placeholder="user#1234"
+                            />
+                        </div>
+                    </div>
+                    <div className="group">
+                        <label className="text-[10px] uppercase font-bold text-zinc-500 mb-1 block group-focus-within:text-blue-500 transition-colors">Steam URL</label>
+                        <div className="relative">
+                            <Monitor className="absolute left-3 top-2.5 w-4 h-4 text-zinc-600" />
+                            <input 
+                                value={form.steam_url} 
+                                onChange={e => setForm({...form, steam_url: e.target.value})} 
+                                className="w-full bg-black border border-zinc-800 rounded pl-10 pr-4 py-2 text-white text-sm focus:border-blue-500 outline-none transition-all"
+                                placeholder="https://steamcommunity.com/id/..."
+                            />
+                        </div>
+                    </div>
+                    <div className="group md:col-span-2">
+                        <label className="text-[10px] uppercase font-bold text-zinc-500 mb-1 block group-focus-within:text-orange-500 transition-colors">Faceit URL</label>
+                        <div className="relative">
+                            <Gamepad2 className="absolute left-3 top-2.5 w-4 h-4 text-zinc-600" />
+                            <input 
+                                value={form.faceit_url} 
+                                onChange={e => setForm({...form, faceit_url: e.target.value})} 
+                                className="w-full bg-black border border-zinc-800 rounded pl-10 pr-4 py-2 text-white text-sm focus:border-orange-500 outline-none transition-all"
+                                placeholder="https://faceit.com/players/..."
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                <div className="pt-4 border-t border-white/5 flex justify-end">
+                    <button 
+                        onClick={handleSave} 
+                        disabled={saving}
+                        className="px-6 py-2 bg-brand hover:bg-brand-glow text-white font-bold uppercase text-xs rounded flex items-center gap-2 transition-all disabled:opacity-50"
+                    >
+                        {saving ? <RefreshCw className="animate-spin w-4 h-4" /> : <Save className="w-4 h-4" />}
+                        Save Profile
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// --- SUB-COMPONENT: TEAMMATE ROW ---
 const SocialBadge = ({ icon: Icon, link, color, label }) => {
     if (!link) return null;
     return (
@@ -56,6 +170,7 @@ const TeammateRow = ({ member }) => (
     </div>
 );
 
+// --- MAIN DASHBOARD ---
 export const PlayerDashboard = () => {
   const { session, logout } = useSession();
   const navigate = useNavigate();
@@ -66,11 +181,14 @@ export const PlayerDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [isMatchModalOpen, setMatchModalOpen] = useState(false);
   const [isReady, setIsReady] = useState(false); 
+  const [userId, setUserId] = useState(null);
 
   // 1. Identity Logic
   const getTeamId = useCallback(() => {
-    // Check all possible locations for the ID
-    return session?.identity?.team_id || session?.team_id || session?.user?.user_metadata?.team_id;
+    const tid = session?.identity?.team_id || session?.team_id || session?.user?.user_metadata?.team_id;
+    // Also store the User ID to find *their* profile specifically
+    if (session?.identity?.id) setUserId(session.identity.id);
+    return tid;
   }, [session]);
 
   const teamId = getTeamId();
@@ -81,28 +199,28 @@ export const PlayerDashboard = () => {
     
     try {
       // A. Fetch Team & Roster (Robust Query)
-      // Note: We use 'team_members' and join 'global_identities' to get player names
       const { data: teamData, error: teamError } = await supabase
         .from('teams')
         .select(`
             *, 
             team_members (
                 id, role, user_id,
-                global_identities (display_name, steam_url, faceit_url, discord_handle)
+                global_identities (id, display_name, steam_url, faceit_url, discord_handle)
             )
         `)
         .eq('id', teamId)
         .single();
 
       if (teamData) {
-          // Flatten the nested structure for easier display
           const formattedMembers = (teamData.team_members || []).map(m => ({
               id: m.id,
+              user_id: m.user_id, // Important for Profile Tab
               username: m.global_identities?.display_name || 'Unknown Operator',
               role: m.role,
               steam_url: m.global_identities?.steam_url,
               faceit_url: m.global_identities?.faceit_url,
-              discord_handle: m.global_identities?.discord_handle
+              discord_handle: m.global_identities?.discord_handle,
+              profile_data: m.global_identities // Pass full object for editor
           })).sort((a,b) => a.role === 'captain' ? -1 : 1);
           
           setMyTeam({ ...teamData, members: formattedMembers });
@@ -144,6 +262,9 @@ export const PlayerDashboard = () => {
     navigate('/login');
   };
 
+  // Find CURRENT USER'S Profile Data for the Profile Tab
+  const myProfileData = myTeam?.members?.find(m => m.user_id === userId || m.user_id === session?.user?.id)?.profile_data;
+
   if (loading) return (
       <div className="min-h-screen bg-bg flex items-center justify-center flex-col gap-4">
           <div className="w-12 h-12 border-4 border-brand border-t-transparent rounded-full animate-spin"></div>
@@ -166,9 +287,8 @@ export const PlayerDashboard = () => {
                   </h1>
                   <div className="flex items-center gap-2 mt-0.5">
                       <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"/>
-                      {/* FIX: Use the loaded user name or fallback */}
                       <span className="text-[9px] text-zinc-500 font-mono uppercase tracking-widest">
-                          ONLINE // {myTeam?.members?.find(m => m.id === session?.identity?.id)?.username || session?.user?.email}
+                          ONLINE // {myProfileData?.display_name || session?.user?.email}
                       </span>
                   </div>
               </div>
@@ -187,13 +307,13 @@ export const PlayerDashboard = () => {
       <div className="max-w-7xl mx-auto p-6">
           
           {/* TAB SWITCHER */}
-          <div className="flex gap-4 border-b border-white/5 mb-8">
-              {['OVERVIEW', 'BRACKET', 'ROSTER'].map(tab => (
+          <div className="flex gap-4 border-b border-white/5 mb-8 overflow-x-auto">
+              {['OVERVIEW', 'BRACKET', 'ROSTER', 'PROFILE'].map(tab => (
                   <button 
                     key={tab}
                     onClick={() => setActiveTab(tab)}
                     className={cn(
-                        "pb-4 text-xs font-bold uppercase tracking-widest transition-all relative",
+                        "pb-4 text-xs font-bold uppercase tracking-widest transition-all relative px-2 whitespace-nowrap",
                         activeTab === tab ? "text-fuchsia-500" : "text-zinc-500 hover:text-white"
                     )}
                   >
@@ -234,13 +354,16 @@ export const PlayerDashboard = () => {
                                       
                                       <div className="flex flex-col items-center">
                                           <span className="text-4xl font-black text-zinc-700 italic">VS</span>
-                                          {/* ✅ TIMEZONE FIX: Shows Date and Local Time */}
                                           {activeMatch.scheduled_at && (
-                                              <div className="flex flex-col items-center mt-2">
-                                                  <span className="text-xs font-mono text-fuchsia-400 flex items-center gap-1 bg-fuchsia-950/30 px-2 py-1 rounded border border-fuchsia-500/20">
-                                                      <Calendar size={12}/> {formatMatchTime(activeMatch.scheduled_at)}
-                                                  </span>
-                                                  <span className="text-[9px] text-zinc-600 mt-1 font-mono uppercase">Local Time</span>
+                                              <div className="flex flex-col items-center mt-4">
+                                                  <div className="flex items-center gap-2 bg-fuchsia-950/30 px-3 py-1.5 rounded border border-fuchsia-500/20" title={`Your Timezone: ${getUserTimezone()}`}>
+                                                      <Calendar size={14} className="text-fuchsia-400"/>
+                                                      <span className="text-sm font-mono text-white">{formatMatchTime(activeMatch.scheduled_at)}</span>
+                                                  </div>
+                                                  <div className="flex items-center gap-1 mt-1 text-[9px] text-zinc-600 font-mono uppercase">
+                                                      <Globe size={10} />
+                                                      {getUserTimezone()}
+                                                  </div>
                                               </div>
                                           )}
                                       </div>
@@ -292,7 +415,6 @@ export const PlayerDashboard = () => {
                               <Users size={12}/> Unit Roster
                           </h3>
                           <div className="space-y-2">
-                              {/* ROSTER FETCH FIX: Check if members exist before mapping */}
                               {myTeam?.members && myTeam.members.length > 0 ? (
                                   myTeam.members.slice(0,5).map(member => (
                                       <div key={member.id} className="flex justify-between items-center text-sm">
@@ -349,6 +471,18 @@ export const PlayerDashboard = () => {
                       </div>
                   )}
               </div>
+          )}
+
+          {/* === TAB 4: PROFILE EDITOR (NEW) === */}
+          {activeTab === 'PROFILE' && (
+              myProfileData ? (
+                  <PlayerProfileEditor identity={myProfileData} onUpdate={fetchData} />
+              ) : (
+                  <div className="text-center p-12 text-zinc-500 font-mono text-xs uppercase">
+                      <AlertTriangle className="mx-auto mb-2 w-6 h-6 opacity-50 text-yellow-500"/>
+                      Profile Not Linked. Please ask your captain to add your details.
+                  </div>
+              )
           )}
 
       </div>

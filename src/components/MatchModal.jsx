@@ -44,7 +44,7 @@ export const MatchModal = ({ match: initialMatch, isOpen, onClose }) => {
 
   // --- FORCE DATA REFRESH ---
   const fetchLatest = async () => {
-      console.log("🔄 Fetching latest match data for ID:", initialMatch.id);
+      // console.log("🔄 Fetching match data..."); // Optional debug
       const { data, error } = await supabase
           .from('matches')
           .select(`*, team1:team1_id(*), team2:team2_id(*)`)
@@ -52,10 +52,7 @@ export const MatchModal = ({ match: initialMatch, isOpen, onClose }) => {
           .single();
       
       if (data) {
-          console.log("✅ New Data Received. Best Of:", data.best_of);
           setMatchData(data);
-      } else {
-          console.error("❌ Fetch failed:", error);
       }
   };
 
@@ -70,15 +67,12 @@ export const MatchModal = ({ match: initialMatch, isOpen, onClose }) => {
         .on('postgres_changes', 
             { event: 'UPDATE', schema: 'public', table: 'matches', filter: `id=eq.${initialMatch.id}` }, 
             (payload) => {
-                console.log("⚡ Realtime Update Detected!", payload.new);
-                // Immediately update the specific fields we care about locally for instant feedback
+                // Optimistic update for immediate UI feedback
                 setMatchData(prev => ({ 
                     ...prev, 
-                    best_of: payload.new.best_of, 
-                    status: payload.new.status,
-                    current_veto_team_id: payload.new.current_veto_team_id
+                    ...payload.new
                 }));
-                // Then fetch the full joined data to be safe
+                // Full fetch to ensure joined data (team names) is correct
                 fetchLatest();
             }
         )
@@ -89,6 +83,7 @@ export const MatchModal = ({ match: initialMatch, isOpen, onClose }) => {
 
   if (!isOpen || !matchData) return null;
 
+  // Identity & Permission Checks
   const myTeamId = session?.identity?.team_id || session?.team_id; 
   const isParticipant = (myTeamId === matchData.team1_id || myTeamId === matchData.team2_id);
   const isPlayerActionable = !matchData.is_locked && ['scheduled', 'veto', 'live'].includes(matchData.status);
@@ -132,14 +127,14 @@ export const MatchModal = ({ match: initialMatch, isOpen, onClose }) => {
             <div className="flex flex-col items-center animate-in zoom-in">
                 <span className="text-6xl font-display font-black text-zinc-800 italic select-none">VS</span>
                 {/* DYNAMIC BEST OF LABEL */}
-                <span key={matchData.best_of} className="text-[10px] font-mono text-zinc-600 uppercase border border-zinc-800 px-2 py-0.5 rounded mt-2 bg-zinc-900 transition-all duration-500">
+                <span className="text-[10px] font-mono text-zinc-600 uppercase border border-zinc-800 px-2 py-0.5 rounded mt-2 bg-zinc-900 transition-all duration-500">
                     {`Best of ${matchData.best_of || 1}`}
                 </span>
             </div>
             <TeamCard team={matchData.team2} isWinner={matchData.winner_id === matchData.team2_id} score={matchData.team2_score} />
           </div>
 
-          {/* SERVER INFO */}
+          {/* SERVER INFO (Live Only) */}
           {matchData.status === 'live' && showSensitiveInfo && (
               <div className="mb-8 p-6 bg-fuchsia-900/5 border border-fuchsia-500/20 rounded-lg animate-in slide-in-from-bottom-2">
                   <div className="flex items-center gap-3 mb-4 text-fuchsia-400 font-bold uppercase tracking-widest text-sm italic">
@@ -169,28 +164,32 @@ export const MatchModal = ({ match: initialMatch, isOpen, onClose }) => {
           {/* ACTIVE GAMEPLAY */}
           {isParticipant && isPlayerActionable && (
              <div className="space-y-8">
+                {/* Ready Check */}
                 {matchData.status === 'scheduled' && (
                     <div className="bg-fuchsia-900/10 border border-fuchsia-500/20 p-6 rounded-lg text-center">
                         <h3 className="text-fuchsia-400 font-bold uppercase tracking-widest text-sm mb-4">Captain Command Link</h3>
                         <div className="flex justify-center gap-4">
-                            <RestrictedButton action={PERM_CAPABILITIES.ACT_AS_CAPTAIN} context={matchData} className="px-6 py-2 bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-bold uppercase rounded text-sm transition-all shadow-lg shadow-fuchsia-900/20" onClick={() => alert("Ready Check coming soon")}>
+                            <RestrictedButton action={PERM_CAPABILITIES.ACT_AS_CAPTAIN} context={matchData} className="px-6 py-2 bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-bold uppercase rounded text-sm transition-all shadow-lg shadow-fuchsia-900/20" onClick={() => alert("Ready Check: Coming in v1.1")}>
                                 Ready Check
                             </RestrictedButton>
                         </div>
                     </div>
                 )}
-                {/* Veto UI - Passing the LIVE matchData object */}
+                
+                {/* Veto UI - Passing the LIVE matchData + Update Handler */}
                 {matchData.status === 'veto' && (
                     <div className="border-t border-zinc-800 pt-8 animate-in slide-in-from-bottom-2">
                         <h3 className="text-center text-fuchsia-500 font-black text-xs uppercase tracking-[0.3em] mb-8 flex items-center justify-center gap-3 italic">
                             <span className="w-2 h-2 rounded-full bg-fuchsia-500 animate-pulse"/> Veto Protocol Active
                         </h3>
-                        <VetoController match={matchData} />
+                        {/* ✅ HYBRID FIX: Added onUpdate prop so the modal refreshes when a ban happens */}
+                        <VetoController match={matchData} onUpdate={fetchLatest} />
                     </div>
                 )}
              </div>
           )}
 
+          {/* LOCK STATE */}
           {matchData.is_locked && (
              <div className="bg-red-950/20 border border-red-900/50 p-4 rounded-lg text-center flex items-center justify-center gap-2 text-red-500 font-bold mt-8 uppercase tracking-widest text-[10px]">
                 <AlertTriangle size={14} /> This match has been locked by tournament directors.

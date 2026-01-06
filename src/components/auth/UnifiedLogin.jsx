@@ -1,164 +1,213 @@
 import React, { useState } from 'react';
-import { useSession } from '../../auth/useSession';
 import { useNavigate } from 'react-router-dom';
-import { Shield, Users, ArrowRight, Lock, Command, Terminal } from 'lucide-react';
-import { ROLES } from '../../lib/roles';
+import { Shield, Users, ArrowRight, Command, Terminal, Loader2, Activity } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { clsx } from 'clsx'; // Cleaner classes
+
+// ✅ SAFE IMPORTS
+import { useSession } from '../../auth/useSession';
+import { ROLES } from '../../lib/roles';
+
+/**
+ * 🔐 PIXEL PALACE: UNIFIED AUTH TERMINAL
+ * -------------------------------------
+ * STATUS: MASTERED (DUBAI STANDARD)
+ * * FEATURES:
+ * 1. DUAL-PROTOCOL: Seamlessly switches between "Unit" (Player) and "Command" (Admin) modes.
+ * 2. TACTICAL FEEDBACK: Visual indicators for focused fields and active states.
+ * 3. SECURE HANDSHAKE: Validates credentials against Supabase before routing.
+ */
 
 export const UnifiedLogin = () => {
   const { loginAdmin, loginCaptain } = useSession();
   const navigate = useNavigate();
   
-  const [mode, setMode] = useState('CAPTAIN'); // 'CAPTAIN' or 'ADMIN'
+  const [mode, setMode] = useState('CAPTAIN'); // 'CAPTAIN' | 'ADMIN'
   const [formData, setFormData] = useState({ email: '', password: '', code: '' });
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
 
+  // 🔄 MODE SWITCHER
+  const toggleMode = (newMode) => {
+    if (mode === newMode) return;
+    setMode(newMode);
+    setFormData({ email: '', password: '', code: '' }); // Clear data on switch
+  };
+
+  // 🚀 LOGIN LOGIC
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setError('');
 
     try {
-        let result;
-        
-        // 1. EXECUTE LOGIN STRATEGY
-        if (mode === 'ADMIN') {
-            result = await loginAdmin(formData.email, formData.password);
-        } else {
-            result = await loginCaptain(formData.code);
-        }
+      let result;
+      
+      // 1. EXECUTE STRATEGY
+      if (mode === 'ADMIN') {
+        result = await loginAdmin(formData.email, formData.password);
+      } else {
+        result = await loginCaptain(formData.code);
+      }
 
-        if (!result.success) {
-            throw new Error(result.message || "Authentication Failed");
-        }
+      if (!result.success) throw new Error(result.message);
 
-        // 2. ROUTING LOGIC
-        // Check the role returned from the session or result
-        const userRole = result.role || 'player';
-        
-        toast.success(`Welcome back, ${mode === 'ADMIN' ? 'Commander' : 'Operator'}.`);
+      // 2. SUCCESS FEEDBACK
+      toast.success(`UPLINK ESTABLISHED: Welcome, ${mode === 'ADMIN' ? 'Commander' : 'Operator'}.`, {
+        icon: '🔓',
+        style: { border: '1px solid #10b981', color: '#10b981' }
+      });
 
-        if ([ROLES.OWNER, ROLES.ADMIN].includes(userRole)) {
-            navigate('/admin/dashboard');
-        } else {
-            navigate('/dashboard');
-        }
+      // 3. ROUTING
+      // Determine destination based on the *returned* role, not just the mode
+      const userRole = result.role || 'player';
+      const staffRoles = [ROLES.OWNER, ROLES.ADMIN, ROLES.REFEREE];
+
+      if (staffRoles.includes(userRole)) {
+        navigate('/admin/dashboard');
+      } else {
+        navigate('/dashboard');
+      }
 
     } catch (err) {
-        setError(err.message);
-        toast.error(err.message);
+      toast.error(err.message || "ACCESS DENIED", {
+        icon: '🚫',
+        style: { border: '1px solid #ef4444', color: '#ef4444' }
+      });
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-bg flex items-center justify-center p-4 relative overflow-hidden">
-       {/* Background Ambience */}
-       <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 pointer-events-none" />
-       <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-brand to-transparent opacity-50" />
+    <div className="min-h-screen bg-[#050505] flex items-center justify-center p-6 relative overflow-hidden font-sans">
+       
+       {/* 1. ATMOSPHERIC LAYERS */}
+       <div className="absolute inset-0 z-0 pointer-events-none">
+         <div className="scanlines opacity-[0.3]" />
+         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(var(--color-brand)/0.05),transparent)]" />
+       </div>
 
-       <div className="w-full max-w-md bg-bg-panel border border-tactical rounded-lg shadow-2xl relative z-10 overflow-hidden animate-in zoom-in-95 duration-300">
+       <div className="w-full max-w-md bg-bg-panel border border-white/5 rounded-sm shadow-2xl relative z-10 overflow-hidden animate-in zoom-in-95 duration-500">
           
-          {/* HEADER TOGGLE */}
-          <div className="flex border-b border-white/5 bg-black/40">
+          {/* PROTOCOL TABS */}
+          <div className="flex border-b border-white/5 bg-black/60 backdrop-blur-md">
              <button 
-                onClick={() => { setMode('CAPTAIN'); setError(''); }}
-                className={`flex-1 py-4 text-xs font-bold uppercase tracking-widest transition-all relative ${mode === 'CAPTAIN' ? 'text-brand-glow bg-brand/5' : 'text-zinc-600 hover:text-zinc-400'}`}
+                onClick={() => toggleMode('CAPTAIN')}
+                className={clsx(
+                  "flex-1 py-5 text-[10px] font-black uppercase tracking-[0.3em] transition-all relative group",
+                  mode === 'CAPTAIN' ? 'text-brand bg-brand/5' : 'text-zinc-600 hover:text-zinc-400'
+                )}
              >
-                {mode === 'CAPTAIN' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-brand animate-in slide-in-from-left duration-300" />}
-                <span className="flex items-center justify-center gap-2"><Users size={14}/> Unit Access</span>
+                {mode === 'CAPTAIN' && <div className="absolute bottom-0 left-0 w-full h-[2px] bg-brand animate-in slide-in-from-left duration-300" />}
+                <span className="flex items-center justify-center gap-3">
+                   <Users size={14} className={clsx(mode === 'CAPTAIN' && "animate-pulse")} /> 
+                   UNIT PROTOCOL
+                </span>
              </button>
              <button 
-                onClick={() => { setMode('ADMIN'); setError(''); }}
-                className={`flex-1 py-4 text-xs font-bold uppercase tracking-widest transition-all relative ${mode === 'ADMIN' ? 'text-fuchsia-400 bg-fuchsia-500/5' : 'text-zinc-600 hover:text-zinc-400'}`}
+                onClick={() => toggleMode('ADMIN')}
+                className={clsx(
+                  "flex-1 py-5 text-[10px] font-black uppercase tracking-[0.3em] transition-all relative group",
+                  mode === 'ADMIN' ? 'text-fuchsia-500 bg-fuchsia-500/5' : 'text-zinc-600 hover:text-zinc-400'
+                )}
              >
-                {mode === 'ADMIN' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-fuchsia-500 animate-in slide-in-from-right duration-300" />}
-                <span className="flex items-center justify-center gap-2"><Shield size={14}/> Command Link</span>
+                {mode === 'ADMIN' && <div className="absolute bottom-0 left-0 w-full h-[2px] bg-fuchsia-500 animate-in slide-in-from-right duration-300" />}
+                <span className="flex items-center justify-center gap-3">
+                   <Shield size={14} className={clsx(mode === 'ADMIN' && "animate-pulse")} /> 
+                   COMMAND PROTOCOL
+                </span>
              </button>
           </div>
 
-          <div className="p-8">
-             {/* ICON & TITLE */}
-             <div className="text-center mb-8">
-                <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 border transition-all duration-500 ${mode === 'CAPTAIN' ? 'bg-brand/10 border-brand/30' : 'bg-fuchsia-900/10 border-fuchsia-500/30'}`}>
-                    {mode === 'CAPTAIN' ? <Command className="w-8 h-8 text-brand" /> : <Terminal className="w-8 h-8 text-fuchsia-500" />}
+          <div className="p-10">
+             {/* TERMINAL HEADER */}
+             <div className="text-center mb-10">
+                <div className={clsx(
+                  "w-20 h-20 rounded-sm flex items-center justify-center mx-auto mb-6 border-2 transition-all duration-700",
+                  mode === 'CAPTAIN' ? 'bg-brand/5 border-brand/20 shadow-[0_0_20px_rgba(var(--color-brand)/0.2)]' : 'bg-fuchsia-900/5 border-fuchsia-500/20 shadow-[0_0_20px_rgba(217,70,239,0.2)]'
+                )}>
+                   {mode === 'CAPTAIN' ? <Command className="w-8 h-8 text-brand" /> : <Terminal className="w-8 h-8 text-fuchsia-500" />}
                 </div>
                 
-                <h1 className="text-3xl font-display font-black text-white uppercase italic tracking-tighter">
-                    {mode === 'CAPTAIN' ? 'Unit Login' : 'Admin Uplink'}
+                <h1 className="text-4xl font-display font-black text-white uppercase italic tracking-tighter leading-none">
+                   {mode === 'CAPTAIN' ? 'SQUAD LOGIN' : 'OVERSEER LINK'}
                 </h1>
-                <p className="text-xs text-zinc-500 font-mono mt-2 uppercase tracking-wide">
-                    {mode === 'CAPTAIN' ? 'Enter Access Code to sync with squad.' : 'Restricted. Authorized Personnel Only.'}
+                <p className="text-[9px] text-zinc-600 font-black font-mono mt-4 uppercase tracking-[0.3em]">
+                   {mode === 'CAPTAIN' ? 'Establishing direct team-to-server uplink' : 'Clearance Level 60+ credentials required'}
                 </p>
              </div>
 
-             {/* FORM */}
-             <form onSubmit={handleSubmit} className="space-y-4">
+             {/* DATA ENTRY FORM */}
+             <form onSubmit={handleSubmit} className="space-y-6">
                 {mode === 'CAPTAIN' ? (
-                    <div className="relative group">
-                        <label className="text-[10px] font-bold text-zinc-500 uppercase mb-1 block group-focus-within:text-brand transition-colors">Access Code</label>
-                        <input 
-                           type="password" 
-                           className="w-full bg-black border border-zinc-800 rounded p-4 text-center text-white font-mono tracking-[0.5em] text-lg focus:border-brand outline-none transition-all focus:shadow-[0_0_20px_rgba(var(--color-brand)/0.2)]"
-                           placeholder="••••••"
-                           value={formData.code}
-                           onChange={e => setFormData({...formData, code: e.target.value})}
-                           autoFocus
-                        />
-                    </div>
+                   <div className="space-y-2">
+                      <label className="text-[9px] font-black text-zinc-500 uppercase tracking-widest ml-1">Access Token</label>
+                      <input 
+                         type="password" 
+                         className="w-full bg-black border border-white/10 rounded-sm p-5 text-center text-white font-mono tracking-[1em] text-2xl focus:border-brand focus:ring-1 focus:ring-brand/30 outline-none transition-all placeholder:tracking-normal placeholder:text-sm placeholder:font-sans placeholder:text-zinc-800"
+                         placeholder="ENTER CODE"
+                         maxLength={6}
+                         value={formData.code}
+                         onChange={e => setFormData({...formData, code: e.target.value.toUpperCase()})}
+                         autoFocus
+                      />
+                   </div>
                 ) : (
-                    <>
-                        <div className="space-y-1 group">
-                            <label className="text-[10px] font-bold text-zinc-500 uppercase block group-focus-within:text-fuchsia-500 transition-colors">Officer Email</label>
-                            <input 
-                               type="email" 
-                               className="w-full bg-black border border-zinc-800 rounded p-3 text-sm text-white focus:border-fuchsia-500 outline-none transition-all"
-                               placeholder="admin@pixelpalace.gg"
-                               value={formData.email}
-                               onChange={e => setFormData({...formData, email: e.target.value})}
-                            />
-                        </div>
-                        <div className="space-y-1 group">
-                             <label className="text-[10px] font-bold text-zinc-500 uppercase block group-focus-within:text-fuchsia-500 transition-colors">Password</label>
-                             <input 
-                                type="password" 
-                                className="w-full bg-black border border-zinc-800 rounded p-3 text-sm text-white focus:border-fuchsia-500 outline-none transition-all"
-                                placeholder="••••••••••••"
-                                value={formData.password}
-                                onChange={e => setFormData({...formData, password: e.target.value})}
-                             />
-                        </div>
-                    </>
+                   <div className="space-y-5 animate-in fade-in slide-in-from-top-2">
+                      <div className="space-y-2">
+                         <label className="text-[9px] font-black text-zinc-500 uppercase tracking-widest ml-1">Officer Identity</label>
+                         <input 
+                            type="email" 
+                            className="w-full bg-black border border-white/10 rounded-sm p-4 text-xs font-black text-white focus:border-fuchsia-500 outline-none transition-all placeholder:text-zinc-800"
+                            placeholder="admin@nexus.core"
+                            value={formData.email}
+                            onChange={e => setFormData({...formData, email: e.target.value})}
+                         />
+                      </div>
+                      <div className="space-y-2">
+                           <label className="text-[9px] font-black text-zinc-500 uppercase tracking-widest ml-1">Security Key</label>
+                           <input 
+                              type="password" 
+                              className="w-full bg-black border border-white/10 rounded-sm p-4 text-xs font-black text-white focus:border-fuchsia-500 outline-none transition-all placeholder:text-zinc-800"
+                              placeholder="****************"
+                              value={formData.password}
+                              onChange={e => setFormData({...formData, password: e.target.value})}
+                           />
+                      </div>
+                   </div>
                 )}
 
-                {/* ERROR MESSAGE */}
-                {error && (
-                    <div className="p-3 bg-red-950/30 border border-red-500/30 text-red-400 text-xs font-bold text-center rounded animate-in shake">
-                        <span className="mr-2">⚠️</span> {error}
-                    </div>
-                )}
-
-                {/* SUBMIT BUTTON */}
+                {/* HANDSHAKE BUTTON */}
                 <button 
-                    disabled={loading}
-                    className={`w-full py-4 rounded font-bold uppercase tracking-widest text-xs transition-all flex items-center justify-center gap-2 mt-6 shadow-lg hover:scale-[1.02] active:scale-[0.98]
-                    ${mode === 'CAPTAIN' ? 'bg-brand hover:bg-brand-glow text-white shadow-brand/20' : 'bg-fuchsia-600 hover:bg-fuchsia-500 text-white shadow-fuchsia-900/20'}
-                    ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                   disabled={loading}
+                   className={clsx(
+                     "w-full py-5 rounded-sm font-black uppercase italic tracking-[0.2em] text-sm transition-all duration-300 flex items-center justify-center gap-3 mt-10 disabled:opacity-50 disabled:cursor-not-allowed disabled:grayscale",
+                     mode === 'CAPTAIN' ? 'bg-brand text-white shadow-[0_0_15px_rgba(var(--color-brand)/0.4)] hover:bg-brand-glow' : 'bg-fuchsia-600 text-white shadow-[0_0_15px_rgba(192,38,211,0.4)] hover:bg-fuchsia-500'
+                   )}
                 >
-                    {loading ? 'AUTHENTICATING...' : (
-                        <>
-                            INITIALIZE CONNECTION <ArrowRight size={14} />
-                        </>
-                    )}
+                   {loading ? (
+                     <div className="flex items-center gap-3">
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        <span className="animate-pulse">Handshake Active...</span>
+                     </div>
+                   ) : (
+                     <>INITIATE LINK <ArrowRight size={18} /></>
+                   )}
                 </button>
              </form>
           </div>
-       </div>
-       
-       <div className="absolute bottom-6 text-zinc-700 text-[10px] font-mono uppercase tracking-widest">
-            SECURE CONNECTION v3.0 // ENCRYPTED
+
+          {/* STATUS FOOTER */}
+          <div className="p-4 bg-black/80 flex items-center justify-between border-t border-white/5">
+             <div className="flex items-center gap-3">
+                <Activity size={10} className="text-emerald-500 animate-pulse" />
+                <span className="text-[8px] font-black font-mono text-zinc-700 uppercase tracking-widest">
+                  Nexus Status: Online
+                </span>
+             </div>
+             <span className="text-[8px] font-black font-mono text-zinc-800 uppercase tracking-[0.2em]">
+                V4.1.0-GENESIS
+             </span>
+          </div>
        </div>
     </div>
   );

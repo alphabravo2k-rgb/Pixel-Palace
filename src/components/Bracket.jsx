@@ -1,174 +1,161 @@
-import React, { useMemo } from 'react';
-import { MatchNode } from './bracket/MatchNode';
-import { ZoomableBracket } from './bracket/ZoomableBracket';
-import { Wifi, Trophy } from 'lucide-react';
+import React from 'react';
+import { cn } from '../lib/utils';
+import { Trophy, Shield } from 'lucide-react';
 
-const CARD_WIDTH = 240;
-const CARD_HEIGHT = 110;
-const GAP_X = 100;
-const BASE_GAP_Y = 50;
-
-const Bracket = ({ matches = [], onMatchClick }) => {
-  
-  const { nodes, paths, totalWidth, totalHeight } = useMemo(() => {
-    if (!matches.length) return { nodes: [], paths: [], totalWidth: 0, totalHeight: 0 };
-
-    // 1. Group by Round
-    const rounds = {};
-    matches.forEach(m => {
-      const r = m.round_number || 1;
-      if (!rounds[r]) rounds[r] = [];
-      rounds[r].push(m);
-    });
-
-    // 2. Sort Matches by Position (Critical for Tree Layout)
-    Object.keys(rounds).forEach(r => {
-      rounds[r].sort((a, b) => (a.match_position || 0) - (b.match_position || 0));
-    });
-
-    const roundKeys = Object.keys(rounds).sort((a, b) => Number(a) - Number(b));
-    const calculatedNodes = [];
-    const calculatedPaths = [];
-    const positions = new Map(); // Store (x,y) by Match ID
-
-    // 3. Calculate XY Positions (Recursive Tree Layout)
-    roundKeys.forEach((rKey, rIndex) => {
-      const roundMatches = rounds[rKey];
-      const x = rIndex * (CARD_WIDTH + GAP_X);
-
-      roundMatches.forEach((match, mIndex) => {
-        let y;
-        
-        if (rIndex === 0) {
-          // Round 1: Simple linear stacking
-          y = mIndex * (CARD_HEIGHT + BASE_GAP_Y);
-        } else {
-          // Subsequent Rounds: Center between feeders
-          // Logic: Match 1 in Round 2 is fed by Match 1 & 2 in Round 1
-          const expectedFeederPos1 = (match.match_position * 2) - 1;
-          const expectedFeederPos2 = (match.match_position * 2);
-
-          const feeder1 = matches.find(m => m.round_number === match.round_number - 1 && m.match_position === expectedFeederPos1);
-          const feeder2 = matches.find(m => m.round_number === match.round_number - 1 && m.match_position === expectedFeederPos2);
-          
-          if (feeder1 && feeder2) {
-             const y1 = positions.get(feeder1.id)?.y || 0;
-             const y2 = positions.get(feeder2.id)?.y || 0;
-             y = (y1 + y2) / 2;
-          } else {
-             // Fallback if bracket is sparse (e.g. Byes)
-             y = mIndex * (CARD_HEIGHT + BASE_GAP_Y) * Math.pow(2, rIndex); 
-          }
-        }
-
-        positions.set(match.id, { x, y });
-
-        calculatedNodes.push({
-          match,
-          style: {
-            position: 'absolute',
-            left: `${x}px`,
-            top: `${y}px`,
-            width: `${CARD_WIDTH}px`,
-            height: `${CARD_HEIGHT}px`
-          }
-        });
-      });
-    });
-
-    // 4. Generate Connector Paths
-    matches.forEach(match => {
-      // Logic: Match 1 in Round 1 feeds into Match 1 in Round 2
-      const nextRound = match.round_number + 1;
-      const nextPos = Math.ceil(match.match_position / 2);
-
-      const nextMatch = matches.find(m => m.round_number === nextRound && m.match_position === nextPos);
-
-      if (!nextMatch) return;
-      
-      const start = positions.get(match.id);
-      const end = positions.get(nextMatch.id);
-      
-      if (!start || !end) return;
-
-      const startX = start.x + CARD_WIDTH;
-      const startY = start.y + (CARD_HEIGHT / 2);
-      const endX = end.x;
-      const endY = end.y + (CARD_HEIGHT / 2);
-
-      // Bezier Curve Logic
-      const cp1x = startX + (endX - startX) * 0.5;
-      const cp2x = endX - (endX - startX) * 0.5;
-
-      calculatedPaths.push({
-        id: `${match.id}->${nextMatch.id}`,
-        d: `M ${startX} ${startY} C ${cp1x} ${startY}, ${cp2x} ${endY}, ${endX} ${endY}`,
-        startX, startY, endX, endY,
-        status: match.status,
-        // Path is "active" if match is live or completed
-        isActive: ['live', 'completed'].includes(match.status)
-      });
-    });
-
-    const totalW = roundKeys.length * (CARD_WIDTH + GAP_X);
-    const maxY = Math.max(...Array.from(positions.values()).map(p => p.y), 0) + CARD_HEIGHT;
-
-    return { nodes: calculatedNodes, paths: calculatedPaths, totalWidth: totalW, totalHeight: maxY };
-
-  }, [matches]);
-
-  if (matches.length === 0) {
-    return (
-      <div className="h-full flex flex-col items-center justify-center text-zinc-600 space-y-4">
-         <Wifi className="w-12 h-12 opacity-20 animate-pulse" />
-         <span className="font-mono text-xs uppercase tracking-widest">Awaiting Bracket Data...</span>
-      </div>
-    );
+// --- SUB-COMPONENT: MATCH NODE ---
+const MatchNode = ({ match, onClick, isBye }) => {
+  // 👻 GHOST NODE: If it's a Bye, render invisible spacer to maintain tree structure
+  if (isBye) {
+      return (
+          <div className="flex items-center h-full">
+             <div className="w-64 h-20 opacity-0" /> 
+             {/* The line extending to the next round must still be visible? 
+                 Actually, for a Bye, we usually just show the team in Round 2.
+                 But to keep alignment, we need the space. */}
+             <div className="w-8 h-px bg-transparent" /> 
+          </div>
+      );
   }
 
+  // Determine Styling based on state
+  const isWinner = (id) => match.winner_id === id && match.status === 'completed';
+  const isLoser = (id) => match.winner_id && match.winner_id !== id && match.status === 'completed';
+
+  const TeamRow = ({ teamId, team, score, isTop }) => {
+      const won = isWinner(teamId);
+      const lost = isLoser(teamId);
+      
+      return (
+        <div className={cn(
+            "flex justify-between items-center px-3 py-2 h-8 transition-colors",
+            isTop ? "border-b border-zinc-800/50" : "",
+            won ? "bg-gradient-to-r from-emerald-950/30 to-transparent text-emerald-400" : "",
+            lost ? "text-zinc-600" : "text-zinc-300"
+        )}>
+            <div className="flex items-center gap-2 overflow-hidden">
+                {team?.logo_url ? (
+                    <img src={team.logo_url} className="w-4 h-4 object-contain" alt="" />
+                ) : (
+                    <Shield size={12} className={cn(won ? "text-emerald-500" : "text-zinc-700")} />
+                )}
+                <span className={cn(
+                    "text-xs font-bold truncate max-w-[140px]",
+                    lost && "line-through decoration-zinc-700"
+                )}>
+                    {team?.name || 'TBD'}
+                </span>
+            </div>
+            <span className={cn("text-xs font-mono", won ? "text-emerald-500" : "text-zinc-500")}>
+                {score ?? '-'}
+            </span>
+        </div>
+      );
+  };
+
   return (
-    <div className="w-full h-full flex flex-col bg-[#050505]">
-       <ZoomableBracket>
-          <div style={{ width: totalWidth + 400, height: totalHeight + 400, position: 'relative', padding: '100px' }}>
-            <svg className="absolute inset-0 w-full h-full pointer-events-none overflow-visible z-0">
-              <defs>
-                 <linearGradient id="gradient-live" x1="0%" y1="0%" x2="100%" y2="0%">
-                    <stop offset="0%" stopColor="#10b981" />
-                    <stop offset="100%" stopColor="#059669" />
-                 </linearGradient>
-              </defs>
+    <div className="flex items-center group relative z-10">
+        <div 
+            onClick={() => onClick(match)}
+            className={cn(
+                "w-64 border rounded flex flex-col overflow-hidden transition-all cursor-pointer bg-[#09090b] shadow-lg",
+                match.status === 'live' ? "border-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.15)]" : "border-zinc-800 hover:border-zinc-500"
+            )}
+        >
+            {/* Header */}
+            <div className="flex justify-between px-3 py-1 bg-zinc-900/50 border-b border-zinc-800 text-[9px] font-mono uppercase tracking-wider">
+                <span className="text-zinc-500">M{match.match_position}</span>
+                {match.status === 'live' ? (
+                    <span className="text-red-500 font-bold animate-pulse">● LIVE</span>
+                ) : (
+                    <span className="text-zinc-600">
+                        {match.scheduled_at ? new Date(match.scheduled_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : 'SCHEDULED'}
+                    </span>
+                )}
+            </div>
 
-              {paths.map(path => {
-                const isLive = path.status === 'live';
-                const isDone = path.status === 'completed';
-                const strokeColor = isLive ? 'url(#gradient-live)' : isDone ? '#52525b' : '#27272a';
-                
-                return (
-                  <g key={path.id}>
-                    <path
-                      d={path.d}
-                      fill="none"
-                      stroke={strokeColor}
-                      strokeWidth={isLive ? 3 : 2}
-                      className={`transition-all duration-700 ${isLive ? 'opacity-100' : 'opacity-40'}`}
-                      strokeDasharray={isLive ? "5,5" : "0"}
-                    >
-                        {isLive && <animate attributeName="stroke-dashoffset" from="100" to="0" dur="2s" repeatCount="indefinite" />}
-                    </path>
-                    <circle cx={path.startX} cy={path.startY} r="3" fill={isLive ? "#10b981" : "#27272a"} />
-                    <circle cx={path.endX} cy={path.endY} r="3" fill={isLive ? "#10b981" : "#27272a"} />
-                  </g>
-                );
-              })}
-            </svg>
+            <TeamRow teamId={match.team1_id} team={match.team1} score={match.team1_score} isTop={true} />
+            <TeamRow teamId={match.team2_id} team={match.team2} score={match.team2_score} isTop={false} />
+        </div>
+        
+        {/* Output Line (Right side) */}
+        <div className="w-8 h-px bg-zinc-800 group-hover:bg-zinc-600 transition-colors" />
+    </div>
+  );
+};
 
-            {nodes.map(({ match, style }) => (
-              <div key={match.id} style={style} className="z-10">
-                <MatchNode match={match} onClick={onMatchClick} />
-              </div>
-            ))}
-          </div>
-       </ZoomableBracket>
+// --- MAIN COMPONENT ---
+const Bracket = ({ matches, onMatchClick }) => {
+  // 1. Organize Matches into Rounds
+  const rounds = matches.reduce((acc, m) => {
+      if (m.is_third_place) return acc; // Filter out 3rd place (handled by parent)
+      if (!acc[m.round_number]) acc[m.round_number] = [];
+      acc[m.round_number].push(m);
+      return acc;
+  }, {});
+
+  const roundNumbers = Object.keys(rounds).sort((a,b) => Number(a) - Number(b));
+
+  return (
+    <div className="flex h-full p-12 overflow-auto items-center"> {/* Center vertically */}
+       <div className="flex flex-row">
+           {roundNumbers.map((roundNum, rIndex) => {
+               // Sort matches by position (Top to Bottom)
+               const roundMatches = rounds[roundNum].sort((a,b) => a.match_position - b.match_position);
+               const isFinals = rIndex === roundNumbers.length - 1;
+               
+               // Dynamic Spacing Calculation
+               // As rounds progress, the vertical gap grows exponentially to center nodes
+               const gapMultiplier = Math.pow(2, rIndex); 
+               const gapSize = gapMultiplier * 20; 
+
+               return (
+                   <div key={roundNum} className="flex flex-row">
+                       {/* --- COLUMN: MATCH NODES --- */}
+                       <div className="flex flex-col justify-around" style={{ gap: `${gapSize}px` }}>
+                           
+                           {/* Round Header */}
+                           <div className="text-center pb-2 text-zinc-500 font-bold uppercase text-[10px] tracking-[0.2em] border-b border-zinc-800 mb-2 opacity-30 select-none">
+                               {isFinals ? "Grand Finals" : `Round ${roundNum}`}
+                           </div>
+
+                           {/* Matches */}
+                           <div className="flex flex-col justify-center h-full" style={{ gap: `${gapSize}px` }}>
+                               {roundMatches.map((match) => {
+                                   // Logic: If a match is 'completed' in Round 1 but has NO opponent, it was a Bye.
+                                   // We render it as a "Ghost" so it takes up space but isn't visible.
+                                   const isBye = roundNum === '1' && match.status === 'completed' && !match.team2_id;
+                                   
+                                   return (
+                                       <MatchNode 
+                                          key={match.id} 
+                                          match={match} 
+                                          onClick={onMatchClick} 
+                                          isBye={isBye} 
+                                       />
+                                   );
+                               })}
+                           </div>
+                       </div>
+
+                       {/* --- COLUMN: CONNECTORS (Lines) --- */}
+                       {!isFinals && (
+                           <div className="flex flex-col justify-center mx-2 pt-8" style={{ gap: `${gapSize}px` }}>
+                               {/* Generate Pairs of connectors for the NEXT round */}
+                               {/* E.g. Round 1 has 16 matches -> 8 connectors */}
+                               {Array.from({ length: Math.ceil(roundMatches.length / 2) }).map((_, i) => (
+                                   <div key={i} className="flex flex-col h-full w-8" style={{ height: roundMatches.length === 2 ? '50%' : `${gapSize + 110}px` }}>
+                                       {/* Upper Branch (┐) */}
+                                       <div className="flex-1 border-b border-r border-zinc-800 rounded-br-xl"></div>
+                                       {/* Lower Branch (┘) */}
+                                       <div className="flex-1 border-t border-r border-zinc-800 rounded-tr-xl"></div>
+                                   </div>
+                               ))}
+                           </div>
+                       )}
+                   </div>
+               );
+           })}
+       </div>
     </div>
   );
 };

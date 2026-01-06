@@ -1,32 +1,68 @@
-# 📦 Dependencies
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
+# -------------------------------------------------------------------
+# 🛡️ PIXEL PALACE: REPOSITORY SHIELD (GLOBAL STANDARD)
+# -------------------------------------------------------------------
 
-# 🏗️ Build Output
+# 📦 DEPENDENCIES
+node_modules/
+.pnp
+.pnp.js
+
+# 🏗️ BUILD ARTIFACTS
 dist/
 dist-ssr/
-coverage/
+dev-dist/
+build/
+out/
 *.local
 
-# 🔐 Security & Env (CRITICAL - NEVER COMMIT THESE)
+# 📊 ANALYTICS JUNK
+# We don't want to commit the build analysis charts
+stats.html
+bundle-stats.html
+coverage/
+.nyc_output/
+
+# 🔐 SECURITY VAULT (CRITICAL)
+# Never commit your secrets.
 .env
+.env.*
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
 *.pem
 *.key
+*.cert
 
-# 🛠️ Editor & IDE Settings
+# ✅ EXCEPTION: Commit the template so devs know what keys they need
+!.env.example
+
+# ⚡ VITE & PERFORMANCE CACHES
+.vite/
+.eslintcache
+.prettiercache
+.stylelintcache
+.cache/
+.parcel-cache
+
+# ⚡ SUPABASE & BACKEND
+supabase/.branches/
+supabase/.temp/
+supabase/functions/.import_map.json
+supabase/tmp/
+
+# 🛠️ IDE SETTINGS (Personal preferences should stay local)
 .idea/
-.vscode/
-*.swp
-*.swo
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
 
-# 🖥️ OS Junk Files
+# 🖥️ OS TRASH FILES
 .DS_Store
 .DS_Store?
 ._*
@@ -34,18 +70,17 @@ coverage/
 .Trashes
 ehthumbs.db
 Thumbs.db
+Icon?
 
-# ⚡ Supabase Local Dev
-supabase/.branches
-supabase/.temp
-supabase/tmp
-# Ignore generated types if you run 'supabase gen types' locally often
-# supabase/functions/**/deno.lock
-
-# 🧹 Performance Caches (Don't commit these)
-.eslintcache
-.prettiercache
-
-# ☁️ Deployment Platforms
+# ☁️ CLOUD PLATFORMS
 .vercel
 .wrangler
+.turbo
+.netlify
+
+# 📝 LOGS
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*

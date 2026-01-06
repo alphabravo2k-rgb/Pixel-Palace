@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { RouterProvider } from 'react-router-dom';
+import { toast } from 'react-hot-toast';
+import { Wifi, WifiOff } from 'lucide-react';
 
 // ✅ CORE MODULES
 import { SessionProvider, useSession } from '../auth/useSession';
@@ -8,11 +10,49 @@ import { supabase } from '../supabase/client';
 import { router } from './router';
 
 /**
- * 🎨 THEME ENGINE: HARDWARE ACCELERATED
- * -------------------------------------
- * Fetches the active tournament's branding and injects it directly 
- * into the CSS Root Variables.
+ * ⚡ PIXEL PALACE: CORE ROOT (V2.0)
+ * -------------------------------
+ * STATUS: MASTERED (DUBAI STANDARD)
+ * * UPGRADES:
+ * 1. NETWORK MONITOR: Detects connection drops instantly (Crucial for live gaming).
+ * 2. THEME ENGINE: Hardware-accelerated CSS variable injection.
+ * 3. CINEMATIC BOOT: Zero-flicker loading sequence.
  */
+
+// 📡 1. NETWORK MONITOR
+// Silent component that watches for internet connectivity
+const NetworkMonitor = () => {
+  useEffect(() => {
+    const handleOnline = () => {
+      toast.success("UPLINK ESTABLISHED", {
+        id: 'network-status',
+        icon: <Wifi size={16} className="text-emerald-500" />,
+        style: { border: '1px solid #10b981', color: '#10b981' }
+      });
+    };
+
+    const handleOffline = () => {
+      toast.error("CONNECTION LOST", {
+        id: 'network-status',
+        icon: <WifiOff size={16} className="text-red-500" />,
+        duration: Infinity, // Stay on screen until fixed
+        style: { border: '1px solid #ef4444', color: '#ef4444' }
+      });
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  return null;
+};
+
+// 🎨 2. THEME ENGINE
 const ThemeManager = () => {
   useEffect(() => {
     const syncTheme = async () => {
@@ -26,9 +66,9 @@ const ThemeManager = () => {
         if (data?.theme_color) {
           const root = document.documentElement;
 
-          // Helper: Hex to Space-Separated RGB (for Tailwind Opacity)
+          // Helper: Hex to RGB "r g b"
           const toRGB = (hex) => {
-            if (!hex) return '192 38 211'; // Default Fuchsia
+            if (!hex) return '192 38 211';
             const cleanHex = hex.replace('#', '');
             const r = parseInt(cleanHex.substring(0, 2), 16);
             const g = parseInt(cleanHex.substring(2, 4), 16);
@@ -36,7 +76,6 @@ const ThemeManager = () => {
             return `${r} ${g} ${b}`;
           };
 
-          // 💉 INJECTION: Must match tailwind.config.js exactly!
           root.style.setProperty('--color-brand', toRGB(data.theme_color));
           root.style.setProperty('--color-brand-dim', data.theme_color_dim ? toRGB(data.theme_color_dim) : toRGB(data.theme_color));
           root.style.setProperty('--color-brand-glow', data.theme_color_glow ? toRGB(data.theme_color_glow) : toRGB(data.theme_color));
@@ -47,25 +86,17 @@ const ThemeManager = () => {
         console.warn("⚠️ Theme Sync Warning:", e);
       }
     };
-
     syncTheme();
   }, []);
-
-  return null; // Invisible Component
+  return null;
 };
 
-/**
- * 🛑 SYSTEM GATE: THE BOOT SEQUENCE
- * ---------------------------------
- * Prevents the app from flashing "Login" screens while checking 
- * if the user is actually logged in.
- */
+// 🛑 3. SYSTEM GATE (BOOT SEQUENCE)
 const SystemGate = ({ children }) => {
-  const { session, isLoading } = useSession();
+  const { isLoading } = useSession();
   const [minLoadTimePassed, setMinLoadTimePassed] = useState(false);
 
-  // 🧠 UX TRICK: Force the loader to show for at least 800ms 
-  // This prevents a "flash" of the loader that looks like a glitch.
+  // Force loader for 800ms for premium feel (prevents flickering)
   useEffect(() => {
     const timer = setTimeout(() => setMinLoadTimePassed(true), 800);
     return () => clearTimeout(timer);
@@ -104,13 +135,12 @@ const SystemGate = ({ children }) => {
   return children;
 };
 
-/**
- * 🏛️ APP CORE
- */
+// 🏛️ 4. APP CORE
 function App() {
   return (
     <>
       <ThemeManager />
+      <NetworkMonitor />
       <SessionProvider>
         <SystemGate>
           <TournamentProvider>

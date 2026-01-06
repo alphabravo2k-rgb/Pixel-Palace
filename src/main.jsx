@@ -6,7 +6,7 @@ import { ErrorBoundary } from 'react-error-boundary'; // 🛡️ CRASH PROTECTIO
 import { registerSW } from 'virtual:pwa-register';
 
 // ✅ CORRECT PATHING: Moving out of 'ui' folder to find the App core
-import App from '../app/App';
+import App from './app/App';
 import './index.css';
 
 /**

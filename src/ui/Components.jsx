@@ -1,13 +1,16 @@
 import React, { useEffect, forwardRef } from 'react';
 import { X, Loader2, AlertTriangle, UploadCloud } from 'lucide-react';
-import { clsx } from 'clsx';
-import { twMerge } from 'tailwind-merge';
+import { cn } from '../lib/utils'; // ✅ Standardized Import
 
-// 🎨 HELPER: Local definition ensures this file works standalone if needed
-export const cn = (...inputs) => twMerge(clsx(inputs));
+/**
+ * 🧱 PIXEL PALACE: ATOMIC UI
+ * --------------------------
+ * STATUS: MASTERED (DUBAI STANDARD)
+ * PURPOSE: Hardware-accelerated, consistent UI primitives.
+ */
 
 // ==========================================
-// 1. ATOMS (Hardware Accelerated Building Blocks)
+// 1. ATOMS (Primitives)
 // ==========================================
 
 export const Button = forwardRef(({ 
@@ -34,7 +37,7 @@ export const Button = forwardRef(({
       ref={ref}
       type={type}
       className={cn(
-        "rounded-sm font-black uppercase tracking-widest transition-all duration-300 flex items-center justify-center gap-2 active:scale-95 touch-manipulation select-none",
+        "rounded-sm font-black uppercase tracking-widest transition-all duration-300 flex items-center justify-center gap-2 active:scale-95 touch-manipulation select-none relative overflow-hidden",
         variants[variant],
         sizes[size],
         (disabled || loading) && "opacity-40 grayscale cursor-not-allowed pointer-events-none",
@@ -57,15 +60,15 @@ export const Input = forwardRef(({ label, error, className, ...props }, ref) => 
       <input
         ref={ref}
         className={cn(
-          "w-full bg-bg-surface/50 border border-tactical p-3.5 text-sm text-gray-200 outline-none transition-all rounded-sm",
-          "focus:border-brand/60 focus:bg-bg-elevated placeholder:text-zinc-700",
+          "w-full bg-black/40 border border-white/10 p-3.5 text-sm text-gray-200 outline-none transition-all rounded-sm",
+          "focus:border-brand/60 focus:bg-black placeholder:text-zinc-700",
           "disabled:opacity-50 disabled:cursor-not-allowed",
           error && "border-red-500/50 focus:border-red-500",
           className
         )}
         {...props}
       />
-      {/* Burj Khalifa Detail: Animated Underline */}
+      {/* Animated Underline */}
       <div className="absolute bottom-0 left-0 w-0 h-[1px] bg-brand transition-all duration-500 group-focus-within:w-full" />
     </div>
     {error && <span className="text-red-500 text-[10px] uppercase font-bold tracking-wider flex items-center gap-1.5 mt-1 animate-in fade-in slide-in-from-left-2"><AlertTriangle size={12} /> {error}</span>}
@@ -73,12 +76,41 @@ export const Input = forwardRef(({ label, error, className, ...props }, ref) => 
 ));
 Input.displayName = 'Input';
 
-// 📁 HARD FILE UPLINK: For Pictures, Audio, GIFs
+export const Select = forwardRef(({ label, options = [], placeholder, error, className, ...props }, ref) => (
+  <div className="w-full space-y-1">
+    {label && <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold ml-1">{label}</label>}
+    <div className="relative">
+        <select 
+        ref={ref}
+        className={cn(
+            "w-full bg-black/40 border border-white/10 p-3 text-sm text-gray-200 outline-none transition-all appearance-none cursor-pointer rounded-sm",
+            "focus:border-brand focus:shadow-[0_0_15px_rgba(var(--color-brand)/0.2)]",
+            error && "border-red-500",
+            className
+        )}
+        {...props}
+        >
+        {placeholder && <option value="" disabled selected>{placeholder}</option>}
+        {options.map((opt, i) => (
+            <option key={i} value={opt.value} className="bg-zinc-900 text-gray-300">
+            {opt.label}
+            </option>
+        ))}
+        </select>
+        {/* Custom Arrow */}
+        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-500">
+            <svg width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        </div>
+    </div>
+  </div>
+));
+Select.displayName = 'Select';
+
 export const FileInput = ({ label, onFileSelect, accept = "image/*,audio/*", error, fileName }) => (
   <div className="w-full space-y-2">
     {label && <label className="text-[10px] uppercase tracking-[0.2em] text-zinc-500 font-black">{label}</label>}
     <label className={cn(
-      "flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-tactical rounded-sm bg-bg-surface/30 cursor-pointer hover:bg-bg-surface/60 hover:border-brand/40 transition-all group overflow-hidden relative",
+      "flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-white/10 rounded-sm bg-white/5 cursor-pointer hover:bg-white/10 hover:border-brand/40 transition-all group overflow-hidden relative",
       error && "border-red-500/50"
     )}>
       <div className="flex flex-col items-center justify-center pt-5 pb-6">
@@ -93,29 +125,6 @@ export const FileInput = ({ label, onFileSelect, accept = "image/*,audio/*", err
   </div>
 );
 
-export const Select = forwardRef(({ label, options = [], error, className, ...props }, ref) => (
-  <div className="w-full space-y-1">
-    {label && <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold ml-1">{label}</label>}
-    <select 
-      ref={ref}
-      className={cn(
-        "w-full bg-bg-surface border border-tactical p-3 text-sm text-gray-200 outline-none transition-all appearance-none cursor-pointer rounded-sm",
-        "focus:border-brand focus:shadow-[0_0_15px_rgba(var(--color-brand)/0.2)]",
-        error && "border-red-500",
-        className
-      )}
-      {...props}
-    >
-      {options.map((opt, i) => (
-        <option key={i} value={opt.value} className="bg-bg-elevated text-gray-300">
-          {opt.label}
-        </option>
-      ))}
-    </select>
-  </div>
-));
-Select.displayName = 'Select';
-
 export const Badge = ({ children, color = 'gray', className = '' }) => {
   const colors = {
     brand: 'bg-brand/10 text-brand-glow border-brand/50 shadow-[0_0_10px_rgba(var(--color-brand)/0.2)]',
@@ -129,7 +138,7 @@ export const Badge = ({ children, color = 'gray', className = '' }) => {
 };
 
 // ==========================================
-// 2. MOLECULES (Industrial Design)
+// 2. MOLECULES (Complex)
 // ==========================================
 
 export const SkewButton = ({ children, onClick, className = "", disabled = false, type = "button", loading = false }) => (
@@ -148,14 +157,14 @@ export const SkewButton = ({ children, onClick, className = "", disabled = false
     <span className="relative block transform skew-x-[12deg] flex items-center gap-3 justify-center text-white font-display font-bold uppercase tracking-[0.15em] text-xl">
       {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : children}
     </span>
-    {/* Visual Glitch Detail */}
+    {/* Glitch Decor */}
     <div className="absolute top-0 right-0 w-2 h-2 bg-brand/40 group-hover:bg-white/50 transform skew-x-[12deg]" />
   </button>
 );
 
 export const HudPanel = ({ children, className = "", title, icon: Icon, glow = false }) => (
   <div className={cn(
-    "relative bg-bg-panel/80 backdrop-blur-md p-6 border border-white/5 group",
+    "relative bg-black/80 backdrop-blur-md p-6 border border-white/5 group",
     glow && "shadow-[0_0_50px_-12px_rgba(var(--color-brand)/0.2)]",
     className
   )}
@@ -193,9 +202,9 @@ export const Modal = ({ isOpen, onClose, title, children, size = 'md' }) => {
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-300">
-      <div className={cn("relative w-full bg-bg-panel border border-tactical shadow-2xl flex flex-col max-h-[90vh]", widthClass)}
+      <div className={cn("relative w-full bg-[#09090b] border border-white/10 shadow-2xl flex flex-col max-h-[90vh]", widthClass)}
         style={{ clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 20px), calc(100% - 20px) 100%, 0 100%)' }}>
-        <div className="flex justify-between items-center p-6 border-b border-white/5 bg-bg-surface/50">
+        <div className="flex justify-between items-center p-6 border-b border-white/5 bg-white/[0.02]">
           <h3 className="text-2xl font-display font-bold text-white uppercase italic tracking-tighter">{title}</h3>
           <button onClick={onClose} className="text-zinc-500 hover:text-red-500 transition-all hover:rotate-90"><X size={28} /></button>
         </div>

@@ -1,10 +1,11 @@
 /**
- * PIXEL PALACE: OVERSEER COMMAND CENTER
- * VERSION: 3.5.0 (MASTER HYBRID)
- * STATUS: OPERATIONAL
- * - Zero-Latency Real-time Intel
- * - GPU Accelerated Glass HUD
- * - Integrated Sound Nexus Telemetry
+ * 🛡️ PIXEL PALACE: OVERSEER COMMAND CENTER
+ * VERSION: 4.0.0 (DUBAI STANDARD)
+ * STATUS: MASTERED
+ * * ARCHITECTURE:
+ * 1. REAL-TIME INTEL: WebSocket uplink for live match data.
+ * 2. MODULAR HUD: Broken into high-performance sub-components.
+ * 3. AUDIO TELEMETRY: SoundNexus integration for critical alerts.
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -18,19 +19,48 @@ import {
 import { cn } from '../../lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 
-// 🏗️ SUB-MODULES (We will build these next, but we stub them here to prevent crashes)
-import { MatchWarRoom } from './MatchWarRoom'; // Assume this exists or we mock it
-import StatsCard from '../StatsCard'; // Assume this exists
-import BracketView from '../BracketView'; // Assume this exists
+// 🏗️ SUB-MODULES
+import { BracketView } from '../BracketView'; // Correct Named Import
+import StatsCard from '../StatsCard';
 
 // --- TEMPORARY STUBS (To prevent White Screen of Death) ---
-const AdminToolbar = () => <div className="fixed top-0 left-0 w-full h-16 bg-black/80 border-b border-white/10 z-50 flex items-center px-6"><span className="text-xs font-mono text-zinc-500">ADMIN TOOLBAR STANDBY</span></div>;
 const TeamRosterView = () => <div className="p-10 text-center border border-dashed border-zinc-700 rounded-sm text-zinc-500">ROSTER MODULE LOADING...</div>;
 const StaffManagement = () => <div className="p-10 text-center border border-dashed border-zinc-700 rounded-sm text-zinc-500">STAFF MODULE LOADING...</div>;
 const AdminProfile = () => <div className="p-10 text-center border border-dashed border-zinc-700 rounded-sm text-zinc-500">IDENTITY MODULE LOADING...</div>;
+const MatchWarRoom = () => <div className="p-20 text-center text-zinc-500">WAR ROOM LOADING...</div>;
+
+// 🧩 SUB-COMPONENT: Live Match Row
+const LiveMatchRow = ({ match, onWarRoom }) => (
+  <div className="p-5 hover:bg-brand/5 transition-all flex items-center justify-between group cursor-default border-b border-white/5 last:border-0">
+    <div className="flex items-center gap-6">
+      <div className={cn(
+        "w-10 h-10 flex items-center justify-center border-2 rounded-full",
+        match.status === 'live' ? "border-red-600 animate-pulse" : "border-brand/40"
+      )}>
+         <Activity size={16} className={match.status === 'live' ? "text-red-500" : "text-brand"} />
+      </div>
+      <div>
+        <div className="flex items-center gap-3 mb-1">
+          <span className="text-[9px] font-black font-mono text-zinc-500 uppercase">Round {match.round_number}</span>
+          <div className="w-1 h-1 bg-zinc-800 rounded-full" />
+          <span className="text-[10px] text-brand-glow font-black uppercase italic tracking-widest">{match.status}</span>
+        </div>
+        <div className="text-xl font-display font-black text-white uppercase italic tracking-tighter">
+          {match.team1?.name || 'TBD'} <span className="text-zinc-800 px-2 font-sans not-italic">vs</span> {match.team2?.name || 'TBD'}
+        </div>
+      </div>
+    </div>
+    <button 
+      onClick={() => onWarRoom(match.id)} 
+      className="px-6 py-3 bg-zinc-900 border border-white/5 text-[10px] font-black uppercase tracking-widest hover:border-brand/50 group-hover:bg-brand group-hover:text-white transition-all"
+    >
+      War Room
+    </button>
+  </div>
+);
 
 export const AdminDashboard = () => {
-  const { profile, isLive } = useNexusStore();
+  const { isLive } = useNexusStore();
   const [activeTab, setActiveTab] = useState('OVERVIEW');
   const [stats, setStats] = useState({ teams: 0, matches: 0, disputes: 0 });
   const [liveMatches, setLiveMatches] = useState([]);
@@ -48,7 +78,7 @@ export const AdminDashboard = () => {
               .select('*, team1:team1_id(name), team2:team2_id(name)')
               .or('status.eq.live,status.eq.disputed,status.eq.veto')
               .order('round_number', { ascending: true }),
-            supabase.from('audit_logs') // Using unified ledger
+            supabase.from('audit_logs') 
               .select('*')
               .order('created_at', { ascending: false })
               .limit(5)
@@ -60,7 +90,6 @@ export const AdminDashboard = () => {
             disputes: matchesRes.data?.filter(m => m.status === 'disputed').length || 0
         };
 
-        // 🔊 Audio Telemetry: Red Alert for new disputes
         if (newStats.disputes > stats.disputes) {
             SoundNexus.play(CUES.DISPUTE_TRIGGER);
         }
@@ -79,7 +108,6 @@ export const AdminDashboard = () => {
   useEffect(() => {
     fetchDashboardIntel();
 
-    // Subscribe to all match changes and audit events
     const channel = supabase
       .channel('admin_global_intel')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, () => fetchDashboardIntel(true))
@@ -151,27 +179,7 @@ export const AdminDashboard = () => {
                                         </div>
                                     ) : (
                                         liveMatches.map(match => (
-                                            <div key={match.id} className="p-5 hover:bg-brand/5 transition-all flex items-center justify-between group cursor-default">
-                                                <div className="flex items-center gap-6">
-                                                    <div className={cn(
-                                                        "w-10 h-10 flex items-center justify-center border-2 rounded-full",
-                                                        match.status === 'live' ? "border-red-600 animate-pulse" : "border-brand/40"
-                                                    )}>
-                                                       <Activity size={16} className={match.status === 'live' ? "text-red-500" : "text-brand"} />
-                                                    </div>
-                                                    <div>
-                                                        <div className="flex items-center gap-3 mb-1">
-                                                            <span className="text-[9px] font-black font-mono text-zinc-500 uppercase">Round {match.round_number}</span>
-                                                            <div className="w-1 h-1 bg-zinc-800 rounded-full" />
-                                                            <span className="text-[10px] text-brand-glow font-black uppercase italic tracking-widest">{match.status}</span>
-                                                        </div>
-                                                        <div className="text-xl font-display font-black text-white uppercase italic tracking-tighter">
-                                                            {match.team1?.name || 'TBD'} <span className="text-zinc-800 px-2 font-sans not-italic">vs</span> {match.team2?.name || 'TBD'}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <button onClick={() => setActiveWarRoomId(match.id)} className="px-6 py-3 bg-zinc-900 border border-white/5 text-[10px] font-black uppercase tracking-widest hover:border-brand/50 group-hover:bg-brand group-hover:text-white transition-all">War Room</button>
-                                            </div>
+                                            <LiveMatchRow key={match.id} match={match} onWarRoom={setActiveWarRoomId} />
                                         ))
                                     )}
                                 </div>
@@ -220,7 +228,7 @@ export const AdminDashboard = () => {
                 <h1 className="text-7xl font-display font-black italic tracking-tighter uppercase leading-none">OVERSEER <span className="text-brand">HUD</span></h1>
                 <p className="text-zinc-600 text-[10px] font-black uppercase tracking-[0.5em] mt-4 ml-1 flex items-center gap-3">
                     <Activity size={14} className={cn(isLive ? "text-emerald-500" : "text-red-500")} />
-                    Nexus Uplink: {isLive ? 'STABLE' : 'LINK LOST'} // V3.5.0
+                    Nexus Uplink: {isLive ? 'STABLE' : 'LINK LOST'} // V4.0.0
                 </p>
             </div>
 

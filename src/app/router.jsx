@@ -6,7 +6,7 @@ import { Toaster } from 'react-hot-toast';
 // ✅ LOGIC IMPORTS
 import { useSession } from '../auth/useSession';
 import { ROLES } from '../lib/roles';
-// import { SoundNexus, CUES } from '../lib/soundNexus'; // Un-comment when Audio Engine is ready
+import { SoundNexus, CUES } from '../lib/soundNexus'; // 🔊 AUDIO ENGINE ACTIVE
 
 // 📦 COMPONENT IMPORTS
 import { LandingPage } from '../components/LandingPage';
@@ -84,8 +84,7 @@ const RouteEffectWrapper = () => {
 
   useEffect(() => {
     // 🔊 AUDIO TRIGGER: Play sound on navigation
-    // SoundNexus.play(CUES.NAVIGATION_SWISH); 
-    // console.log(`🧭 Navigated to: ${location.pathname}`);
+    SoundNexus.play(CUES.NAVIGATION_SWISH); 
   }, [location]);
 
   return null;
@@ -117,6 +116,7 @@ const RootLayout = () => (
 
 const AdminLayout = () => (
   <div className="min-h-screen bg-bg relative">
+    {/* 🛡️ Ensure AdminToolbar exists or the app will crash */}
     <AdminToolbar />
     <div className="pt-16">
       <Outlet />

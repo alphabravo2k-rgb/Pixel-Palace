@@ -117,132 +117,132 @@ export const MatchWarRoom = ({ matchId, onClose }) => {
       </div>
 
       <div className="flex-1 overflow-y-auto p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
-         
-         {/* LEFT COL: OPS CENTER */}
-         <div className="lg:col-span-2 space-y-6">
-             
-             {/* TEAM VS DISPLAY + FORCE WIN */}
-             <div className="grid grid-cols-3 gap-4 items-center bg-zinc-900/30 border border-zinc-800 rounded-xl p-6">
-                 <div className="text-center">
-                     <h3 className="text-lg font-black text-blue-400 uppercase truncate">{match.team1?.name || 'TBD'}</h3>
-                     <button onClick={() => handleForceWin(match.team1_id)} disabled={!match.team1_id} className="mt-2 text-[10px] font-bold uppercase bg-blue-900/20 text-blue-400 border border-blue-900/50 px-2 py-1 rounded hover:bg-blue-900/40 transition-colors disabled:opacity-50">Force Win</button>
-                 </div>
-                 <div className="text-center flex flex-col items-center">
-                     <span className="text-2xl font-black text-white italic">VS</span>
-                     <span className="text-[10px] text-zinc-500 font-mono mt-1">BO{match.best_of}</span>
-                 </div>
-                 <div className="text-center">
-                     <h3 className="text-lg font-black text-red-400 uppercase truncate">{match.team2?.name || 'TBD'}</h3>
-                     <button onClick={() => handleForceWin(match.team2_id)} disabled={!match.team2_id} className="mt-2 text-[10px] font-bold uppercase bg-red-900/20 text-red-400 border border-red-900/50 px-2 py-1 rounded hover:bg-red-900/40 transition-colors disabled:opacity-50">Force Win</button>
-                 </div>
-             </div>
+          
+          {/* LEFT COL: OPS CENTER */}
+          <div className="lg:col-span-2 space-y-6">
+              
+              {/* TEAM VS DISPLAY + FORCE WIN */}
+              <div className="grid grid-cols-3 gap-4 items-center bg-zinc-900/30 border border-zinc-800 rounded-xl p-6">
+                  <div className="text-center">
+                      <h3 className="text-lg font-black text-blue-400 uppercase truncate">{match.team1?.name || 'TBD'}</h3>
+                      <button onClick={() => handleForceWin(match.team1_id)} disabled={!match.team1_id} className="mt-2 text-[10px] font-bold uppercase bg-blue-900/20 text-blue-400 border border-blue-900/50 px-2 py-1 rounded hover:bg-blue-900/40 transition-colors disabled:opacity-50">Force Win</button>
+                  </div>
+                  <div className="text-center flex flex-col items-center">
+                      <span className="text-2xl font-black text-white italic">VS</span>
+                      <span className="text-[10px] text-zinc-500 font-mono mt-1">BO{match.best_of}</span>
+                  </div>
+                  <div className="text-center">
+                      <h3 className="text-lg font-black text-red-400 uppercase truncate">{match.team2?.name || 'TBD'}</h3>
+                      <button onClick={() => handleForceWin(match.team2_id)} disabled={!match.team2_id} className="mt-2 text-[10px] font-bold uppercase bg-red-900/20 text-red-400 border border-red-900/50 px-2 py-1 rounded hover:bg-red-900/40 transition-colors disabled:opacity-50">Force Win</button>
+                  </div>
+              </div>
 
-             {/* 🚨 HYBRID UPGRADE: VISUAL VETO PANEL FOR ADMINS */}
-             {/* This lets admins watch the veto process live without just guessing */}
-             {match.status === 'veto' && (
-                 <div className="bg-[#050505] border border-zinc-800 rounded-xl p-4 shadow-inner">
-                     <div className="flex justify-between items-center mb-4">
-                         <h3 className="text-xs font-bold text-fuchsia-500 uppercase flex items-center gap-2"><Monitor size={14}/> Live Veto Monitor</h3>
-                         <span className="text-[9px] text-zinc-600 font-mono uppercase">Read Only View</span>
-                     </div>
-                     <VetoController match={match} onUpdate={fetchMatch} />
-                 </div>
-             )}
+              {/* 🚨 HYBRID UPGRADE: VISUAL VETO PANEL FOR ADMINS */}
+              {/* This lets admins watch the veto process live without just guessing */}
+              {match.status === 'veto' && (
+                  <div className="bg-[#050505] border border-zinc-800 rounded-xl p-4 shadow-inner">
+                      <div className="flex justify-between items-center mb-4">
+                          <h3 className="text-xs font-bold text-fuchsia-500 uppercase flex items-center gap-2"><Monitor size={14}/> Live Veto Monitor</h3>
+                          <span className="text-[9px] text-zinc-600 font-mono uppercase">Read Only View</span>
+                      </div>
+                      <VetoController match={match} onUpdate={fetchMatch} />
+                  </div>
+              )}
 
-             {/* SERVER SETTINGS */}
-             <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-5 space-y-4">
-                 <h3 className="text-xs font-bold text-zinc-400 uppercase flex items-center gap-2">
-                    <Server size={14}/> Connection & Stream
-                 </h3>
-                 <div className="grid grid-cols-2 gap-4">
-                     <div>
-                         <label className="block text-[10px] uppercase text-zinc-500 mb-1">Server IP</label>
-                         <input value={formData.server_ip} onChange={e=>setFormData({...formData, server_ip: e.target.value})} className="w-full bg-black border border-zinc-700 rounded p-2 text-xs font-mono text-white focus:border-blue-500 outline-none" placeholder="connect 127.0.0.1:27015" />
-                     </div>
-                     <div>
-                         <label className="block text-[10px] uppercase text-zinc-500 mb-1">RCON / Password</label>
-                         <input value={formData.server_pass} onChange={e=>setFormData({...formData, server_pass: e.target.value})} className="w-full bg-black border border-zinc-700 rounded p-2 text-xs font-mono text-white focus:border-blue-500 outline-none" placeholder="Secret123" />
-                     </div>
-                     <div className="col-span-2">
-                         <label className="block text-[10px] uppercase text-zinc-500 mb-1">Stream URL</label>
-                         <input value={formData.stream_url} onChange={e=>setFormData({...formData, stream_url: e.target.value})} className="w-full bg-black border border-zinc-700 rounded p-2 text-xs text-white focus:border-purple-500 outline-none" placeholder="https://twitch.tv/..." />
-                     </div>
-                 </div>
-             </div>
+              {/* SERVER SETTINGS */}
+              <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-5 space-y-4">
+                  <h3 className="text-xs font-bold text-zinc-400 uppercase flex items-center gap-2">
+                     <Server size={14}/> Connection & Stream
+                  </h3>
+                  <div className="grid grid-cols-2 gap-4">
+                      <div>
+                          <label className="block text-[10px] uppercase text-zinc-500 mb-1">Server IP</label>
+                          <input value={formData.server_ip} onChange={e=>setFormData({...formData, server_ip: e.target.value})} className="w-full bg-black border border-zinc-700 rounded p-2 text-xs font-mono text-white focus:border-blue-500 outline-none" placeholder="connect 127.0.0.1:27015" />
+                      </div>
+                      <div>
+                          <label className="block text-[10px] uppercase text-zinc-500 mb-1">RCON / Password</label>
+                          <input value={formData.server_pass} onChange={e=>setFormData({...formData, server_pass: e.target.value})} className="w-full bg-black border border-zinc-700 rounded p-2 text-xs font-mono text-white focus:border-blue-500 outline-none" placeholder="Secret123" />
+                      </div>
+                      <div className="col-span-2">
+                          <label className="block text-[10px] uppercase text-zinc-500 mb-1">Stream URL</label>
+                          <input value={formData.stream_url} onChange={e=>setFormData({...formData, stream_url: e.target.value})} className="w-full bg-black border border-zinc-700 rounded p-2 text-xs text-white focus:border-purple-500 outline-none" placeholder="https://twitch.tv/..." />
+                      </div>
+                  </div>
+              </div>
 
-             {/* STATUS OVERRIDES */}
-             <div className="flex gap-2 p-4 bg-zinc-900/30 rounded-xl border border-zinc-800">
-                 {['scheduled', 'veto', 'live', 'completed', 'disputed'].map(s => (
-                     <button 
+              {/* STATUS OVERRIDES */}
+              <div className="flex gap-2 p-4 bg-zinc-900/30 rounded-xl border border-zinc-800">
+                  {['scheduled', 'veto', 'live', 'completed', 'disputed'].map(s => (
+                      <button 
                         key={s}
                         onClick={() => setFormData({...formData, status: s})}
                         className={cn("flex-1 py-2 rounded text-[10px] font-bold uppercase transition-all border",
                             formData.status === s ? 'bg-white text-black border-white' : 'bg-black text-zinc-500 border-zinc-800 hover:border-zinc-600'
                         )}
-                     >
-                        {s}
-                     </button>
-                 ))}
-             </div>
+                      >
+                         {s}
+                      </button>
+                  ))}
+              </div>
 
-         </div>
+          </div>
 
-         {/* RIGHT COL: LOGS & LOGIC */}
-         <div className="space-y-6">
-             
-             {/* Match Logic Controls (BO1/BO3 etc) */}
-             <AdminMatchControls match={match} onUpdate={fetchMatch} />
+          {/* RIGHT COL: LOGS & LOGIC */}
+          <div className="space-y-6">
+              
+              {/* Match Logic Controls (BO1/BO3 etc) */}
+              <AdminMatchControls match={match} onUpdate={fetchMatch} />
 
-             {/* SCHEDULING */}
-             <div className="bg-zinc-900 border border-white/10 rounded-xl p-5 space-y-4">
-                 <h3 className="text-xs font-bold text-zinc-400 uppercase flex items-center gap-2">
-                    <Calendar size={14}/> Scheduling
-                 </h3>
-                 <input 
+              {/* SCHEDULING */}
+              <div className="bg-zinc-900 border border-white/10 rounded-xl p-5 space-y-4">
+                  <h3 className="text-xs font-bold text-zinc-400 uppercase flex items-center gap-2">
+                     <Calendar size={14}/> Scheduling
+                  </h3>
+                  <input 
                     type="datetime-local" 
                     value={formData.scheduled_at} 
                     onChange={e=>setFormData({...formData, scheduled_at: e.target.value})} 
                     className="w-full bg-black border border-zinc-700 rounded p-2 text-xs text-white outline-none focus:border-blue-500"
-                 />
-                 <button 
+                  />
+                  <button 
                     onClick={handleSave} 
                     disabled={saving}
                     className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold uppercase rounded text-xs flex items-center justify-center gap-2 transition-all shadow-lg"
-                 >
-                    <Save size={14} /> {saving ? "Saving..." : "Commit Changes"}
-                 </button>
-             </div>
+                  >
+                     <Save size={14} /> {saving ? "Saving..." : "Commit Changes"}
+                  </button>
+              </div>
 
-             {/* ACTIVITY LOG (Security) */}
-             <div className="bg-[#050505] border border-zinc-800 rounded-xl overflow-hidden flex flex-col h-64">
-                 <MatchActivityLog matchId={matchId} />
-             </div>
+              {/* ACTIVITY LOG (Security) */}
+              <div className="bg-[#050505] border border-zinc-800 rounded-xl overflow-hidden flex flex-col h-64">
+                  <MatchActivityLog matchId={matchId} />
+              </div>
 
-             {/* MANUAL MAP OVERRIDE */}
-             <div className="bg-zinc-900 border border-white/10 rounded-xl p-5 space-y-4">
-                 <h3 className="text-xs font-bold text-zinc-400 uppercase flex items-center gap-2">
-                    <Trophy size={14}/> Map Override
-                 </h3>
-                 <select 
+              {/* MANUAL MAP OVERRIDE */}
+              <div className="bg-zinc-900 border border-white/10 rounded-xl p-5 space-y-4">
+                  <h3 className="text-xs font-bold text-zinc-400 uppercase flex items-center gap-2">
+                     <Trophy size={14}/> Map Override
+                  </h3>
+                  <select 
                     value={formData.map_name} 
                     onChange={e=>setFormData({...formData, map_name: e.target.value})} 
                     className="w-full bg-black border border-zinc-700 rounded p-2 text-xs text-white outline-none focus:border-yellow-500"
-                 >
-                     <option value="">-- Let Veto Decide --</option>
-                     <option value="de_mirage">Mirage</option>
-                     <option value="de_inferno">Inferno</option>
-                     <option value="de_nuke">Nuke</option>
-                     <option value="de_ancient">Ancient</option>
-                     <option value="de_anubis">Anubis</option>
-                     <option value="de_vertigo">Vertigo</option>
-                     <option value="de_dust2">Dust 2</option>
-                 </select>
-                 <p className="text-[10px] text-zinc-500 leading-tight">
+                  >
+                      <option value="">-- Let Veto Decide --</option>
+                      <option value="de_mirage">Mirage</option>
+                      <option value="de_inferno">Inferno</option>
+                      <option value="de_nuke">Nuke</option>
+                      <option value="de_ancient">Ancient</option>
+                      <option value="de_anubis">Anubis</option>
+                      <option value="de_vertigo">Vertigo</option>
+                      <option value="de_dust2">Dust 2</option>
+                  </select>
+                  <p className="text-[10px] text-zinc-500 leading-tight">
                     * Selecting a map manually disables the Veto System for this match.
-                 </p>
-             </div>
+                  </p>
+              </div>
 
-         </div>
+          </div>
 
       </div>
     </div>

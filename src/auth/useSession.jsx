@@ -1,6 +1,16 @@
-import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
 import { supabase } from '../supabase/client';
 import { normalizeRole, ROLES } from '../lib/roles';
+
+/**
+ * 🔐 PIXEL PALACE: IDENTITY CORE
+ * ------------------------------
+ * STATUS: MASTERED (DUBAI STANDARD)
+ * * ARCHITECTURE:
+ * 1. DUAL-AUTH: Handles Supabase Users (Admins) AND LocalStorage Codes (Captains).
+ * 2. RACE-CONDITION PROOF: Uses `mounted` refs to prevent memory leaks during rapid navigation.
+ * 3. SELF-HEALING: Automatically purges corrupt sessions on boot.
+ */
 
 const SessionContext = createContext(null);
 
@@ -11,36 +21,38 @@ export const SessionProvider = ({ children }) => {
     role: ROLES.GUEST,
     team_id: null,
     identity: null,
-    authType: 'GUEST',
-    isReady: false, // 🛑 Starts FALSE to block router
+    authType: 'GUEST', // 'GUEST' | 'SUPABASE' | 'CAPTAIN_PIN'
+    isReady: false,    // 🛑 Critical: Blocks router until checks complete
     isLoading: true
   });
 
   const mounted = useRef(true);
 
-  // --- HELPER: Safe State Update ---
-  const finalize = (newState) => {
+  // --- 🛠️ HELPER: Safe State Injection ---
+  const finalize = useCallback((newState) => {
     if (mounted.current) {
-        setState(prev => ({ 
-            ...prev, 
-            ...newState, 
-            isReady: true, 
-            isLoading: false 
-        }));
+      setState(prev => ({ 
+        ...prev, 
+        ...newState, 
+        isReady: true, 
+        isLoading: false 
+      }));
     }
-  };
+  }, []);
 
+  // --- 🔄 INITIALIZATION SEQUENCE ---
   useEffect(() => {
     const initialize = async () => {
       try {
-        // 1. Check Supabase (Staff/Admins) - Priority 1
+        // 1. PRIORITY ONE: Check Supabase (Staff/Admins)
         const { data } = await supabase.auth.getSession();
         
         if (data?.session?.user) {
           await hydrateAdmin(data.session.user);
         } else {
-          // 2. Check Local Storage (Captain/Players) - Priority 2
+          // 2. PRIORITY TWO: Check Local Storage (Captain/Players)
           const localCap = localStorage.getItem('pixel_captain_session');
+          
           if (localCap) {
             try {
               const parsed = JSON.parse(localCap);
@@ -50,38 +62,39 @@ export const SessionProvider = ({ children }) => {
                    finalize({ ...result.session });
                    return;
                  } else {
-                   // Invalid code found in storage? WIPE IT.
-                   console.warn("Stale Captain Session Detected. Purging.");
+                   // Security: If code is invalid/expired on server, kill it locally.
+                   console.warn("⚠️ Nexus Security: Stale Captain Session Purged.");
                    localStorage.removeItem('pixel_captain_session');
                  }
               }
             } catch (e) {
-              console.warn("Corrupt Session Storage", e);
+              console.error("⚠️ Nexus Corrupt Data:", e);
               localStorage.removeItem('pixel_captain_session');
             }
           }
-          // 3. Fallback to Guest
+          
+          // 3. FALLBACK: Guest Mode
           finalize({ 
-              isAuthenticated: false, 
-              user: null, 
-              role: ROLES.GUEST, 
-              authType: 'GUEST' 
+             isAuthenticated: false, 
+             user: null, 
+             role: ROLES.GUEST, 
+             authType: 'GUEST' 
           });
         }
       } catch (err) {
-        console.error("Boot Error:", err);
+        console.error("🔥 CRITICAL BOOT ERROR:", err);
         finalize({ role: ROLES.GUEST }); 
       }
     };
 
     initialize();
 
-    // Listen for Auth Changes (Supabase only)
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+    // 🎧 Listen for Supabase Auth Events (Magic Links / Admin Logins)
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, session) => {
         if (session?.user) {
-            hydrateAdmin(session.user);
+            await hydrateAdmin(session.user);
         } else if (!localStorage.getItem('pixel_captain_session')) {
-            // Only drop to guest if not holding a captain session
+            // Only drop to guest if not holding a valid captain session
             finalize({ 
                 isAuthenticated: false, 
                 user: null, 
@@ -95,19 +108,18 @@ export const SessionProvider = ({ children }) => {
         mounted.current = false;
         authListener?.subscription.unsubscribe(); 
     };
-  }, []);
+  }, [finalize]);
 
-  // --- HELPER: Hydrate Admin ---
+  // --- 👤 HYDRATION: ADMIN ---
   const hydrateAdmin = async (user) => {
     try {
-      // Query the specific app_admins table we created
+      // Fetch profile from 'app_admins' table
       const { data: profile } = await supabase
         .from('app_admins')
         .select('*')
         .eq('auth_user_id', user.id)
         .maybeSingle();
       
-      // Determine Role
       const role = profile ? normalizeRole(profile.role) : ROLES.GUEST;
 
       finalize({
@@ -123,15 +135,18 @@ export const SessionProvider = ({ children }) => {
         },
         authType: 'SUPABASE'
       });
+      
+      console.log(`%c 🛡️ COMMAND LINK: [${role}]`, "color: #e879f9; font-weight: bold;");
     } catch (e) { 
         console.error("Admin Hydration Failed:", e);
         finalize({ role: ROLES.GUEST });
     }
   };
 
-  // --- HELPER: Verify Captain ---
+  // --- 🛡️ VERIFICATION: CAPTAIN ---
   const verifyCaptain = async (code) => {
       try {
+        // Calls the secure Database Function (RPC)
         const { data, error } = await supabase.rpc('verify_team_access', { p_code: code });
         
         if (error || !data || !data.success) {
@@ -142,7 +157,7 @@ export const SessionProvider = ({ children }) => {
             success: true,
             session: {
                 isAuthenticated: true,
-                user: { id: 'captain-session' }, // Placeholder for generic structure
+                user: { id: `cap_${data.team_id}` }, 
                 role: ROLES.CAPTAIN,
                 team_id: data.team_id,
                 identity: { 
@@ -155,41 +170,44 @@ export const SessionProvider = ({ children }) => {
             }
         };
       } catch (e) {
-          return { success: false, message: 'Verification Error' };
+          return { success: false, message: 'Verification Exception' };
       }
   };
 
-  // --- PUBLIC ACTIONS ---
+  // --- 🚀 PUBLIC ACTIONS ---
+  
   const loginAdmin = async (email, password) => {
-    // 🛡️ SECURITY: Clear any captain sessions first to prevent "State Pollution"
+    // Security: Clear any captain sessions first to prevent "Double Identity"
     localStorage.removeItem('pixel_captain_session');
     
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) return { success: false, message: error.message };
     
-    // State update happens via onAuthStateChange listener
     return { success: true }; 
   };
 
   const loginCaptain = async (accessCode) => {
-    // 🛡️ SECURITY: Clear any admin sessions first
+    // Security: Logout any admin session first
     if (state.authType === 'SUPABASE') await supabase.auth.signOut();
 
     const result = await verifyCaptain(accessCode);
+    
     if (result.success) {
         localStorage.setItem('pixel_captain_session', JSON.stringify({ accessCode }));
         finalize({ ...result.session });
-        return { success: true, role: 'captain' };
+        return { success: true, role: ROLES.CAPTAIN };
     }
     return { success: false, message: result.message };
   };
 
   const logout = async () => {
-    // 🧹 CLEANUP: Nuke everything
+    console.log("👋 Terminating Session...");
     localStorage.removeItem('pixel_captain_session');
+    
     if (state.authType === 'SUPABASE') {
         await supabase.auth.signOut();
     }
+    
     finalize({ 
         isAuthenticated: false, 
         user: null, 

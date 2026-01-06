@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../supabase/client';
-import { Search, RefreshCw, Shield, Edit3, X, Trash2, Key, Users, Copy, CheckCircle, Ban, Trophy, Mic, Monitor, Gamepad2, AlertTriangle, Save, Link as LinkIcon } from 'lucide-react';
+import { Search, RefreshCw, Shield, Edit3, X, Trash2, Key, Users, CheckCircle, Ban, Trophy, Mic, Monitor, Gamepad2, AlertTriangle, Link as LinkIcon } from 'lucide-react';
 import StatsCard from '../StatsCard';
 import { toast } from 'react-hot-toast';
 import { cn, copyToClipboard } from '../../lib/utils';
@@ -261,7 +261,12 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
       if (data && !data.success) throw new Error(data.message);
 
       toast.success("Roster Updated Successfully");
-      onRefresh(); 
+      
+      // ✅ TRIGGER REFRESH BEFORE CLOSING
+      if (onRefresh) {
+          await onRefresh();
+      }
+      
       onClose();
     } catch(e) { 
         console.error(e);
@@ -288,136 +293,136 @@ const EditTeamModal = ({ team, onClose, onRefresh }) => {
         </div>
         
         <div className="p-8 overflow-y-auto custom-scrollbar space-y-8 flex-1 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-100">
-           
-           {/* SECTION 1: TEAM DETAILS */}
-           <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-              <div className="md:col-span-2 flex flex-col items-center gap-2">
-                 <div className="w-24 h-24 bg-black rounded-lg border border-zinc-700 flex items-center justify-center p-2 overflow-hidden shadow-inner">
-                    {meta.logo_url ? <img src={meta.logo_url} className="w-full h-full object-contain" alt="Preview"/> : <Shield className="w-8 h-8 text-zinc-700"/>}
-                 </div>
-                 <span className="text-[10px] uppercase text-zinc-500 font-bold">Logo Preview</span>
-              </div>
-
-              <div className="md:col-span-10 grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                      <label className="text-[10px] text-zinc-500 uppercase font-bold block mb-1">Team Identity</label>
-                      <input value={meta.name} onChange={e=>setMeta({...meta, name:e.target.value})} className="w-full bg-black border border-zinc-700 p-2 text-white rounded text-sm mb-2 focus:border-fuchsia-500 outline-none" placeholder="Team Name" />
-                      <input value={meta.logo_url} onChange={e=>setMeta({...meta, logo_url:e.target.value})} className="w-full bg-black border border-zinc-700 p-2 text-zinc-400 rounded text-xs focus:border-fuchsia-500 outline-none" placeholder="Logo URL" />
+            
+            {/* SECTION 1: TEAM DETAILS */}
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+               <div className="md:col-span-2 flex flex-col items-center gap-2">
+                  <div className="w-24 h-24 bg-black rounded-lg border border-zinc-700 flex items-center justify-center p-2 overflow-hidden shadow-inner">
+                     {meta.logo_url ? <img src={meta.logo_url} className="w-full h-full object-contain" alt="Preview"/> : <Shield className="w-8 h-8 text-zinc-700"/>}
                   </div>
-                  <div>
-                      <label className="text-[10px] text-[#5865F2] uppercase font-bold block mb-1 flex items-center gap-1"><Mic size={10}/> Team Voice Channel</label>
-                      <input value={meta.voice_channel_url} onChange={e=>setMeta({...meta, voice_channel_url:e.target.value})} className="w-full bg-[#5865F2]/10 border border-[#5865F2]/30 p-2 text-white rounded text-sm mb-2 focus:border-[#5865F2] outline-none" placeholder="https://discord.com/channels/..." />
-                      <div className="flex gap-2">
-                          <div className="flex-1">
-                             <label className="text-[10px] text-zinc-500 uppercase font-bold">Region</label>
-                             <input value={meta.region} onChange={e=>setMeta({...meta, region:e.target.value})} className="w-full bg-black border border-zinc-700 p-2 text-white rounded text-xs" />
-                          </div>
-                          <div className="flex-1">
-                             <label className="text-[10px] text-zinc-500 uppercase font-bold">Seed</label>
-                             <input type="number" value={meta.seed_number} onChange={e=>setMeta({...meta, seed_number:e.target.value})} className="w-full bg-black border border-zinc-700 p-2 text-white rounded text-xs" />
-                          </div>
-                      </div>
+                  <span className="text-[10px] uppercase text-zinc-500 font-bold">Logo Preview</span>
+               </div>
+
+               <div className="md:col-span-10 grid grid-cols-1 md:grid-cols-2 gap-4">
+                   <div>
+                       <label className="text-[10px] text-zinc-500 uppercase font-bold block mb-1">Team Identity</label>
+                       <input value={meta.name} onChange={e=>setMeta({...meta, name:e.target.value})} className="w-full bg-black border border-zinc-700 p-2 text-white rounded text-sm mb-2 focus:border-fuchsia-500 outline-none" placeholder="Team Name" />
+                       <input value={meta.logo_url} onChange={e=>setMeta({...meta, logo_url:e.target.value})} className="w-full bg-black border border-zinc-700 p-2 text-zinc-400 rounded text-xs focus:border-fuchsia-500 outline-none" placeholder="Logo URL" />
+                   </div>
+                   <div>
+                       <label className="text-[10px] text-[#5865F2] uppercase font-bold block mb-1 flex items-center gap-1"><Mic size={10}/> Team Voice Channel</label>
+                       <input value={meta.voice_channel_url} onChange={e=>setMeta({...meta, voice_channel_url:e.target.value})} className="w-full bg-[#5865F2]/10 border border-[#5865F2]/30 p-2 text-white rounded text-sm mb-2 focus:border-[#5865F2] outline-none" placeholder="https://discord.com/channels/..." />
+                       <div className="flex gap-2">
+                           <div className="flex-1">
+                              <label className="text-[10px] text-zinc-500 uppercase font-bold">Region</label>
+                              <input value={meta.region} onChange={e=>setMeta({...meta, region:e.target.value})} className="w-full bg-black border border-zinc-700 p-2 text-white rounded text-xs" />
+                           </div>
+                           <div className="flex-1">
+                              <label className="text-[10px] text-zinc-500 uppercase font-bold">Seed</label>
+                              <input type="number" value={meta.seed_number} onChange={e=>setMeta({...meta, seed_number:e.target.value})} className="w-full bg-black border border-zinc-700 p-2 text-white rounded text-xs" />
+                           </div>
+                       </div>
+                   </div>
+               </div>
+            </div>
+
+            {/* SECTION 2: STATUS & STATS */}
+            <div className="bg-zinc-900/30 p-4 rounded border border-zinc-800 grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                   <label className="text-[10px] text-zinc-500 uppercase font-bold block mb-1">Status</label>
+                   <select value={meta.status} onChange={e=>setMeta({...meta, status:e.target.value})} className="w-full bg-black border border-zinc-700 p-2 text-white rounded text-xs uppercase font-bold focus:border-fuchsia-500 outline-none">
+                       <option value="ACTIVE">Active</option>
+                       <option value="DISQUALIFIED">Disqualified</option>
+                       <option value="ELIMINATED">Eliminated</option>
+                   </select>
+                </div>
+                <div>
+                   <label className="text-[10px] text-emerald-600 uppercase font-bold block mb-1">Wins</label>
+                   <input type="number" value={meta.wins} onChange={e=>setMeta({...meta, wins:e.target.value})} className="w-full bg-black border border-emerald-900/50 text-emerald-500 p-2 rounded text-xs font-bold text-center" />
+                </div>
+                <div>
+                   <label className="text-[10px] text-red-600 uppercase font-bold block mb-1">Losses</label>
+                   <input type="number" value={meta.losses} onChange={e=>setMeta({...meta, losses:e.target.value})} className="w-full bg-black border border-red-900/50 text-red-500 p-2 rounded text-xs font-bold text-center" />
+                </div>
+                <div>
+                   <label className="text-[10px] text-yellow-600 uppercase font-bold block mb-1">Access Key</label>
+                   <input value={meta.access_code} onChange={e=>setMeta({...meta, access_code:e.target.value})} className="w-full bg-black border border-yellow-900/50 text-yellow-500 p-2 rounded text-xs font-mono text-center tracking-wider" />
+                </div>
+            </div>
+            
+            {/* SECTION 3: ROSTER EDITOR */}
+            <div className="space-y-4 border-t border-zinc-800 pt-6">
+               <div className="flex justify-between items-center mb-2">
+                   <div className="flex items-center gap-2">
+                       <h3 className="font-bold text-white text-sm uppercase flex items-center gap-2"><Users size={14}/> Active Operators</h3>
+                       <span className={cn(
+                           "text-xs font-mono px-1.5 rounded font-bold", 
+                           members.length < 5 ? 'text-red-500 bg-red-900/20' : members.length > 6 ? 'text-yellow-500 bg-yellow-900/20' : 'text-emerald-500 bg-emerald-900/20'
+                       )}>
+                           {members.length}/6
+                       </span>
+                   </div>
+                   <button onClick={addMember} disabled={members.length >= 7} className="text-xs bg-fuchsia-600 hover:bg-fuchsia-500 disabled:opacity-50 px-3 py-1.5 rounded text-white font-bold uppercase transition-colors shadow-lg">
+                       {members.length >= 7 ? 'Max Limit' : '+ Add Operator'}
+                   </button>
+               </div>
+               
+               {members.length < 5 && <div className="text-[10px] text-red-500 flex items-center gap-1 mb-2 bg-red-900/10 p-2 rounded border border-red-900/30"><AlertTriangle size={10}/> Team needs at least 5 players to be eligible.</div>}
+
+               <div className="flex gap-2 px-3 py-1 text-[9px] uppercase font-bold text-zinc-500">
+                   <div className="w-32">Display Name / Paste URL</div>
+                   <div className="w-24">Role</div>
+                   <div className="w-24 text-center">ELO / Auto-Fill</div>
+                   <div className="flex-1">Identity Links (Steam / Discord / Faceit)</div>
+                   <div className="w-6"></div>
+               </div>
+
+               {members.map((m, idx) => (
+                  <div key={idx} className="flex flex-col md:flex-row gap-2 items-center bg-zinc-900/50 p-2 rounded border border-zinc-800 hover:border-zinc-600 transition-colors">
+                     {/* INPUT: NAME / URL */}
+                     <div className="w-full md:w-32 relative group">
+                         <input 
+                             value={m.username} 
+                             onChange={e => updateMember(idx, 'username', e.target.value)} 
+                             className="w-full bg-black border border-zinc-700 p-1.5 text-white rounded text-xs font-bold focus:border-fuchsia-500 outline-none" 
+                             placeholder="Nick or URL..." 
+                         />
+                         {/* ⚡ THE MAGIC BUTTON (Visible on Hover) */}
+                         <button 
+                             onClick={() => handleSmartSync(idx)}
+                             className="absolute right-1 top-1/2 -translate-y-1/2 p-1 text-zinc-500 hover:text-fuchsia-500 bg-zinc-900 rounded opacity-0 group-hover:opacity-100 transition-all"
+                             title="Auto-Fill details from Faceit"
+                         >
+                             <RefreshCw size={10} />
+                         </button>
+                     </div>
+
+                     <div className="w-full md:w-24">
+                         <select value={m.role} onChange={e => updateMember(idx, 'role', e.target.value)} className="w-full bg-black border border-zinc-700 p-1.5 text-white rounded text-xs uppercase focus:border-fuchsia-500 outline-none">
+                             <option value="CAPTAIN">CAPTAIN</option>
+                             <option value="PLAYER">PLAYER</option>
+                             <option value="SUBSTITUTE">SUBSTITUTE</option>
+                         </select>
+                     </div>
+
+                     <div className="w-full md:w-24 flex gap-1">
+                         <input type="number" value={m.elo} onChange={e => updateMember(idx, 'elo', e.target.value)} className="w-full bg-black border border-zinc-700 p-1.5 text-yellow-500 text-center rounded text-xs font-mono" placeholder="ELO" />
+                         <button onClick={() => handleSmartSync(idx)} className="bg-zinc-800 hover:bg-zinc-700 text-zinc-400 p-1.5 rounded" title="Force Sync"><RefreshCw size={12}/></button>
+                     </div>
+
+                     <div className="flex-1 grid grid-cols-3 gap-2 w-full">
+                         <div className="relative"><Monitor className="absolute left-2 top-2 w-3 h-3 text-zinc-600"/><input value={m.steam} onChange={e => updateMember(idx, 'steam', e.target.value)} className="w-full bg-black border border-zinc-700 pl-7 p-1.5 text-zinc-300 rounded text-[10px] focus:border-blue-500 outline-none" placeholder="Steam URL" /></div>
+                         <div className="relative"><Mic className="absolute left-2 top-2 w-3 h-3 text-zinc-600"/><input value={m.discord} onChange={e => updateMember(idx, 'discord', e.target.value)} className="w-full bg-black border border-zinc-700 pl-7 p-1.5 text-zinc-300 rounded text-[10px] focus:border-indigo-500 outline-none" placeholder="Discord" /></div>
+                         <div className="relative"><Gamepad2 className="absolute left-2 top-2 w-3 h-3 text-zinc-600"/><input value={m.faceit} onChange={e => updateMember(idx, 'faceit', e.target.value)} className="w-full bg-black border border-zinc-700 pl-7 p-1.5 text-zinc-300 rounded text-[10px] focus:border-orange-500 outline-none" placeholder="Faceit URL" /></div>
+                     </div>
+                     
+                     {/* Link Indicator */}
+                     {m.user_id && <div className="text-emerald-500" title="Linked to Database ID"><LinkIcon size={12}/></div>}
+                     
+                     <button onClick={() => removeMember(idx)} className="text-zinc-600 hover:text-red-500 p-1.5 transition-colors" title="Remove"><Trash2 size={14}/></button>
                   </div>
-              </div>
-           </div>
-
-           {/* SECTION 2: STATUS & STATS */}
-           <div className="bg-zinc-900/30 p-4 rounded border border-zinc-800 grid grid-cols-2 md:grid-cols-4 gap-4">
-               <div>
-                  <label className="text-[10px] text-zinc-500 uppercase font-bold block mb-1">Status</label>
-                  <select value={meta.status} onChange={e=>setMeta({...meta, status:e.target.value})} className="w-full bg-black border border-zinc-700 p-2 text-white rounded text-xs uppercase font-bold focus:border-fuchsia-500 outline-none">
-                      <option value="ACTIVE">Active</option>
-                      <option value="DISQUALIFIED">Disqualified</option>
-                      <option value="ELIMINATED">Eliminated</option>
-                  </select>
-               </div>
-               <div>
-                  <label className="text-[10px] text-emerald-600 uppercase font-bold block mb-1">Wins</label>
-                  <input type="number" value={meta.wins} onChange={e=>setMeta({...meta, wins:e.target.value})} className="w-full bg-black border border-emerald-900/50 text-emerald-500 p-2 rounded text-xs font-bold text-center" />
-               </div>
-               <div>
-                  <label className="text-[10px] text-red-600 uppercase font-bold block mb-1">Losses</label>
-                  <input type="number" value={meta.losses} onChange={e=>setMeta({...meta, losses:e.target.value})} className="w-full bg-black border border-red-900/50 text-red-500 p-2 rounded text-xs font-bold text-center" />
-               </div>
-               <div>
-                  <label className="text-[10px] text-yellow-600 uppercase font-bold block mb-1">Access Key</label>
-                  <input value={meta.access_code} onChange={e=>setMeta({...meta, access_code:e.target.value})} className="w-full bg-black border border-yellow-900/50 text-yellow-500 p-2 rounded text-xs font-mono text-center tracking-wider" />
-               </div>
-           </div>
-           
-           {/* SECTION 3: ROSTER EDITOR */}
-           <div className="space-y-4 border-t border-zinc-800 pt-6">
-              <div className="flex justify-between items-center mb-2">
-                  <div className="flex items-center gap-2">
-                      <h3 className="font-bold text-white text-sm uppercase flex items-center gap-2"><Users size={14}/> Active Operators</h3>
-                      <span className={cn(
-                          "text-xs font-mono px-1.5 rounded font-bold", 
-                          members.length < 5 ? 'text-red-500 bg-red-900/20' : members.length > 6 ? 'text-yellow-500 bg-yellow-900/20' : 'text-emerald-500 bg-emerald-900/20'
-                      )}>
-                          {members.length}/6
-                      </span>
-                  </div>
-                  <button onClick={addMember} disabled={members.length >= 7} className="text-xs bg-fuchsia-600 hover:bg-fuchsia-500 disabled:opacity-50 px-3 py-1.5 rounded text-white font-bold uppercase transition-colors shadow-lg">
-                      {members.length >= 7 ? 'Max Limit' : '+ Add Operator'}
-                  </button>
-              </div>
-              
-              {members.length < 5 && <div className="text-[10px] text-red-500 flex items-center gap-1 mb-2 bg-red-900/10 p-2 rounded border border-red-900/30"><AlertTriangle size={10}/> Team needs at least 5 players to be eligible.</div>}
-
-              <div className="flex gap-2 px-3 py-1 text-[9px] uppercase font-bold text-zinc-500">
-                  <div className="w-32">Display Name / Paste URL</div>
-                  <div className="w-24">Role</div>
-                  <div className="w-24 text-center">ELO / Auto-Fill</div>
-                  <div className="flex-1">Identity Links (Steam / Discord / Faceit)</div>
-                  <div className="w-6"></div>
-              </div>
-
-              {members.map((m, idx) => (
-                 <div key={idx} className="flex flex-col md:flex-row gap-2 items-center bg-zinc-900/50 p-2 rounded border border-zinc-800 hover:border-zinc-600 transition-colors">
-                    {/* INPUT: NAME / URL */}
-                    <div className="w-full md:w-32 relative group">
-                        <input 
-                            value={m.username} 
-                            onChange={e => updateMember(idx, 'username', e.target.value)} 
-                            className="w-full bg-black border border-zinc-700 p-1.5 text-white rounded text-xs font-bold focus:border-fuchsia-500 outline-none" 
-                            placeholder="Nick or URL..." 
-                        />
-                        {/* ⚡ THE MAGIC BUTTON (Visible on Hover) */}
-                        <button 
-                            onClick={() => handleSmartSync(idx)}
-                            className="absolute right-1 top-1/2 -translate-y-1/2 p-1 text-zinc-500 hover:text-fuchsia-500 bg-zinc-900 rounded opacity-0 group-hover:opacity-100 transition-all"
-                            title="Auto-Fill details from Faceit"
-                        >
-                            <RefreshCw size={10} />
-                        </button>
-                    </div>
-
-                    <div className="w-full md:w-24">
-                        <select value={m.role} onChange={e => updateMember(idx, 'role', e.target.value)} className="w-full bg-black border border-zinc-700 p-1.5 text-white rounded text-xs uppercase focus:border-fuchsia-500 outline-none">
-                            <option value="CAPTAIN">CAPTAIN</option>
-                            <option value="PLAYER">PLAYER</option>
-                            <option value="SUBSTITUTE">SUBSTITUTE</option>
-                        </select>
-                    </div>
-
-                    <div className="w-full md:w-24 flex gap-1">
-                        <input type="number" value={m.elo} onChange={e => updateMember(idx, 'elo', e.target.value)} className="w-full bg-black border border-zinc-700 p-1.5 text-yellow-500 text-center rounded text-xs font-mono" placeholder="ELO" />
-                        <button onClick={() => handleSmartSync(idx)} className="bg-zinc-800 hover:bg-zinc-700 text-zinc-400 p-1.5 rounded" title="Force Sync"><RefreshCw size={12}/></button>
-                    </div>
-
-                    <div className="flex-1 grid grid-cols-3 gap-2 w-full">
-                        <div className="relative"><Monitor className="absolute left-2 top-2 w-3 h-3 text-zinc-600"/><input value={m.steam} onChange={e => updateMember(idx, 'steam', e.target.value)} className="w-full bg-black border border-zinc-700 pl-7 p-1.5 text-zinc-300 rounded text-[10px] focus:border-blue-500 outline-none" placeholder="Steam URL" /></div>
-                        <div className="relative"><Mic className="absolute left-2 top-2 w-3 h-3 text-zinc-600"/><input value={m.discord} onChange={e => updateMember(idx, 'discord', e.target.value)} className="w-full bg-black border border-zinc-700 pl-7 p-1.5 text-zinc-300 rounded text-[10px] focus:border-indigo-500 outline-none" placeholder="Discord" /></div>
-                        <div className="relative"><Gamepad2 className="absolute left-2 top-2 w-3 h-3 text-zinc-600"/><input value={m.faceit} onChange={e => updateMember(idx, 'faceit', e.target.value)} className="w-full bg-black border border-zinc-700 pl-7 p-1.5 text-zinc-300 rounded text-[10px] focus:border-orange-500 outline-none" placeholder="Faceit URL" /></div>
-                    </div>
-                    
-                    {/* Link Indicator */}
-                    {m.user_id && <div className="text-emerald-500" title="Linked to Database ID"><LinkIcon size={12}/></div>}
-                    
-                    <button onClick={() => removeMember(idx)} className="text-zinc-600 hover:text-red-500 p-1.5 transition-colors" title="Remove"><Trash2 size={14}/></button>
-                 </div>
-              ))}
-           </div>
+               ))}
+            </div>
         </div>
 
         {/* Footer Actions */}
@@ -514,25 +519,25 @@ export const TeamRosterView = () => {
           </div>
           
           <div className="flex items-center gap-3">
-             <button onClick={handleGenCodes} disabled={generating} className="px-4 py-2 bg-yellow-600/10 hover:bg-yellow-600/20 text-yellow-500 border border-yellow-600/30 rounded text-xs font-bold uppercase flex items-center gap-2 transition-colors">
-                {generating ? <RefreshCw className="animate-spin w-3 h-3"/> : <Key size={14}/>} Gen Codes
-             </button>
-             
-             <button onClick={() => setEditTeam({})} className="px-4 py-2 bg-fuchsia-600 hover:bg-fuchsia-500 text-white rounded text-xs font-bold uppercase shadow-lg shadow-fuchsia-900/20 transition-all flex items-center gap-2">
-                <Edit3 size={14} /> New Team
-             </button>
-             
-             <button onClick={fetchTeams} className="p-2 bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white rounded transition-colors"><RefreshCw size={16}/></button>
-             
-             <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-                <input 
-                    type="text" 
-                    placeholder="FIND UNIT..." 
-                    className="bg-black border border-zinc-800 text-white pl-9 pr-3 py-2 rounded text-xs font-mono focus:border-fuchsia-500 outline-none w-64 uppercase placeholder:text-zinc-700" 
-                    onChange={e => setSearchTerm(e.target.value)}
-                />
-             </div>
+              <button onClick={handleGenCodes} disabled={generating} className="px-4 py-2 bg-yellow-600/10 hover:bg-yellow-600/20 text-yellow-500 border border-yellow-600/30 rounded text-xs font-bold uppercase flex items-center gap-2 transition-colors">
+                 {generating ? <RefreshCw className="animate-spin w-3 h-3"/> : <Key size={14}/>} Gen Codes
+              </button>
+              
+              <button onClick={() => setEditTeam({})} className="px-4 py-2 bg-fuchsia-600 hover:bg-fuchsia-500 text-white rounded text-xs font-bold uppercase shadow-lg shadow-fuchsia-900/20 transition-all flex items-center gap-2">
+                 <Edit3 size={14} /> New Team
+              </button>
+              
+              <button onClick={fetchTeams} className="p-2 bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white rounded transition-colors"><RefreshCw size={16}/></button>
+              
+              <div className="relative">
+                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                 <input 
+                     type="text" 
+                     placeholder="FIND UNIT..." 
+                     className="bg-black border border-zinc-800 text-white pl-9 pr-3 py-2 rounded text-xs font-mono focus:border-fuchsia-500 outline-none w-64 uppercase placeholder:text-zinc-700" 
+                     onChange={e => setSearchTerm(e.target.value)}
+                 />
+              </div>
           </div>
        </div>
        

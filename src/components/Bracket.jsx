@@ -5,9 +5,9 @@ import { Trophy, Shield, Edit3, Save, RotateCcw, GripHorizontal, Plus, Minus, Ma
 // --- CONFIGURATION ---
 const CARD_WIDTH = 220;
 const CARD_HEIGHT = 82;
-const GRID_SIZE = 20; // For snapping
+const GRID_SIZE = 20;
 
-// --- SUB-COMPONENT: CONNECTION NODE (The "Dots") ---
+// --- SUB-COMPONENT: CONNECTION NODE ---
 const NodePoint = ({ type, active }) => (
     <div className={cn(
         "w-3 h-3 rounded-full border-2 absolute top-1/2 -translate-y-1/2 z-20 transition-all bg-[#09090b]",
@@ -16,14 +16,16 @@ const NodePoint = ({ type, active }) => (
     )} />
 );
 
-// --- SUB-COMPONENT: MATCH CARD (Draggable) ---
+// --- SUB-COMPONENT: MATCH CARD ---
 const MatchCard = ({ match, x, y, onDragStart, isEditing, onClick }) => {
+    if (!match) return null;
+    
+    // Default safe coordinates if undefined
+    const safeX = typeof x === 'number' ? x : 0;
+    const safeY = typeof y === 'number' ? y : 0;
+
     const isLive = match.status === 'live';
     const isWinner = (id) => match.winner_id === id && match.status === 'completed';
-
-    // Safe default values
-    const safeX = isNaN(x) ? 0 : x;
-    const safeY = isNaN(y) ? 0 : y;
 
     return (
         <div 
@@ -68,7 +70,7 @@ const MatchCard = ({ match, x, y, onDragStart, isEditing, onClick }) => {
                 </div>
             </div>
 
-            {/* Output Node (Right) - Only if not finals */}
+            {/* Output Node (Right) - Only if not finals/3rd place */}
             {!match.is_third_place && <NodePoint type="output" active={match.status === 'completed'} />}
         </div>
     );
@@ -89,70 +91,74 @@ const Bracket = ({ matches = [], onMatchClick }) => {
     const draggingNodeRef = useRef(null);
     const nodeOffsetRef = useRef({ x: 0, y: 0 });
 
-    // 1. Initialize Default Layout (Robust Fallback)
+    // 1. Initialize Layout (CRITICAL FIX: Ensure this runs)
     useEffect(() => {
-        if (!matches.length) return;
+        if (!matches || matches.length === 0) return;
         
-        // Only run if positions are empty
-        if (Object.keys(positions).length > 0) return;
+        // If we already have positions for these matches, don't reset
+        if (Object.keys(positions).length === matches.length) return;
 
         const newPos = {};
         
+        // Group by Round to calculate Y offsets
+        const rounds = {};
         matches.forEach(m => {
-            // Default Grid Logic if no saved data
-            // Round 1 @ X=100, Round 2 @ X=400, etc.
+            const r = m.is_third_place ? 99 : m.round_number;
+            if(!rounds[r]) rounds[r] = [];
+            rounds[r].push(m);
+        });
+
+        // Generate coordinates
+        matches.forEach(m => {
             const r = m.is_third_place ? 5 : m.round_number; 
-            const x = (r * 350) - 200; 
-            const y = (m.match_position * 150) + (r * 50); // Stagger vertically
+            
+            // X: Round 1 starts at 100, spaced by 350px
+            const x = (r * 350) - 250; 
+            
+            // Y: Calculate based on position in round to center it
+            // Logic: Round 1 matches are tight (100px gap). Round 2 are spread (200px gap), etc.
+            const spread = Math.pow(2, r-1) * 100;
+            const yOffset = (m.match_position - 1) * spread + (r * 50);
             
             // Special handling for 3rd place
             if (m.is_third_place) {
                 newPos[m.id] = { x: 1200, y: 800 };
             } else {
-                newPos[m.id] = { x, y };
+                newPos[m.id] = { x, y: yOffset };
             }
         });
+        
         setPositions(newPos);
     }, [matches]);
 
-    // 2. Node Drag Handlers
+    // 2. Drag Logic
     const handleNodeMouseDown = (e, id) => {
         if (!isEditing) return;
-        e.stopPropagation(); // Stop panning parent
-        
+        e.stopPropagation(); 
         const pos = positions[id] || { x: 0, y: 0 };
         draggingNodeRef.current = id;
-        
-        // Calculate offset accounting for scale
         nodeOffsetRef.current = {
             x: (e.clientX - viewPos.x) / scale - pos.x,
             y: (e.clientY - viewPos.y) / scale - pos.y
         };
     };
 
-    // 3. Canvas Pan Handlers
     const handleCanvasMouseDown = (e) => {
-        if (isEditing) return; // Don't pan if in edit mode (confusing)
+        if (isEditing) return; 
         setIsPanning(true);
         setDragStart({ x: e.clientX - viewPos.x, y: e.clientY - viewPos.y });
     };
 
     const handleGlobalMouseMove = (e) => {
-        // Node Dragging
         if (draggingNodeRef.current && isEditing) {
             const id = draggingNodeRef.current;
             const rawX = (e.clientX - viewPos.x) / scale - nodeOffsetRef.current.x;
             const rawY = (e.clientY - viewPos.y) / scale - nodeOffsetRef.current.y;
-            
-            // Snap to Grid
             const x = Math.round(rawX / GRID_SIZE) * GRID_SIZE;
             const y = Math.round(rawY / GRID_SIZE) * GRID_SIZE;
-
             setPositions(prev => ({ ...prev, [id]: { x, y } }));
             return;
         }
-
-        // Canvas Panning
         if (isPanning) {
             setViewPos({
                 x: e.clientX - dragStart.x,
@@ -166,13 +172,12 @@ const Bracket = ({ matches = [], onMatchClick }) => {
         setIsPanning(false);
     };
 
-    // 4. Generate "Circuit Wires"
+    // 3. Render Wires
     const renderWires = () => {
         return matches.map(match => {
-            // Find target
             let nextMatchId = match.next_match_id;
             
-            // Auto-detect standard tree if DB link missing
+            // Fallback Logic
             if (!nextMatchId && !match.is_third_place) {
                 const nextRound = match.round_number + 1;
                 const nextPos = Math.ceil(match.match_position / 2);
@@ -180,27 +185,21 @@ const Bracket = ({ matches = [], onMatchClick }) => {
                 if (next) nextMatchId = next.id;
             }
 
-            if (!nextMatchId) return null;
+            if (!nextMatchId || !positions[match.id] || !positions[nextMatchId]) return null;
 
             const start = positions[match.id];
             const end = positions[nextMatchId];
 
-            if (!start || !end) return null;
-
-            // Connection Points
             const x1 = start.x + CARD_WIDTH; 
             const y1 = start.y + (CARD_HEIGHT / 2); 
             const x2 = end.x; 
             const y2 = end.y + (CARD_HEIGHT / 2); 
-
-            // Bezier Control Points (S-Curve)
             const midX = (x1 + x2) / 2;
 
             const isCompleted = match.status === 'completed';
 
             return (
                 <g key={`${match.id}-${nextMatchId}`}>
-                    {/* Wire Glow */}
                     <path 
                         d={`M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`}
                         fill="none"
@@ -208,11 +207,10 @@ const Bracket = ({ matches = [], onMatchClick }) => {
                         strokeWidth="4"
                         className="opacity-20 blur-[2px]"
                     />
-                    {/* Wire Core */}
                     <path 
                         d={`M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`}
                         fill="none"
-                        stroke={isCompleted ? "#22d3ee" : "#3f3f46"} // Cyan if active, Zinc if inactive
+                        stroke={isCompleted ? "#22d3ee" : "#3f3f46"} 
                         strokeWidth="2"
                         className="transition-colors duration-500"
                         strokeDasharray={isCompleted ? "0" : "5,5"} 
@@ -222,7 +220,11 @@ const Bracket = ({ matches = [], onMatchClick }) => {
         });
     };
 
-    if (!matches.length) return <div className="p-20 text-center text-zinc-600">Loading Circuit...</div>;
+    if (!matches || matches.length === 0) return <div className="p-20 text-center text-zinc-600">Loading Bracket Data...</div>;
+
+    // Calculate Dynamic Canvas Size based on node positions
+    const maxX = Math.max(...Object.values(positions).map(p => p.x), 0) + CARD_WIDTH + 500;
+    const maxY = Math.max(...Object.values(positions).map(p => p.y), 0) + CARD_HEIGHT + 500;
 
     return (
         <div className="w-full h-full flex flex-col bg-[#050505] overflow-hidden relative">
@@ -231,11 +233,7 @@ const Bracket = ({ matches = [], onMatchClick }) => {
             <div className="absolute top-4 right-4 z-50 flex gap-2">
                 {isEditing ? (
                     <button 
-                        onClick={() => { 
-                            setIsEditing(false); 
-                            // TODO: Call API to save 'positions' JSON to DB here
-                            console.log("Saving Positions:", positions);
-                        }} 
+                        onClick={() => { setIsEditing(false); console.log("Saving Positions:", positions); }} 
                         className="flex items-center gap-2 px-4 py-2 bg-yellow-600 hover:bg-yellow-500 text-black font-bold uppercase text-xs rounded shadow-[0_0_15px_rgba(234,179,8,0.4)] animate-pulse"
                     >
                         <Save size={14} /> Save Layout
@@ -264,7 +262,6 @@ const Bracket = ({ matches = [], onMatchClick }) => {
                 onMouseMove={handleGlobalMouseMove}
                 onMouseUp={handleGlobalMouseUp}
                 onMouseLeave={handleGlobalMouseUp}
-                // Grid Background
                 style={{ 
                     backgroundImage: 'radial-gradient(#1f1f22 1px, transparent 1px)', 
                     backgroundSize: `${20 * scale}px ${20 * scale}px`,
@@ -275,15 +272,14 @@ const Bracket = ({ matches = [], onMatchClick }) => {
                     style={{ 
                         transform: `translate(${viewPos.x}px, ${viewPos.y}px) scale(${scale})`,
                         transformOrigin: '0 0',
-                        width: '100%', 
-                        height: '100%',
+                        width: Math.max(maxX, 2000), 
+                        height: Math.max(maxY, 1500),
                         position: 'absolute',
-                        top: 0, 
-                        left: 0
+                        top: 0, left: 0
                     }}
                 >
                     {/* Wires Layer */}
-                    <svg className="absolute -top-[5000px] -left-[5000px] w-[10000px] h-[10000px] pointer-events-none z-0 overflow-visible">
+                    <svg className="absolute inset-0 w-full h-full pointer-events-none z-0 overflow-visible">
                         {renderWires()}
                     </svg>
 

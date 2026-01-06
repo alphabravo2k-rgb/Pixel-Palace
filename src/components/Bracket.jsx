@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo, useEffect } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { supabase } from '../supabase/client';
 import { cn } from '../lib/utils';
 import { Trophy, Shield, Edit3, Save, GripHorizontal, Plus, Minus, Maximize, AlertCircle, Loader2 } from 'lucide-react';
@@ -10,9 +10,8 @@ const CARD_HEIGHT = 82;
 const COL_SPACING = 350; 
 const ROW_SPACING = 110;
 
-// --- 1. FALLBACK LAYOUT ENGINE (The "Safe Mode") ---
+// --- 1. FALLBACK LAYOUT ENGINE ---
 // Used ONLY when a match has no saved ui_x/ui_y in the DB.
-// This hardcodes the look of a 25-team bracket (9 -> 8 -> 4 -> 2 -> 1).
 const getFixedPosition = (round, position, isThirdPlace) => {
     // 3rd Place Match: Bottom Right
     if (isThirdPlace) return { x: 1600, y: 1200 };
@@ -45,9 +44,9 @@ const NodePoint = ({ type, active }) => (
 
 // --- SUB-COMPONENT: MATCH CARD ---
 const MatchCard = ({ match, x, y, onDragStart, isEditing, onClick }) => {
-    // 🛡️ CRITICAL FALLBACK: If coordinates are NaN, snap to 0,0 to prevent crash
-    const safeX = (typeof x === 'number' && !isNaN(x)) ? x : 0;
-    const safeY = (typeof y === 'number' && !isNaN(y)) ? y : 0;
+    // 🛡️ CRITICAL FALLBACK: Ensure valid numbers for CSS
+    const safeX = Number.isFinite(x) ? x : 0;
+    const safeY = Number.isFinite(y) ? y : 0;
 
     const isLive = match.status === 'live';
     const isWinner = (id) => match.winner_id === id && match.status === 'completed';
@@ -94,7 +93,7 @@ const MatchCard = ({ match, x, y, onDragStart, isEditing, onClick }) => {
                 </div>
             </div>
 
-            {/* Output Node (Not for Finals/3rd) */}
+            {/* Output Node */}
             {!match.is_third_place && <NodePoint type="output" active={match.status === 'completed'} />}
         </div>
     );
@@ -117,17 +116,19 @@ const Bracket = ({ matches = [], onMatchClick }) => {
     const nodeOffsetRef = useRef({ x: 0, y: 0 });
 
     // --- HYBRID POSITION ENGINE ---
-    // Combines: Saved DB Positions + Manual Dragging + Fallback Logic
     const finalPositions = useMemo(() => {
         const positions = {};
         if (!matches || matches.length === 0) return {};
 
         matches.forEach(m => {
-            // 1. Check for Saved DB Position (Highest Priority)
-            if (m.ui_x !== null && m.ui_y !== null && m.ui_x !== undefined) {
-                positions[m.id] = { x: Number(m.ui_x), y: Number(m.ui_y) };
+            // 1. Check for Saved DB Position (Strict Number Check)
+            const dbX = Number(m.ui_x);
+            const dbY = Number(m.ui_y);
+
+            if (Number.isFinite(dbX) && Number.isFinite(dbY)) {
+                positions[m.id] = { x: dbX, y: dbY };
             } 
-            // 2. Fallback to Hard-Coded Layout (If no save exists)
+            // 2. Fallback to Hard-Coded Layout
             else {
                 const r = m.is_third_place ? 99 : Number(m.round_number);
                 const p = Number(m.match_position);
@@ -135,29 +136,30 @@ const Bracket = ({ matches = [], onMatchClick }) => {
             }
         });
 
-        // 3. Apply manual overrides (for live dragging)
+        // 3. Apply manual overrides (Active Dragging takes precedence)
+        // Warning: manualPositions is cleared on Save, resetting priority to DB
         return { ...positions, ...manualPositions };
     }, [matches, manualPositions]);
 
-    // --- SAVE HANDLER (Correct JSONB) ---
+    // --- SAVE HANDLER ---
     const handleSaveLayout = async () => {
         setIsSaving(true);
         try {
-            // 1. Construct valid JSON object array (Supabase handles serialization)
+            // 1. Payload is a pure JS Object array. Supabase handles JSON serialization.
             const payload = Object.keys(finalPositions).map(id => ({
                 id,
-                x: Math.round(finalPositions[id].x), // Ensure integer
+                x: Math.round(finalPositions[id].x), // Integer preferred for DB
                 y: Math.round(finalPositions[id].y)
             }));
 
-            // 2. Call the RPC (Ensure this function exists in Postgres)
+            // 2. Call RPC
             const { error } = await supabase.rpc('admin_update_bracket_layout', { p_positions: payload });
             
             if (error) throw error;
             
             toast.success("Bracket Layout Saved");
             setIsEditing(false);
-            setManualPositions({}); // Clear local state, DB state takes over
+            setManualPositions({}); // IMPORTANT: Clear local delta so DB acts as source of truth
         } catch (err) {
             console.error(err);
             toast.error("Save Failed: " + err.message);
@@ -219,15 +221,15 @@ const Bracket = ({ matches = [], onMatchClick }) => {
         }
     };
 
-    // --- RENDER WIRES (Strict Mode) ---
+    // --- RENDER WIRES ---
     const renderWires = () => {
         if (!finalPositions || Object.keys(finalPositions).length === 0) return null;
 
         return matches.map(match => {
-            // STRICT LINKING: Only draw if DB says so
+            // STRICT LINKING: Only draw if DB says so. No math guessing.
             const nextId = match.next_match_id || match.loser_next_match_id;
             
-            if (!nextId) return null; // No magic guessing!
+            if (!nextId) return null;
 
             const start = finalPositions[match.id];
             const end = finalPositions[nextId];
@@ -259,12 +261,12 @@ const Bracket = ({ matches = [], onMatchClick }) => {
     if (!matches || matches.length === 0) return (
         <div className="h-screen flex items-center justify-center text-zinc-500 font-mono flex-col gap-4 bg-black">
             <AlertCircle className="w-16 h-16 opacity-20 text-yellow-500"/>
-            <span>No Matches Found in Bracket.</span>
+            <span>No Matches Loaded.</span>
         </div>
     );
 
     return (
-        // 🚨 FORCE HEIGHT: h-screen ensures this container ALWAYS has size
+        // 🚨 FORCE HEIGHT: h-screen ensures container visibility
         <div 
             className="w-full h-screen flex flex-col bg-[#050505] overflow-hidden relative cursor-grab active:cursor-grabbing selection:bg-transparent"
             onMouseDown={handleCanvasMouseDown}
@@ -301,7 +303,7 @@ const Bracket = ({ matches = [], onMatchClick }) => {
                 <button onClick={() => { setScale(1); setViewPos({x:0,y:0}); }} className="p-2 hover:bg-white/10 rounded text-white transition-colors"><Maximize size={16}/></button>
             </div>
 
-            {/* CANVAS - Massive fixed size to ensure everything renders */}
+            {/* CANVAS - Massive fixed size */}
             <div 
                 style={{ 
                     transform: `translate(${viewPos.x}px, ${viewPos.y}px) scale(${scale})`,
@@ -326,9 +328,9 @@ const Bracket = ({ matches = [], onMatchClick }) => {
                 {/* 3. Match Nodes */}
                 {matches.map(match => {
                     const pos = finalPositions[match.id];
-                    // IMPORTANT: If pos is somehow undefined (shouldn't be), render at 0,0
-                    const x = (pos && !isNaN(pos.x)) ? pos.x : 0;
-                    const y = (pos && !isNaN(pos.y)) ? pos.y : 0;
+                    // Final Safe Guard
+                    const x = (pos && Number.isFinite(pos.x)) ? pos.x : 0;
+                    const y = (pos && Number.isFinite(pos.y)) ? pos.y : 0;
 
                     return (
                         <MatchCard 

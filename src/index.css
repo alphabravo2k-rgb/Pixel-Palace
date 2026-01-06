@@ -1,43 +1,51 @@
 /* ------------------------------------------------------------------
- * 🎨 PIXEL PALACE: THE VISUAL CORE (GLOBAL STANDARD)
- * STATUS: MASTERED
+ * 🎨 PIXEL PALACE: THE VISUAL CORE (VERSION 2.0)
+ * STATUS: MASTERED & LOCKED
  * ------------------------------------------------------------------ */
 
 /* 1. TYPOGRAPHY INJECTION */
-/* We load these here to ensure they are available to the Tailwind engine immediately */
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Rajdhani:wght@500;600;700&family=Teko:wght@300;400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* 2. THE FOUNDATION (BASE LAYER) */
+/* 2. THE FOUNDATION */
 @layer base {
   :root {
     /* ⚡ THE VORTEX PALETTE (Matches tailwind.config.js) */
+    /* Values are R G B for Tailwind opacity support */
     --color-brand: 192 38 211;       /* #c026d3 (Fuchsia-600) */
     --color-brand-dim: 112 26 117;   /* #701a75 (Fuchsia-800) */
     --color-brand-glow: 232 121 249; /* #e879f9 (Fuchsia-400) */
     
-    /* SYSTEM SETTINGS */
-    color-scheme: dark; /* Tells browser to use dark scrollbars/inputs natively */
+    color-scheme: dark;
   }
 
   html {
     @apply antialiased scroll-smooth;
-    text-rendering: optimizeLegibility; /* Crisp text */
+    text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
   body {
     @apply h-full bg-bg text-gray-100 font-sans overflow-x-hidden selection:bg-brand/30 selection:text-brand-glow;
-    
-    /* 📱 NATIVE APP FEEL: Prevents the "bounce" scroll effect on iOS */
+    /* 📱 NATIVE FEEL: Prevents "rubber-banding" on iOS */
     overscroll-behavior-y: none; 
   }
 
-  /* ACCESSIBILITY: Visible focus, but beautiful */
+  /* 🚫 AUTOFILL FIX: Forces dark background on Chrome autofill */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover, 
+  input:-webkit-autofill:focus, 
+  input:-webkit-autofill:active{
+      -webkit-box-shadow: 0 0 0 30px #121214 inset !important;
+      -webkit-text-fill-color: white !important;
+      transition: background-color 5000s ease-in-out 0s;
+  }
+
+  /* ♿ ACCESSIBILITY: Beautiful but visible focus rings */
   :focus-visible {
     @apply outline-none ring-2 ring-brand ring-offset-2 ring-offset-bg;
   }
@@ -45,18 +53,18 @@
 
 /* 3. COMPONENT ARCHITECTURE */
 @layer components {
-  /* 📺 CRT SCANLINES: The "Command Center" Atmosphere */
+  /* 📺 CRT SCANLINES: Optimized for performance */
   .scanlines {
     @apply pointer-events-none fixed inset-0 z-[50] mix-blend-overlay;
-    background: linear-gradient(
+    background: repeating-linear-gradient(
       to bottom,
-      rgba(255, 255, 255, 0),
-      rgba(255, 255, 255, 0) 50%,
-      rgba(0, 0, 0, 0.4) 50%, /* Darker lines for contrast */
-      rgba(0, 0, 0, 0.4)
+      transparent 0%,
+      transparent 50%,
+      rgba(0, 0, 0, 0.4) 50%,
+      rgba(0, 0, 0, 0.4) 100%
     );
     background-size: 100% 4px;
-    opacity: 0.05; /* Subtle enough not to distract, visible enough to look cool */
+    opacity: 0.05;
   }
 
   /* 🛡️ TACTICAL CARD SHAPE: The "Cut Corner" Aesthetic */
@@ -69,7 +77,7 @@
     );
   }
 
-  /* ⚡ GLITCH TEXT: Hardware Accelerated (144Hz Smooth) */
+  /* ⚡ GLITCH TEXT: Hardware Accelerated */
   .glitch-text {
     @apply relative inline-block;
     transform-style: preserve-3d;
@@ -80,7 +88,7 @@
     @apply absolute inset-0 opacity-80;
     content: attr(data-text);
     background: #050505;
-    will-change: transform, clip-path; /* Tell GPU to get ready */
+    will-change: transform, clip-path;
   }
 
   .glitch-text::before {
@@ -95,15 +103,15 @@
     animation: glitch-anim-2 3.5s infinite linear alternate-reverse;
   }
   
-  /* 💎 GLASSMORPHISM: The "Dubai" Premium Finish */
+  /* 💎 GLASSMORPHISM */
   .glass-panel {
     @apply bg-bg-panel/60 backdrop-blur-md border border-white/5 shadow-glass;
   }
 }
 
-/* 4. UTILITIES & ANIMATIONS */
+/* 4. UTILITIES */
 @layer utilities {
-  /* 🖱️ CUSTOM SCROLLBARS: Works on Chrome, Safari, Edge, AND Firefox */
+  /* 🖱️ CUSTOM SCROLLBARS: Dynamic Theming Support */
   .custom-scrollbar {
     scrollbar-width: thin;
     scrollbar-color: rgb(var(--color-brand-dim)) #09090b;
@@ -118,7 +126,13 @@
   }
 
   .custom-scrollbar::-webkit-scrollbar-thumb {
-    @apply rounded-full bg-brand-dim transition-colors hover:bg-brand cursor-pointer;
+    background-color: rgb(var(--color-brand-dim));
+    border-radius: 9999px;
+    transition: background-color 0.3s;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background-color: rgb(var(--color-brand));
   }
 
   /* 🌬️ HEAVY BREATHING: For "Live" indicators */
@@ -129,7 +143,7 @@
   }
 }
 
-/* 5. GPU KEYFRAMES */
+/* 5. KEYFRAMES */
 @keyframes glitch-anim-1 {
   0%, 100% { clip-path: inset(80% 0 1% 0); transform: translate3d(0,0,0); }
   20% { clip-path: inset(10% 0 60% 0); transform: translate3d(-2px, 2px, 0); }

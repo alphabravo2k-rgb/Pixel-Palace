@@ -136,7 +136,7 @@ export default defineConfig(({ mode }) => {
     optimizeDeps: {
       // We ignore backend folders to prevent Vite from analyzing Deno code
       exclude: ['@supabase/functions-js'], 
-      entries: ['./src/ui/main.jsx'], // 📍 YOUR EXACT ENTRY POINT
+      entries: ['./src/main.jsx'], // 📍 YOUR EXACT ENTRY POINT
     }
   };
 });

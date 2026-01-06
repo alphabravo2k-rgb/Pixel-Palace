@@ -1,13 +1,14 @@
 import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronRight, Loader2, Terminal, Activity, ShieldCheck } from 'lucide-react';
-import { clsx } from 'clsx'; // Utility for cleaner classes
 
-// ✅ SAFE IMPORTS
-import { useSession } from '../auth/useSession';
-import { ROLES } from '../lib/roles';
+// ✅ UPGRADED IMPORTS (The Nexus Architecture)
+import { useNexusStore } from '../store/useNexusStore';
+import { SoundNexus, CUES } from '../lib/soundNexus';
+import { getClearanceLevel, ROLES } from '../lib/roles';
+import { cn } from '../lib/utils';
 
-// 🛡️ LOCAL FALLBACK IDENTITY (Prevents crashes if lib is missing)
+// 🛡️ LOCAL FALLBACK IDENTITY (Prevents crashes if config is missing)
 const BRAND = {
   name: "PIXEL PALACE",
   version: "V2.0.4",
@@ -26,7 +27,7 @@ const BRAND = {
 
 export const LandingPage = () => {
   const navigate = useNavigate();
-  const { session } = useSession();
+  const { uid, role, isLive } = useNexusStore(); // 🧠 Global Brain
   const [isConnecting, setIsConnecting] = useState(false);
 
   // 🚀 THE ENTRY LOGIC
@@ -34,14 +35,18 @@ export const LandingPage = () => {
     if (isConnecting) return;
     setIsConnecting(true);
 
+    // 🔊 Audio Ignition
+    SoundNexus.play(CUES.UI_CLICK);
+    SoundNexus.play(CUES.NAVIGATION_SWISH);
+
     // ⏳ Cinematic Pause (Builds anticipation)
     await new Promise(resolve => setTimeout(resolve, 1200));
 
-    if (session?.isAuthenticated) {
+    if (uid) {
       // 🛡️ Security Clearance Check
-      const staffRoles = [ROLES.OWNER, ROLES.ADMIN, ROLES.REFEREE];
+      const clearance = getClearanceLevel(role);
       
-      if (staffRoles.includes(session.role)) {
+      if (clearance >= 60) { // Level 60 = Staff/Admin
         navigate('/admin/dashboard');
       } else {
         navigate('/dashboard');
@@ -49,7 +54,7 @@ export const LandingPage = () => {
     } else {
       navigate('/login');
     }
-  }, [session, isConnecting, navigate]);
+  }, [uid, role, isConnecting, navigate]);
 
   return (
     <div className="relative min-h-screen w-full bg-[#050505] overflow-hidden flex flex-col items-center justify-center selection:bg-brand/30">
@@ -82,13 +87,13 @@ export const LandingPage = () => {
 
         {/* Tactical Typography */}
         <div className="text-center">
-          <h1 className="text-7xl md:text-9xl font-display font-black text-white italic tracking-tighter leading-none uppercase select-none">
+          <h1 className="text-7xl md:text-9xl font-display font-black text-white italic tracking-tighter leading-none uppercase select-none drop-shadow-2xl">
              PIXEL <span className="text-transparent bg-clip-text bg-gradient-to-b from-white to-zinc-500">PALACE</span>
           </h1>
           
           <div className="flex items-center justify-center gap-6 mt-8">
             <div className="h-[1px] w-16 bg-gradient-to-l from-zinc-800 to-transparent" />
-            <p className="text-zinc-500 font-mono text-[10px] tracking-[0.5em] uppercase">
+            <p className="text-zinc-500 font-mono text-[10px] tracking-[0.5em] uppercase animate-flicker">
               ESTABLISHING SECURE UPLINK // {BRAND.version}
             </p>
             <div className="h-[1px] w-16 bg-gradient-to-r from-zinc-800 to-transparent" />
@@ -103,7 +108,7 @@ export const LandingPage = () => {
           <button 
             onClick={handleEnter}
             disabled={isConnecting}
-            className={clsx(
+            className={cn(
               "relative w-full py-5 bg-white text-black font-black text-xl uppercase tracking-[0.2em] transition-all duration-300",
               "flex items-center justify-center gap-4 hover:tracking-[0.4em] active:scale-95 disabled:grayscale disabled:cursor-not-allowed",
               isConnecting && "bg-zinc-200"
@@ -127,19 +132,19 @@ export const LandingPage = () => {
         {/* System Diagnostics Footer */}
         <div className="mt-24 flex items-center gap-12 text-[9px] text-zinc-600 font-black uppercase tracking-[0.3em] select-none">
           <span className="flex items-center gap-2.5">
-            <div className={clsx(
+            <div className={cn(
               "w-2 h-2 rounded-full shadow-[0_0_8px_currentColor]",
-              session?.isAuthenticated ? "bg-emerald-500 text-emerald-500" : "bg-brand text-brand animate-pulse"
+              uid ? "bg-emerald-500 text-emerald-500" : "bg-brand text-brand animate-pulse"
             )} />
-            {session?.isAuthenticated ? 'IDENTITY SECURED' : 'NEURAL LINK STANDBY'}
+            {uid ? 'IDENTITY SECURED' : 'NEURAL LINK STANDBY'}
           </span>
           <span className="flex items-center gap-2.5">
             <Terminal size={14} className="text-zinc-800" />
             PORT: 443
           </span>
           <span className="flex items-center gap-2.5">
-            <Activity size={14} className="text-zinc-800" />
-            STABLE
+            <Activity size={14} className={cn(isLive ? "text-emerald-500" : "text-zinc-800")} />
+            {isLive ? 'ONLINE' : 'OFFLINE'}
           </span>
         </div>
 

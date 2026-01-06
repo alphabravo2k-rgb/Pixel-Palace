@@ -9,7 +9,7 @@ import { VitePWA } from 'vite-plugin-pwa';
 /**
  * 🏆 PIXEL PALACE: GLOBAL STANDARD CONFIGURATION
  * ---------------------------------------------
- * STATUS: MASTERED (VERSION 1.0 FINAL)
+ * STATUS: MASTERED (VERSION 1.1 FINAL FIX)
  * ARCHITECT: GEMINI & FOUNDER
  * * CORE PILLARS:
  * 1. INTEGRITY: Prevents startup if critical keys are missing.
@@ -26,14 +26,12 @@ export default defineConfig(({ mode }) => {
   const isProd = mode === 'production';
 
   // 🛡️ INTEGRITY CHECK: Do not fly without fuel
-  // If these are missing, the console will scream at you immediately.
   if (!env.VITE_SUPABASE_URL || !env.VITE_SUPABASE_ANON_KEY) {
     console.warn('⚠️ CRITICAL WARNING: Supabase Environment Variables are missing!');
   }
 
   return {
     // 2. ENTRY POINT PRECISION
-    // We explicitly tell Vite where the heart of the app beats.
     root: '.', 
     
     plugins: [
@@ -134,9 +132,9 @@ export default defineConfig(({ mode }) => {
 
     // 🚀 DEPENDENCY OPTIMIZATION
     optimizeDeps: {
-      // We ignore backend folders to prevent Vite from analyzing Deno code
       exclude: ['@supabase/functions-js'], 
-      entries: ['./src/main.jsx'], // 📍 YOUR EXACT ENTRY POINT
+      // 📍 CRITICAL FIX: Pointing to the root src folder, NOT ui
+      entries: ['./src/main.jsx'], 
     }
   };
 });

@@ -1,50 +1,45 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { cn } from '../lib/utils';
-import { Trophy, Shield, Edit3, Save, RotateCcw, GripHorizontal, Plus, Minus, Maximize } from 'lucide-react';
+import { Trophy, Shield, Edit3, Save, RotateCcw, GripHorizontal } from 'lucide-react';
 
 // --- CONFIGURATION ---
 const CARD_WIDTH = 220;
 const CARD_HEIGHT = 82;
-const GRID_SIZE = 20;
+const X_SPACING = 300; // Horizontal distance between rounds
+const Y_SPACING = 120; // Vertical distance between matches
 
-// --- SUB-COMPONENT: CONNECTION NODE ---
+// --- SUB-COMPONENT: CONNECTION NODE (The "Dots") ---
 const NodePoint = ({ type, active }) => (
     <div className={cn(
-        "w-3 h-3 rounded-full border-2 absolute top-1/2 -translate-y-1/2 z-20 transition-all bg-[#09090b]",
+        "w-3 h-3 rounded-full border-2 absolute top-1/2 -translate-y-1/2 z-20 transition-all",
         type === 'input' ? "-left-1.5" : "-right-1.5",
-        active ? "border-cyan-400 shadow-[0_0_8px_#22d3ee]" : "border-zinc-700"
+        active ? "bg-cyan-500 border-cyan-300 shadow-[0_0_10px_#06b6d4]" : "bg-zinc-900 border-zinc-600"
     )} />
 );
 
-// --- SUB-COMPONENT: MATCH CARD ---
+// --- SUB-COMPONENT: MATCH CARD (Draggable) ---
 const MatchCard = ({ match, x, y, onDragStart, isEditing, onClick }) => {
-    if (!match) return null;
-    
-    // Default safe coordinates if undefined
-    const safeX = typeof x === 'number' ? x : 0;
-    const safeY = typeof y === 'number' ? y : 0;
-
     const isLive = match.status === 'live';
     const isWinner = (id) => match.winner_id === id && match.status === 'completed';
 
     return (
         <div 
             style={{ 
-                transform: `translate(${safeX}px, ${safeY}px)`, 
+                transform: `translate(${x}px, ${y}px)`, 
                 width: CARD_WIDTH, 
                 height: CARD_HEIGHT,
                 position: 'absolute',
-                transition: isEditing ? 'none' : 'transform 0.3s ease-out' 
+                transition: isEditing ? 'none' : 'transform 0.5s cubic-bezier(0.25, 1, 0.5, 1)' 
             }}
             className={cn(
                 "group absolute z-10 flex flex-col bg-[#09090b] border rounded-lg shadow-xl overflow-visible",
-                isEditing ? "cursor-grab active:cursor-grabbing border-yellow-500/50 hover:border-yellow-500 hover:z-50" : "cursor-pointer border-zinc-800 hover:border-cyan-500/50",
+                isEditing ? "cursor-grab active:cursor-grabbing border-yellow-500/50 hover:border-yellow-500" : "cursor-pointer border-zinc-800 hover:border-cyan-500/50",
                 isLive && !isEditing && "border-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.15)]"
             )}
             onMouseDown={(e) => isEditing && onDragStart(e, match.id)}
             onClick={() => !isEditing && onClick(match)}
         >
-            {/* Input Node (Left) - Only if NOT Round 1 */}
+            {/* Input Node (Left) - Only for Non-Round 1 */}
             {match.round_number > 1 && <NodePoint type="input" active={match.status !== 'scheduled'} />}
             
             {/* Header */}
@@ -57,20 +52,20 @@ const MatchCard = ({ match, x, y, onDragStart, isEditing, onClick }) => {
             </div>
 
             {/* Teams */}
-            <div className="flex-1 flex flex-col justify-center relative">
+            <div className="flex-1 flex flex-col justify-center">
                 {/* Team 1 */}
-                <div className={cn("flex justify-between items-center px-3 h-6 transition-colors", isWinner(match.team1_id) ? "text-cyan-400" : "text-zinc-400")}>
-                    <span className="text-xs font-bold truncate w-32">{match.team1?.name || 'Waiting...'}</span>
+                <div className={cn("flex justify-between items-center px-3 h-6", isWinner(match.team1_id) ? "text-cyan-400" : "text-zinc-400")}>
+                    <span className="text-xs font-bold truncate w-32">{match.team1?.name || 'TBD'}</span>
                     <span className="text-xs font-mono">{match.team1_score}</span>
                 </div>
                 {/* Team 2 */}
-                <div className={cn("flex justify-between items-center px-3 h-6 transition-colors", isWinner(match.team2_id) ? "text-cyan-400" : "text-zinc-400")}>
-                    <span className="text-xs font-bold truncate w-32">{match.team2?.name || 'Waiting...'}</span>
+                <div className={cn("flex justify-between items-center px-3 h-6", isWinner(match.team2_id) ? "text-cyan-400" : "text-zinc-400")}>
+                    <span className="text-xs font-bold truncate w-32">{match.team2?.name || 'TBD'}</span>
                     <span className="text-xs font-mono">{match.team2_score}</span>
                 </div>
             </div>
 
-            {/* Output Node (Right) - Only if not finals/3rd place */}
+            {/* Output Node (Right) - Only if not finals/3rd */}
             {!match.is_third_place && <NodePoint type="output" active={match.status === 'completed'} />}
         </div>
     );
@@ -81,103 +76,107 @@ const Bracket = ({ matches = [], onMatchClick }) => {
     const [positions, setPositions] = useState({});
     const [isEditing, setIsEditing] = useState(false);
     
-    // Zoom/Pan State
-    const [scale, setScale] = useState(1);
-    const [viewPos, setViewPos] = useState({ x: 0, y: 0 });
-    const [isPanning, setIsPanning] = useState(false);
-    const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+    // Dragging State
+    const draggingRef = useRef(null);
+    const offsetRef = useRef({ x: 0, y: 0 });
 
-    // Node Dragging State
-    const draggingNodeRef = useRef(null);
-    const nodeOffsetRef = useRef({ x: 0, y: 0 });
-
-    // 1. Initialize Layout (CRITICAL FIX: Ensure this runs)
+    // 1. Initial "Circuit" Layout Generation
     useEffect(() => {
-        if (!matches || matches.length === 0) return;
+        if (!matches.length) return;
         
-        // If we already have positions for these matches, don't reset
-        if (Object.keys(positions).length === matches.length) return;
-
-        const newPos = {};
+        // Only generate if we don't have positions yet (or want to reset)
+        const initialPos = {};
         
-        // Group by Round to calculate Y offsets
+        // Group by Round
         const rounds = {};
         matches.forEach(m => {
-            const r = m.is_third_place ? 99 : m.round_number;
+            const r = m.is_third_place ? 99 : m.round_number; // 3rd place is magic round 99
             if(!rounds[r]) rounds[r] = [];
             rounds[r].push(m);
         });
 
-        // Generate coordinates
-        matches.forEach(m => {
-            const r = m.is_third_place ? 5 : m.round_number; 
-            
-            // X: Round 1 starts at 100, spaced by 350px
-            const x = (r * 350) - 250; 
-            
-            // Y: Calculate based on position in round to center it
-            // Logic: Round 1 matches are tight (100px gap). Round 2 are spread (200px gap), etc.
-            const spread = Math.pow(2, r-1) * 100;
-            const yOffset = (m.match_position - 1) * spread + (r * 50);
-            
-            // Special handling for 3rd place
-            if (m.is_third_place) {
-                newPos[m.id] = { x: 1200, y: 800 };
-            } else {
-                newPos[m.id] = { x, y: yOffset };
-            }
-        });
+        // 9 - 8 - 4 - 2 - 1 Logic
+        // We iterate rounds and stack them vertically, centered relative to the previous round
         
-        setPositions(newPos);
-    }, [matches]);
+        const roundKeys = Object.keys(rounds).sort((a,b) => Number(a) - Number(b));
+        
+        roundKeys.forEach((r, rIndex) => {
+            const roundMatches = rounds[r].sort((a,b) => a.match_position - b.match_position);
+            const x = r === '99' ? 1200 : (rIndex * X_SPACING) + 50; // 3rd place goes far right
+            
+            roundMatches.forEach((m, idx) => {
+                let y;
+                if (r === '1') {
+                    // Round 1 (9 Matches): Stacked
+                    y = (idx * Y_SPACING) + 50;
+                } else if (r === '99') {
+                    // 3rd Place: Bottom right
+                    y = 800; 
+                } else {
+                    // Circuit Logic: Place exactly between the two matches feeding into it
+                    // Find matches in previous round that map to this one
+                    // Standard logic: (Match Pos * 2) - 1 and (Match Pos * 2)
+                    const prevRoundMatches = rounds[Number(r)-1] || [];
+                    
+                    // Simple centering fallback if "Next Match ID" linking isn't perfect
+                    // We calculate the available height and distribute evenly
+                    // Total height of previous round
+                    const totalPrevHeight = (rounds[Number(r)-1]?.length || 1) * Y_SPACING;
+                    const step = totalPrevHeight / (roundMatches.length + 1);
+                    
+                    // Center vertically based on Round 1 height
+                    const centerY = (9 * Y_SPACING) / 2;
+                    const spread = (idx - (roundMatches.length - 1) / 2) * (Y_SPACING * Math.pow(1.8, rIndex));
+                    
+                    y = centerY + spread;
+                }
+                initialPos[m.id] = { x, y };
+            });
+        });
 
-    // 2. Drag Logic
-    const handleNodeMouseDown = (e, id) => {
+        setPositions(initialPos);
+    }, [matches.length]); // Run once on load
+
+    // 2. Drag Handlers
+    const handleMouseDown = (e, id) => {
         if (!isEditing) return;
-        e.stopPropagation(); 
+        e.preventDefault();
         const pos = positions[id] || { x: 0, y: 0 };
-        draggingNodeRef.current = id;
-        nodeOffsetRef.current = {
-            x: (e.clientX - viewPos.x) / scale - pos.x,
-            y: (e.clientY - viewPos.y) / scale - pos.y
+        draggingRef.current = id;
+        offsetRef.current = {
+            x: e.clientX - pos.x,
+            y: e.clientY - pos.y
         };
     };
 
-    const handleCanvasMouseDown = (e) => {
-        if (isEditing) return; 
-        setIsPanning(true);
-        setDragStart({ x: e.clientX - viewPos.x, y: e.clientY - viewPos.y });
+    const handleMouseMove = (e) => {
+        if (!draggingRef.current || !isEditing) return;
+        const id = draggingRef.current;
+        const newX = e.clientX - offsetRef.current.x;
+        const newY = e.clientY - offsetRef.current.y;
+        
+        // Snap to Grid (Optional, makes it cleaner)
+        const snappedX = Math.round(newX / 10) * 10;
+        const snappedY = Math.round(newY / 10) * 10;
+
+        setPositions(prev => ({
+            ...prev,
+            [id]: { x: snappedX, y: snappedY }
+        }));
     };
 
-    const handleGlobalMouseMove = (e) => {
-        if (draggingNodeRef.current && isEditing) {
-            const id = draggingNodeRef.current;
-            const rawX = (e.clientX - viewPos.x) / scale - nodeOffsetRef.current.x;
-            const rawY = (e.clientY - viewPos.y) / scale - nodeOffsetRef.current.y;
-            const x = Math.round(rawX / GRID_SIZE) * GRID_SIZE;
-            const y = Math.round(rawY / GRID_SIZE) * GRID_SIZE;
-            setPositions(prev => ({ ...prev, [id]: { x, y } }));
-            return;
-        }
-        if (isPanning) {
-            setViewPos({
-                x: e.clientX - dragStart.x,
-                y: e.clientY - dragStart.y
-            });
-        }
+    const handleMouseUp = () => {
+        draggingRef.current = null;
     };
 
-    const handleGlobalMouseUp = () => {
-        draggingNodeRef.current = null;
-        setIsPanning(false);
-    };
-
-    // 3. Render Wires
+    // 3. Generate "Curly Wires" (Bezier Curves)
     const renderWires = () => {
         return matches.map(match => {
+            // Find where this match goes next
+            // We use the DB relation 'next_match_id' OR assume standard bracket logic
             let nextMatchId = match.next_match_id;
             
-            // Fallback Logic
+            // Fallback logic if DB link is missing:
             if (!nextMatchId && !match.is_third_place) {
                 const nextRound = match.round_number + 1;
                 const nextPos = Math.ceil(match.match_position / 2);
@@ -185,55 +184,60 @@ const Bracket = ({ matches = [], onMatchClick }) => {
                 if (next) nextMatchId = next.id;
             }
 
-            if (!nextMatchId || !positions[match.id] || !positions[nextMatchId]) return null;
+            if (!nextMatchId) return null;
 
             const start = positions[match.id];
             const end = positions[nextMatchId];
 
-            const x1 = start.x + CARD_WIDTH; 
-            const y1 = start.y + (CARD_HEIGHT / 2); 
-            const x2 = end.x; 
-            const y2 = end.y + (CARD_HEIGHT / 2); 
-            const midX = (x1 + x2) / 2;
+            if (!start || !end) return null;
+
+            // Connection Points
+            const x1 = start.x + CARD_WIDTH; // Right side of source
+            const y1 = start.y + (CARD_HEIGHT / 2); // Center of source
+            const x2 = end.x; // Left side of target
+            const y2 = end.y + (CARD_HEIGHT / 2); // Center of target
+
+            // Circuit Style Bezier
+            // "C" control points creates the S-curve
+            const cp1x = x1 + ((x2 - x1) / 2);
+            const cp2x = x2 - ((x2 - x1) / 2);
 
             const isCompleted = match.status === 'completed';
 
             return (
                 <g key={`${match.id}-${nextMatchId}`}>
+                    {/* Shadow Line (Glow) */}
                     <path 
-                        d={`M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`}
+                        d={`M ${x1} ${y1} C ${cp1x} ${y1}, ${cp2x} ${y2}, ${x2} ${y2}`}
                         fill="none"
-                        stroke={isCompleted ? "#22d3ee" : "transparent"}
+                        stroke={isCompleted ? "#06b6d4" : "transparent"}
                         strokeWidth="4"
                         className="opacity-20 blur-[2px]"
                     />
+                    {/* Main Wire */}
                     <path 
-                        d={`M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`}
+                        d={`M ${x1} ${y1} C ${cp1x} ${y1}, ${cp2x} ${y2}, ${x2} ${y2}`}
                         fill="none"
-                        stroke={isCompleted ? "#22d3ee" : "#3f3f46"} 
+                        stroke={isCompleted ? "#06b6d4" : "#3f3f46"}
                         strokeWidth="2"
                         className="transition-colors duration-500"
-                        strokeDasharray={isCompleted ? "0" : "5,5"} 
+                        strokeDasharray={isCompleted ? "0" : "4 4"} // Dashed if pending
                     />
                 </g>
             );
         });
     };
 
-    if (!matches || matches.length === 0) return <div className="p-20 text-center text-zinc-600">Loading Bracket Data...</div>;
-
-    // Calculate Dynamic Canvas Size based on node positions
-    const maxX = Math.max(...Object.values(positions).map(p => p.x), 0) + CARD_WIDTH + 500;
-    const maxY = Math.max(...Object.values(positions).map(p => p.y), 0) + CARD_HEIGHT + 500;
+    if (!matches.length) return null;
 
     return (
-        <div className="w-full h-full flex flex-col bg-[#050505] overflow-hidden relative">
+        <div className="w-full h-full flex flex-col bg-[#050505] overflow-hidden">
             
             {/* TOOLBAR */}
             <div className="absolute top-4 right-4 z-50 flex gap-2">
                 {isEditing ? (
                     <button 
-                        onClick={() => { setIsEditing(false); console.log("Saving Positions:", positions); }} 
+                        onClick={() => { setIsEditing(false); /* Logic to save to DB here */ }} 
                         className="flex items-center gap-2 px-4 py-2 bg-yellow-600 hover:bg-yellow-500 text-black font-bold uppercase text-xs rounded shadow-[0_0_15px_rgba(234,179,8,0.4)] animate-pulse"
                     >
                         <Save size={14} /> Save Layout
@@ -248,57 +252,33 @@ const Bracket = ({ matches = [], onMatchClick }) => {
                 )}
             </div>
 
-            {/* ZOOM CONTROLS */}
-            <div className="absolute bottom-8 left-8 z-50 flex gap-2">
-                <button onClick={() => setScale(s => Math.min(s + 0.2, 2))} className="p-2 bg-zinc-800 rounded hover:bg-zinc-700 text-white"><Plus size={16}/></button>
-                <button onClick={() => setScale(s => Math.max(s - 0.2, 0.4))} className="p-2 bg-zinc-800 rounded hover:bg-zinc-700 text-white"><Minus size={16}/></button>
-                <button onClick={() => { setScale(1); setViewPos({x:0,y:0}); }} className="p-2 bg-zinc-800 rounded hover:bg-zinc-700 text-white"><Maximize size={16}/></button>
-            </div>
-
-            {/* INFINITE CANVAS */}
+            {/* CANVAS */}
             <div 
-                className={cn("flex-1 overflow-hidden relative", isEditing ? "cursor-default" : "cursor-grab active:cursor-grabbing")}
-                onMouseDown={handleCanvasMouseDown}
-                onMouseMove={handleGlobalMouseMove}
-                onMouseUp={handleGlobalMouseUp}
-                onMouseLeave={handleGlobalMouseUp}
-                style={{ 
-                    backgroundImage: 'radial-gradient(#1f1f22 1px, transparent 1px)', 
-                    backgroundSize: `${20 * scale}px ${20 * scale}px`,
-                    backgroundPosition: `${viewPos.x}px ${viewPos.y}px`
-                }} 
+                className="flex-1 relative overflow-auto cursor-grab active:cursor-grabbing"
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUp}
+                onMouseLeave={handleMouseUp}
+                style={{ backgroundImage: 'radial-gradient(#1f1f22 1px, transparent 1px)', backgroundSize: '20px 20px' }} // Grid Pattern
             >
-                <div 
-                    style={{ 
-                        transform: `translate(${viewPos.x}px, ${viewPos.y}px) scale(${scale})`,
-                        transformOrigin: '0 0',
-                        width: Math.max(maxX, 2000), 
-                        height: Math.max(maxY, 1500),
-                        position: 'absolute',
-                        top: 0, left: 0
-                    }}
-                >
-                    {/* Wires Layer */}
-                    <svg className="absolute inset-0 w-full h-full pointer-events-none z-0 overflow-visible">
+                <div style={{ width: 2000, height: 1500, position: 'relative' }}> {/* Large Canvas Area */}
+                    
+                    {/* SVG Layer (Wires) */}
+                    <svg className="absolute inset-0 w-full h-full pointer-events-none z-0">
                         {renderWires()}
                     </svg>
 
                     {/* Nodes Layer */}
-                    {matches.map(match => {
-                        const pos = positions[match.id];
-                        if (!pos) return null;
-                        return (
-                            <MatchCard 
-                                key={match.id}
-                                match={match}
-                                x={pos.x}
-                                y={pos.y}
-                                onDragStart={handleNodeMouseDown}
-                                isEditing={isEditing}
-                                onClick={onMatchClick}
-                            />
-                        );
-                    })}
+                    {matches.map(match => positions[match.id] && (
+                        <MatchCard 
+                            key={match.id}
+                            match={match}
+                            x={positions[match.id].x}
+                            y={positions[match.id].y}
+                            onDragStart={handleMouseDown}
+                            isEditing={isEditing}
+                            onClick={onMatchClick}
+                        />
+                    ))}
                 </div>
             </div>
         </div>

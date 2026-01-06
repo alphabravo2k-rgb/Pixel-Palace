@@ -1,111 +1,125 @@
-import React, { useState, useMemo } from 'react';
-import { X, BookOpen, ChevronRight, FileText, Zap, ShieldCheck, Terminal } from 'lucide-react';
+/**
+ * PIXEL PALACE: NEXUS DATAPAD (OPERATIONAL HUD)
+ * VERSION: 1.1.0 (MASTER HYBRID)
+ * STATUS: MASTERED (DUBAI STANDARD)
+ * - Haptic Navigation: Integrated SoundNexus
+ * - Dynamic Theme Shielding: Role-based GPU effects
+ * - Intelligent Content Routing
+ */
+
+import React, { useState, useMemo, useEffect } from 'react';
+import { BookOpen, ChevronRight, FileText, Zap, ShieldCheck, Terminal, Activity } from 'lucide-react';
 import { MANUALS } from '../../lib/manuals';
+import { SoundNexus, CUES } from '../../lib/soundNexus';
 import { Modal } from '../../ui/Components';
 import { cn } from '../../lib/utils';
 
-/**
- * 📟 PIXEL PALACE: NEXUS DATAPAD
- * ------------------------------
- * STATUS: MASTERED (DUBAI STANDARD)
- * PURPOSE: Interactive, Role-Aware User Manual Viewer.
- */
-
 export const NexusManual = ({ role = 'guest', isOpen, onClose }) => {
-  const [view, setView] = useState('SHORT'); // 'SHORT' | 'DETAILED'
+  const [view, setView] = useState('SHORT');
+
+  // 🔊 Audio Feedback on Tab Switch
+  const handleTabChange = (newView) => {
+    if (view === newView) return;
+    SoundNexus.play(CUES.UI_CLICK);
+    setView(newView);
+  };
 
   // 🧠 INTELLIGENT CONTENT RESOLVER
-  // Matches the user's role to the manual, handling edge cases.
   const content = useMemo(() => {
     const key = String(role).toLowerCase().trim();
     
     // 1. Direct Match
     if (MANUALS[key]) return MANUALS[key];
     
-    // 2. Intelligent Fallbacks
-    if (key === 'substitute') return MANUALS.player;
-    if (key === 'manager' || key === 'igl') return MANUALS.captain;
-    if (key === 'mod' || key === 'referee') return MANUALS.crew;
-    
-    // 3. Default Safety
-    return MANUALS.guest;
+    // 2. Alias Resolution
+    const fallbacks = {
+      substitute: 'player',
+      bench: 'player',
+      manager: 'captain',
+      igl: 'captain',
+      mod: 'crew',
+      referee: 'crew'
+    };
+
+    return MANUALS[fallbacks[key]] || MANUALS.guest;
   }, [role]);
 
-  // 🎨 DYNAMIC THEMING
-  const getThemeColor = () => {
+  // 🎨 GPU Theme Logic
+  const roleStyles = useMemo(() => {
     const r = String(role).toLowerCase();
-    if (['owner', 'admin'].includes(r)) return 'text-brand';
-    if (['captain', 'scout'].includes(r)) return 'text-emerald-400';
-    if (['caster', 'streamer'].includes(r)) return 'text-purple-400';
-    return 'text-white';
-  };
-
-  const themeColor = getThemeColor();
+    if (['owner', 'admin'].includes(r)) return { color: 'text-brand', glow: 'shadow-neon', bg: 'bg-brand/5' };
+    if (['captain', 'scout'].includes(r)) return { color: 'text-emerald-400', glow: 'shadow-neon-emerald', bg: 'bg-emerald-500/5' };
+    if (['caster', 'streamer'].includes(r)) return { color: 'text-purple-400', glow: 'shadow-neon-purple', bg: 'bg-purple-500/5' };
+    return { color: 'text-white', glow: '', bg: 'bg-white/5' };
+  }, [role]);
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={`ARCHIVE // ${role.toUpperCase()}`}>
-      <div className="flex flex-col gap-6 p-2 min-h-[400px]">
+    <Modal isOpen={isOpen} onClose={onClose} title={`INTEL // CLEARANCE: ${role.toUpperCase()}`}>
+      <div className="flex flex-col gap-6 p-2 relative overflow-hidden">
         
-        {/* 1. HOLOGRAPHIC HEADER CARD */}
-        <div className="bg-zinc-900/50 border border-white/10 p-5 rounded-sm flex items-start gap-5 relative overflow-hidden group">
-          {/* Background Decor */}
-          <div className="absolute top-0 right-0 p-4 opacity-10 transition-transform duration-1000 group-hover:scale-110">
-            <ShieldCheck size={100} />
-          </div>
-          <div className="absolute bottom-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+        {/* HOLOGRAPHIC OVERLAY */}
+        <div className="absolute inset-0 bg-[linear-gradient(to_bottom,transparent_0%,#000000_100%)] pointer-events-none z-0" />
 
-          <div className="p-3 bg-white/5 rounded-full border border-white/10 z-10 backdrop-blur-md">
-            <BookOpen className={cn("w-6 h-6", themeColor)} />
+        {/* 1. IDENTITY HEADER */}
+        <div className={cn(
+          "border border-white/10 p-6 rounded-sm flex items-start gap-6 relative z-10 transition-all duration-700",
+          roleStyles.bg
+        )}>
+          <div className={cn(
+            "p-4 rounded-full border border-white/10 backdrop-blur-xl transition-all duration-1000",
+            roleStyles.glow
+          )}>
+            <ShieldCheck className={cn("w-8 h-8", roleStyles.color)} />
           </div>
-          <div className="z-10">
-            <h3 className={cn("text-xl font-display font-black uppercase italic tracking-tighter leading-none", themeColor)}>
+          <div className="flex-1">
+            <h3 className={cn("text-2xl font-display font-black uppercase italic tracking-tighter", roleStyles.color)}>
               {content.title}
             </h3>
-            <p className="text-[10px] text-zinc-500 font-mono mt-2 uppercase tracking-[0.2em] flex items-center gap-2">
-              <span className={cn("w-1.5 h-1.5 rounded-full animate-pulse", themeColor === 'text-white' ? 'bg-zinc-500' : 'bg-current')} />
-              {content.description}
-            </p>
+            <div className="flex items-center gap-3 mt-2">
+               <Activity size={12} className="text-zinc-600 animate-pulse" />
+               <p className="text-[9px] text-zinc-500 font-mono uppercase tracking-[0.3em]">
+                 {content.description}
+               </p>
+            </div>
           </div>
         </div>
 
-        {/* 2. NAVIGATION TABS */}
-        <div className="flex border-b border-white/10">
-          <button 
-            onClick={() => setView('SHORT')}
-            className={cn(
-              "flex-1 py-3 text-xs font-bold uppercase tracking-widest transition-all border-b-2 flex items-center justify-center gap-2",
-              view === 'SHORT' ? "border-brand text-white bg-brand/5" : "border-transparent text-zinc-600 hover:text-zinc-400"
-            )}
-          >
-            <Zap size={14} /> Quick Start
-          </button>
-          <button 
-            onClick={() => setView('DETAILED')}
-            className={cn(
-              "flex-1 py-3 text-xs font-bold uppercase tracking-widest transition-all border-b-2 flex items-center justify-center gap-2",
-              view === 'DETAILED' ? "border-brand text-white bg-brand/5" : "border-transparent text-zinc-600 hover:text-zinc-400"
-            )}
-          >
-            <FileText size={14} /> Full Protocol
-          </button>
+        {/* 2. OPERATIONAL TABS */}
+        <div className="flex bg-black border border-white/5 rounded-sm p-1 z-10">
+          {[
+            { id: 'SHORT', label: 'Quick Start', icon: Zap },
+            { id: 'DETAILED', label: 'Full Protocol', icon: FileText }
+          ].map(tab => (
+            <button 
+              key={tab.id}
+              onClick={() => handleTabChange(tab.id)}
+              className={cn(
+                "flex-1 py-3 text-[10px] font-black uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-3 rounded-sm",
+                view === tab.id ? "bg-white text-black shadow-neon" : "text-zinc-600 hover:text-zinc-400 hover:bg-white/5"
+              )}
+            >
+              <tab.icon size={14} /> {tab.label}
+            </button>
+          ))}
         </div>
 
-        {/* 3. CONTENT VIEWPORT */}
-        <div className="flex-1 animate-in fade-in slide-in-from-bottom-2 duration-300">
+        {/* 3. CORE CONTENT BUFFER */}
+        <div className="flex-1 min-h-[300px] z-10">
           {view === 'SHORT' ? (
-            <div className="space-y-3 mt-4">
+            <div className="space-y-3">
               {content.short.map((step, idx) => (
-                <div key={idx} className="flex items-center gap-4 bg-black border border-zinc-800 p-4 rounded-sm group hover:border-brand/50 transition-all hover:translate-x-1">
-                  <div className={cn("w-8 h-8 rounded-full flex items-center justify-center text-black font-black font-mono shadow-lg", idx === 0 ? "bg-white" : "bg-zinc-800 text-white")}>
-                    {step.step}
+                <div key={idx} className="flex items-center gap-5 bg-zinc-950 border border-white/5 p-5 rounded-sm group hover:border-brand/40 transition-all">
+                  <div className="w-10 h-10 bg-black border border-zinc-800 flex items-center justify-center text-zinc-500 font-black font-mono text-sm group-hover:text-brand group-hover:border-brand/20 transition-all">
+                    0{step.step}
                   </div>
-                  <span className="text-sm text-zinc-300 font-medium">{step.text}</span>
-                  <ChevronRight className="ml-auto w-4 h-4 text-zinc-700 group-hover:text-brand transition-colors" />
+                  <span className="text-xs text-zinc-400 font-black uppercase tracking-widest leading-relaxed">
+                    {step.text}
+                  </span>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="mt-4 p-6 bg-black border border-white/5 rounded-sm h-full max-h-[300px] overflow-y-auto custom-scrollbar shadow-inner">
+            <div className="p-6 bg-black border border-white/5 rounded-sm max-h-[350px] overflow-y-auto custom-scrollbar shadow-inner">
               <div className="prose prose-invert prose-sm max-w-none">
                 <div className="whitespace-pre-wrap font-sans text-zinc-400 leading-relaxed text-sm">
                   {content.detailed}
@@ -115,30 +129,16 @@ export const NexusManual = ({ role = 'guest', isOpen, onClose }) => {
           )}
         </div>
 
-        {/* 4. FOOTER ACTION */}
-        <div className="pt-4 border-t border-white/5">
-          {view === 'SHORT' && (
-             <button 
-                onClick={() => setView('DETAILED')}
-                className="w-full p-3 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-sm flex items-center justify-center gap-3 transition-all group"
-             >
-                <Terminal size={14} className="text-zinc-500 group-hover:text-brand transition-colors" />
-                <span className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em] group-hover:text-white">
-                  Read Full Documentation
-                </span>
-             </button>
-          )}
-          
-          <div className="text-center mt-4">
+        {/* 4. SYSTEM EXIT */}
+        <div className="pt-4 border-t border-white/5 z-10 flex justify-between items-center">
+            <span className="text-[8px] font-mono text-zinc-800 uppercase tracking-widest">Nexus Kernel v4.2.0</span>
             <button 
-                onClick={onClose}
-                className="text-[9px] text-zinc-600 hover:text-red-500 uppercase tracking-widest font-bold transition-colors"
+                onClick={() => { SoundNexus.play(CUES.UI_CLICK); onClose(); }}
+                className="text-[9px] text-zinc-600 hover:text-red-500 uppercase tracking-[0.4em] font-black transition-colors"
             >
-                [ Close Terminal ]
+                [ Terminate Connection ]
             </button>
-          </div>
         </div>
-
       </div>
     </Modal>
   );

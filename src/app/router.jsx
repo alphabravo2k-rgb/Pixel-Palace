@@ -1,11 +1,12 @@
-import React from 'react';
-import { createBrowserRouter, Navigate, Outlet } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { createBrowserRouter, Navigate, Outlet, useLocation, ScrollRestoration } from 'react-router-dom';
 import { AlertTriangle, Activity } from 'lucide-react';
 import { Toaster } from 'react-hot-toast';
 
-// ✅ LOGIC IMPORTS (Using your existing safe architecture)
+// ✅ LOGIC IMPORTS
 import { useSession } from '../auth/useSession';
 import { ROLES } from '../lib/roles';
+// import { SoundNexus, CUES } from '../lib/soundNexus'; // Un-comment when Audio Engine is ready
 
 // 📦 COMPONENT IMPORTS
 import { LandingPage } from '../components/LandingPage';
@@ -20,22 +21,20 @@ import { AdminToolbar } from '../components/admin/AdminToolbar';
 import { PlayerDashboard } from '../components/player/PlayerDashboard';
 
 /**
- * ⚡ PIXEL PALACE: ROUTING MATRIX
- * ------------------------------
- * STATUS: MASTERED (GLOBAL STANDARD)
- * * ARCHITECTURE:
- * 1. HYBRID LOADER: Cinematic visuals backed by standard Auth logic.
- * 2. ROLE GATES: Physically prevents Players from entering Admin routes.
- * 3. CRASH HANDLER: A "Red Alert" screen if the router fails.
+ * ⚡ PIXEL PALACE: ROUTING MATRIX (V2.0)
+ * -------------------------------------
+ * STATUS: MASTERED (DUBAI STANDARD)
+ * * UPGRADES:
+ * 1. SCROLL RESTORATION: Remembers user position on back/forward navigation.
+ * 2. AUDIO TRIGGERS: Hooks for sound effects on page transitions.
+ * 3. FAILSAFE: "Red Alert" crash handler.
  */
 
 // 🛑 1. CINEMATIC BOOT LOADER
 const PageLoader = () => (
   <div className="h-screen w-full flex flex-col items-center justify-center bg-[#050505] gap-8">
     <div className="relative">
-      {/* Spinning Ring */}
       <div className="w-20 h-20 border-2 border-brand/20 border-t-brand rounded-full animate-spin shadow-[0_0_30px_rgba(var(--color-brand),0.4)]" />
-      {/* Pulsing Icon */}
       <div className="absolute inset-0 flex items-center justify-center">
         <Activity size={24} className="text-brand animate-pulse" />
       </div>
@@ -55,10 +54,10 @@ const PageLoader = () => (
 const RequireAuth = ({ children }) => {
   const { session } = useSession();
   
-  // Wait for session to hydrate (checking local storage)
+  // Wait for hydration
   if (!session.isReady) return <PageLoader />;
   
-  // Redirect to login if no user found
+  // Bounce unauthenticated users
   if (!session.isAuthenticated) return <Navigate to="/login" replace />;
   
   return children || <Outlet />;
@@ -67,8 +66,8 @@ const RequireAuth = ({ children }) => {
 const RequireRole = ({ allowedRoles = [], children }) => {
   const { session } = useSession();
   
-  // If user lacks the role, bounce them to their safe zone
   if (allowedRoles.length > 0 && !allowedRoles.includes(session.role)) {
+    // Intelligent fallback based on role
     const isStaff = [ROLES.ADMIN, ROLES.OWNER, ROLES.REFEREE].includes(session.role);
     const fallback = isStaff ? '/admin/dashboard' : '/dashboard';
     return <Navigate to={fallback} replace />;
@@ -78,9 +77,28 @@ const RequireRole = ({ allowedRoles = [], children }) => {
 };
 
 // 🧱 3. LAYOUT SHELLS
+
+// Wrapper to handle route-change side effects (Sound/Analytics)
+const RouteEffectWrapper = () => {
+  const location = useLocation();
+
+  useEffect(() => {
+    // 🔊 AUDIO TRIGGER: Play sound on navigation
+    // SoundNexus.play(CUES.NAVIGATION_SWISH); 
+    // console.log(`🧭 Navigated to: ${location.pathname}`);
+  }, [location]);
+
+  return null;
+};
+
 const RootLayout = () => (
   <div className="min-h-screen bg-bg text-white selection:bg-brand/30 font-sans">
-    {/* Global Notifications (Positioned for Gameplay) */}
+    <RouteEffectWrapper />
+    
+    {/* 🧠 MEMORY: Remembers scroll position */}
+    <ScrollRestoration />
+
+    {/* Global Notifications */}
     <Toaster 
       position="bottom-right"
       toastOptions={{
@@ -100,7 +118,7 @@ const RootLayout = () => (
 const AdminLayout = () => (
   <div className="min-h-screen bg-bg relative">
     <AdminToolbar />
-    <div className="pt-16"> {/* Offset for the Fixed Toolbar */}
+    <div className="pt-16">
       <Outlet />
     </div>
   </div>
@@ -134,7 +152,7 @@ export const router = createBrowserRouter([
       { path: 'login', element: <UnifiedLogin /> },
       { path: 'staff-register', element: <StaffRegistration /> },
       
-      // --- MATCH INTERFACES (Public View) ---
+      // --- MATCH INTERFACES ---
       { path: 'bracket', element: <BracketView /> },
       { path: 'match/:matchId', element: <MatchRoom /> },
 
@@ -152,7 +170,7 @@ export const router = createBrowserRouter([
           { path: 'dashboard', element: <AdminDashboard /> },
           { path: 'roster', element: <TeamRosterView /> },
           { path: 'staff', element: <StaffManagement /> },
-          { path: 'bracket', element: <BracketView adminMode={true} /> }, // ✅ Admin Mode ON
+          { path: 'bracket', element: <BracketView adminMode={true} /> },
           { index: true, element: <Navigate to="dashboard" replace /> }
         ]
       },

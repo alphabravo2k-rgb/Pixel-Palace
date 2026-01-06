@@ -1,123 +1,146 @@
+/* ------------------------------------------------------------------
+ * 🎨 PIXEL PALACE: THE VISUAL CORE (GLOBAL STANDARD)
+ * STATUS: MASTERED
+ * ------------------------------------------------------------------ */
+
+/* 1. TYPOGRAPHY INJECTION */
+/* We load these here to ensure they are available to the Tailwind engine immediately */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Rajdhani:wght@500;600;700&family=Teko:wght@300;400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* 1. DYNAMIC THEME ENGINE */
+/* 2. THE FOUNDATION (BASE LAYER) */
 @layer base {
   :root {
-    /* 🛡️ DEFAULT FALLBACK: Fuchsia Protocol */
-    --color-brand: 192 38 211;       /* #c026d3 */
-    --color-brand-dim: 112 26 117;   /* #701a75 */
-    --color-brand-glow: 232 121 249; /* #e879f9 */
+    /* ⚡ THE VORTEX PALETTE (Matches tailwind.config.js) */
+    --color-brand: 192 38 211;       /* #c026d3 (Fuchsia-600) */
+    --color-brand-dim: 112 26 117;   /* #701a75 (Fuchsia-800) */
+    --color-brand-glow: 232 121 249; /* #e879f9 (Fuchsia-400) */
     
-    /* Status Colors */
-    --color-status-win: 16 185 129;
-    --color-status-loss: 239 68 68;
-    --color-status-active: 59 130 246;
+    /* SYSTEM SETTINGS */
+    color-scheme: dark; /* Tells browser to use dark scrollbars/inputs natively */
   }
 
   html {
-    scroll-behavior: smooth;
+    @apply antialiased scroll-smooth;
+    text-rendering: optimizeLegibility; /* Crisp text */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   body {
     @apply h-full bg-bg text-gray-100 font-sans overflow-x-hidden selection:bg-brand/30 selection:text-brand-glow;
+    
+    /* 📱 NATIVE APP FEEL: Prevents the "bounce" scroll effect on iOS */
+    overscroll-behavior-y: none; 
+  }
+
+  /* ACCESSIBILITY: Visible focus, but beautiful */
+  :focus-visible {
+    @apply outline-none ring-2 ring-brand ring-offset-2 ring-offset-bg;
+  }
+}
+
+/* 3. COMPONENT ARCHITECTURE */
+@layer components {
+  /* 📺 CRT SCANLINES: The "Command Center" Atmosphere */
+  .scanlines {
+    @apply pointer-events-none fixed inset-0 z-[50] mix-blend-overlay;
+    background: linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0),
+      rgba(255, 255, 255, 0) 50%,
+      rgba(0, 0, 0, 0.4) 50%, /* Darker lines for contrast */
+      rgba(0, 0, 0, 0.4)
+    );
+    background-size: 100% 4px;
+    opacity: 0.05; /* Subtle enough not to distract, visible enough to look cool */
+  }
+
+  /* 🛡️ TACTICAL CARD SHAPE: The "Cut Corner" Aesthetic */
+  .tactical-panel {
+    clip-path: polygon(
+      0 12px, 12px 0, 
+      calc(100% - 12px) 0, 100% 12px, 
+      100% calc(100% - 12px), calc(100% - 12px) 100%, 
+      12px 100%, 0 calc(100% - 12px)
+    );
+  }
+
+  /* ⚡ GLITCH TEXT: Hardware Accelerated (144Hz Smooth) */
+  .glitch-text {
+    @apply relative inline-block;
+    transform-style: preserve-3d;
+  }
+
+  .glitch-text::before,
+  .glitch-text::after {
+    @apply absolute inset-0 opacity-80;
+    content: attr(data-text);
+    background: #050505;
+    will-change: transform, clip-path; /* Tell GPU to get ready */
+  }
+
+  .glitch-text::before {
+    @apply -left-[2px] text-brand;
+    text-shadow: 2px 0 rgb(var(--color-brand));
+    animation: glitch-anim-1 2.5s infinite linear alternate-reverse;
+  }
+
+  .glitch-text::after {
+    @apply left-[2px] text-brand-glow;
+    text-shadow: -2px 0 rgb(var(--color-brand-glow));
+    animation: glitch-anim-2 3.5s infinite linear alternate-reverse;
   }
   
-  /* Remove default focus outline on mouse click, keep for keyboard */
-  :focus:not(:focus-visible) {
-    outline: none;
-  }
-  
-  /* Custom Scrollbar */
-  ::-webkit-scrollbar { width: 6px; height: 6px; }
-  ::-webkit-scrollbar-track { @apply bg-bg-panel; }
-  ::-webkit-scrollbar-thumb { 
-    background-color: rgb(var(--color-brand-dim)); 
-    border-radius: 4px;
-  }
-  ::-webkit-scrollbar-thumb:hover { 
-    background-color: rgb(var(--color-brand)); 
+  /* 💎 GLASSMORPHISM: The "Dubai" Premium Finish */
+  .glass-panel {
+    @apply bg-bg-panel/60 backdrop-blur-md border border-white/5 shadow-glass;
   }
 }
 
-/* 2. MASTERED VISUAL FX */
+/* 4. UTILITIES & ANIMATIONS */
+@layer utilities {
+  /* 🖱️ CUSTOM SCROLLBARS: Works on Chrome, Safari, Edge, AND Firefox */
+  .custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(var(--color-brand-dim)) #09090b;
+  }
 
-/* CRT SCANLINES */
-.scanlines {
-  background: linear-gradient(
-    to bottom,
-    rgba(255, 255, 255, 0),
-    rgba(255, 255, 255, 0) 50%,
-    rgba(0, 0, 0, 0.2) 50%,
-    rgba(0, 0, 0, 0.2)
-  );
-  background-size: 100% 4px;
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 50;
-  opacity: 0.15;
-  mix-blend-mode: overlay;
-  will-change: opacity;
+  .custom-scrollbar::-webkit-scrollbar {
+    @apply w-[6px] h-[6px];
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    @apply bg-bg-panel;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-brand-dim transition-colors hover:bg-brand cursor-pointer;
+  }
+
+  /* 🌬️ HEAVY BREATHING: For "Live" indicators */
+  .animate-breathe-heavy {
+    animation: breathe 4s infinite ease-in-out;
+    backface-visibility: hidden;
+    perspective: 1000px;
+  }
 }
 
-/* DYNAMIC GLITCH EFFECT */
-.glitch-wrapper {
-  position: relative;
-  display: inline-block;
-}
-
-.glitch-wrapper::before,
-.glitch-wrapper::after {
-  content: attr(data-text);
-  position: absolute;
-  top: 0; left: 0; width: 100%; height: 100%;
-  background: #050505; 
-}
-
-.glitch-wrapper::before {
-  left: 2px;
-  text-shadow: -1px 0 rgb(var(--color-brand));
-  clip-path: inset(44% 0 61% 0);
-  animation: glitch-anim-1 3s infinite linear alternate-reverse;
-}
-
-.glitch-wrapper::after {
-  left: -2px;
-  text-shadow: -1px 0 rgb(var(--color-brand-glow));
-  clip-path: inset(54% 0 21% 0);
-  animation: glitch-anim-2 2.5s infinite linear alternate-reverse;
-}
-
+/* 5. GPU KEYFRAMES */
 @keyframes glitch-anim-1 {
-  0% { clip-path: inset(20% 0 80% 0); }
-  20% { clip-path: inset(60% 0 10% 0); }
-  40% { clip-path: inset(40% 0 50% 0); }
-  60% { clip-path: inset(80% 0 5% 0); }
-  80% { clip-path: inset(10% 0 70% 0); }
-  100% { clip-path: inset(30% 0 20% 0); }
+  0%, 100% { clip-path: inset(80% 0 1% 0); transform: translate3d(0,0,0); }
+  20% { clip-path: inset(10% 0 60% 0); transform: translate3d(-2px, 2px, 0); }
+  40% { clip-path: inset(50% 0 30% 0); transform: translate3d(2px, -1px, 0); }
+  60% { clip-path: inset(20% 0 70% 0); transform: translate3d(-1px, 1px, 0); }
+  80% { clip-path: inset(40% 0 10% 0); transform: translate3d(1px, -2px, 0); }
 }
 
 @keyframes glitch-anim-2 {
-  0% { clip-path: inset(10% 0 60% 0); }
-  20% { clip-path: inset(30% 0 10% 0); }
-  40% { clip-path: inset(70% 0 30% 0); }
-  60% { clip-path: inset(10% 0 80% 0); }
-  80% { clip-path: inset(50% 0 40% 0); }
-  100% { clip-path: inset(0% 0 10% 0); }
-}
-
-/* UI UTILITIES */
-.clip-path-slant {
-  clip-path: polygon(15px 0, 100% 0, 100% calc(100% - 15px), calc(100% - 15px) 100%, 0 100%, 0 15px);
-}
-
-.animate-in {
-  animation: fade-in 0.3s ease-out forwards;
-}
-
-@keyframes fade-in {
-  from { opacity: 0; transform: translateY(5px); }
-  to { opacity: 1; transform: translateY(0); }
+  0%, 100% { clip-path: inset(5% 0 85% 0); transform: translate3d(0,0,0); }
+  25% { clip-path: inset(60% 0 5% 0); transform: translate3d(2px, -2px, 0); }
+  50% { clip-path: inset(30% 0 40% 0); transform: translate3d(-2px, 1px, 0); }
+  75% { clip-path: inset(70% 0 20% 0); transform: translate3d(1px, -1px, 0); }
 }

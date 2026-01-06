@@ -1,21 +1,21 @@
-import React, { useState, useRef, useMemo, useEffect } from 'react'; // ✅ Added useEffect
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { cn } from '../lib/utils';
 import { Trophy, Shield, Edit3, Save, GripHorizontal, Plus, Minus, Maximize } from 'lucide-react';
 
 // --- CONFIGURATION ---
 const CARD_WIDTH = 220;
 const CARD_HEIGHT = 82;
-const COL_SPACING = 300; // Gap between rounds
-const ROW_SPACING = 110; // Vertical gap between matches
+const COL_SPACING = 320; // Gap between rounds (Horizontal)
+const ROW_SPACING = 120; // Gap between matches (Vertical)
 
 // --- 1. LAYOUT ALGORITHM (The Brain) ---
-// Calculates X/Y for every match to create a perfect tree structure
+// This runs IMMEDIATELY to prevent blank screens.
 const calculateDefaultLayout = (matches) => {
     if (!matches || matches.length === 0) return {};
 
     const positions = {};
     
-    // Group by Round
+    // Group matches by Round
     const rounds = {};
     matches.forEach(m => {
         const r = m.is_third_place ? 99 : m.round_number;
@@ -23,30 +23,24 @@ const calculateDefaultLayout = (matches) => {
         rounds[r].push(m);
     });
 
-    // Sort rounds (1, 2, 3... 99)
     const roundKeys = Object.keys(rounds).sort((a,b) => Number(a) - Number(b));
 
-    // --- STEP 1: POSITION ROUND 1 (The Anchors) ---
-    // We place Round 1 matches in a simple vertical stack
+    // --- POSITION ROUND 1 (The Anchors) ---
+    // Stack them vertically on the left
     const round1 = rounds[1] || [];
     round1.sort((a,b) => a.match_position - b.match_position);
     
     round1.forEach((m) => {
-        // We use 'match_position' to determine Y. 
-        // Note: For a 32-team bracket, slots are 1..16.
-        // We multiply by ROW_SPACING to stack them.
         positions[m.id] = {
             x: 0,
             y: (m.match_position - 1) * ROW_SPACING
         };
     });
 
-    // --- STEP 2: POSITION FUTURE ROUNDS (Recursive Averaging) ---
-    // Round 2 matches are centered relative to their Round 1 feeders
+    // --- POSITION SUBSEQUENT ROUNDS ---
     roundKeys.forEach(rKey => {
         const r = Number(rKey);
-        if (r === 1) return; // Skip R1
-        if (r === 99) return; // Skip 3rd place for now
+        if (r === 1 || r === 99) return; // Skip R1 and 3rd Place
 
         const currentRoundMatches = rounds[r] || [];
         currentRoundMatches.sort((a,b) => a.match_position - b.match_position);
@@ -54,35 +48,39 @@ const calculateDefaultLayout = (matches) => {
         currentRoundMatches.forEach(m => {
             const x = (r - 1) * COL_SPACING;
             
-            // Expected Logic: Match N in Round R is fed by (2N-1) and (2N) from Round R-1
-            // Formula for center of slot N in Round R:
-            const power = Math.pow(2, r - 1);
-            const offset = (power / 2) - 0.5;
-            const step = power;
+            // MATH: Calculate vertical center based on tree structure
+            // In a binary tree, Round 2 Item 1 is centered between Round 1 Items 1 & 2.
+            // Even if R1 Item 2 is missing (Bye), R2 Item 1 should stay in that visual center.
             
-            // Visual Y calculation
-            const yGrid = ((m.match_position - 1) * step) + offset;
-            const y = yGrid * ROW_SPACING;
+            // Formula: Previous Step Size * 2
+            // R1 Step: 1 | R2 Step: 2 | R3 Step: 4
+            const power = Math.pow(2, r - 1);
+            
+            // Calculate "Virtual Grid Y"
+            // (Pos-1) * Power + (Power/2) - 0.5
+            const gridY = ((m.match_position - 1) * power) + (power / 2) - 0.5;
+            
+            const y = gridY * ROW_SPACING;
 
             positions[m.id] = { x, y };
         });
     });
 
-    // --- STEP 3: POSITION 3RD PLACE ---
+    // --- POSITION 3RD PLACE ---
     const thirdPlace = rounds[99]?.[0];
     if (thirdPlace) {
-        // Place it deep to the right and bottom
-        const lastRound = roundKeys[roundKeys.length - 2] || 1; // Exclude 99
+        // Place bottom right
+        const lastRoundNum = roundKeys.length > 1 ? Number(roundKeys[roundKeys.length - 2]) : 1;
         positions[thirdPlace.id] = {
-            x: (Number(lastRound)) * COL_SPACING, 
-            y: (round1.length * ROW_SPACING) + 100
+            x: lastRoundNum * COL_SPACING, 
+            y: (round1.length * ROW_SPACING) + 150
         };
     }
 
     return positions;
 };
 
-// --- SUB-COMPONENT: NODE DOTS ---
+// --- SUB-COMPONENT: CONNECTION NODE ---
 const NodePoint = ({ type, active }) => (
     <div className={cn(
         "w-3 h-3 rounded-full border-2 absolute top-1/2 -translate-y-1/2 z-20 bg-[#09090b] transition-all",
@@ -96,14 +94,17 @@ const MatchCard = ({ match, x, y, onDragStart, isEditing, onClick }) => {
     const isLive = match.status === 'live';
     const isWinner = (id) => match.winner_id === id && match.status === 'completed';
 
+    // Safe coordinates default
+    const safeX = x ?? 0;
+    const safeY = y ?? 0;
+
     return (
         <div 
             style={{ 
-                transform: `translate(${x}px, ${y}px)`, 
+                transform: `translate(${safeX}px, ${safeY}px)`, 
                 width: CARD_WIDTH, 
                 height: CARD_HEIGHT,
                 position: 'absolute',
-                // Smooth movement when NOT dragging, instant when dragging
                 transition: isEditing ? 'none' : 'transform 0.4s cubic-bezier(0.25, 1, 0.5, 1)' 
             }}
             className={cn(
@@ -128,14 +129,12 @@ const MatchCard = ({ match, x, y, onDragStart, isEditing, onClick }) => {
 
             {/* Teams */}
             <div className="flex-1 flex flex-col justify-center relative">
-                {/* Team 1 */}
                 <div className={cn("flex justify-between items-center px-3 h-6 transition-colors", isWinner(match.team1_id) ? "text-cyan-400" : "text-zinc-400")}>
-                    <span className="text-xs font-bold truncate w-32">{match.team1?.name || 'Waiting...'}</span>
+                    <span className="text-xs font-bold truncate w-32">{match.team1?.name || 'TBD'}</span>
                     <span className="text-xs font-mono">{match.team1_score}</span>
                 </div>
-                {/* Team 2 */}
                 <div className={cn("flex justify-between items-center px-3 h-6 transition-colors", isWinner(match.team2_id) ? "text-cyan-400" : "text-zinc-400")}>
-                    <span className="text-xs font-bold truncate w-32">{match.team2?.name || 'Waiting...'}</span>
+                    <span className="text-xs font-bold truncate w-32">{match.team2?.name || 'TBD'}</span>
                     <span className="text-xs font-mono">{match.team2_score}</span>
                 </div>
             </div>
@@ -148,39 +147,38 @@ const MatchCard = ({ match, x, y, onDragStart, isEditing, onClick }) => {
 
 // --- MAIN COMPONENT ---
 const Bracket = ({ matches = [], onMatchClick }) => {
-    // Initialize State with Default Layout immediately
+    // 1. Initialize State Synchronously (Fixes Blank Screen)
     const [positions, setPositions] = useState(() => calculateDefaultLayout(matches));
     const [isEditing, setIsEditing] = useState(false);
     
     // Zoom/Pan State
     const [scale, setScale] = useState(1);
-    const [viewPos, setViewPos] = useState({ x: 100, y: 100 }); 
+    const [viewPos, setViewPos] = useState({ x: 50, y: 50 }); // Initial padding
     const [isPanning, setIsPanning] = useState(false);
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
-    // Node Dragging Refs
+    // Dragging Logic Refs
     const draggingNodeRef = useRef(null);
     const nodeOffsetRef = useRef({ x: 0, y: 0 });
 
-    // Update positions if matches change dramatically (e.g. regen bracket)
+    // Recalculate if matches array completely changes (e.g. switching tournaments)
     useEffect(() => {
-        if (!matches.length) return;
+        if (!matches || matches.length === 0) return;
+        // Basic check to see if we need to regenerate
         const currentIds = Object.keys(positions);
-        const newIds = matches.map(m => m.id);
-        
-        // Simple check: If count differs or first ID differs, re-calculate
-        if (currentIds.length !== newIds.length || currentIds[0] !== newIds[0]) {
+        if (currentIds.length === 0 && matches.length > 0) {
             setPositions(calculateDefaultLayout(matches));
         }
     }, [matches]);
 
-    // --- HANDLERS ---
+    // --- INTERACTION HANDLERS ---
 
     const handleNodeMouseDown = (e, id) => {
         if (!isEditing) return;
         e.stopPropagation(); 
         const pos = positions[id] || { x: 0, y: 0 };
         draggingNodeRef.current = id;
+        // Calculate offset adjusting for scale
         nodeOffsetRef.current = {
             x: (e.clientX - viewPos.x) / scale - pos.x,
             y: (e.clientY - viewPos.y) / scale - pos.y
@@ -194,7 +192,7 @@ const Bracket = ({ matches = [], onMatchClick }) => {
     };
 
     const handleGlobalMouseMove = (e) => {
-        // 1. Node Dragging
+        // Node Dragging
         if (draggingNodeRef.current && isEditing) {
             const id = draggingNodeRef.current;
             const rawX = (e.clientX - viewPos.x) / scale - nodeOffsetRef.current.x;
@@ -208,7 +206,7 @@ const Bracket = ({ matches = [], onMatchClick }) => {
             return;
         }
 
-        // 2. Canvas Panning
+        // Canvas Panning
         if (isPanning) {
             setViewPos({
                 x: e.clientX - dragStart.x,
@@ -223,6 +221,7 @@ const Bracket = ({ matches = [], onMatchClick }) => {
     };
 
     const handleWheel = (e) => {
+        // Zoom with Ctrl+Scroll or Trackpad Pinch
         if (e.ctrlKey || e.metaKey) {
             e.preventDefault();
             const delta = e.deltaY * -0.001;
@@ -231,12 +230,12 @@ const Bracket = ({ matches = [], onMatchClick }) => {
         }
     };
 
-    // --- RENDER WIRES ---
+    // --- RENDER WIRES (The Circuit Lines) ---
     const renderWires = () => {
         return matches.map(match => {
             let nextMatchId = match.next_match_id;
             
-            // Heuristic Linker if DB is missing next_match_id
+            // Auto-detect tree structure if DB link is missing
             if (!nextMatchId && !match.is_third_place) {
                 const nextRound = match.round_number + 1;
                 const nextPos = Math.ceil(match.match_position / 2);
@@ -244,7 +243,7 @@ const Bracket = ({ matches = [], onMatchClick }) => {
                 if (next) nextMatchId = next.id;
             }
 
-            // Also check for Loser's Bracket (3rd place) link
+            // Check for Loser Bracket link
             if (!nextMatchId && match.loser_next_match_id) {
                 nextMatchId = match.loser_next_match_id;
             }
@@ -264,7 +263,7 @@ const Bracket = ({ matches = [], onMatchClick }) => {
 
             return (
                 <g key={`${match.id}-${nextMatchId}`}>
-                    {/* Glow Effect */}
+                    {/* Glow */}
                     <path 
                         d={`M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`}
                         fill="none"
@@ -272,7 +271,7 @@ const Bracket = ({ matches = [], onMatchClick }) => {
                         strokeWidth="6"
                         className="opacity-10 blur-[4px]"
                     />
-                    {/* Wire */}
+                    {/* Line */}
                     <path 
                         d={`M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`}
                         fill="none"
@@ -293,11 +292,11 @@ const Bracket = ({ matches = [], onMatchClick }) => {
         </div>
     );
 
-    // Calculate dynamic canvas bounds
+    // Calculate canvas size based on content
     const allX = Object.values(positions).map(p => p.x);
     const allY = Object.values(positions).map(p => p.y);
-    const maxX = Math.max(...allX, 0) + CARD_WIDTH + 500;
-    const maxY = Math.max(...allY, 0) + CARD_HEIGHT + 500;
+    const maxX = allX.length ? Math.max(...allX) + CARD_WIDTH + 500 : 2000;
+    const maxY = allY.length ? Math.max(...allY) + CARD_HEIGHT + 500 : 1500;
 
     return (
         <div 
@@ -308,7 +307,7 @@ const Bracket = ({ matches = [], onMatchClick }) => {
             onMouseLeave={handleGlobalMouseUp}
             onWheel={handleWheel}
         >
-            {/* --- CONTROLS --- */}
+            {/* TOOLBAR */}
             <div className="absolute top-4 right-4 z-50 flex gap-2">
                 {isEditing ? (
                     <button 
@@ -327,25 +326,26 @@ const Bracket = ({ matches = [], onMatchClick }) => {
                 )}
             </div>
 
+            {/* ZOOM CONTROLS */}
             <div className="absolute bottom-8 left-8 z-50 flex gap-2 bg-black/50 p-1 rounded-lg backdrop-blur-md border border-white/5">
                 <button onClick={() => setScale(s => Math.min(s + 0.2, 2))} className="p-2 hover:bg-white/10 rounded text-white transition-colors"><Plus size={16}/></button>
                 <button onClick={() => setScale(s => Math.max(s - 0.2, 0.2))} className="p-2 hover:bg-white/10 rounded text-white transition-colors"><Minus size={16}/></button>
-                <button onClick={() => { setScale(1); setViewPos({x:100,y:100}); }} className="p-2 hover:bg-white/10 rounded text-white transition-colors"><Maximize size={16}/></button>
+                <button onClick={() => { setScale(1); setViewPos({x:50,y:50}); }} className="p-2 hover:bg-white/10 rounded text-white transition-colors"><Maximize size={16}/></button>
             </div>
 
-            {/* --- INFINITE CANVAS --- */}
+            {/* INFINITE CANVAS */}
             <div 
                 style={{ 
                     transform: `translate(${viewPos.x}px, ${viewPos.y}px) scale(${scale})`,
                     transformOrigin: '0 0',
-                    width: Math.max(maxX, 2000), 
-                    height: Math.max(maxY, 1500),
+                    width: maxX, 
+                    height: maxY,
                     position: 'absolute',
                     top: 0, 
                     left: 0
                 }}
             >
-                {/* 1. Grid Background Layer */}
+                {/* 1. Grid Background */}
                 <div 
                     className="absolute inset-0 pointer-events-none opacity-20"
                     style={{ 
@@ -354,12 +354,12 @@ const Bracket = ({ matches = [], onMatchClick }) => {
                     }}
                 />
 
-                {/* 2. Wires Layer */}
+                {/* 2. Circuit Wires */}
                 <svg className="absolute inset-0 w-full h-full pointer-events-none z-0 overflow-visible">
                     {renderWires()}
                 </svg>
 
-                {/* 3. Nodes Layer */}
+                {/* 3. Match Nodes */}
                 {matches.map(match => {
                     const pos = positions[match.id];
                     if (!pos) return null;

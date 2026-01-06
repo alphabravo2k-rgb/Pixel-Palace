@@ -1,73 +1,87 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { cn } from '../lib/utils';
-import { Trophy, Shield, Edit3, Save, GripHorizontal, Plus, Minus, Maximize, AlertTriangle } from 'lucide-react';
+import { Trophy, Shield, Edit3, Save, GripHorizontal, Plus, Minus, Maximize, AlertCircle } from 'lucide-react';
 
 // --- CONFIGURATION ---
 const CARD_WIDTH = 220;
 const CARD_HEIGHT = 82;
-const COL_SPACING = 320; 
-const ROW_SPACING = 120;
+const COL_SPACING = 350; 
+const ROW_SPACING = 130;
 
-// --- 1. LAYOUT ENGINE (Sanitized) ---
+// --- 1. LAYOUT ENGINE (Iterative & Robust) ---
 const calculateLayout = (matches) => {
-    // 1. Safety Check
-    if (!matches || !Array.isArray(matches) || matches.length === 0) return {};
+    if (!matches || matches.length === 0) return {};
 
     const positions = {};
-    
-    // 2. Group & Sanitization
     const rounds = {};
+
+    // A. Group by Round (Sanitize inputs)
     matches.forEach(m => {
-        // Force valid numbers. Default to 1 if missing.
-        const rRaw = m.is_third_place ? 99 : Number(m.round_number);
-        const r = isNaN(rRaw) ? 1 : rRaw;
-        
+        const r = m.is_third_place ? 99 : Number(m.round_number);
         if (!rounds[r]) rounds[r] = [];
         rounds[r].push(m);
     });
 
-    const roundKeys = Object.keys(rounds).sort((a,b) => Number(a) - Number(b));
+    const roundKeys = Object.keys(rounds).map(Number).sort((a,b) => a - b);
 
-    // A. Position Round 1
+    // B. Position Round 1 (The Anchors)
+    // We simply stack them. No complex math.
     const round1 = rounds[1] || [];
     round1.sort((a,b) => (Number(a.match_position) || 0) - (Number(b.match_position) || 0));
     
-    round1.forEach((m) => {
-        const pos = Number(m.match_position) || 1;
+    round1.forEach((m, idx) => {
         positions[m.id] = {
             x: 50,
-            y: (pos - 1) * ROW_SPACING + 50
+            y: idx * ROW_SPACING + 50
         };
     });
 
-    // B. Position Later Rounds
-    roundKeys.forEach(rKey => {
-        const r = Number(rKey);
-        if (r === 1 || r === 99) return;
+    // C. Position Future Rounds (Iterative Centering)
+    // For every subsequent round, we find the matches in the PREVIOUS round
+    // that "feed" this one, and center this match Y-axis relative to them.
+    for (let i = 0; i < roundKeys.length; i++) {
+        const r = roundKeys[i];
+        if (r === 1 || r === 99) continue; // Skip R1 (done) and 3rd place (special)
 
+        const prevRoundNum = roundKeys[i-1]; 
         const currentMatches = rounds[r] || [];
-        currentMatches.sort((a,b) => (Number(a.match_position) || 0) - (Number(b.match_position) || 0));
+        const prevMatches = rounds[prevRoundNum] || [];
 
-        currentMatches.forEach(m => {
-            const x = 50 + ((r - 1) * COL_SPACING);
+        currentMatches.sort((a,b) => Number(a.match_position) - Number(b.match_position));
+        prevMatches.sort((a,b) => Number(a.match_position) - Number(b.match_position));
+
+        currentMatches.forEach((m, idx) => {
+            const x = 50 + (i * COL_SPACING);
             
-            const power = Math.pow(2, r - 1);
-            const pos = Number(m.match_position) || 1;
+            // Logic: Match 1 in this round is fed by Match 1 & 2 in previous round.
+            // Match 2 is fed by Match 3 & 4...
+            const p1 = prevMatches[idx * 2];
+            const p2 = prevMatches[(idx * 2) + 1];
+
+            let y;
             
-            // Grid Formula
-            const gridY = ((pos - 1) * power) + (power / 2) - 0.5;
-            const y = (gridY * ROW_SPACING) + 50;
+            if (p1 && p2 && positions[p1.id] && positions[p2.id]) {
+                // Perfect alignment: Center between parents
+                y = (positions[p1.id].y + positions[p2.id].y) / 2;
+            } else if (p1 && positions[p1.id]) {
+                // Odd number / Bye: Align with single parent
+                y = positions[p1.id].y;
+            } else {
+                // Fallback: Just stack it based on grid
+                y = (idx * ROW_SPACING * Math.pow(1.5, i)) + 50; 
+            }
 
             positions[m.id] = { x, y };
         });
-    });
+    }
 
-    // C. Position 3rd Place
+    // D. Position 3rd Place
     const thirdPlace = rounds[99]?.[0];
     if (thirdPlace) {
-        const lastRound = roundKeys.length > 1 ? Number(roundKeys[roundKeys.length - 2]) : 1;
+        // Place it deep to the right and bottom
+        const lastRoundIndex = roundKeys.length - (roundKeys.includes(99) ? 2 : 1);
         positions[thirdPlace.id] = {
-            x: 50 + (lastRound * COL_SPACING),
+            x: 50 + (lastRoundIndex * COL_SPACING),
             y: (round1.length * ROW_SPACING) + 200
         };
     }
@@ -86,7 +100,7 @@ const NodePoint = ({ type, active }) => (
 );
 
 const MatchCard = ({ match, x, y, onDragStart, isEditing, onClick }) => {
-    // 🛡️ CRITICAL FALLBACK: Never let NaN pass to the style
+    // 🛡️ CRITICAL FALLBACK: If calculations fail, snap to 0,0 so it's visible
     const safeX = (typeof x === 'number' && !isNaN(x)) ? x : 0;
     const safeY = (typeof y === 'number' && !isNaN(y)) ? y : 0;
 
@@ -100,7 +114,8 @@ const MatchCard = ({ match, x, y, onDragStart, isEditing, onClick }) => {
                 width: CARD_WIDTH, 
                 height: CARD_HEIGHT,
                 position: 'absolute',
-                transition: isEditing ? 'none' : 'transform 0.4s cubic-bezier(0.25, 1, 0.5, 1)' 
+                // Instant snap when editing, smooth glide when auto-layout updates
+                transition: isEditing ? 'none' : 'transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1)' 
             }}
             className={cn(
                 "group absolute z-10 flex flex-col bg-[#09090b] border rounded-lg shadow-xl overflow-visible",
@@ -110,7 +125,7 @@ const MatchCard = ({ match, x, y, onDragStart, isEditing, onClick }) => {
             onMouseDown={(e) => isEditing && onDragStart(e, match.id)}
             onClick={() => !isEditing && onClick(match)}
         >
-            {/* Input Node */}
+            {/* Input Node (Not for Round 1) */}
             {(Number(match.round_number) || 1) > 1 && <NodePoint type="input" active={match.status !== 'scheduled'} />}
             
             {/* Header */}
@@ -142,11 +157,11 @@ const MatchCard = ({ match, x, y, onDragStart, isEditing, onClick }) => {
 
 // --- 3. MAIN COMPONENT ---
 const Bracket = ({ matches = [], onMatchClick }) => {
-    // State
+    // 1. STATE & REFS
     const [manualPositions, setManualPositions] = useState({});
     const [isEditing, setIsEditing] = useState(false);
     
-    // Zoom/Pan
+    // Zoom/Pan State
     const [scale, setScale] = useState(1);
     const [viewPos, setViewPos] = useState({ x: 0, y: 0 }); 
     const [isPanning, setIsPanning] = useState(false);
@@ -155,10 +170,10 @@ const Bracket = ({ matches = [], onMatchClick }) => {
     const draggingNodeRef = useRef(null);
     const nodeOffsetRef = useRef({ x: 0, y: 0 });
 
-    // --- AUTO-CALCULATION (Memoized) ---
+    // 2. AUTO-CALCULATION (Memoized - Runs Instantly)
+    // This prevents the blank screen by having coordinates ready on first paint
     const finalPositions = useMemo(() => {
         const calculated = calculateLayout(matches);
-        // Merge manual overrides
         return { ...calculated, ...manualPositions };
     }, [matches, manualPositions]);
 
@@ -186,9 +201,9 @@ const Bracket = ({ matches = [], onMatchClick }) => {
             const rawX = (e.clientX - viewPos.x) / scale - nodeOffsetRef.current.x;
             const rawY = (e.clientY - viewPos.y) / scale - nodeOffsetRef.current.y;
             
-            // Snap to 20px Grid
-            const x = Math.round(rawX / 20) * 20;
-            const y = Math.round(rawY / 20) * 20;
+            // Snap to 10px Grid
+            const x = Math.round(rawX / 10) * 10;
+            const y = Math.round(rawY / 10) * 10;
 
             // Save to manual positions
             setManualPositions(prev => ({ ...prev, [id]: { x, y } }));
@@ -223,7 +238,7 @@ const Bracket = ({ matches = [], onMatchClick }) => {
         return matches.map(match => {
             let nextMatchId = match.next_match_id;
             
-            // Auto Linker
+            // Auto Linker: If DB link missing, assume standard flow
             if (!nextMatchId && !match.is_third_place) {
                 const r = Number(match.round_number) || 1;
                 const pos = Number(match.match_position) || 1;
@@ -241,7 +256,6 @@ const Bracket = ({ matches = [], onMatchClick }) => {
 
             if (!start || !end) return null;
 
-            // Ensure no NaNs in wire path
             const x1 = (start.x || 0) + CARD_WIDTH; 
             const y1 = (start.y || 0) + (CARD_HEIGHT / 2); 
             const x2 = (end.x || 0); 
@@ -252,6 +266,7 @@ const Bracket = ({ matches = [], onMatchClick }) => {
 
             return (
                 <g key={`${match.id}-${nextMatchId}`}>
+                    {/* Wire Glow */}
                     <path 
                         d={`M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`}
                         fill="none"
@@ -259,6 +274,7 @@ const Bracket = ({ matches = [], onMatchClick }) => {
                         strokeWidth="6"
                         className="opacity-10 blur-[4px]"
                     />
+                    {/* Wire Core */}
                     <path 
                         d={`M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`}
                         fill="none"
@@ -272,26 +288,17 @@ const Bracket = ({ matches = [], onMatchClick }) => {
         });
     };
 
-    // --- BOUNDS CALCULATION (CRITICAL FIX) ---
-    // Calculate dimensions based on positions
-    // If no positions, default to 2000x2000 to prevent 0x0 collapse
-    const allX = Object.values(finalPositions).map(p => p.x).filter(n => !isNaN(n));
-    const allY = Object.values(finalPositions).map(p => p.y).filter(n => !isNaN(n));
-    
-    const maxX = allX.length > 0 ? Math.max(...allX) + CARD_WIDTH + 500 : 2000;
-    const maxY = allY.length > 0 ? Math.max(...allY) + CARD_HEIGHT + 500 : 1500;
-
-    // --- RENDER ---
     if (!matches || matches.length === 0) return (
-        <div className="h-full flex items-center justify-center text-zinc-500 font-mono flex-col gap-4">
-            <AlertTriangle className="w-16 h-16 opacity-20 text-yellow-500"/>
+        <div className="h-full flex items-center justify-center text-zinc-500 font-mono flex-col gap-4 bg-black">
+            <Trophy className="w-16 h-16 opacity-20 text-yellow-500"/>
             <span>No Matches Found in Bracket.</span>
         </div>
     );
 
     return (
+        // 🚨 CRITICAL FIX: Use h-screen to force height if parent is 0 height
         <div 
-            className="w-full h-full flex flex-col bg-[#050505] overflow-hidden relative cursor-grab active:cursor-grabbing selection:bg-transparent"
+            className="w-full h-screen flex flex-col bg-[#050505] overflow-hidden relative cursor-grab active:cursor-grabbing selection:bg-transparent"
             onMouseDown={handleCanvasMouseDown}
             onMouseMove={handleGlobalMouseMove}
             onMouseUp={handleGlobalMouseUp}
@@ -329,8 +336,8 @@ const Bracket = ({ matches = [], onMatchClick }) => {
                 style={{ 
                     transform: `translate(${viewPos.x}px, ${viewPos.y}px) scale(${scale})`,
                     transformOrigin: '0 0',
-                    width: maxX, // Uses sanitized bounds
-                    height: maxY,
+                    width: '4000px', // Fixed massive width to prevent cut-off
+                    height: '3000px',
                     position: 'absolute',
                     top: 0, left: 0
                 }}
@@ -349,9 +356,9 @@ const Bracket = ({ matches = [], onMatchClick }) => {
                 {/* 3. Match Nodes */}
                 {matches.map(match => {
                     const pos = finalPositions[match.id];
-                    // Final Safe Guard: Fallback to 0,0
-                    const x = (pos && !isNaN(pos.x)) ? pos.x : 0;
-                    const y = (pos && !isNaN(pos.y)) ? pos.y : 0;
+                    // IMPORTANT: If pos is somehow undefined (shouldn't be), render at 0,0
+                    const x = pos ? pos.x : 0;
+                    const y = pos ? pos.y : 0;
 
                     return (
                         <MatchCard 

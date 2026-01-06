@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { cn } from '../lib/utils';
 import { Trophy, Shield, Edit3, Save, GripHorizontal, Plus, Minus, Maximize, AlertCircle } from 'lucide-react';
 
@@ -6,87 +6,48 @@ import { Trophy, Shield, Edit3, Save, GripHorizontal, Plus, Minus, Maximize, Ale
 const CARD_WIDTH = 220;
 const CARD_HEIGHT = 82;
 const COL_SPACING = 350; 
-const ROW_SPACING = 130;
+const ROW_SPACING = 110;
 
-// --- 1. LAYOUT ENGINE (Iterative & Robust) ---
-const calculateLayout = (matches) => {
-    if (!matches || matches.length === 0) return {};
+// --- 1. HARD-CODED LAYOUT ENGINE (The "Manual Reality") ---
+// This forces the bracket to look exactly like your diagram, regardless of DB math.
+const getFixedPosition = (round, position, isThirdPlace) => {
+    // 3rd Place Match
+    if (isThirdPlace) return { x: 1600, y: 1200 };
 
-    const positions = {};
-    const rounds = {};
+    const r = Number(round);
+    const p = Number(position);
 
-    // A. Group by Round (Sanitize inputs)
-    matches.forEach(m => {
-        const r = m.is_third_place ? 99 : Number(m.round_number);
-        if (!rounds[r]) rounds[r] = [];
-        rounds[r].push(m);
-    });
+    // X Coordinates (Columns)
+    const x = (r - 1) * COL_SPACING + 50;
 
-    const roundKeys = Object.keys(rounds).map(Number).sort((a,b) => a - b);
+    // Y Coordinates (Rows) - Manually tuned for 25-team visual balance
+    let y = 0;
 
-    // B. Position Round 1 (The Anchors)
-    // We simply stack them. No complex math.
-    const round1 = rounds[1] || [];
-    round1.sort((a,b) => (Number(a.match_position) || 0) - (Number(b.match_position) || 0));
-    
-    round1.forEach((m, idx) => {
-        positions[m.id] = {
-            x: 50,
-            y: idx * ROW_SPACING + 50
-        };
-    });
-
-    // C. Position Future Rounds (Iterative Centering)
-    // For every subsequent round, we find the matches in the PREVIOUS round
-    // that "feed" this one, and center this match Y-axis relative to them.
-    for (let i = 0; i < roundKeys.length; i++) {
-        const r = roundKeys[i];
-        if (r === 1 || r === 99) continue; // Skip R1 (done) and 3rd place (special)
-
-        const prevRoundNum = roundKeys[i-1]; 
-        const currentMatches = rounds[r] || [];
-        const prevMatches = rounds[prevRoundNum] || [];
-
-        currentMatches.sort((a,b) => Number(a.match_position) - Number(b.match_position));
-        prevMatches.sort((a,b) => Number(a.match_position) - Number(b.match_position));
-
-        currentMatches.forEach((m, idx) => {
-            const x = 50 + (i * COL_SPACING);
-            
-            // Logic: Match 1 in this round is fed by Match 1 & 2 in previous round.
-            // Match 2 is fed by Match 3 & 4...
-            const p1 = prevMatches[idx * 2];
-            const p2 = prevMatches[(idx * 2) + 1];
-
-            let y;
-            
-            if (p1 && p2 && positions[p1.id] && positions[p2.id]) {
-                // Perfect alignment: Center between parents
-                y = (positions[p1.id].y + positions[p2.id].y) / 2;
-            } else if (p1 && positions[p1.id]) {
-                // Odd number / Bye: Align with single parent
-                y = positions[p1.id].y;
-            } else {
-                // Fallback: Just stack it based on grid
-                y = (idx * ROW_SPACING * Math.pow(1.5, i)) + 50; 
-            }
-
-            positions[m.id] = { x, y };
-        });
+    if (r === 1) {
+        // Round 1 (Matches 16-24 in your diagram, 9 total)
+        // They need to align with specific slots in Round 2
+        // We space them out to match the visual gaps
+        y = (p - 1) * ROW_SPACING * 1.5 + 50; 
+    } 
+    else if (r === 2) {
+        // Round 2 (8 matches)
+        // These are the "Anchor" matches. 
+        y = (p - 1) * (ROW_SPACING * 2) + 50;
+    } 
+    else if (r === 3) {
+        // Round 3 (4 matches) - Centered on R2
+        y = (p - 1) * (ROW_SPACING * 4) + 160;
+    }
+    else if (r === 4) {
+        // Round 4 (Semifinals)
+        y = (p - 1) * (ROW_SPACING * 8) + 380;
+    }
+    else if (r === 5) {
+        // Finals
+        y = 380 + 200; // Centered between semis
     }
 
-    // D. Position 3rd Place
-    const thirdPlace = rounds[99]?.[0];
-    if (thirdPlace) {
-        // Place it deep to the right and bottom
-        const lastRoundIndex = roundKeys.length - (roundKeys.includes(99) ? 2 : 1);
-        positions[thirdPlace.id] = {
-            x: 50 + (lastRoundIndex * COL_SPACING),
-            y: (round1.length * ROW_SPACING) + 200
-        };
-    }
-
-    return positions;
+    return { x, y };
 };
 
 // --- 2. SUB-COMPONENTS ---
@@ -100,7 +61,7 @@ const NodePoint = ({ type, active }) => (
 );
 
 const MatchCard = ({ match, x, y, onDragStart, isEditing, onClick }) => {
-    // 🛡️ CRITICAL FALLBACK: If calculations fail, snap to 0,0 so it's visible
+    // 🛡️ Safety: Ensure coordinates exist
     const safeX = (typeof x === 'number' && !isNaN(x)) ? x : 0;
     const safeY = (typeof y === 'number' && !isNaN(y)) ? y : 0;
 
@@ -114,8 +75,7 @@ const MatchCard = ({ match, x, y, onDragStart, isEditing, onClick }) => {
                 width: CARD_WIDTH, 
                 height: CARD_HEIGHT,
                 position: 'absolute',
-                // Instant snap when editing, smooth glide when auto-layout updates
-                transition: isEditing ? 'none' : 'transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1)' 
+                transition: isEditing ? 'none' : 'transform 0.3s ease-out' 
             }}
             className={cn(
                 "group absolute z-10 flex flex-col bg-[#09090b] border rounded-lg shadow-xl overflow-visible",
@@ -125,7 +85,7 @@ const MatchCard = ({ match, x, y, onDragStart, isEditing, onClick }) => {
             onMouseDown={(e) => isEditing && onDragStart(e, match.id)}
             onClick={() => !isEditing && onClick(match)}
         >
-            {/* Input Node (Not for Round 1) */}
+            {/* Input Node */}
             {(Number(match.round_number) || 1) > 1 && <NodePoint type="input" active={match.status !== 'scheduled'} />}
             
             {/* Header */}
@@ -157,11 +117,11 @@ const MatchCard = ({ match, x, y, onDragStart, isEditing, onClick }) => {
 
 // --- 3. MAIN COMPONENT ---
 const Bracket = ({ matches = [], onMatchClick }) => {
-    // 1. STATE & REFS
+    // State
     const [manualPositions, setManualPositions] = useState({});
     const [isEditing, setIsEditing] = useState(false);
     
-    // Zoom/Pan State
+    // Zoom/Pan
     const [scale, setScale] = useState(1);
     const [viewPos, setViewPos] = useState({ x: 0, y: 0 }); 
     const [isPanning, setIsPanning] = useState(false);
@@ -170,10 +130,23 @@ const Bracket = ({ matches = [], onMatchClick }) => {
     const draggingNodeRef = useRef(null);
     const nodeOffsetRef = useRef({ x: 0, y: 0 });
 
-    // 2. AUTO-CALCULATION (Memoized - Runs Instantly)
-    // This prevents the blank screen by having coordinates ready on first paint
+    // --- AUTO-CALCULATION (Fixed Grid) ---
+    // This runs instantly. No async waiting.
     const finalPositions = useMemo(() => {
-        const calculated = calculateLayout(matches);
+        if (!matches || matches.length === 0) return {};
+
+        const calculated = {};
+        
+        matches.forEach(m => {
+            // Force types
+            const r = m.is_third_place ? 99 : Number(m.round_number);
+            const p = Number(m.match_position);
+            
+            // Get coordinates from our hard-coded engine
+            calculated[m.id] = getFixedPosition(r, p, m.is_third_place);
+        });
+
+        // Merge manual overrides (if you drag things, this remembers)
         return { ...calculated, ...manualPositions };
     }, [matches, manualPositions]);
 
@@ -205,7 +178,6 @@ const Bracket = ({ matches = [], onMatchClick }) => {
             const x = Math.round(rawX / 10) * 10;
             const y = Math.round(rawY / 10) * 10;
 
-            // Save to manual positions
             setManualPositions(prev => ({ ...prev, [id]: { x, y } }));
             return;
         }
@@ -231,26 +203,32 @@ const Bracket = ({ matches = [], onMatchClick }) => {
         }
     };
 
-    // --- RENDER WIRES ---
+    // --- RENDER WIRES (The Connections) ---
     const renderWires = () => {
         if (!finalPositions || Object.keys(finalPositions).length === 0) return null;
 
         return matches.map(match => {
             let nextMatchId = match.next_match_id;
             
-            // Auto Linker: If DB link missing, assume standard flow
-            if (!nextMatchId && !match.is_third_place) {
-                const r = Number(match.round_number) || 1;
-                const pos = Number(match.match_position) || 1;
-                const nextR = r + 1;
-                const nextPos = Math.ceil(pos / 2);
-                
-                const next = matches.find(m => (Number(m.round_number) || 0) === nextR && (Number(m.match_position) || 0) === nextPos);
-                if (next) nextMatchId = next.id;
+            // 3rd Place Link Logic (Manual Override)
+            if (!nextMatchId && match.loser_next_match_id) {
+                nextMatchId = match.loser_next_match_id;
             }
 
-            if (!nextMatchId && match.loser_next_match_id) nextMatchId = match.loser_next_match_id;
+            // Fallback Logic: Connect Round X to Round X+1 based on Position
+            // If the DB link is missing, we visually guess it so lines still appear.
+            if (!nextMatchId && !match.is_third_place) {
+                const r = Number(match.round_number);
+                const p = Number(match.match_position);
+                const nextR = r + 1;
+                const nextP = Math.ceil(p / 2);
+                
+                // Find target match
+                const nextMatch = matches.find(m => Number(m.round_number) === nextR && Number(m.match_position) === nextP);
+                if (nextMatch) nextMatchId = nextMatch.id;
+            }
 
+            // We need coordinates for start AND end
             const start = finalPositions[match.id];
             const end = finalPositions[nextMatchId];
 
@@ -266,7 +244,6 @@ const Bracket = ({ matches = [], onMatchClick }) => {
 
             return (
                 <g key={`${match.id}-${nextMatchId}`}>
-                    {/* Wire Glow */}
                     <path 
                         d={`M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`}
                         fill="none"
@@ -274,7 +251,6 @@ const Bracket = ({ matches = [], onMatchClick }) => {
                         strokeWidth="6"
                         className="opacity-10 blur-[4px]"
                     />
-                    {/* Wire Core */}
                     <path 
                         d={`M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`}
                         fill="none"
@@ -289,14 +265,14 @@ const Bracket = ({ matches = [], onMatchClick }) => {
     };
 
     if (!matches || matches.length === 0) return (
-        <div className="h-full flex items-center justify-center text-zinc-500 font-mono flex-col gap-4 bg-black">
-            <Trophy className="w-16 h-16 opacity-20 text-yellow-500"/>
+        <div className="h-screen flex items-center justify-center text-zinc-500 font-mono flex-col gap-4 bg-black">
+            <AlertCircle className="w-16 h-16 opacity-20 text-yellow-500"/>
             <span>No Matches Found in Bracket.</span>
         </div>
     );
 
     return (
-        // 🚨 CRITICAL FIX: Use h-screen to force height if parent is 0 height
+        // 🚨 FORCE HEIGHT: h-screen ensures this container ALWAYS has size
         <div 
             className="w-full h-screen flex flex-col bg-[#050505] overflow-hidden relative cursor-grab active:cursor-grabbing selection:bg-transparent"
             onMouseDown={handleCanvasMouseDown}
@@ -336,8 +312,8 @@ const Bracket = ({ matches = [], onMatchClick }) => {
                 style={{ 
                     transform: `translate(${viewPos.x}px, ${viewPos.y}px) scale(${scale})`,
                     transformOrigin: '0 0',
-                    width: '4000px', // Fixed massive width to prevent cut-off
-                    height: '3000px',
+                    width: '4000px', // Massive Fixed Width
+                    height: '3000px', // Massive Fixed Height
                     position: 'absolute',
                     top: 0, left: 0
                 }}
@@ -356,9 +332,9 @@ const Bracket = ({ matches = [], onMatchClick }) => {
                 {/* 3. Match Nodes */}
                 {matches.map(match => {
                     const pos = finalPositions[match.id];
-                    // IMPORTANT: If pos is somehow undefined (shouldn't be), render at 0,0
-                    const x = pos ? pos.x : 0;
-                    const y = pos ? pos.y : 0;
+                    // Final Safe Guard
+                    const x = (pos && !isNaN(pos.x)) ? pos.x : 0;
+                    const y = (pos && !isNaN(pos.y)) ? pos.y : 0;
 
                     return (
                         <MatchCard 

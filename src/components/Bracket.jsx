@@ -1,352 +1,318 @@
-import React, { useState, useRef, useMemo } from 'react';
-import { supabase } from '../supabase/client';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
+import { Wifi, Zap, Trophy, Users, AlertCircle, Plus, Minus, Maximize } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { Trophy, Shield, Edit3, Save, GripHorizontal, Plus, Minus, Maximize, AlertCircle, Loader2 } from 'lucide-react';
-import { toast } from 'react-hot-toast';
 
-// --- CONFIGURATION ---
-const CARD_WIDTH = 220;
-const CARD_HEIGHT = 82;
-const COL_SPACING = 350; 
-const ROW_SPACING = 110;
+/**
+ * ⚔️ PIXEL PALACE: BRACKET ENGINE (HYBRID MASTER)
+ * -----------------------------------------------
+ * STATUS: MASTERED (DUBAI STANDARD)
+ * FEATURES:
+ * 1. AUTO-LAYOUT: Recursively centers matches based on children.
+ * 2. GPU ACCELERATION: Hardware-accelerated SVG paths.
+ * 3. ZOOM/PAN: Integrated viewport control.
+ */
 
-// --- 1. FALLBACK LAYOUT ENGINE ---
-// Used ONLY when a match has no saved ui_x/ui_y in the DB.
-const getFixedPosition = (round, position, isThirdPlace) => {
-    // 3rd Place Match: Bottom Right
-    if (isThirdPlace) return { x: 1600, y: 1200 };
+// --- 🧱 SUB-COMPONENT: Match Node (The Card) ---
+const MatchNode = ({ match, onClick }) => {
+  const hasTeams = match.team1 || match.team2;
+  const isLive = match.status === 'live';
+  const isWinner = (id) => match.winner_id === id && match.status === 'completed';
 
-    const r = Number(round) || 1;
-    const p = Number(position) || 1;
+  return (
+    <div 
+      onClick={() => onClick(match)}
+      className={cn(
+        "relative w-full h-full flex flex-col rounded-sm border transition-all duration-300 group cursor-pointer overflow-hidden",
+        isLive ? "bg-zinc-900 border-red-500/50 shadow-[0_0_25px_rgba(220,38,38,0.3)]" : "bg-[#09090b] border-white/10 hover:border-brand/60 hover:shadow-neon",
+        match.status === 'completed' && "opacity-80 hover:opacity-100 grayscale hover:grayscale-0"
+      )}
+    >
+      {/* Live Status Bar */}
+      {isLive && <div className="absolute top-0 left-0 w-full h-[2px] bg-red-500 animate-scan" />}
 
-    // X Coordinates (Columns)
-    const x = (r - 1) * COL_SPACING + 50;
+      {/* Header */}
+      <div className="flex justify-between items-center px-3 py-1.5 border-b border-white/5 bg-black/40 text-[9px] font-mono uppercase text-zinc-500 tracking-widest">
+        <span>M{match.match_position} • R{match.round_number}</span>
+        {isLive && <span className="text-red-500 font-bold animate-pulse">● LIVE</span>}
+      </div>
 
-    let y = 0;
-    // Y Coordinates (Rows) - Manually tuned for 25-team visual balance
-    if (r === 1)      y = (p - 1) * (ROW_SPACING * 1.5) + 50; 
-    else if (r === 2) y = (p - 1) * (ROW_SPACING * 2) + 50;
-    else if (r === 3) y = (p - 1) * (ROW_SPACING * 4) + 160;
-    else if (r === 4) y = (p - 1) * (ROW_SPACING * 8) + 380;
-    else if (r === 5) y = 380 + 200; // Finals
-
-    return { x, y };
-};
-
-// --- SUB-COMPONENT: NODE DOTS ---
-const NodePoint = ({ type, active }) => (
-    <div className={cn(
-        "w-3 h-3 rounded-full border-2 absolute top-1/2 -translate-y-1/2 z-20 bg-[#09090b] transition-all",
-        type === 'input' ? "-left-1.5" : "-right-1.5",
-        active ? "border-cyan-400 shadow-[0_0_8px_#22d3ee] bg-cyan-900" : "border-zinc-700"
-    )} />
-);
-
-// --- SUB-COMPONENT: MATCH CARD ---
-const MatchCard = ({ match, x, y, onDragStart, isEditing, onClick }) => {
-    // 🛡️ CRITICAL FALLBACK: Ensure valid numbers for CSS
-    const safeX = Number.isFinite(x) ? x : 0;
-    const safeY = Number.isFinite(y) ? y : 0;
-
-    const isLive = match.status === 'live';
-    const isWinner = (id) => match.winner_id === id && match.status === 'completed';
-
-    return (
-        <div 
-            style={{ 
-                transform: `translate(${safeX}px, ${safeY}px)`, 
-                width: CARD_WIDTH, 
-                height: CARD_HEIGHT,
-                position: 'absolute',
-                // Instant snap when editing, smooth glide when auto-layout updates
-                transition: isEditing ? 'none' : 'transform 0.3s ease-out' 
-            }}
-            className={cn(
-                "group absolute z-10 flex flex-col bg-[#09090b] border rounded-lg shadow-xl overflow-visible",
-                isEditing ? "cursor-grab active:cursor-grabbing border-yellow-500/50 hover:border-yellow-500 z-50" : "cursor-pointer border-zinc-800 hover:border-cyan-500/50 hover:z-20",
-                isLive && !isEditing && "border-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.2)]"
-            )}
-            onMouseDown={(e) => isEditing && onDragStart(e, match.id)}
-            onClick={() => !isEditing && onClick(match)}
-        >
-            {/* Input Node (Not for Round 1) */}
-            {(Number(match.round_number) || 1) > 1 && <NodePoint type="input" active={match.status !== 'scheduled'} />}
-            
-            {/* Header */}
-            <div className="flex justify-between items-center px-3 py-1 bg-zinc-900/80 border-b border-zinc-800 text-[9px] font-mono uppercase text-zinc-500 select-none">
-                <span className="flex items-center gap-2">
-                    {isEditing && <GripHorizontal size={10} className="text-yellow-500"/>}
-                    {match.is_third_place ? "3RD PLACE" : `M${match.match_position || '?'} • R${match.round_number || '?'}`}
-                </span>
-                {isLive && <span className="text-red-500 font-bold animate-pulse">● LIVE</span>}
-            </div>
-
-            {/* Teams */}
-            <div className="flex-1 flex flex-col justify-center relative">
-                <div className={cn("flex justify-between items-center px-3 h-6 transition-colors", isWinner(match.team1_id) ? "text-cyan-400" : "text-zinc-400")}>
-                    <span className="text-xs font-bold truncate w-32">{match.team1?.name || 'TBD'}</span>
-                    <span className="text-xs font-mono">{match.team1_score}</span>
-                </div>
-                <div className={cn("flex justify-between items-center px-3 h-6 transition-colors", isWinner(match.team2_id) ? "text-cyan-400" : "text-zinc-400")}>
-                    <span className="text-xs font-bold truncate w-32">{match.team2?.name || 'TBD'}</span>
-                    <span className="text-xs font-mono">{match.team2_score}</span>
-                </div>
-            </div>
-
-            {/* Output Node */}
-            {!match.is_third_place && <NodePoint type="output" active={match.status === 'completed'} />}
+      {/* Teams */}
+      <div className="flex-1 flex flex-col justify-center">
+        {/* Team 1 */}
+        <div className={cn(
+          "flex justify-between items-center px-3 py-1.5 transition-colors border-l-2",
+          isWinner(match.team1_id) ? "bg-brand/5 border-brand text-white" : "border-transparent text-zinc-400"
+        )}>
+          <div className="flex items-center gap-2 overflow-hidden">
+             {match.team1?.logo ? (
+                <img src={match.team1.logo} alt="" className="w-4 h-4 object-contain" />
+             ) : (
+                <div className="w-4 h-4 rounded-sm bg-zinc-800 flex items-center justify-center"><Users size={8}/></div>
+             )}
+             <span className={cn("text-xs font-bold truncate w-24", !match.team1 && "text-zinc-700 italic")}>
+               {match.team1?.name || 'TBD'}
+             </span>
+          </div>
+          <span className="font-mono text-xs font-bold opacity-80">{match.team1_score ?? '-'}</span>
         </div>
-    );
+
+        {/* Divider */}
+        <div className="h-px bg-white/5 mx-2" />
+
+        {/* Team 2 */}
+        <div className={cn(
+          "flex justify-between items-center px-3 py-1.5 transition-colors border-l-2",
+          isWinner(match.team2_id) ? "bg-brand/5 border-brand text-white" : "border-transparent text-zinc-400"
+        )}>
+          <div className="flex items-center gap-2 overflow-hidden">
+             {match.team2?.logo ? (
+                <img src={match.team2.logo} alt="" className="w-4 h-4 object-contain" />
+             ) : (
+                <div className="w-4 h-4 rounded-sm bg-zinc-800 flex items-center justify-center"><Users size={8}/></div>
+             )}
+             <span className={cn("text-xs font-bold truncate w-24", !match.team2 && "text-zinc-700 italic")}>
+               {match.team2?.name || 'TBD'}
+             </span>
+          </div>
+          <span className="font-mono text-xs font-bold opacity-80">{match.team2_score ?? '-'}</span>
+        </div>
+      </div>
+    </div>
+  );
 };
 
-// --- 3. MAIN COMPONENT ---
+// --- 🔍 SUB-COMPONENT: Zoomable Container ---
+const ZoomableBracket = ({ children }) => {
+  const [scale, setScale] = useState(1);
+  const [pos, setPos] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [start, setStart] = useState({ x: 0, y: 0 });
+
+  const handleWheel = (e) => {
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      const delta = e.deltaY * -0.001;
+      setScale(s => Math.min(Math.max(0.2, s + delta), 2));
+    }
+  };
+
+  const handleMouseDown = (e) => {
+    if (e.button !== 0) return; // Only left click
+    setIsDragging(true);
+    setStart({ x: e.clientX - pos.x, y: e.clientY - pos.y });
+  };
+
+  const handleMouseMove = (e) => {
+    if (!isDragging) return;
+    e.preventDefault();
+    setPos({ x: e.clientX - start.x, y: e.clientY - start.y });
+  };
+
+  return (
+    <div 
+      className="w-full h-full relative overflow-hidden bg-[#050505] cursor-grab active:cursor-grabbing"
+      onWheel={handleWheel}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={() => setIsDragging(false)}
+      onMouseLeave={() => setIsDragging(false)}
+    >
+      {/* Grid Pattern */}
+      <div className="absolute inset-0 pointer-events-none opacity-[0.03]" 
+           style={{ backgroundImage: 'linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)', backgroundSize: '40px 40px', transform: `translate(${pos.x}px, ${pos.y}px) scale(${scale})` }} 
+      />
+
+      {/* Content Layer */}
+      <div 
+        style={{ transform: `translate(${pos.x}px, ${pos.y}px) scale(${scale})`, transformOrigin: '0 0', willChange: 'transform' }}
+        className="absolute top-0 left-0 transition-transform duration-75 ease-out"
+      >
+        {children}
+      </div>
+
+      {/* Controls */}
+      <div className="absolute bottom-8 left-8 flex gap-2 bg-black/50 backdrop-blur-md p-1.5 rounded-lg border border-white/10 shadow-2xl z-50">
+         <button onClick={() => setScale(s => Math.min(s + 0.2, 2))} className="p-2 hover:bg-white/10 rounded text-zinc-400 hover:text-white"><Plus size={16}/></button>
+         <button onClick={() => setScale(s => Math.max(s - 0.2, 0.2))} className="p-2 hover:bg-white/10 rounded text-zinc-400 hover:text-white"><Minus size={16}/></button>
+         <button onClick={() => { setScale(1); setPos({x:50,y:50}); }} className="p-2 hover:bg-white/10 rounded text-zinc-400 hover:text-white"><Maximize size={16}/></button>
+      </div>
+    </div>
+  );
+};
+
+// --- 🌲 MAIN ENGINE ---
+const CARD_WIDTH = 240;
+const CARD_HEIGHT = 100;
+const GAP_X = 100;
+const BASE_GAP_Y = 40;
+
 const Bracket = ({ matches = [], onMatchClick }) => {
-    // Manual Edits (Delta State)
-    const [manualPositions, setManualPositions] = useState({});
-    const [isEditing, setIsEditing] = useState(false);
-    const [isSaving, setIsSaving] = useState(false);
-    
-    // Zoom/Pan State
-    const [scale, setScale] = useState(1);
-    const [viewPos, setViewPos] = useState({ x: 0, y: 0 }); 
-    const [isPanning, setIsPanning] = useState(false);
-    const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  
+  const { nodes, paths, totalWidth, totalHeight } = useMemo(() => {
+    if (!matches.length) return { nodes: [], paths: [], totalWidth: 0, totalHeight: 0 };
 
-    const draggingNodeRef = useRef(null);
-    const nodeOffsetRef = useRef({ x: 0, y: 0 });
+    // 1. DATA AGGREGATION
+    const rounds = {};
+    matches.forEach(m => {
+      const r = m.round_number || 1;
+      if (!rounds[r]) rounds[r] = [];
+      rounds[r].push(m);
+    });
 
-    // --- HYBRID POSITION ENGINE ---
-    const finalPositions = useMemo(() => {
-        const positions = {};
-        if (!matches || matches.length === 0) return {};
+    const roundKeys = Object.keys(rounds).sort((a, b) => Number(a) - Number(b));
+    const calculatedNodes = [];
+    const calculatedPaths = [];
+    const positions = new Map();
 
-        matches.forEach(m => {
-            // 1. Check for Saved DB Position (Strict Number Check)
-            const dbX = Number(m.ui_x);
-            const dbY = Number(m.ui_y);
+    // 2. RECURSIVE POSITIONING MATH (Dubai Standard)
+    roundKeys.forEach((rKey, rIndex) => {
+      const roundMatches = rounds[rKey].sort((a, b) => (a.match_position || 0) - (b.match_position || 0));
+      const x = rIndex * (CARD_WIDTH + GAP_X) + 100; // +100 Padding
 
-            if (Number.isFinite(dbX) && Number.isFinite(dbY)) {
-                positions[m.id] = { x: dbX, y: dbY };
-            } 
-            // 2. Fallback to Hard-Coded Layout
-            else {
-                const r = m.is_third_place ? 99 : Number(m.round_number);
-                const p = Number(m.match_position);
-                positions[m.id] = getFixedPosition(r, p, m.is_third_place);
-            }
+      roundMatches.forEach((match, mIndex) => {
+        let y;
+        
+        if (rIndex === 0) {
+          // Round 1 is the baseline
+          y = mIndex * (CARD_HEIGHT + BASE_GAP_Y) + 100;
+        } else {
+          // Centering logic based on parent nodes
+          // Find the two matches from the previous round that feed into this one
+          const feederIds = matches
+            .filter(m => m.round_number === match.round_number - 1)
+            // Logic: Match 1 & 2 -> Feed Match 1. Match 3 & 4 -> Feed Match 2.
+            .sort((a, b) => a.match_position - b.match_position)
+            .slice(mIndex * 2, (mIndex * 2) + 2) 
+            .map(m => m.id);
+          
+          if (feederIds.length > 0) {
+             const y1 = positions.get(feederIds[0])?.y || 0;
+             const y2 = positions.get(feederIds[feederIds.length - 1])?.y || y1;
+             y = (y1 + y2) / 2;
+          } else {
+             // Fallback for weird BYE structures
+             y = (mIndex * (CARD_HEIGHT + BASE_GAP_Y) * Math.pow(2, rIndex)) + 100;
+          }
+        }
+
+        positions.set(match.id, { x, y });
+
+        calculatedNodes.push({
+          match,
+          style: {
+            position: 'absolute',
+            left: `${x}px`,
+            top: `${y}px`,
+            width: `${CARD_WIDTH}px`,
+            height: `${CARD_HEIGHT}px`,
+            willChange: 'transform'
+          }
         });
+      });
+    });
 
-        // 3. Apply manual overrides (Active Dragging takes precedence)
-        // Warning: manualPositions is cleared on Save, resetting priority to DB
-        return { ...positions, ...manualPositions };
-    }, [matches, manualPositions]);
+    // 3. PATH CONNECTIVITY (SVG CONTEXT)
+    matches.forEach(match => {
+      // Find where this match goes next
+      const nextMatch = matches.find(m => 
+        m.round_number === match.round_number + 1 && 
+        Math.ceil(match.match_position / 2) === m.match_position
+      );
 
-    // --- SAVE HANDLER ---
-    const handleSaveLayout = async () => {
-        setIsSaving(true);
-        try {
-            // 1. Payload is a pure JS Object array. Supabase handles JSON serialization.
-            const payload = Object.keys(finalPositions).map(id => ({
-                id,
-                x: Math.round(finalPositions[id].x), // Integer preferred for DB
-                y: Math.round(finalPositions[id].y)
-            }));
+      if (!nextMatch) return;
+      
+      const start = positions.get(match.id);
+      const end = positions.get(nextMatch.id);
+      if (!start || !end) return;
 
-            // 2. Call RPC
-            const { error } = await supabase.rpc('admin_update_bracket_layout', { p_positions: payload });
-            
-            if (error) throw error;
-            
-            toast.success("Bracket Layout Saved");
-            setIsEditing(false);
-            setManualPositions({}); // IMPORTANT: Clear local delta so DB acts as source of truth
-        } catch (err) {
-            console.error(err);
-            toast.error("Save Failed: " + err.message);
-        } finally {
-            setIsSaving(false);
-        }
-    };
+      const startX = start.x + CARD_WIDTH;
+      const startY = start.y + (CARD_HEIGHT / 2);
+      const endX = end.x;
+      const endY = end.y + (CARD_HEIGHT / 2);
 
-    // --- INTERACTION HANDLERS ---
-    const handleNodeMouseDown = (e, id) => {
-        if (!isEditing) return;
-        e.stopPropagation(); 
-        const pos = finalPositions[id] || { x: 0, y: 0 };
-        draggingNodeRef.current = id;
-        nodeOffsetRef.current = {
-            x: (e.clientX - viewPos.x) / scale - pos.x,
-            y: (e.clientY - viewPos.y) / scale - pos.y
-        };
-    };
+      // Bezier Curvature Calculation
+      const cp1x = startX + (endX - startX) * 0.5;
+      const cp2x = endX - (endX - startX) * 0.5;
 
-    const handleCanvasMouseDown = (e) => {
-        if (isEditing) return; 
-        setIsPanning(true);
-        setDragStart({ x: e.clientX - viewPos.x, y: e.clientY - viewPos.y });
-    };
+      calculatedPaths.push({
+        id: `${match.id}_uplink`,
+        d: `M ${startX} ${startY} C ${cp1x} ${startY}, ${cp2x} ${endY}, ${endX} ${endY}`,
+        isLive: match.status === 'live',
+        isDone: match.status === 'completed'
+      });
+    });
 
-    const handleGlobalMouseMove = (e) => {
-        if (draggingNodeRef.current && isEditing) {
-            const id = draggingNodeRef.current;
-            const rawX = (e.clientX - viewPos.x) / scale - nodeOffsetRef.current.x;
-            const rawY = (e.clientY - viewPos.y) / scale - nodeOffsetRef.current.y;
-            
-            // Snap to 10px Grid
-            const x = Math.round(rawX / 10) * 10;
-            const y = Math.round(rawY / 10) * 10;
+    const totalWidth = roundKeys.length * (CARD_WIDTH + GAP_X);
+    const maxY = Math.max(...Array.from(positions.values()).map(p => p.y), 0) + CARD_HEIGHT;
 
-            setManualPositions(prev => ({ ...prev, [id]: { x, y } }));
-            return;
-        }
-        if (isPanning) {
-            setViewPos({
-                x: e.clientX - dragStart.x,
-                y: e.clientY - dragStart.y
-            });
-        }
-    };
+    return { nodes: calculatedNodes, paths: calculatedPaths, totalWidth, totalHeight: maxY };
 
-    const handleGlobalMouseUp = () => {
-        draggingNodeRef.current = null;
-        setIsPanning(false);
-    };
+  }, [matches]);
 
-    const handleWheel = (e) => {
-        if (e.ctrlKey || e.metaKey) {
-            e.preventDefault();
-            const delta = e.deltaY * -0.001;
-            const newScale = Math.min(Math.max(0.2, scale + delta), 2);
-            setScale(newScale);
-        }
-    };
+  // RENDER: EMPTY STATE
+  if (matches.length === 0) return (
+    <div className="h-full flex flex-col items-center justify-center bg-black">
+        <Zap className="w-12 h-12 text-zinc-800 mb-4" />
+        <span className="text-[10px] text-zinc-600 font-black uppercase tracking-[0.5em]">Nexus Sync Active // Awaiting Bracket</span>
+    </div>
+  );
 
-    // --- RENDER WIRES ---
-    const renderWires = () => {
-        if (!finalPositions || Object.keys(finalPositions).length === 0) return null;
+  return (
+    <ZoomableBracket>
+      <div style={{ 
+        width: Math.max(totalWidth + 400, 2000), 
+        height: Math.max(totalHeight + 400, 1500), 
+        position: 'relative'
+      }}>
+        {/* SVG LINKAGE LAYER */}
+        <svg className="absolute inset-0 w-full h-full pointer-events-none z-0 overflow-visible">
+          <defs>
+            <filter id="glow">
+              <feGaussianBlur stdDeviation="2.5" result="coloredBlur" />
+              <feMerge><feMergeNode in="coloredBlur" /><feMergeNode in="SourceGraphic" /></feMerge>
+            </filter>
+          </defs>
 
-        return matches.map(match => {
-            // STRICT LINKING: Only draw if DB says so. No math guessing.
-            const nextId = match.next_match_id || match.loser_next_match_id;
-            
-            if (!nextId) return null;
-
-            const start = finalPositions[match.id];
-            const end = finalPositions[nextId];
-
-            if (!start || !end) return null;
-
-            const x1 = (start.x || 0) + CARD_WIDTH; 
-            const y1 = (start.y || 0) + (CARD_HEIGHT / 2); 
-            const x2 = (end.x || 0); 
-            const y2 = (end.y || 0) + (CARD_HEIGHT / 2); 
-            const midX = (x1 + x2) / 2;
-
-            const isCompleted = match.status === 'completed';
-
-            return (
-                <path 
-                    key={`${match.id}-${nextId}`}
-                    d={`M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`}
-                    fill="none"
-                    stroke={isCompleted ? "#22d3ee" : "#3f3f46"} 
-                    strokeWidth="2"
-                    strokeDasharray={isCompleted ? "0" : "5,5"} 
-                    className="transition-colors duration-500"
-                />
-            );
-        });
-    };
-
-    if (!matches || matches.length === 0) return (
-        <div className="h-screen flex items-center justify-center text-zinc-500 font-mono flex-col gap-4 bg-black">
-            <AlertCircle className="w-16 h-16 opacity-20 text-yellow-500"/>
-            <span>No Matches Loaded.</span>
-        </div>
-    );
-
-    return (
-        // 🚨 FORCE HEIGHT: h-screen ensures container visibility
-        <div 
-            className="w-full h-screen flex flex-col bg-[#050505] overflow-hidden relative cursor-grab active:cursor-grabbing selection:bg-transparent"
-            onMouseDown={handleCanvasMouseDown}
-            onMouseMove={handleGlobalMouseMove}
-            onMouseUp={handleGlobalMouseUp}
-            onMouseLeave={handleGlobalMouseUp}
-            onWheel={handleWheel}
-        >
-            {/* TOOLBAR */}
-            <div className="absolute top-4 right-4 z-50 flex gap-2">
-                {isEditing ? (
-                    <button 
-                        onClick={handleSaveLayout} 
-                        disabled={isSaving}
-                        className="flex items-center gap-2 px-4 py-2 bg-yellow-600 hover:bg-yellow-500 text-black font-bold uppercase text-xs rounded shadow-lg animate-pulse disabled:opacity-50"
-                    >
-                        {isSaving ? <Loader2 className="animate-spin w-4 h-4"/> : <Save size={14} />}
-                        Save Layout
-                    </button>
-                ) : (
-                    <button 
-                        onClick={() => setIsEditing(true)} 
-                        className="flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white border border-zinc-700 rounded text-xs font-bold uppercase transition-all backdrop-blur-md"
-                    >
-                        <Edit3 size={14} /> Edit Layout
-                    </button>
+          {paths.map(path => (
+            <g key={path.id} className="transition-opacity duration-1000">
+              {/* Background Path (Shadow) */}
+              <path d={path.d} fill="none" stroke="#000" strokeWidth={4} opacity={0.5} />
+              
+              {/* Main Path */}
+              <path
+                d={path.d}
+                fill="none"
+                stroke={path.isLive ? "#c026d3" : path.isDone ? "#3f3f46" : "#27272a"}
+                strokeWidth={path.isLive ? 3 : 2}
+                filter={path.isLive ? "url(#glow)" : ""}
+                className={cn(
+                  "transition-all duration-700",
+                  path.isLive ? "opacity-100" : "opacity-40"
                 )}
-            </div>
+                strokeDasharray={path.isLive ? "8, 4" : "0"}
+              >
+                {path.isLive && (
+                  <animate 
+                    attributeName="stroke-dashoffset" 
+                    from="24" to="0" 
+                    dur="1s" 
+                    repeatCount="indefinite" 
+                  />
+                )}
+              </path>
+            </g>
+          ))}
+        </svg>
 
-            {/* ZOOM CONTROLS */}
-            <div className="absolute bottom-8 left-8 z-50 flex gap-2 bg-black/50 p-1 rounded-lg backdrop-blur-md border border-white/5">
-                <button onClick={() => setScale(s => Math.min(s + 0.2, 2))} className="p-2 hover:bg-white/10 rounded text-white transition-colors"><Plus size={16}/></button>
-                <button onClick={() => setScale(s => Math.max(s - 0.2, 0.2))} className="p-2 hover:bg-white/10 rounded text-white transition-colors"><Minus size={16}/></button>
-                <button onClick={() => { setScale(1); setViewPos({x:0,y:0}); }} className="p-2 hover:bg-white/10 rounded text-white transition-colors"><Maximize size={16}/></button>
-            </div>
-
-            {/* CANVAS - Massive fixed size */}
-            <div 
-                style={{ 
-                    transform: `translate(${viewPos.x}px, ${viewPos.y}px) scale(${scale})`,
-                    transformOrigin: '0 0',
-                    width: '4000px', 
-                    height: '3000px',
-                    position: 'absolute',
-                    top: 0, left: 0
-                }}
-            >
-                {/* 1. Grid Background */}
-                <div 
-                    className="absolute inset-0 pointer-events-none opacity-20"
-                    style={{ backgroundImage: 'radial-gradient(#ffffff 1px, transparent 1px)', backgroundSize: '20px 20px' }}
-                />
-
-                {/* 2. Circuit Wires */}
-                <svg className="absolute inset-0 w-full h-full pointer-events-none z-0 overflow-visible">
-                    {renderWires()}
-                </svg>
-
-                {/* 3. Match Nodes */}
-                {matches.map(match => {
-                    const pos = finalPositions[match.id];
-                    // Final Safe Guard
-                    const x = (pos && Number.isFinite(pos.x)) ? pos.x : 0;
-                    const y = (pos && Number.isFinite(pos.y)) ? pos.y : 0;
-
-                    return (
-                        <MatchCard 
-                            key={match.id}
-                            match={match}
-                            x={x}
-                            y={y}
-                            onDragStart={handleNodeMouseDown}
-                            isEditing={isEditing}
-                            onClick={onMatchClick}
-                        />
-                    );
-                })}
-            </div>
-        </div>
-    );
+        {/* INTERACTIVE NODES LAYER */}
+        {nodes.map(({ match, style }) => (
+          <div key={match.id} style={style} className="z-10">
+            <MatchNode match={match} onClick={onMatchClick} />
+          </div>
+        ))}
+      </div>
+    </ZoomableBracket>
+  );
 };
 
 export default Bracket;

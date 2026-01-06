@@ -1,14 +1,82 @@
 import React, { useState, useRef, useMemo } from 'react';
 import { cn } from '../lib/utils';
-import { Trophy, Shield, Edit3, Save, GripHorizontal, Plus, Minus, Maximize } from 'lucide-react';
+import { Trophy, Shield, Edit3, Save, GripHorizontal, Plus, Minus, Maximize, AlertTriangle } from 'lucide-react';
 
 // --- CONFIGURATION ---
 const CARD_WIDTH = 220;
 const CARD_HEIGHT = 82;
-const COL_SPACING = 300; 
+const COL_SPACING = 320; 
 const ROW_SPACING = 120;
 
-// --- SUB-COMPONENT: CONNECTION NODE ---
+// --- 1. LAYOUT ENGINE (Sanitized) ---
+const calculateLayout = (matches) => {
+    // 1. Safety Check
+    if (!matches || !Array.isArray(matches) || matches.length === 0) return {};
+
+    const positions = {};
+    
+    // 2. Group & Sanitization
+    const rounds = {};
+    matches.forEach(m => {
+        // Force valid numbers. Default to 1 if missing.
+        const rRaw = m.is_third_place ? 99 : Number(m.round_number);
+        const r = isNaN(rRaw) ? 1 : rRaw;
+        
+        if (!rounds[r]) rounds[r] = [];
+        rounds[r].push(m);
+    });
+
+    const roundKeys = Object.keys(rounds).sort((a,b) => Number(a) - Number(b));
+
+    // A. Position Round 1
+    const round1 = rounds[1] || [];
+    round1.sort((a,b) => (Number(a.match_position) || 0) - (Number(b.match_position) || 0));
+    
+    round1.forEach((m) => {
+        const pos = Number(m.match_position) || 1;
+        positions[m.id] = {
+            x: 50,
+            y: (pos - 1) * ROW_SPACING + 50
+        };
+    });
+
+    // B. Position Later Rounds
+    roundKeys.forEach(rKey => {
+        const r = Number(rKey);
+        if (r === 1 || r === 99) return;
+
+        const currentMatches = rounds[r] || [];
+        currentMatches.sort((a,b) => (Number(a.match_position) || 0) - (Number(b.match_position) || 0));
+
+        currentMatches.forEach(m => {
+            const x = 50 + ((r - 1) * COL_SPACING);
+            
+            const power = Math.pow(2, r - 1);
+            const pos = Number(m.match_position) || 1;
+            
+            // Grid Formula
+            const gridY = ((pos - 1) * power) + (power / 2) - 0.5;
+            const y = (gridY * ROW_SPACING) + 50;
+
+            positions[m.id] = { x, y };
+        });
+    });
+
+    // C. Position 3rd Place
+    const thirdPlace = rounds[99]?.[0];
+    if (thirdPlace) {
+        const lastRound = roundKeys.length > 1 ? Number(roundKeys[roundKeys.length - 2]) : 1;
+        positions[thirdPlace.id] = {
+            x: 50 + (lastRound * COL_SPACING),
+            y: (round1.length * ROW_SPACING) + 200
+        };
+    }
+
+    return positions;
+};
+
+// --- 2. SUB-COMPONENTS ---
+
 const NodePoint = ({ type, active }) => (
     <div className={cn(
         "w-3 h-3 rounded-full border-2 absolute top-1/2 -translate-y-1/2 z-20 bg-[#09090b] transition-all",
@@ -17,11 +85,10 @@ const NodePoint = ({ type, active }) => (
     )} />
 );
 
-// --- SUB-COMPONENT: MATCH CARD ---
 const MatchCard = ({ match, x, y, onDragStart, isEditing, onClick }) => {
-    // FORCE RENDER: Even if x/y are weird, default to 0,0 so we see it exists
-    const finalX = isNaN(x) ? 0 : x;
-    const finalY = isNaN(y) ? 0 : y;
+    // 🛡️ CRITICAL FALLBACK: Never let NaN pass to the style
+    const safeX = (typeof x === 'number' && !isNaN(x)) ? x : 0;
+    const safeY = (typeof y === 'number' && !isNaN(y)) ? y : 0;
 
     const isLive = match.status === 'live';
     const isWinner = (id) => match.winner_id === id && match.status === 'completed';
@@ -29,7 +96,7 @@ const MatchCard = ({ match, x, y, onDragStart, isEditing, onClick }) => {
     return (
         <div 
             style={{ 
-                transform: `translate(${finalX}px, ${finalY}px)`, 
+                transform: `translate(${safeX}px, ${safeY}px)`, 
                 width: CARD_WIDTH, 
                 height: CARD_HEIGHT,
                 position: 'absolute',
@@ -43,115 +110,56 @@ const MatchCard = ({ match, x, y, onDragStart, isEditing, onClick }) => {
             onMouseDown={(e) => isEditing && onDragStart(e, match.id)}
             onClick={() => !isEditing && onClick(match)}
         >
-            {/* Input Node (Not for Round 1) */}
-            {Number(match.round_number) > 1 && <NodePoint type="input" active={match.status !== 'scheduled'} />}
+            {/* Input Node */}
+            {(Number(match.round_number) || 1) > 1 && <NodePoint type="input" active={match.status !== 'scheduled'} />}
             
             {/* Header */}
             <div className="flex justify-between items-center px-3 py-1 bg-zinc-900/80 border-b border-zinc-800 text-[9px] font-mono uppercase text-zinc-500 select-none">
                 <span className="flex items-center gap-2">
                     {isEditing && <GripHorizontal size={10} className="text-yellow-500"/>}
-                    {match.is_third_place ? "3RD PLACE" : `M${match.match_position} • R${match.round_number}`}
+                    {match.is_third_place ? "3RD PLACE" : `M${match.match_position || '?'} • R${match.round_number || '?'}`}
                 </span>
                 {isLive && <span className="text-red-500 font-bold animate-pulse">● LIVE</span>}
             </div>
 
             {/* Teams */}
             <div className="flex-1 flex flex-col justify-center relative">
-                {/* Team 1 */}
                 <div className={cn("flex justify-between items-center px-3 h-6 transition-colors", isWinner(match.team1_id) ? "text-cyan-400" : "text-zinc-400")}>
                     <span className="text-xs font-bold truncate w-32">{match.team1?.name || 'TBD'}</span>
                     <span className="text-xs font-mono">{match.team1_score}</span>
                 </div>
-                {/* Team 2 */}
                 <div className={cn("flex justify-between items-center px-3 h-6 transition-colors", isWinner(match.team2_id) ? "text-cyan-400" : "text-zinc-400")}>
                     <span className="text-xs font-bold truncate w-32">{match.team2?.name || 'TBD'}</span>
                     <span className="text-xs font-mono">{match.team2_score}</span>
                 </div>
             </div>
 
-            {/* Output Node (Not for Finals/3rd) */}
+            {/* Output Node */}
             {!match.is_third_place && <NodePoint type="output" active={match.status === 'completed'} />}
         </div>
     );
 };
 
-// --- MAIN COMPONENT ---
+// --- 3. MAIN COMPONENT ---
 const Bracket = ({ matches = [], onMatchClick }) => {
-    // 1. EDIT STATE (Manual Overrides)
+    // State
     const [manualPositions, setManualPositions] = useState({});
     const [isEditing, setIsEditing] = useState(false);
     
     // Zoom/Pan
     const [scale, setScale] = useState(1);
-    const [viewPos, setViewPos] = useState({ x: 50, y: 50 }); 
+    const [viewPos, setViewPos] = useState({ x: 0, y: 0 }); 
     const [isPanning, setIsPanning] = useState(false);
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
     const draggingNodeRef = useRef(null);
     const nodeOffsetRef = useRef({ x: 0, y: 0 });
 
-    // 2. AUTO-CALCULATE LAYOUT (Memoized - Runs Instantly)
+    // --- AUTO-CALCULATION (Memoized) ---
     const finalPositions = useMemo(() => {
-        if (!matches || matches.length === 0) return {};
-
-        const calculated = {};
-        const rounds = {};
-
-        // A. Group by Round
-        matches.forEach(m => {
-            const r = m.is_third_place ? 99 : Number(m.round_number);
-            if (!rounds[r]) rounds[r] = [];
-            rounds[r].push(m);
-        });
-
-        const roundKeys = Object.keys(rounds).sort((a,b) => Number(a) - Number(b));
-
-        // B. Position Round 1
-        const round1 = rounds[1] || [];
-        round1.sort((a,b) => Number(a.match_position) - Number(b.match_position));
-        
-        round1.forEach((m) => {
-            const pos = Number(m.match_position);
-            calculated[m.id] = {
-                x: 0,
-                y: (pos - 1) * ROW_SPACING
-            };
-        });
-
-        // C. Position Later Rounds
-        roundKeys.forEach(rKey => {
-            const r = Number(rKey);
-            if (r === 1 || r === 99) return;
-
-            const currentMatches = rounds[r] || [];
-            currentMatches.sort((a,b) => Number(a.match_position) - Number(b.match_position));
-
-            currentMatches.forEach(m => {
-                const x = (r - 1) * COL_SPACING;
-                
-                // Math: Calculate Y based on tree structure to center it
-                const power = Math.pow(2, r - 1);
-                const pos = Number(m.match_position);
-                const gridY = ((pos - 1) * power) + (power / 2) - 0.5;
-                const y = gridY * ROW_SPACING;
-
-                calculated[m.id] = { x, y };
-            });
-        });
-
-        // D. Position 3rd Place
-        const thirdPlace = rounds[99]?.[0];
-        if (thirdPlace) {
-            const lastRound = roundKeys.length > 1 ? Number(roundKeys[roundKeys.length - 2]) : 1;
-            calculated[thirdPlace.id] = {
-                x: lastRound * COL_SPACING, 
-                y: (round1.length * ROW_SPACING) + 150
-            };
-        }
-
-        // E. MERGE: Override calculated positions with any manual drags
+        const calculated = calculateLayout(matches);
+        // Merge manual overrides
         return { ...calculated, ...manualPositions };
-
     }, [matches, manualPositions]);
 
     // --- INTERACTION HANDLERS ---
@@ -182,7 +190,7 @@ const Bracket = ({ matches = [], onMatchClick }) => {
             const x = Math.round(rawX / 20) * 20;
             const y = Math.round(rawY / 20) * 20;
 
-            // Update MANUAL positions only
+            // Save to manual positions
             setManualPositions(prev => ({ ...prev, [id]: { x, y } }));
             return;
         }
@@ -210,32 +218,34 @@ const Bracket = ({ matches = [], onMatchClick }) => {
 
     // --- RENDER WIRES ---
     const renderWires = () => {
-        // If we have no positions, we can't draw wires
-        if (Object.keys(finalPositions).length === 0) return null;
+        if (!finalPositions || Object.keys(finalPositions).length === 0) return null;
 
         return matches.map(match => {
             let nextMatchId = match.next_match_id;
             
             // Auto Linker
             if (!nextMatchId && !match.is_third_place) {
-                const r = Number(match.round_number);
-                const pos = Number(match.match_position);
-                const next = matches.find(m => Number(m.round_number) === r + 1 && Number(m.match_position) === Math.ceil(pos / 2));
+                const r = Number(match.round_number) || 1;
+                const pos = Number(match.match_position) || 1;
+                const nextR = r + 1;
+                const nextPos = Math.ceil(pos / 2);
+                
+                const next = matches.find(m => (Number(m.round_number) || 0) === nextR && (Number(m.match_position) || 0) === nextPos);
                 if (next) nextMatchId = next.id;
             }
 
             if (!nextMatchId && match.loser_next_match_id) nextMatchId = match.loser_next_match_id;
 
-            // Need start AND end positions
             const start = finalPositions[match.id];
             const end = finalPositions[nextMatchId];
 
             if (!start || !end) return null;
 
-            const x1 = start.x + CARD_WIDTH; 
-            const y1 = start.y + (CARD_HEIGHT / 2); 
-            const x2 = end.x; 
-            const y2 = end.y + (CARD_HEIGHT / 2); 
+            // Ensure no NaNs in wire path
+            const x1 = (start.x || 0) + CARD_WIDTH; 
+            const y1 = (start.y || 0) + (CARD_HEIGHT / 2); 
+            const x2 = (end.x || 0); 
+            const y2 = (end.y || 0) + (CARD_HEIGHT / 2); 
             const midX = (x1 + x2) / 2;
 
             const isCompleted = match.status === 'completed';
@@ -262,17 +272,19 @@ const Bracket = ({ matches = [], onMatchClick }) => {
         });
     };
 
-    // --- RENDER SCREEN ---
+    // --- BOUNDS CALCULATION (CRITICAL FIX) ---
+    // Calculate dimensions based on positions
+    // If no positions, default to 2000x2000 to prevent 0x0 collapse
+    const allX = Object.values(finalPositions).map(p => p.x).filter(n => !isNaN(n));
+    const allY = Object.values(finalPositions).map(p => p.y).filter(n => !isNaN(n));
     
-    // Bounds Calculation
-    const allX = Object.values(finalPositions).map(p => p.x);
-    const allY = Object.values(finalPositions).map(p => p.y);
-    const maxX = allX.length ? Math.max(...allX) + CARD_WIDTH + 500 : 2000;
-    const maxY = allY.length ? Math.max(...allY) + CARD_HEIGHT + 500 : 1500;
+    const maxX = allX.length > 0 ? Math.max(...allX) + CARD_WIDTH + 500 : 2000;
+    const maxY = allY.length > 0 ? Math.max(...allY) + CARD_HEIGHT + 500 : 1500;
 
+    // --- RENDER ---
     if (!matches || matches.length === 0) return (
         <div className="h-full flex items-center justify-center text-zinc-500 font-mono flex-col gap-4">
-            <Trophy className="w-16 h-16 opacity-20"/>
+            <AlertTriangle className="w-16 h-16 opacity-20 text-yellow-500"/>
             <span>No Matches Found in Bracket.</span>
         </div>
     );
@@ -286,7 +298,7 @@ const Bracket = ({ matches = [], onMatchClick }) => {
             onMouseLeave={handleGlobalMouseUp}
             onWheel={handleWheel}
         >
-            {/* CONTROLS */}
+            {/* TOOLBAR */}
             <div className="absolute top-4 right-4 z-50 flex gap-2">
                 {isEditing ? (
                     <button 
@@ -305,10 +317,11 @@ const Bracket = ({ matches = [], onMatchClick }) => {
                 )}
             </div>
 
+            {/* ZOOM */}
             <div className="absolute bottom-8 left-8 z-50 flex gap-2 bg-black/50 p-1 rounded-lg backdrop-blur-md border border-white/5">
                 <button onClick={() => setScale(s => Math.min(s + 0.2, 2))} className="p-2 hover:bg-white/10 rounded text-white transition-colors"><Plus size={16}/></button>
                 <button onClick={() => setScale(s => Math.max(s - 0.2, 0.2))} className="p-2 hover:bg-white/10 rounded text-white transition-colors"><Minus size={16}/></button>
-                <button onClick={() => { setScale(1); setViewPos({x:50,y:50}); }} className="p-2 hover:bg-white/10 rounded text-white transition-colors"><Maximize size={16}/></button>
+                <button onClick={() => { setScale(1); setViewPos({x:0,y:0}); }} className="p-2 hover:bg-white/10 rounded text-white transition-colors"><Maximize size={16}/></button>
             </div>
 
             {/* CANVAS */}
@@ -316,7 +329,7 @@ const Bracket = ({ matches = [], onMatchClick }) => {
                 style={{ 
                     transform: `translate(${viewPos.x}px, ${viewPos.y}px) scale(${scale})`,
                     transformOrigin: '0 0',
-                    width: maxX, 
+                    width: maxX, // Uses sanitized bounds
                     height: maxY,
                     position: 'absolute',
                     top: 0, left: 0
@@ -336,9 +349,9 @@ const Bracket = ({ matches = [], onMatchClick }) => {
                 {/* 3. Match Nodes */}
                 {matches.map(match => {
                     const pos = finalPositions[match.id];
-                    // IMPORTANT: If pos is somehow undefined (shouldn't be), render at 0,0
-                    const x = pos ? pos.x : 0;
-                    const y = pos ? pos.y : 0;
+                    // Final Safe Guard: Fallback to 0,0
+                    const x = (pos && !isNaN(pos.x)) ? pos.x : 0;
+                    const y = (pos && !isNaN(pos.y)) ? pos.y : 0;
 
                     return (
                         <MatchCard 

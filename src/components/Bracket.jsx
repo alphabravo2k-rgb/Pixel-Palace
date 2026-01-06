@@ -1,6 +1,6 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react'; // ✅ Added useEffect
 import { cn } from '../lib/utils';
-import { Trophy, Shield, Edit3, Save, GripHorizontal, Plus, Minus, Maximize, AlertCircle } from 'lucide-react';
+import { Trophy, Shield, Edit3, Save, GripHorizontal, Plus, Minus, Maximize } from 'lucide-react';
 
 // --- CONFIGURATION ---
 const CARD_WIDTH = 220;
@@ -55,17 +55,7 @@ const calculateDefaultLayout = (matches) => {
             const x = (r - 1) * COL_SPACING;
             
             // Expected Logic: Match N in Round R is fed by (2N-1) and (2N) from Round R-1
-            // We calculate the Y "Target" based on the grid structure, regardless of whether feeders exist
-            
-            // Standard slot position in a binary tree:
-            // R1: 0, 1, 2, 3...
-            // R2: 0.5, 2.5, 4.5... (Centered between 0&1, 2&3)
-            // R3: 1.5, 5.5... (Centered between R2s)
-            
             // Formula for center of slot N in Round R:
-            // Step size doubles every round: 1, 2, 4...
-            // Offset increases: 0, 0.5, 1.5...
-            
             const power = Math.pow(2, r - 1);
             const offset = (power / 2) - 0.5;
             const step = power;
@@ -158,13 +148,13 @@ const MatchCard = ({ match, x, y, onDragStart, isEditing, onClick }) => {
 
 // --- MAIN COMPONENT ---
 const Bracket = ({ matches = [], onMatchClick }) => {
-    // Initialize State with Default Layout immediately to prevent blank screen
+    // Initialize State with Default Layout immediately
     const [positions, setPositions] = useState(() => calculateDefaultLayout(matches));
     const [isEditing, setIsEditing] = useState(false);
     
     // Zoom/Pan State
     const [scale, setScale] = useState(1);
-    const [viewPos, setViewPos] = useState({ x: 100, y: 100 }); // Start with padding
+    const [viewPos, setViewPos] = useState({ x: 100, y: 100 }); 
     const [isPanning, setIsPanning] = useState(false);
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
@@ -173,7 +163,6 @@ const Bracket = ({ matches = [], onMatchClick }) => {
     const nodeOffsetRef = useRef({ x: 0, y: 0 });
 
     // Update positions if matches change dramatically (e.g. regen bracket)
-    // We only update if the IDs don't match our current positions map
     useEffect(() => {
         if (!matches.length) return;
         const currentIds = Object.keys(positions);

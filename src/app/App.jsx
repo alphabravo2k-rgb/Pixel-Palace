@@ -1,70 +1,101 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { RouterProvider } from 'react-router-dom';
 
-// ✅ SAFE IMPORTS
+// ✅ CORE MODULES
 import { SessionProvider, useSession } from '../auth/useSession';
 import { TournamentProvider } from '../tournament/useTournament';
-import ErrorBoundary from '../components/common/ErrorBoundary';
-import { supabase } from '../supabase/client'; 
+import { supabase } from '../supabase/client';
 import { router } from './router';
 
-// ✅ CSS Import (Ensure this exists in your project root)
-import '../index.css';
-
-// 🎨 THEME MANAGER (Dynamic Brand Colors)
+/**
+ * 🎨 THEME ENGINE: HARDWARE ACCELERATED
+ * -------------------------------------
+ * Fetches the active tournament's branding and injects it directly 
+ * into the CSS Root Variables.
+ */
 const ThemeManager = () => {
   useEffect(() => {
-    const fetchTheme = async () => {
+    const syncTheme = async () => {
       try {
         const { data } = await supabase
           .from('tournaments')
-          .select('theme_color, theme_color_dim, theme_color_glow') 
+          .select('theme_color, theme_color_dim, theme_color_glow')
           .eq('is_active', true)
-          .maybeSingle(); 
+          .maybeSingle();
 
         if (data?.theme_color) {
           const root = document.documentElement;
-          
-          // Helper: Convert HEX to RGB "r g b" string for Tailwind opacity support
+
+          // Helper: Hex to Space-Separated RGB (for Tailwind Opacity)
           const toRGB = (hex) => {
-             if (!hex) return '192 38 211'; // Default Fuchsia
-             const cleanHex = hex.replace('#', '');
-             const r = parseInt(cleanHex.substring(0, 2), 16);
-             const g = parseInt(cleanHex.substring(2, 4), 16);
-             const b = parseInt(cleanHex.substring(4, 6), 16);
-             return `${r} ${g} ${b}`;
+            if (!hex) return '192 38 211'; // Default Fuchsia
+            const cleanHex = hex.replace('#', '');
+            const r = parseInt(cleanHex.substring(0, 2), 16);
+            const g = parseInt(cleanHex.substring(2, 4), 16);
+            const b = parseInt(cleanHex.substring(4, 6), 16);
+            return `${r} ${g} ${b}`;
           };
 
-          console.log(`🎨 Theme Loaded: ${data.theme_color}`);
+          // 💉 INJECTION: Must match tailwind.config.js exactly!
           root.style.setProperty('--color-brand', toRGB(data.theme_color));
           root.style.setProperty('--color-brand-dim', data.theme_color_dim ? toRGB(data.theme_color_dim) : toRGB(data.theme_color));
           root.style.setProperty('--color-brand-glow', data.theme_color_glow ? toRGB(data.theme_color_glow) : toRGB(data.theme_color));
+          
+          console.log(`%c 🎨 THEME SYNC: [${data.theme_color}]`, "color: #10b981; font-weight: bold;");
         }
       } catch (e) {
-        console.warn("Theme Sync Warning:", e);
+        console.warn("⚠️ Theme Sync Warning:", e);
       }
     };
-    fetchTheme();
+
+    syncTheme();
   }, []);
-  return null; 
+
+  return null; // Invisible Component
 };
 
-// 🛑 THE GATEKEEPER (Prevents Auth Flicker)
-const SessionGate = ({ children }) => {
-  const { session } = useSession(); 
+/**
+ * 🛑 SYSTEM GATE: THE BOOT SEQUENCE
+ * ---------------------------------
+ * Prevents the app from flashing "Login" screens while checking 
+ * if the user is actually logged in.
+ */
+const SystemGate = ({ children }) => {
+  const { session, isLoading } = useSession();
+  const [minLoadTimePassed, setMinLoadTimePassed] = useState(false);
 
-  // If the provider hasn't initialized the object, wait.
-  if (!session) return null;
+  // 🧠 UX TRICK: Force the loader to show for at least 800ms 
+  // This prevents a "flash" of the loader that looks like a glitch.
+  useEffect(() => {
+    const timer = setTimeout(() => setMinLoadTimePassed(true), 800);
+    return () => clearTimeout(timer);
+  }, []);
 
-  // If the session logic is still running checks, show boot screen.
-  if (!session.isReady) {
+  const isBooting = isLoading || !minLoadTimePassed;
+
+  if (isBooting) {
     return (
-      <div className="h-screen w-full bg-[#050505] flex flex-col items-center justify-center space-y-4">
-        <div className="relative">
-           <div className="w-16 h-16 border-4 border-zinc-800 border-t-fuchsia-600 rounded-full animate-spin"></div>
-        </div>
-        <div className="text-zinc-500 font-mono text-xs uppercase tracking-widest animate-pulse">
-           System Boot...
+      <div className="h-screen w-full bg-[#050505] flex flex-col items-center justify-center relative overflow-hidden">
+        {/* Background Atmosphere */}
+        <div className="absolute inset-0 scanlines opacity-10 pointer-events-none" />
+        
+        <div className="relative z-10 flex flex-col items-center">
+          {/* Spinner */}
+          <div className="w-16 h-16 border-2 border-brand/20 border-t-brand rounded-full animate-spin shadow-[0_0_30px_rgba(var(--color-brand),0.3)]" />
+          
+          {/* Text */}
+          <div className="mt-8 flex flex-col items-center gap-2">
+            <span className="text-white font-display font-bold text-2xl tracking-widest uppercase">
+              Pixel Palace
+            </span>
+            <div className="flex items-center gap-3">
+               <div className="h-[1px] w-8 bg-zinc-800" />
+               <span className="text-brand-glow font-mono text-[10px] uppercase tracking-[0.3em] animate-pulse">
+                 Establishing Uplink...
+               </span>
+               <div className="h-[1px] w-8 bg-zinc-800" />
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -73,18 +104,22 @@ const SessionGate = ({ children }) => {
   return children;
 };
 
+/**
+ * 🏛️ APP CORE
+ */
 function App() {
   return (
-    <ErrorBoundary>
+    <>
       <ThemeManager />
       <SessionProvider>
-        <SessionGate>
-           <TournamentProvider>
-              <RouterProvider router={router} />
-           </TournamentProvider>
-        </SessionGate>
+        <SystemGate>
+          <TournamentProvider>
+             {/* 🗺️ THE MAP */}
+             <RouterProvider router={router} />
+          </TournamentProvider>
+        </SystemGate>
       </SessionProvider>
-    </ErrorBoundary>
+    </>
   );
 }
 

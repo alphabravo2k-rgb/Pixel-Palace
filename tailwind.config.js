@@ -16,7 +16,7 @@ export default {
       variants: ['hover', 'group-hover', 'focus-within', 'before', 'after', 'data-[state=open]'],
     },
     // Ensure animation utilities are never purged
-    'animate-pulse-fast', 'animate-glitch', 'animate-scanline'
+    'animate-pulse-fast', 'animate-glitch', 'animate-scanline', 'animate-flicker'
   ],
 
   theme: {
@@ -91,6 +91,7 @@ export default {
 
       boxShadow: {
         'neon': '0 0 25px -5px rgb(var(--color-brand) / 0.6)',
+        'neon-purple': '0 0 25px -5px rgba(217,70,239, 0.6)', // Fuchsia specific
         'glass': '0 8px 32px 0 rgba(0, 0, 0, 0.45)',
         'inner-glow': 'inset 0 0 20px rgb(var(--color-brand) / 0.15)',
         'card-hover': '0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.4)',
@@ -103,7 +104,9 @@ export default {
         'scanline': 'scanline 8s linear infinite',
         'pulse-fast': 'pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         'float': 'float 6s ease-in-out infinite',
-        'shimmer': 'shimmer 2s linear infinite', // For Loading Skeletons
+        'shimmer': 'shimmer 2s linear infinite',
+        'flicker': 'flicker 3s linear infinite',
+        'scan': 'scan 2s linear infinite', // For protocol selector line
       },
       
       keyframes: {
@@ -128,6 +131,15 @@ export default {
         shimmer: {
           '0%': { backgroundPosition: '-200% 0' },
           '100%': { backgroundPosition: '200% 0' },
+        },
+        flicker: {
+          '0%, 19.999%, 22%, 62.999%, 64%, 64.999%, 70%, 100%': { opacity: '0.99' },
+          '20%, 21.999%, 63%, 63.999%, 65%, 69.999%': { opacity: '0.4' },
+        },
+        scan: {
+          '0%': { left: '-100%' },
+          '50%': { left: '100%' },
+          '100%': { left: '100%' },
         }
       },
 

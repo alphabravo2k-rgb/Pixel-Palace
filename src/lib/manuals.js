@@ -2,18 +2,18 @@
  * 📘 PIXEL PALACE: KNOWLEDGE MATRIX
  * --------------------------------
  * STATUS: MASTERED (DUBAI STANDARD)
- * PURPOSE: Role-specific operational guides.
- * ARCHITECTURE: Content is separated from UI for easy updates.
+ * VERSION: 2.0.0
+ * PURPOSE: Central repository for all Standard Operating Procedures (SOPs).
  */
 
 export const MANUALS = {
-  // --- LVL 0: UNVERIFIED ---
+  // --- LVL 0: PUBLIC ---
   guest: {
     title: "Civilian Access Protocol",
     description: "Restricted Access Terminal",
     short: [
-      { step: 1, text: "Obtain a Team Access Code from your Captain." },
-      { step: 2, text: "Enter the 6-digit PIN on the Login Screen." },
+      { step: 1, text: "Obtain a Team Access PIN from your Captain." },
+      { step: 2, text: "Enter the 6-digit PIN on the Login Terminal." },
       { step: 3, text: "Authenticate to enter the Tournament Dashboard." }
     ],
     detailed: `
@@ -30,7 +30,7 @@ export const MANUALS = {
     `
   },
 
-  // --- LVL 1: VIEWERS ---
+  // --- LVL 1: OBSERVER ---
   spectator: {
     title: "Spectator Telemetry",
     description: "Premium Observation Suite",
@@ -51,7 +51,7 @@ export const MANUALS = {
     `
   },
 
-  // --- LVL 2: COMPETITORS ---
+  // --- LVL 2: OPERATOR ---
   player: {
     title: "Operator Field Manual",
     description: "Standard Combat Protocols",
@@ -74,7 +74,7 @@ export const MANUALS = {
     `
   },
 
-  // --- LVL 3: RECRUITERS ---
+  // --- LVL 3: INTELLIGENCE ---
   scout: {
     title: "Talent Acquisition Interface",
     description: "Deep Data Access",
@@ -95,7 +95,7 @@ export const MANUALS = {
     `
   },
 
-  // --- LVL 4: TEAM LEADERS ---
+  // --- LVL 4: COMMANDER ---
   captain: {
     title: "Squad Command Interface",
     description: "Unit Management & Tactics",
@@ -120,7 +120,7 @@ export const MANUALS = {
     `
   },
 
-  // --- LVL 5: CONTENT CREATORS ---
+  // --- LVL 5: MEDIA ---
   streamer: {
     title: "Broadcast Partner Kit",
     description: "Media Assets & Feeds",
@@ -142,7 +142,7 @@ export const MANUALS = {
     `
   },
 
-  // --- LVL 6: STAFF ---
+  // --- LVL 6: SUPPORT ---
   crew: {
     title: "Operations Crew Handbook",
     description: "Support & Mediation",
@@ -161,7 +161,7 @@ export const MANUALS = {
     `
   },
 
-  // --- LVL 7: TALENT ---
+  // --- LVL 7: VOICE ---
   caster: {
     title: "Production Uplink",
     description: "Voice of the Arena",
@@ -181,7 +181,7 @@ export const MANUALS = {
     `
   },
 
-  // --- LVL 8: HOSTS ---
+  // --- LVL 8: ARCHITECT ---
   organizer: {
     title: "Tournament Director Log",
     description: "Event Architecture",
@@ -201,7 +201,7 @@ export const MANUALS = {
     `
   },
 
-  // --- LVL 9: ADMINS ---
+  // --- LVL 9: OVERSEER ---
   admin: {
     title: "System Overseer Manual",
     description: "Full Operational Control",

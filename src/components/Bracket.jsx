@@ -322,19 +322,25 @@ const Bracket = ({ matches = [], onMatchClick }) => {
                     width: maxX, 
                     height: maxY,
                     position: 'absolute',
-                    top: 0, left: 0
+                    top: 0, 
+                    left: 0
                 }}
             >
-                {/* 1. Grid */}
-                <div className="absolute inset-0 pointer-events-none opacity-20"
-                    style={{ backgroundImage: 'radial-gradient(#ffffff 1px, transparent 1px)', backgroundSize: '20px 20px' }} />
+                {/* 1. Grid Background */}
+                <div 
+                    className="absolute inset-0 pointer-events-none opacity-20"
+                    style={{ 
+                        backgroundImage: 'radial-gradient(#ffffff 1px, transparent 1px)', 
+                        backgroundSize: '20px 20px'
+                    }}
+                />
 
-                {/* 2. Wires */}
+                {/* 2. Circuit Wires */}
                 <svg className="absolute inset-0 w-full h-full pointer-events-none z-0 overflow-visible">
                     {renderWires()}
                 </svg>
 
-                {/* 3. Nodes */}
+                {/* 3. Match Nodes */}
                 {matches.map(match => {
                     const pos = positions[match.id];
                     // Fallback Render if position missing (prevents crash)

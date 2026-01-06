@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { supabase } from '../supabase/client';
 import { cn } from '../lib/utils';
 import { Trophy, Shield, Edit3, Save, GripHorizontal, Plus, Minus, Maximize, AlertCircle, Loader2 } from 'lucide-react';
@@ -10,21 +10,26 @@ const CARD_HEIGHT = 82;
 const COL_SPACING = 350; 
 const ROW_SPACING = 110;
 
-// --- 1. HARD-CODED DEFAULTS (The Fallback) ---
+// --- 1. FALLBACK LAYOUT ENGINE (The "Safe Mode") ---
 // Used ONLY when a match has no saved ui_x/ui_y in the DB.
+// This hardcodes the look of a 25-team bracket (9 -> 8 -> 4 -> 2 -> 1).
 const getFixedPosition = (round, position, isThirdPlace) => {
+    // 3rd Place Match: Bottom Right
     if (isThirdPlace) return { x: 1600, y: 1200 };
 
-    const r = Number(round);
-    const p = Number(position);
-    const x = (r - 1) * COL_SPACING + 50;
-    let y = 0;
+    const r = Number(round) || 1;
+    const p = Number(position) || 1;
 
-    if (r === 1)      y = (p - 1) * ROW_SPACING * 1.5 + 50; 
+    // X Coordinates (Columns)
+    const x = (r - 1) * COL_SPACING + 50;
+
+    let y = 0;
+    // Y Coordinates (Rows) - Manually tuned for 25-team visual balance
+    if (r === 1)      y = (p - 1) * (ROW_SPACING * 1.5) + 50; 
     else if (r === 2) y = (p - 1) * (ROW_SPACING * 2) + 50;
     else if (r === 3) y = (p - 1) * (ROW_SPACING * 4) + 160;
     else if (r === 4) y = (p - 1) * (ROW_SPACING * 8) + 380;
-    else if (r === 5) y = 380 + 200;
+    else if (r === 5) y = 380 + 200; // Finals
 
     return { x, y };
 };
@@ -40,7 +45,7 @@ const NodePoint = ({ type, active }) => (
 
 // --- SUB-COMPONENT: MATCH CARD ---
 const MatchCard = ({ match, x, y, onDragStart, isEditing, onClick }) => {
-    // Safety Fallback for rendering
+    // 🛡️ CRITICAL FALLBACK: If coordinates are NaN, snap to 0,0 to prevent crash
     const safeX = (typeof x === 'number' && !isNaN(x)) ? x : 0;
     const safeY = (typeof y === 'number' && !isNaN(y)) ? y : 0;
 
@@ -54,6 +59,7 @@ const MatchCard = ({ match, x, y, onDragStart, isEditing, onClick }) => {
                 width: CARD_WIDTH, 
                 height: CARD_HEIGHT,
                 position: 'absolute',
+                // Instant snap when editing, smooth glide when auto-layout updates
                 transition: isEditing ? 'none' : 'transform 0.3s ease-out' 
             }}
             className={cn(
@@ -64,7 +70,7 @@ const MatchCard = ({ match, x, y, onDragStart, isEditing, onClick }) => {
             onMouseDown={(e) => isEditing && onDragStart(e, match.id)}
             onClick={() => !isEditing && onClick(match)}
         >
-            {/* Input Node */}
+            {/* Input Node (Not for Round 1) */}
             {(Number(match.round_number) || 1) > 1 && <NodePoint type="input" active={match.status !== 'scheduled'} />}
             
             {/* Header */}
@@ -88,7 +94,7 @@ const MatchCard = ({ match, x, y, onDragStart, isEditing, onClick }) => {
                 </div>
             </div>
 
-            {/* Output Node */}
+            {/* Output Node (Not for Finals/3rd) */}
             {!match.is_third_place && <NodePoint type="output" active={match.status === 'completed'} />}
         </div>
     );
@@ -101,7 +107,7 @@ const Bracket = ({ matches = [], onMatchClick }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     
-    // Zoom/Pan
+    // Zoom/Pan State
     const [scale, setScale] = useState(1);
     const [viewPos, setViewPos] = useState({ x: 0, y: 0 }); 
     const [isPanning, setIsPanning] = useState(false);
@@ -110,21 +116,18 @@ const Bracket = ({ matches = [], onMatchClick }) => {
     const draggingNodeRef = useRef(null);
     const nodeOffsetRef = useRef({ x: 0, y: 0 });
 
-    // --- POSITION CALCULATION ---
+    // --- HYBRID POSITION ENGINE ---
+    // Combines: Saved DB Positions + Manual Dragging + Fallback Logic
     const finalPositions = useMemo(() => {
         const positions = {};
         if (!matches || matches.length === 0) return {};
 
         matches.forEach(m => {
-            // 1. Check for Saved DB Position
-            if (m.ui_x !== null && m.ui_y !== null) {
-                positions[m.id] = { x: m.ui_x, y: m.ui_y };
+            // 1. Check for Saved DB Position (Highest Priority)
+            if (m.ui_x !== null && m.ui_y !== null && m.ui_x !== undefined) {
+                positions[m.id] = { x: Number(m.ui_x), y: Number(m.ui_y) };
             } 
-            // 2. Check for Active Drag Position (Override)
-            else if (manualPositions[m.id]) {
-                positions[m.id] = manualPositions[m.id];
-            }
-            // 3. Fallback to Hard-Coded Layout
+            // 2. Fallback to Hard-Coded Layout (If no save exists)
             else {
                 const r = m.is_third_place ? 99 : Number(m.round_number);
                 const p = Number(m.match_position);
@@ -132,32 +135,32 @@ const Bracket = ({ matches = [], onMatchClick }) => {
             }
         });
 
-        // Apply manual overrides on top of everything for live dragging
+        // 3. Apply manual overrides (for live dragging)
         return { ...positions, ...manualPositions };
     }, [matches, manualPositions]);
 
-    // --- SAVE HANDLER ---
+    // --- SAVE HANDLER (Correct JSONB) ---
     const handleSaveLayout = async () => {
         setIsSaving(true);
         try {
-            // Prepare payload
+            // 1. Construct valid JSON object array (Supabase handles serialization)
             const payload = Object.keys(finalPositions).map(id => ({
                 id,
-                x: finalPositions[id].x,
-                y: finalPositions[id].y
+                x: Math.round(finalPositions[id].x), // Ensure integer
+                y: Math.round(finalPositions[id].y)
             }));
 
+            // 2. Call the RPC (Ensure this function exists in Postgres)
             const { error } = await supabase.rpc('admin_update_bracket_layout', { p_positions: payload });
             
             if (error) throw error;
             
             toast.success("Bracket Layout Saved");
             setIsEditing(false);
-            setManualPositions({}); // Clear local state, next render will use DB data
-            // Trigger parent refresh if possible, or assume optimisic update via props
+            setManualPositions({}); // Clear local state, DB state takes over
         } catch (err) {
             console.error(err);
-            toast.error("Failed to save layout: " + err.message);
+            toast.error("Save Failed: " + err.message);
         } finally {
             setIsSaving(false);
         }
@@ -216,25 +219,25 @@ const Bracket = ({ matches = [], onMatchClick }) => {
         }
     };
 
-    // --- STRICT WIRE RENDERER ---
+    // --- RENDER WIRES (Strict Mode) ---
     const renderWires = () => {
         if (!finalPositions || Object.keys(finalPositions).length === 0) return null;
 
         return matches.map(match => {
-            // STRICT MODE: ONLY DRAW DB CONNECTIONS
+            // STRICT LINKING: Only draw if DB says so
             const nextId = match.next_match_id || match.loser_next_match_id;
-
-            if (!nextId) return null; // No guess work.
+            
+            if (!nextId) return null; // No magic guessing!
 
             const start = finalPositions[match.id];
             const end = finalPositions[nextId];
 
             if (!start || !end) return null;
 
-            const x1 = start.x + CARD_WIDTH; 
-            const y1 = start.y + (CARD_HEIGHT / 2); 
-            const x2 = end.x; 
-            const y2 = end.y + (CARD_HEIGHT / 2); 
+            const x1 = (start.x || 0) + CARD_WIDTH; 
+            const y1 = (start.y || 0) + (CARD_HEIGHT / 2); 
+            const x2 = (end.x || 0); 
+            const y2 = (end.y || 0) + (CARD_HEIGHT / 2); 
             const midX = (x1 + x2) / 2;
 
             const isCompleted = match.status === 'completed';
@@ -256,11 +259,12 @@ const Bracket = ({ matches = [], onMatchClick }) => {
     if (!matches || matches.length === 0) return (
         <div className="h-screen flex items-center justify-center text-zinc-500 font-mono flex-col gap-4 bg-black">
             <AlertCircle className="w-16 h-16 opacity-20 text-yellow-500"/>
-            <span>No Matches Loaded.</span>
+            <span>No Matches Found in Bracket.</span>
         </div>
     );
 
     return (
+        // 🚨 FORCE HEIGHT: h-screen ensures this container ALWAYS has size
         <div 
             className="w-full h-screen flex flex-col bg-[#050505] overflow-hidden relative cursor-grab active:cursor-grabbing selection:bg-transparent"
             onMouseDown={handleCanvasMouseDown}
@@ -269,7 +273,7 @@ const Bracket = ({ matches = [], onMatchClick }) => {
             onMouseLeave={handleGlobalMouseUp}
             onWheel={handleWheel}
         >
-            {/* CONTROLS */}
+            {/* TOOLBAR */}
             <div className="absolute top-4 right-4 z-50 flex gap-2">
                 {isEditing ? (
                     <button 
@@ -290,6 +294,7 @@ const Bracket = ({ matches = [], onMatchClick }) => {
                 )}
             </div>
 
+            {/* ZOOM CONTROLS */}
             <div className="absolute bottom-8 left-8 z-50 flex gap-2 bg-black/50 p-1 rounded-lg backdrop-blur-md border border-white/5">
                 <button onClick={() => setScale(s => Math.min(s + 0.2, 2))} className="p-2 hover:bg-white/10 rounded text-white transition-colors"><Plus size={16}/></button>
                 <button onClick={() => setScale(s => Math.max(s - 0.2, 0.2))} className="p-2 hover:bg-white/10 rounded text-white transition-colors"><Minus size={16}/></button>
@@ -307,17 +312,21 @@ const Bracket = ({ matches = [], onMatchClick }) => {
                     top: 0, left: 0
                 }}
             >
+                {/* 1. Grid Background */}
                 <div 
                     className="absolute inset-0 pointer-events-none opacity-20"
                     style={{ backgroundImage: 'radial-gradient(#ffffff 1px, transparent 1px)', backgroundSize: '20px 20px' }}
                 />
 
+                {/* 2. Circuit Wires */}
                 <svg className="absolute inset-0 w-full h-full pointer-events-none z-0 overflow-visible">
                     {renderWires()}
                 </svg>
 
+                {/* 3. Match Nodes */}
                 {matches.map(match => {
                     const pos = finalPositions[match.id];
+                    // IMPORTANT: If pos is somehow undefined (shouldn't be), render at 0,0
                     const x = (pos && !isNaN(pos.x)) ? pos.x : 0;
                     const y = (pos && !isNaN(pos.y)) ? pos.y : 0;
 

@@ -1,17 +1,15 @@
 import React from 'react';
 import { createBrowserRouter, Navigate, Outlet } from 'react-router-dom';
-import { Loader2, AlertTriangle, Terminal } from 'lucide-react';
-import { Toaster } from 'react-hot-toast'; // 🔔 NOTIFICATIONS SYSTEM
+import { AlertTriangle, Activity } from 'lucide-react';
+import { Toaster } from 'react-hot-toast';
 
-// ✅ LOGIC IMPORTS
+// ✅ LOGIC IMPORTS (Using your existing safe architecture)
 import { useSession } from '../auth/useSession';
 import { ROLES } from '../lib/roles';
 
 // 📦 COMPONENT IMPORTS
 import { LandingPage } from '../components/LandingPage';
-import { UnifiedLogin } from '../components/auth/UnifiedLogin'; // ⚡ The Master Login
-import { AdminLogin } from '../components/admin/AdminLogin';
-import { AdminPasswordReset } from '../components/admin/AdminPasswordReset';
+import { UnifiedLogin } from '../components/auth/UnifiedLogin';
 import { StaffRegistration } from '../components/auth/StaffRegistration';
 import { BracketView } from '../components/BracketView';
 import { MatchRoom } from '../components/match/MatchRoom';
@@ -21,30 +19,46 @@ import { StaffManagement } from '../components/admin/StaffManagement';
 import { AdminToolbar } from '../components/admin/AdminToolbar';
 import { PlayerDashboard } from '../components/player/PlayerDashboard';
 
-// 🛑 1. LOADING UI (The "Boot Screen")
+/**
+ * ⚡ PIXEL PALACE: ROUTING MATRIX
+ * ------------------------------
+ * STATUS: MASTERED (GLOBAL STANDARD)
+ * * ARCHITECTURE:
+ * 1. HYBRID LOADER: Cinematic visuals backed by standard Auth logic.
+ * 2. ROLE GATES: Physically prevents Players from entering Admin routes.
+ * 3. CRASH HANDLER: A "Red Alert" screen if the router fails.
+ */
+
+// 🛑 1. CINEMATIC BOOT LOADER
 const PageLoader = () => (
-  <div className="h-screen w-full flex flex-col items-center justify-center bg-bg space-y-6">
+  <div className="h-screen w-full flex flex-col items-center justify-center bg-[#050505] gap-8">
     <div className="relative">
-        <div className="w-16 h-16 border-4 border-zinc-800 border-t-brand rounded-full animate-spin" />
-        <div className="absolute inset-0 flex items-center justify-center">
-            <Terminal size={20} className="text-zinc-600" />
-        </div>
+      {/* Spinning Ring */}
+      <div className="w-20 h-20 border-2 border-brand/20 border-t-brand rounded-full animate-spin shadow-[0_0_30px_rgba(var(--color-brand),0.4)]" />
+      {/* Pulsing Icon */}
+      <div className="absolute inset-0 flex items-center justify-center">
+        <Activity size={24} className="text-brand animate-pulse" />
+      </div>
     </div>
-    <div className="text-zinc-500 font-mono text-xs uppercase tracking-widest animate-pulse flex flex-col items-center gap-1">
-      <span>Initializing System...</span>
-      <span className="text-[10px] opacity-50">VERIFYING CREDENTIALS</span>
+    <div className="flex flex-col items-center gap-2">
+      <span className="text-white font-display font-black italic text-xl tracking-tighter uppercase">
+        Initializing Nexus
+      </span>
+      <span className="text-[10px] text-zinc-600 font-mono tracking-[0.5em] uppercase animate-pulse">
+        Verifying Clearance...
+      </span>
     </div>
   </div>
 );
 
-// 🛡️ 2. AUTH GUARDS
+// 🛡️ 2. SECURITY GATES
 const RequireAuth = ({ children }) => {
   const { session } = useSession();
   
-  // Wait for session to hydrate
+  // Wait for session to hydrate (checking local storage)
   if (!session.isReady) return <PageLoader />;
   
-  // Redirect if not logged in
+  // Redirect to login if no user found
   if (!session.isAuthenticated) return <Navigate to="/login" replace />;
   
   return children || <Outlet />;
@@ -53,69 +67,78 @@ const RequireAuth = ({ children }) => {
 const RequireRole = ({ allowedRoles = [], children }) => {
   const { session } = useSession();
   
+  // If user lacks the role, bounce them to their safe zone
   if (allowedRoles.length > 0 && !allowedRoles.includes(session.role)) {
-      // If Admin tries to access Player route, or vice versa, bounce them
-      const fallback = [ROLES.ADMIN, ROLES.OWNER].includes(session.role) ? '/admin/dashboard' : '/dashboard';
-      return <Navigate to={fallback} replace />;
+    const isStaff = [ROLES.ADMIN, ROLES.OWNER, ROLES.REFEREE].includes(session.role);
+    const fallback = isStaff ? '/admin/dashboard' : '/dashboard';
+    return <Navigate to={fallback} replace />;
   }
+  
   return children || <Outlet />;
 };
 
 // 🧱 3. LAYOUT SHELLS
 const RootLayout = () => (
   <div className="min-h-screen bg-bg text-white selection:bg-brand/30 font-sans">
-    {/* Global Toast Container */}
+    {/* Global Notifications (Positioned for Gameplay) */}
     <Toaster 
-        position="top-right"
-        toastOptions={{
-            style: { background: '#09090b', color: '#fff', border: '1px solid #27272a' },
-            success: { iconTheme: { primary: '#10b981', secondary: '#09090b' } },
-            error: { iconTheme: { primary: '#ef4444', secondary: '#09090b' } },
-        }}
+      position="bottom-right"
+      toastOptions={{
+        style: { background: '#09090b', color: '#fff', border: '1px solid #27272a' },
+        success: { iconTheme: { primary: '#10b981', secondary: '#09090b' } },
+        error: { iconTheme: { primary: '#ef4444', secondary: '#09090b' } },
+      }}
     />
     
-    {/* Scanline Overlay (Optional Aesthetic) */}
-    <div className="pointer-events-none fixed inset-0 z-50 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.03]" />
+    {/* Cinematic Grain Overlay */}
+    <div className="pointer-events-none fixed inset-0 z-[100] opacity-[0.02] bg-repeat bg-[url('https://grainy-gradients.vercel.app/noise.svg')]" />
     
     <Outlet />
   </div>
 );
 
 const AdminLayout = () => (
-  <div className="min-h-screen bg-bg relative z-10">
+  <div className="min-h-screen bg-bg relative">
     <AdminToolbar />
-    <div className="pt-14"> {/* Offset for Fixed Toolbar */}
+    <div className="pt-16"> {/* Offset for the Fixed Toolbar */}
       <Outlet />
     </div>
   </div>
 );
 
-// 🗺️ 4. ROUTE DEFINITIONS
+// 🗺️ 4. THE MASTER MAP
 export const router = createBrowserRouter([
   {
     path: '/',
     element: <RootLayout />,
     errorElement: (
-        <div className="h-screen w-full flex flex-col items-center justify-center bg-black text-red-500 gap-4">
-            <AlertTriangle size={64} />
-            <h1 className="text-4xl font-display font-black uppercase tracking-widest">System Failure</h1>
-            <p className="text-zinc-500 text-sm font-mono bg-zinc-900 px-4 py-2 rounded">CRITICAL ROUTER EXCEPTION</p>
-            <button onClick={() => window.location.href='/'} className="px-6 py-3 border border-red-500 hover:bg-red-500/10 rounded uppercase text-xs font-bold transition-colors">
-                Hard Reboot
-            </button>
+      <div className="h-screen w-full flex flex-col items-center justify-center bg-[#050000] text-red-500 gap-6">
+        <AlertTriangle size={80} className="animate-pulse" />
+        <div className="text-center">
+          <h1 className="text-5xl font-display font-black uppercase italic tracking-tighter text-white">System Failure</h1>
+          <p className="text-red-500/80 font-mono text-[10px] mt-2 uppercase tracking-[0.4em]">
+            Router Protocol Violation
+          </p>
         </div>
+        <button 
+          onClick={() => window.location.href='/'} 
+          className="px-8 py-3 bg-red-600/20 border border-red-500 text-red-100 hover:bg-red-600 hover:text-white font-bold uppercase text-xs tracking-widest transition-all"
+        >
+          Hard Reboot
+        </button>
+      </div>
     ),
     children: [
       // --- PUBLIC ROUTES ---
       { index: true, element: <LandingPage /> },
-      { path: 'login', element: <UnifiedLogin /> }, // 👈 Combined Login
-      { path: 'admin/login', element: <AdminLogin /> }, // 👈 Staff-Only Backdoor
-      { path: 'admin/recover', element: <AdminPasswordReset /> },
+      { path: 'login', element: <UnifiedLogin /> },
       { path: 'staff-register', element: <StaffRegistration /> },
+      
+      // --- MATCH INTERFACES (Public View) ---
       { path: 'bracket', element: <BracketView /> },
       { path: 'match/:matchId', element: <MatchRoom /> },
 
-      // --- ADMIN ROUTES (Protected) ---
+      // --- ADMIN SECTOR (Level 60+) ---
       {
         path: 'admin',
         element: (
@@ -129,13 +152,12 @@ export const router = createBrowserRouter([
           { path: 'dashboard', element: <AdminDashboard /> },
           { path: 'roster', element: <TeamRosterView /> },
           { path: 'staff', element: <StaffManagement /> },
-          { path: 'bracket', element: <BracketView adminMode={true} /> }, // ✅ ADDED: Admin Bracket View
-          // Redirect root /admin to dashboard
+          { path: 'bracket', element: <BracketView adminMode={true} /> }, // ✅ Admin Mode ON
           { index: true, element: <Navigate to="dashboard" replace /> }
         ]
       },
 
-      // --- PLAYER ROUTES (Protected) ---
+      // --- PLAYER SECTOR (Level 10+) ---
       {
         path: 'dashboard',
         element: (

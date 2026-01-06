@@ -1,6 +1,8 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
+import { supabase } from '../supabase/client';
 import { cn } from '../lib/utils';
-import { Trophy, Shield, Edit3, Save, GripHorizontal, Plus, Minus, Maximize, AlertCircle } from 'lucide-react';
+import { Trophy, Shield, Edit3, Save, GripHorizontal, Plus, Minus, Maximize, AlertCircle, Loader2 } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 
 // --- CONFIGURATION ---
 const CARD_WIDTH = 220;
@@ -8,50 +10,26 @@ const CARD_HEIGHT = 82;
 const COL_SPACING = 350; 
 const ROW_SPACING = 110;
 
-// --- 1. HARD-CODED LAYOUT ENGINE (The "Manual Reality") ---
-// This forces the bracket to look exactly like your diagram, regardless of DB math.
+// --- 1. HARD-CODED DEFAULTS (The Fallback) ---
+// Used ONLY when a match has no saved ui_x/ui_y in the DB.
 const getFixedPosition = (round, position, isThirdPlace) => {
-    // 3rd Place Match
     if (isThirdPlace) return { x: 1600, y: 1200 };
 
     const r = Number(round);
     const p = Number(position);
-
-    // X Coordinates (Columns)
     const x = (r - 1) * COL_SPACING + 50;
-
-    // Y Coordinates (Rows) - Manually tuned for 25-team visual balance
     let y = 0;
 
-    if (r === 1) {
-        // Round 1 (Matches 16-24 in your diagram, 9 total)
-        // They need to align with specific slots in Round 2
-        // We space them out to match the visual gaps
-        y = (p - 1) * ROW_SPACING * 1.5 + 50; 
-    } 
-    else if (r === 2) {
-        // Round 2 (8 matches)
-        // These are the "Anchor" matches. 
-        y = (p - 1) * (ROW_SPACING * 2) + 50;
-    } 
-    else if (r === 3) {
-        // Round 3 (4 matches) - Centered on R2
-        y = (p - 1) * (ROW_SPACING * 4) + 160;
-    }
-    else if (r === 4) {
-        // Round 4 (Semifinals)
-        y = (p - 1) * (ROW_SPACING * 8) + 380;
-    }
-    else if (r === 5) {
-        // Finals
-        y = 380 + 200; // Centered between semis
-    }
+    if (r === 1)      y = (p - 1) * ROW_SPACING * 1.5 + 50; 
+    else if (r === 2) y = (p - 1) * (ROW_SPACING * 2) + 50;
+    else if (r === 3) y = (p - 1) * (ROW_SPACING * 4) + 160;
+    else if (r === 4) y = (p - 1) * (ROW_SPACING * 8) + 380;
+    else if (r === 5) y = 380 + 200;
 
     return { x, y };
 };
 
-// --- 2. SUB-COMPONENTS ---
-
+// --- SUB-COMPONENT: NODE DOTS ---
 const NodePoint = ({ type, active }) => (
     <div className={cn(
         "w-3 h-3 rounded-full border-2 absolute top-1/2 -translate-y-1/2 z-20 bg-[#09090b] transition-all",
@@ -60,8 +38,9 @@ const NodePoint = ({ type, active }) => (
     )} />
 );
 
+// --- SUB-COMPONENT: MATCH CARD ---
 const MatchCard = ({ match, x, y, onDragStart, isEditing, onClick }) => {
-    // 🛡️ Safety: Ensure coordinates exist
+    // Safety Fallback for rendering
     const safeX = (typeof x === 'number' && !isNaN(x)) ? x : 0;
     const safeY = (typeof y === 'number' && !isNaN(y)) ? y : 0;
 
@@ -117,9 +96,10 @@ const MatchCard = ({ match, x, y, onDragStart, isEditing, onClick }) => {
 
 // --- 3. MAIN COMPONENT ---
 const Bracket = ({ matches = [], onMatchClick }) => {
-    // State
+    // Manual Edits (Delta State)
     const [manualPositions, setManualPositions] = useState({});
     const [isEditing, setIsEditing] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
     
     // Zoom/Pan
     const [scale, setScale] = useState(1);
@@ -130,25 +110,58 @@ const Bracket = ({ matches = [], onMatchClick }) => {
     const draggingNodeRef = useRef(null);
     const nodeOffsetRef = useRef({ x: 0, y: 0 });
 
-    // --- AUTO-CALCULATION (Fixed Grid) ---
-    // This runs instantly. No async waiting.
+    // --- POSITION CALCULATION ---
     const finalPositions = useMemo(() => {
+        const positions = {};
         if (!matches || matches.length === 0) return {};
 
-        const calculated = {};
-        
         matches.forEach(m => {
-            // Force types
-            const r = m.is_third_place ? 99 : Number(m.round_number);
-            const p = Number(m.match_position);
-            
-            // Get coordinates from our hard-coded engine
-            calculated[m.id] = getFixedPosition(r, p, m.is_third_place);
+            // 1. Check for Saved DB Position
+            if (m.ui_x !== null && m.ui_y !== null) {
+                positions[m.id] = { x: m.ui_x, y: m.ui_y };
+            } 
+            // 2. Check for Active Drag Position (Override)
+            else if (manualPositions[m.id]) {
+                positions[m.id] = manualPositions[m.id];
+            }
+            // 3. Fallback to Hard-Coded Layout
+            else {
+                const r = m.is_third_place ? 99 : Number(m.round_number);
+                const p = Number(m.match_position);
+                positions[m.id] = getFixedPosition(r, p, m.is_third_place);
+            }
         });
 
-        // Merge manual overrides (if you drag things, this remembers)
-        return { ...calculated, ...manualPositions };
+        // Apply manual overrides on top of everything for live dragging
+        return { ...positions, ...manualPositions };
     }, [matches, manualPositions]);
+
+    // --- SAVE HANDLER ---
+    const handleSaveLayout = async () => {
+        setIsSaving(true);
+        try {
+            // Prepare payload
+            const payload = Object.keys(finalPositions).map(id => ({
+                id,
+                x: finalPositions[id].x,
+                y: finalPositions[id].y
+            }));
+
+            const { error } = await supabase.rpc('admin_update_bracket_layout', { p_positions: payload });
+            
+            if (error) throw error;
+            
+            toast.success("Bracket Layout Saved");
+            setIsEditing(false);
+            setManualPositions({}); // Clear local state, next render will use DB data
+            // Trigger parent refresh if possible, or assume optimisic update via props
+        } catch (err) {
+            console.error(err);
+            toast.error("Failed to save layout: " + err.message);
+        } finally {
+            setIsSaving(false);
+        }
+    };
 
     // --- INTERACTION HANDLERS ---
     const handleNodeMouseDown = (e, id) => {
@@ -203,63 +216,39 @@ const Bracket = ({ matches = [], onMatchClick }) => {
         }
     };
 
-    // --- RENDER WIRES (The Connections) ---
+    // --- STRICT WIRE RENDERER ---
     const renderWires = () => {
         if (!finalPositions || Object.keys(finalPositions).length === 0) return null;
 
         return matches.map(match => {
-            let nextMatchId = match.next_match_id;
-            
-            // 3rd Place Link Logic (Manual Override)
-            if (!nextMatchId && match.loser_next_match_id) {
-                nextMatchId = match.loser_next_match_id;
-            }
+            // STRICT MODE: ONLY DRAW DB CONNECTIONS
+            const nextId = match.next_match_id || match.loser_next_match_id;
 
-            // Fallback Logic: Connect Round X to Round X+1 based on Position
-            // If the DB link is missing, we visually guess it so lines still appear.
-            if (!nextMatchId && !match.is_third_place) {
-                const r = Number(match.round_number);
-                const p = Number(match.match_position);
-                const nextR = r + 1;
-                const nextP = Math.ceil(p / 2);
-                
-                // Find target match
-                const nextMatch = matches.find(m => Number(m.round_number) === nextR && Number(m.match_position) === nextP);
-                if (nextMatch) nextMatchId = nextMatch.id;
-            }
+            if (!nextId) return null; // No guess work.
 
-            // We need coordinates for start AND end
             const start = finalPositions[match.id];
-            const end = finalPositions[nextMatchId];
+            const end = finalPositions[nextId];
 
             if (!start || !end) return null;
 
-            const x1 = (start.x || 0) + CARD_WIDTH; 
-            const y1 = (start.y || 0) + (CARD_HEIGHT / 2); 
-            const x2 = (end.x || 0); 
-            const y2 = (end.y || 0) + (CARD_HEIGHT / 2); 
+            const x1 = start.x + CARD_WIDTH; 
+            const y1 = start.y + (CARD_HEIGHT / 2); 
+            const x2 = end.x; 
+            const y2 = end.y + (CARD_HEIGHT / 2); 
             const midX = (x1 + x2) / 2;
 
             const isCompleted = match.status === 'completed';
 
             return (
-                <g key={`${match.id}-${nextMatchId}`}>
-                    <path 
-                        d={`M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`}
-                        fill="none"
-                        stroke={isCompleted ? "#22d3ee" : "transparent"}
-                        strokeWidth="6"
-                        className="opacity-10 blur-[4px]"
-                    />
-                    <path 
-                        d={`M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`}
-                        fill="none"
-                        stroke={isCompleted ? "#22d3ee" : "#3f3f46"} 
-                        strokeWidth="2"
-                        strokeDasharray={isCompleted ? "0" : "5,5"} 
-                        className="transition-colors duration-500"
-                    />
-                </g>
+                <path 
+                    key={`${match.id}-${nextId}`}
+                    d={`M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`}
+                    fill="none"
+                    stroke={isCompleted ? "#22d3ee" : "#3f3f46"} 
+                    strokeWidth="2"
+                    strokeDasharray={isCompleted ? "0" : "5,5"} 
+                    className="transition-colors duration-500"
+                />
             );
         });
     };
@@ -267,12 +256,11 @@ const Bracket = ({ matches = [], onMatchClick }) => {
     if (!matches || matches.length === 0) return (
         <div className="h-screen flex items-center justify-center text-zinc-500 font-mono flex-col gap-4 bg-black">
             <AlertCircle className="w-16 h-16 opacity-20 text-yellow-500"/>
-            <span>No Matches Found in Bracket.</span>
+            <span>No Matches Loaded.</span>
         </div>
     );
 
     return (
-        // 🚨 FORCE HEIGHT: h-screen ensures this container ALWAYS has size
         <div 
             className="w-full h-screen flex flex-col bg-[#050505] overflow-hidden relative cursor-grab active:cursor-grabbing selection:bg-transparent"
             onMouseDown={handleCanvasMouseDown}
@@ -281,14 +269,16 @@ const Bracket = ({ matches = [], onMatchClick }) => {
             onMouseLeave={handleGlobalMouseUp}
             onWheel={handleWheel}
         >
-            {/* TOOLBAR */}
+            {/* CONTROLS */}
             <div className="absolute top-4 right-4 z-50 flex gap-2">
                 {isEditing ? (
                     <button 
-                        onClick={() => { setIsEditing(false); console.log("Saved Layout:", manualPositions); }} 
-                        className="flex items-center gap-2 px-4 py-2 bg-yellow-600 hover:bg-yellow-500 text-black font-bold uppercase text-xs rounded shadow-lg animate-pulse"
+                        onClick={handleSaveLayout} 
+                        disabled={isSaving}
+                        className="flex items-center gap-2 px-4 py-2 bg-yellow-600 hover:bg-yellow-500 text-black font-bold uppercase text-xs rounded shadow-lg animate-pulse disabled:opacity-50"
                     >
-                        <Save size={14} /> Save Layout
+                        {isSaving ? <Loader2 className="animate-spin w-4 h-4"/> : <Save size={14} />}
+                        Save Layout
                     </button>
                 ) : (
                     <button 
@@ -300,39 +290,34 @@ const Bracket = ({ matches = [], onMatchClick }) => {
                 )}
             </div>
 
-            {/* ZOOM */}
             <div className="absolute bottom-8 left-8 z-50 flex gap-2 bg-black/50 p-1 rounded-lg backdrop-blur-md border border-white/5">
                 <button onClick={() => setScale(s => Math.min(s + 0.2, 2))} className="p-2 hover:bg-white/10 rounded text-white transition-colors"><Plus size={16}/></button>
                 <button onClick={() => setScale(s => Math.max(s - 0.2, 0.2))} className="p-2 hover:bg-white/10 rounded text-white transition-colors"><Minus size={16}/></button>
                 <button onClick={() => { setScale(1); setViewPos({x:0,y:0}); }} className="p-2 hover:bg-white/10 rounded text-white transition-colors"><Maximize size={16}/></button>
             </div>
 
-            {/* CANVAS */}
+            {/* CANVAS - Massive fixed size to ensure everything renders */}
             <div 
                 style={{ 
                     transform: `translate(${viewPos.x}px, ${viewPos.y}px) scale(${scale})`,
                     transformOrigin: '0 0',
-                    width: '4000px', // Massive Fixed Width
-                    height: '3000px', // Massive Fixed Height
+                    width: '4000px', 
+                    height: '3000px',
                     position: 'absolute',
                     top: 0, left: 0
                 }}
             >
-                {/* 1. Grid Background */}
                 <div 
                     className="absolute inset-0 pointer-events-none opacity-20"
                     style={{ backgroundImage: 'radial-gradient(#ffffff 1px, transparent 1px)', backgroundSize: '20px 20px' }}
                 />
 
-                {/* 2. Circuit Wires */}
                 <svg className="absolute inset-0 w-full h-full pointer-events-none z-0 overflow-visible">
                     {renderWires()}
                 </svg>
 
-                {/* 3. Match Nodes */}
                 {matches.map(match => {
                     const pos = finalPositions[match.id];
-                    // Final Safe Guard
                     const x = (pos && !isNaN(pos.x)) ? pos.x : 0;
                     const y = (pos && !isNaN(pos.y)) ? pos.y : 0;
 

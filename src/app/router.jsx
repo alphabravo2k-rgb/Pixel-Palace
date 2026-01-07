@@ -5,7 +5,7 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useNexusStore } from '../../store/useNexusStore';
+import { useNexusStore } from '../../store/useNexusStore'; // ✅ Two levels up from communication folder
 import { supabase } from '../../supabase/client';
 import { SoundNexus, CUES } from '../../lib/soundNexus';
 import { 

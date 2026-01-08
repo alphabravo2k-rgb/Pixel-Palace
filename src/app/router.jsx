@@ -25,11 +25,12 @@ import { StaffRegistration } from '../components/auth/StaffRegistration';
 import { BracketView } from '../components/BracketView';
 
 // 🚀 NEW 3D COMPONENTS
-import { CombatHUD } from '../components/match/CombatHUD'; // The 3D Cockpit
+import { MatchRoom } from '../components/match/MatchRoom'; // The 3D Cockpit
 import { SystemDiagnostic } from '../components/admin/SystemDiagnostic'; // The Engine Room
 
 // 🧱 LEGACY COMPONENTS (To be upgraded)
 import { AdminDashboard } from '../components/admin/AdminDashboard';
+import { MatchWarRoom } from '../components/admin/MatchWarRoom';
 import { PlayerDashboard } from '../components/player/PlayerDashboard';
 import { AdminToolbar } from '../components/admin/AdminToolbar';
 
@@ -56,8 +57,8 @@ const RequireAuth = () => {
 };
 
 const RequireClearance = ({ minLevel = 0 }) => {
-  const { role } = useNexusStore();
-  const level = getClearanceLevel(role);
+  const { profile } = useNexusStore();
+  const level = getClearanceLevel(profile?.role);
 
   if (level < minLevel) {
     // Smart Redirect: Admins go to War Room, Players to Dashboard
@@ -70,7 +71,18 @@ const RequireClearance = ({ minLevel = 0 }) => {
 // 🧱 3. ARCHITECTURAL SHELLS
 const RootLayout = () => (
   <div className="min-h-screen bg-[#050505] text-white selection:bg-brand/30">
-    <Toaster position="bottom-right" />
+    <Toaster position="bottom-right" 
+      toastOptions={{
+        style: {
+          background: '#09090b',
+          border: '1px solid rgba(255,255,255,0.1)',
+          color: '#fff',
+          fontFamily: 'monospace',
+          fontSize: '12px',
+          textTransform: 'uppercase'
+        }
+      }}
+    />
     <Outlet />
   </div>
 );
@@ -98,7 +110,7 @@ export const router = createBrowserRouter([
       
       // ⚔️ LIVE COMBAT (The 3D HUD)
       // Accessible to everyone, but view changes based on Role (Player vs Spec)
-      { path: 'match/:matchId', element: <CombatHUD matchData={{ id: 'LIVE-001', status: 'live' }} /> },
+      { path: 'match/:matchId', element: <MatchRoom /> },
       { path: 'bracket', element: <BracketView /> },
 
       // 🔐 PROTECTED: OPERATOR DECK (Level 10+)
@@ -125,6 +137,7 @@ export const router = createBrowserRouter([
                 element: <AdminLayout />,
                 children: [
                   { path: 'warroom', element: <AdminDashboard /> },
+                  { path: 'match/:matchId', element: <MatchWarRoom /> }, // ⚔️ ADMIN SPECIFIC CONTROL
                   { path: 'diagnostics', element: <SystemDiagnostic /> }, // 🩺 NEW
                   { path: 'bracket', element: <BracketView adminMode={true} /> },
                   { index: true, element: <Navigate to="warroom" replace /> }

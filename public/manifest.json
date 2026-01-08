@@ -4,10 +4,10 @@
   "description": "High-fidelity eSports management and tactical bracket engine.",
   "start_url": "/?source=pwa",
   "display": "standalone",
-  "orientation": "any",
+  "orientation": "portrait",
   "background_color": "#050505",
   "theme_color": "#050505",
-  "categories": ["games", "sports", "utilities"],
+  "categories": ["games", "sports", "productivity"],
   "icons": [
     {
       "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%23050505'/%3E%3Cpath fill='%23c026d3' d='M256 100L100 412h312z' style='filter:drop-shadow(0 0 20px %23c026d3)' /%3E%3C/svg%3E",
@@ -21,5 +21,6 @@
       "type": "image/svg+xml",
       "purpose": "any maskable"
     }
-  ]
+  ],
+  "prefer_related_applications": false
 }

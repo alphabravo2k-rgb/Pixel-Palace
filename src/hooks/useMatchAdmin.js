@@ -1,6 +1,15 @@
 import { useAdminConsole } from './useAdminConsole';
 import { supabase } from '../supabase/client';
 import { toast } from 'react-hot-toast';
+import { SoundNexus, CUES } from '../lib/soundNexus';
+
+/**
+ * 🛠️ MATCH ADMIN HOOK
+ * -------------------
+ * STATUS: MASTERED (SCHEMA ALIGNED)
+ * * PURPOSE: 
+ * Encapsulates all "God Mode" actions for the War Room.
+ */
 
 export const useMatchAdmin = (match) => {
   const { execute, loading, error } = useAdminConsole();
@@ -9,25 +18,40 @@ export const useMatchAdmin = (match) => {
   const updateMatchDetails = async (formData) => {
     if (!match?.id) return;
 
-    return execute('admin_update_match_state', {
-        p_match_id: match.id,
-        // ✅ Ensure lowercase for Captain Dashboard compatibility
-        p_status: formData.status.toLowerCase(), 
-        p_team1_score: parseInt(formData.score1 || 0),
-        p_team2_score: parseInt(formData.score2 || 0),
-        p_server_ip: formData.serverIp,
-        p_server_pass: formData.serverPass,
-        p_is_visible: formData.isServerVisible,
-        p_scheduled_at: formData.startTime,
-        p_stream_url: formData.streamUrl,
-        p_demo_url: formData.demoUrl,
-        p_admin_notes: formData.notes,
-        p_is_paused: formData.isPaused,
-        p_map_name: formData.mapName,
-        p_caster_name: formData.casterName,
-        p_team1_id: formData.team1Id || match.team1_id,
-        p_team2_id: formData.team2Id || match.team2_id
-    });
+    // We use direct DB updates for reliability unless you have the specific RPC installed
+    try {
+        const { error } = await supabase
+            .from('matches')
+            .update({
+                status: formData.status.toLowerCase(), 
+                score_team1: parseInt(formData.score1 || 0),
+                score_team2: parseInt(formData.score2 || 0),
+                server_ip: formData.serverIp,
+                server_pass: formData.serverPass,
+                is_visible: formData.isServerVisible,
+                start_time: formData.startTime,
+                stream_url: formData.streamUrl,
+                demo_url: formData.demoUrl,
+                admin_notes: formData.notes,
+                is_paused: formData.isPaused,
+                map_name: formData.mapName,
+                caster_name: formData.casterName,
+                // Only update IDs if explicitly changed to avoid nulling them
+                ...(formData.team1Id && { team1_id: formData.team1Id }),
+                ...(formData.team2Id && { team2_id: formData.team2Id })
+            })
+            .eq('id', match.id);
+
+        if (error) throw error;
+        SoundNexus.play(CUES.SUCCESS);
+        toast.success("MATCH STATE UPDATED");
+        return true;
+    } catch (err) {
+        console.error("Update Error:", err);
+        SoundNexus.play(CUES.ERROR);
+        toast.error("UPDATE FAILED");
+        return false;
+    }
   };
 
   // 2. 🔄 SWAP SIDES
@@ -53,11 +77,13 @@ export const useMatchAdmin = (match) => {
             .eq('id', match.id);
 
         if (error) throw error;
-        toast.success("Bracket Advanced!");
+        SoundNexus.play(CUES.SUCCESS);
+        toast.success("BRACKET ADVANCED");
         return true;
     } catch (err) {
         console.error("Force Win Error:", err);
-        toast.error("Failed to advance bracket.");
+        SoundNexus.play(CUES.ERROR);
+        toast.error("ADVANCE FAILED");
         return false;
     }
   };
@@ -66,18 +92,22 @@ export const useMatchAdmin = (match) => {
   const resetMatch = async () => {
     if (!match?.id) return;
 
+    if (!window.confirm("⚠️ DANGER: This will wipe scores, vetoes, and winner status. Proceed?")) return;
+
     try {
         const { error } = await supabase
             .from('matches')
             .update({ 
                 winner_id: null,
                 status: 'scheduled',
-                // ✅ FIXED: Using team1_score instead of score_team1
-                team1_score: 0, 
-                team2_score: 0,
+                // ✅ FIXED: Using score_team1 to match Master Schema
+                score_team1: 0, 
+                score_team2: 0,
                 // Keeps position and round intact
                 match_position: match.match_position,
-                round_number: match.round_number 
+                round_number: match.round_number,
+                is_paused: false,
+                server_ip: null
             })
             .eq('id', match.id);
 
@@ -89,11 +119,13 @@ export const useMatchAdmin = (match) => {
             .delete()
             .eq('match_id', match.id);
 
-        toast.success("Match & Vetoes Reset Successfully");
+        SoundNexus.play(CUES.SUCCESS);
+        toast.success("MATCH RESET COMPLETE");
         return true;
     } catch (err) {
         console.error("Reset Error:", err);
-        toast.error("Failed to reset match");
+        SoundNexus.play(CUES.ERROR);
+        toast.error("RESET FAILED");
         return false;
     }
   };

@@ -1,8 +1,13 @@
 import { supabase } from '../supabase/client';
 
 /**
- * PIXEL PALACE DATA SERVICE
- * Centralized data fetching aligned with Master DB Schema (Code A).
+ * 🔌 PIXEL PALACE: DATA SERVICE LAYER
+ * -----------------------------------
+ * STATUS: MASTERED (BURJ KHALIFA STANDARD)
+ * * PURPOSE:
+ * 1. SCHEMA ABSTRACTION: Decouples UI from DB column names.
+ * 2. TYPE SAFETY: Ensures numbers are numbers, not strings.
+ * 3. FALLBACKS: Prevents "undefined" crashes in UI.
  */
 
 const ROLE_PRIORITY = {
@@ -22,10 +27,11 @@ export const fetchTeamRoster = async (teamId) => {
       .select(`
         id,
         role,
-        profile:global_identities (
+        profile:profiles (
           id,
-          display_name, 
-          discord_handle, 
+          display_name,
+          avatar_url,
+          discord_handle,
           steam_url,
           faceit_url,
           faceit_elo
@@ -35,12 +41,12 @@ export const fetchTeamRoster = async (teamId) => {
 
     if (error) throw error;
 
-    // Client-side sorting and flattening
     return data
       .map(member => ({
         id: member.id,
-        // Fallback to 'Unknown' if profile is missing (prevents crash)
+        userId: member.profile?.id,
         name: member.profile?.display_name || 'Unknown Agent',
+        avatar: member.profile?.avatar_url || null,
         discordHandle: member.profile?.discord_handle || null,
         steamUrl: member.profile?.steam_url || null,
         faceitUrl: member.profile?.faceit_url || null,
@@ -49,12 +55,10 @@ export const fetchTeamRoster = async (teamId) => {
         isCaptain: member.role === 'CAPTAIN',
       }))
       .sort((a, b) => {
-        // 1. Sort by Role (Captain first)
+        // Sort: Captain -> High ELO -> Low ELO
         const pA = ROLE_PRIORITY[a.role] || 99;
         const pB = ROLE_PRIORITY[b.role] || 99;
         if (pA !== pB) return pA - pB;
-        
-        // 2. Sort by ELO (High skill first)
         return b.elo - a.elo;
       });
 
@@ -64,7 +68,7 @@ export const fetchTeamRoster = async (teamId) => {
   }
 };
 
-// 2. FETCH MATCH DETAILS (War Room)
+// 2. FETCH MATCH DETAILS (War Room / HUD)
 export const fetchMatchDetails = async (matchId) => {
   if (!matchId) return null;
 
@@ -78,11 +82,11 @@ export const fetchMatchDetails = async (matchId) => {
         vetoes:match_vetoes(*)
       `)
       .eq('id', matchId)
-      .maybeSingle(); 
+      .maybeSingle();
 
     if (error) throw error;
     
-    // Sort vetoes by pick_order for correct display history
+    // Sort vetoes chronologically for the playback engine
     if (data && data.vetoes) {
         data.vetoes.sort((a, b) => a.pick_order - b.pick_order);
     }
@@ -103,17 +107,30 @@ export const fetchBracketMatches = async (tournamentId) => {
         const { data, error } = await supabase
             .from('matches')
             .select(`
-                id, round, match_no, status, start_time,
-                score_team1, score_team2, winner_id,
+                id, 
+                round_number, 
+                match_position, 
+                status, 
+                start_time,
+                score_team1, 
+                score_team2, 
+                winner_id,
                 team1:team1_id(id, name, logo_url, seed_number),
                 team2:team2_id(id, name, logo_url, seed_number)
             `)
             .eq('tournament_id', tournamentId)
-            .order('round', { ascending: true })
-            .order('match_no', { ascending: true });
+            .order('round_number', { ascending: true })
+            .order('match_position', { ascending: true });
             
         if (error) throw error;
-        return data;
+        
+        // 🛠️ NORMALIZATION: Ensure 'round_number' exists for Bracket.jsx
+        return data.map(m => ({
+            ...m,
+            // Fallback if DB uses 'round' instead of 'round_number'
+            round_number: m.round_number || m.round || 1
+        }));
+
     } catch (err) {
         console.error("❌ Bracket Fetch Error:", err);
         return [];

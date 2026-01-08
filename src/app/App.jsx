@@ -5,7 +5,7 @@ import { Wifi, WifiOff } from 'lucide-react';
 
 // ✅ CORE MODULES (LEGACY & NEXUS)
 import { SessionProvider, useSession } from '../auth/useSession';
-import { TournamentProvider } from '../tournament/useTournament';
+import { TournamentProvider } from '../tournament/useTournament'; // Keep for legacy hooks if needed
 import { supabase } from '../supabase/client';
 import { router } from './router';
 
@@ -24,7 +24,7 @@ import { GlobalChatNexus } from '../components/communication/GlobalChatNexus';
  * 3. GLOBAL OVERLAYS: Chat and Notifications persist across routes.
  */
 
-// 📡 1. NETWORK MONITOR (PRESERVED)
+// 📡 1. NETWORK MONITOR
 const NetworkMonitor = () => {
   useEffect(() => {
     const handleOnline = () => {
@@ -58,7 +58,7 @@ const NetworkMonitor = () => {
   return null;
 };
 
-// 🎨 2. THEME ENGINE (PRESERVED)
+// 🎨 2. THEME ENGINE
 const ThemeManager = () => {
   useEffect(() => {
     const syncTheme = async () => {
@@ -95,7 +95,6 @@ const ThemeManager = () => {
 
 // 🛑 3. SYSTEM GATE (BOOT SEQUENCE)
 const SystemGate = ({ children }) => {
-  const { isLoading } = useSession(); // Legacy Check
   const { isHydrated, syncNexus } = useNexusStore(); // New Check
   const [minLoadTimePassed, setMinLoadTimePassed] = useState(false);
 
@@ -121,7 +120,7 @@ const SystemGate = ({ children }) => {
     };
   }, []);
 
-  const isBooting = isLoading || !minLoadTimePassed || !isHydrated;
+  const isBooting = !minLoadTimePassed || !isHydrated;
 
   if (isBooting) {
     return (
@@ -154,7 +153,7 @@ function App() {
       <ThemeManager />
       <NetworkMonitor />
       
-      {/* 📡 GLOBAL ATMOSPHERE (Noise Overlay) */}
+      {/* 📡 GLOBAL ATMOSPHERE */}
       {!is3DEnabled && (
          <div className="fixed inset-0 pointer-events-none z-[0] opacity-[0.02] bg-[url('https://grainy-gradients.vercel.app/noise.svg')]" />
       )}
@@ -163,11 +162,11 @@ function App() {
       <SessionProvider>
         <SystemGate>
           <TournamentProvider>
-             
+              
              {/* 🗺️ THE MAP */}
              <RouterProvider router={router} />
 
-             {/* 💬 GLOBAL COMMS (Persistent Overlay) */}
+             {/* 💬 GLOBAL COMMS */}
              <GlobalChatNexus />
 
           </TournamentProvider>

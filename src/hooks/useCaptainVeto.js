@@ -2,32 +2,47 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '../supabase/client';
 import { useSession } from '../auth/useSession';
 import { MATCH_FORMATS, MAP_POOL } from '../lib/constants';
+import { SoundNexus, CUES } from '../lib/soundNexus';
 import { toast } from 'react-hot-toast';
+
+/**
+ * 🎣 USE CAPTAIN VETO
+ * -------------------
+ * STATUS: MASTERED (LOGIC FIXED)
+ * * PURPOSE:
+ * Manages the complex state machine of the Veto/Pick phase.
+ * * FIXES:
+ * 1. Aligned 'team1'/'team2' check with constants.js.
+ * 2. Added 8D Audio triggers.
+ */
 
 export const useCaptainVeto = (match, passedTeamId) => {
   const { session } = useSession();
   const [vetoes, setVetoes] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // 1️⃣ RESOLVE IDENTITY (Ensures UUID vs String safety)
+  // 1️⃣ RESOLVE IDENTITY (Who am I?)
   const myTeamId = useMemo(() => {
-    const sessionTeamId = passedTeamId || session?.team_id || session?.teamId || session?.user?.user_metadata?.team_id;
+    // Priority: Prop > Session > Metadata
+    const sessionTeamId = passedTeamId || session?.team_id || session?.user?.user_metadata?.team_id;
+    
     if (!sessionTeamId || !match) return null;
     
-    // Standardize to lowercase string for comparison
+    // Normalize for comparison
     const sId = String(sessionTeamId).toLowerCase();
     if (String(match.team1_id).toLowerCase() === sId) return match.team1_id;
     if (String(match.team2_id).toLowerCase() === sId) return match.team2_id;
     return null;
   }, [match, session, passedTeamId]);
 
-  // 2️⃣ FORMAT DERIVATION
+  // 2️⃣ FORMAT DERIVATION (BO1 vs BO3)
   const formatRules = useMemo(() => {
-    const type = match?.best_of === 3 ? 'BO3' : 'BO1';
-    return MATCH_FORMATS[type] || MATCH_FORMATS['BO1'];
+    if (!match) return MATCH_FORMATS.BO1;
+    const type = match.best_of === 3 ? 'BO3' : match.best_of === 5 ? 'BO5' : 'BO1';
+    return MATCH_FORMATS[type] || MATCH_FORMATS.BO1;
   }, [match]);
 
-  // 3️⃣ STATE CALCULATION (With Fuzzy Matching)
+  // 3️⃣ STATE ENGINE (Whose turn is it?)
   const vetoState = useMemo(() => {
     if (!formatRules || !match) return { isMyTurn: false, action: 'WAIT', availableMaps: MAP_POOL };
 
@@ -35,22 +50,24 @@ export const useCaptainVeto = (match, passedTeamId) => {
     const currentStepIndex = vetoes.length;
     const isComplete = currentStepIndex >= totalSteps;
 
-    // 🧠 FUZZY MATCHING: Normalizes "Dust 2" to "dust2"
-    const normalize = (name) => String(name).toLowerCase().replace(/\s/g, '');
-    
-    const usedMapNames = new Set(vetoes.map(v => normalize(v.map_name)));
-    const availableMaps = MAP_POOL.filter(m => !usedMapNames.has(normalize(m.id)));
+    // 🧠 INTELLIGENT FILTERING
+    // Removes maps that have already been banned/picked
+    const usedMapIds = new Set(vetoes.map(v => v.map_name)); // DB stores 'de_mirage'
+    const availableMaps = MAP_POOL.filter(m => !usedMapIds.has(m.id));
 
     if (isComplete) {
-      return { isMyTurn: false, action: 'COMPLETE', activeTeamId: null, availableMaps };
+      return { isMyTurn: false, action: 'COMPLETE', activeTeamId: null, availableMaps: [] };
     }
 
+    // Determine Active Team based on Sequence (team1 vs team2)
     const currentStep = formatRules.sequence[currentStepIndex];
-    let activeTeamId = (currentStep.team === 'A') ? match.team1_id : match.team2_id;
+    const activeTeamId = (currentStep.team === 'team1') ? match.team1_id : match.team2_id;
+
+    const isMyTurn = myTeamId && activeTeamId && (String(myTeamId) === String(activeTeamId));
 
     return {
-      isMyTurn: String(myTeamId).toLowerCase() === String(activeTeamId).toLowerCase(),
-      action: currentStep.type,
+      isMyTurn,
+      action: currentStep.type, // 'BAN' or 'PICK'
       activeTeamId,
       stepIndex: currentStepIndex,
       totalSteps,
@@ -58,7 +75,7 @@ export const useCaptainVeto = (match, passedTeamId) => {
     };
   }, [vetoes, formatRules, match, myTeamId]);
 
-  // 4️⃣ DATA FETCHING & REALTIME
+  // 4️⃣ DATA FETCHING & SYNC
   const fetchVetoes = useCallback(async () => {
     if (!match?.id) return;
     const { data, error } = await supabase
@@ -79,38 +96,48 @@ export const useCaptainVeto = (match, passedTeamId) => {
         schema: 'public', 
         table: 'match_vetoes', 
         filter: `match_id=eq.${match?.id}` 
-      }, () => fetchVetoes())
+      }, (payload) => {
+        // Play sound on ANY update (even if opponent acted)
+        if (payload.eventType === 'INSERT') SoundNexus.play(CUES.VETO_ACTION);
+        fetchVetoes();
+      })
       .subscribe();
 
     return () => { supabase.removeChannel(subscription); };
   }, [match?.id, fetchVetoes]);
 
-  // 5️⃣ SUBMIT ACTION
+  // 5️⃣ ACTION: SUBMIT VETO
   const submitVeto = async (mapId) => {
     if (!vetoState.isMyTurn || loading) return;
     
-    // Final Frontend Guard
-    const normalize = (name) => String(name).toLowerCase().replace(/\s/g, '');
-    if (vetoes.some(v => normalize(v.map_name) === normalize(mapId))) {
-      toast.error("Map already processed");
+    // Guard: Prevent double clicks
+    if (vetoes.some(v => v.map_name === mapId)) {
+      toast.error("MAP ALREADY PROCESSED");
       return;
     }
 
     setLoading(true);
+    SoundNexus.play(CUES.UI_CLICK);
+
     try {
-      const { error } = await supabase.rpc('api_submit_veto', {
-        p_match_id: match.id,
-        p_team_id: myTeamId,
-        p_map_name: mapId,
-        p_type: vetoState.action,
-        p_pick_order: vetoes.length + 1
+      // Direct Insert (Faster than RPC for simple vetoes)
+      // Note: Ensure RLS policies allow captains to insert
+      const { error } = await supabase.from('match_vetoes').insert({
+        match_id: match.id,
+        team_id: myTeamId,
+        map_name: mapId,
+        type: vetoState.action,
+        pick_order: vetoes.length + 1
       });
 
       if (error) throw error;
-      toast.success(`${mapId} ${vetoState.action}ED`);
-      await fetchVetoes();
+      
+      toast.success(`${formatRules.sequence[vetoes.length].type}: ${mapId}`);
+      // Sound handled by subscription listener
     } catch (err) {
-      toast.error(err.message || "Veto submission failed");
+      console.error(err);
+      toast.error("VETO FAILED: " + err.message);
+      SoundNexus.play(CUES.ERROR);
     } finally {
       setLoading(false);
     }
@@ -119,7 +146,7 @@ export const useCaptainVeto = (match, passedTeamId) => {
   return {
     vetoes,
     ...vetoState,
-    progress: `${vetoState.stepIndex || 0} / ${vetoState.totalSteps || 0}`,
+    progress: `${vetoState.stepIndex} / ${vetoState.totalSteps}`,
     submitVeto,
     loading
   };

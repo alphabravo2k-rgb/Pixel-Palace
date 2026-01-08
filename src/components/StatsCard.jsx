@@ -1,14 +1,21 @@
 import React from 'react';
+import { motion } from 'framer-motion';
 import { ArrowUpRight, TrendingDown, Minus, Shield } from 'lucide-react';
 import { cn } from '../lib/utils';
 
+// MASTER INTEGRATION
+import { SoundNexus, CUES } from '../lib/soundNexus';
+
 /**
- * PIXEL PALACE: STATS CARD V3.0 (MASTER HYBRID)
- * STATUS: MASTERED (DUBAI STANDARD)
- * - GPU Accelerated Decorative Layer
- * - Dynamic Trend Analysis
- * - Reactive Theme Shadowing
+ * 📊 PIXEL PALACE: STATS CARD V3.5 (SENSORY EDITION)
+ * --------------------------------------------------
+ * STATUS: MASTERED (BURJ KHALIFA STANDARD)
+ * * UPGRADES:
+ * 1. PHYSICS: 'Lift' effect on hover using Framer Motion.
+ * 2. AUDIO: Plays a subtle tech-chirp on interaction.
+ * 3. OPTIMIZATION: 'will-change' properties for 60FPS rendering.
  */
+
 const StatsCard = ({ 
   title, 
   value, 
@@ -28,11 +35,15 @@ const StatsCard = ({
   const TrendIcon = trendConfig.icon;
 
   return (
-    <div className={cn(
-      "group relative overflow-hidden rounded-sm bg-bg-panel border border-white/5 p-6 flex flex-col justify-between h-full transition-all duration-500",
-      "hover:border-brand/40 hover:shadow-[0_0_30px_rgba(var(--color-brand)/0.15)]",
-      className
-    )}>
+    <motion.div 
+      whileHover={{ y: -4 }}
+      onMouseEnter={() => SoundNexus.play(CUES.UI_HOVER, { volume: 0.1, rate: 1.5 })}
+      className={cn(
+        "group relative overflow-hidden rounded-sm bg-bg-panel border border-white/5 p-6 flex flex-col justify-between h-full transition-colors duration-300",
+        "hover:border-brand/40 hover:shadow-[0_0_30px_rgba(var(--color-brand)/0.15)]",
+        className
+      )}
+    >
       
       {/* 🎨 GPU ACCELERATED BACKGROUND DECOR */}
       {/* Massive faded icon that rotates on hover */}
@@ -72,9 +83,8 @@ const StatsCard = ({
       <div className="absolute top-0 left-0 w-[1px] h-full bg-gradient-to-b from-brand/50 to-transparent opacity-30" />
       
       {/* BOTTOM SHINE: THE "LIFELINE" */}
-      {/* Moves up slightly on hover to look like it's activating */}
       <div className="absolute bottom-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-brand to-transparent opacity-0 group-hover:opacity-100 transition-all duration-700 translate-y-[1px] group-hover:translate-y-0" />
-    </div>
+    </motion.div>
   );
 };
 

@@ -1,26 +1,34 @@
 /**
- * PIXEL PALACE: MASTER NAVIGATION HUB
- * VERSION: 4.5.0 (NEXUS INTEGRATED)
- * - Reactive Nexus Guarding (Zustand)
- * - Intelligent Role Redirection
- * - Hardware Accelerated Layouts
+ * 🗺️ PIXEL PALACE: MASTER NAVIGATION HUB
+ * --------------------------------------
+ * STATUS: MASTERED (BURJ KHALIFA STANDARD)
+ * VERSION: 5.0.0
+ * * FEATURES:
+ * 1. 3D ROUTING: Directs combatants to the WebGL 'CombatHUD'.
+ * 2. SECURITY GATES: Enforces the 6-Layer RBAC model via 'security/engine'.
+ * 3. ADMIN TOOLS: Exposes the new 'SystemDiagnostic' panel.
  */
 
 import React from 'react';
 import { createBrowserRouter, Navigate, Outlet } from 'react-router-dom';
-import { AlertTriangle, Activity, Lock } from 'lucide-react';
+import { Activity } from 'lucide-react';
 import { Toaster } from 'react-hot-toast';
 
-// MASTER LOGIC
+// 🧠 MASTER LOGIC
 import { useNexusStore } from '../store/useNexusStore';
-import { getClearanceLevel, ROLES } from '../lib/roles';
+import { getClearanceLevel } from '../lib/security/engine';
 
-// VIEW COMPONENTS
+// 🏗️ VIEW COMPONENTS
 import { LandingPage } from '../components/LandingPage';
 import { UnifiedLogin } from '../components/auth/UnifiedLogin';
 import { StaffRegistration } from '../components/auth/StaffRegistration';
 import { BracketView } from '../components/BracketView';
-import { MatchRoom } from '../components/match/MatchRoom';
+
+// 🚀 NEW 3D COMPONENTS
+import { CombatHUD } from '../components/match/CombatHUD'; // The 3D Cockpit
+import { SystemDiagnostic } from '../components/admin/SystemDiagnostic'; // The Engine Room
+
+// 🧱 LEGACY COMPONENTS (To be upgraded)
 import { AdminDashboard } from '../components/admin/AdminDashboard';
 import { PlayerDashboard } from '../components/player/PlayerDashboard';
 import { AdminToolbar } from '../components/admin/AdminToolbar';
@@ -40,10 +48,9 @@ const PageLoader = () => (
   </div>
 );
 
-// 🛡️ 2. SECURITY GATES (The Guards)
+// 🛡️ 2. SECURITY GATES
 const RequireAuth = () => {
   const { uid, isHydrated } = useNexusStore();
-  
   if (!isHydrated) return <PageLoader />;
   return uid ? <Outlet /> : <Navigate to="/login" replace />;
 };
@@ -51,9 +58,9 @@ const RequireAuth = () => {
 const RequireClearance = ({ minLevel = 0 }) => {
   const { role } = useNexusStore();
   const level = getClearanceLevel(role);
-  
+
   if (level < minLevel) {
-    // Redirect based on current status
+    // Smart Redirect: Admins go to War Room, Players to Dashboard
     const fallback = level >= 60 ? '/admin/warroom' : '/dashboard';
     return <Navigate to={fallback} replace />;
   }
@@ -64,13 +71,12 @@ const RequireClearance = ({ minLevel = 0 }) => {
 const RootLayout = () => (
   <div className="min-h-screen bg-[#050505] text-white selection:bg-brand/30">
     <Toaster position="bottom-right" />
-    <div className="pointer-events-none fixed inset-0 z-[100] opacity-[0.02] bg-[url('https://grainy-gradients.vercel.app/noise.svg')]" />
     <Outlet />
   </div>
 );
 
 const AdminLayout = () => (
-  <div className="min-h-screen bg-bg relative">
+  <div className="min-h-screen bg-[#09090b] relative">
     <AdminToolbar />
     <div className="pt-20 px-6"> 
       <Outlet />
@@ -83,35 +89,19 @@ export const router = createBrowserRouter([
   {
     path: '/',
     element: <RootLayout />,
-    errorElement: <div className="h-screen flex items-center justify-center bg-black text-red-500">Critical Router Failure</div>,
+    errorElement: <div className="h-screen flex items-center justify-center bg-black text-red-500 font-mono">CRITICAL ROUTER FAILURE</div>,
     children: [
-      // PUBLIC ACCESS
+      // 🔓 PUBLIC ACCESS
       { index: true, element: <LandingPage /> },
       { path: 'login', element: <UnifiedLogin /> },
       { path: 'staff-register', element: <StaffRegistration /> },
       
-      // PROTECTED: OVERSEER DECK (Level 60+)
-      {
-        path: 'admin',
-        element: <RequireAuth />,
-        children: [
-          {
-            element: <RequireClearance minLevel={60} />,
-            children: [
-              {
-                element: <AdminLayout />,
-                children: [
-                  { path: 'warroom', element: <AdminDashboard /> },
-                  { path: 'bracket', element: <BracketView adminMode={true} /> },
-                  { index: true, element: <Navigate to="warroom" replace /> }
-                ]
-              }
-            ]
-          }
-        ]
-      },
+      // ⚔️ LIVE COMBAT (The 3D HUD)
+      // Accessible to everyone, but view changes based on Role (Player vs Spec)
+      { path: 'match/:matchId', element: <CombatHUD matchData={{ id: 'LIVE-001', status: 'live' }} /> },
+      { path: 'bracket', element: <BracketView /> },
 
-      // PROTECTED: OPERATOR DECK (Level 10+)
+      // 🔐 PROTECTED: OPERATOR DECK (Level 10+)
       {
         path: 'dashboard',
         element: <RequireAuth />,
@@ -123,11 +113,29 @@ export const router = createBrowserRouter([
         ]
       },
 
-      // MATCH INTERFACES
-      { path: 'bracket', element: <BracketView /> },
-      { path: 'match/:matchId', element: <MatchRoom /> },
+      // 🔐 PROTECTED: OVERSEER DECK (Level 60+)
+      {
+        path: 'admin',
+        element: <RequireAuth />,
+        children: [
+          {
+            element: <RequireClearance minLevel={60} />,
+            children: [
+              {
+                element: <AdminLayout />,
+                children: [
+                  { path: 'warroom', element: <AdminDashboard /> },
+                  { path: 'diagnostics', element: <SystemDiagnostic /> }, // 🩺 NEW
+                  { path: 'bracket', element: <BracketView adminMode={true} /> },
+                  { index: true, element: <Navigate to="warroom" replace /> }
+                ]
+              }
+            ]
+          }
+        ]
+      },
 
-      // CATCH ALL
+      // 🛑 CATCH ALL
       { path: '*', element: <Navigate to="/" replace /> }
     ]
   }

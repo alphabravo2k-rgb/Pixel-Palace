@@ -1,12 +1,19 @@
 import React, { useEffect, forwardRef } from 'react';
-import { X, Loader2, AlertTriangle, UploadCloud } from 'lucide-react';
-import { cn } from '../lib/utils'; // ✅ Standardized Import
+import { motion, AnimatePresence } from 'framer-motion';
+import { X, Loader2, AlertTriangle, UploadCloud, ChevronDown } from 'lucide-react';
+import { cn } from '../lib/utils';
+
+// 🔊 SENSORY ENGINE
+import { SoundNexus, CUES } from '../lib/soundNexus';
 
 /**
- * 🧱 PIXEL PALACE: ATOMIC UI
- * --------------------------
- * STATUS: MASTERED (DUBAI STANDARD)
- * PURPOSE: Hardware-accelerated, consistent UI primitives.
+ * 🧱 PIXEL PALACE: ATOMIC UI (SENSORY EDITION)
+ * --------------------------------------------
+ * STATUS: MASTERED (BURJ KHALIFA STANDARD)
+ * * UPGRADES:
+ * 1. HAPTIC AUDIO: All interactions trigger SoundNexus events.
+ * 2. PHYSICS: Framer Motion integration for tactile press feedback.
+ * 3. ACCESSIBILITY: Full ref forwarding and aria support.
  */
 
 // ==========================================
@@ -15,15 +22,16 @@ import { cn } from '../lib/utils'; // ✅ Standardized Import
 
 export const Button = forwardRef(({ 
   children, variant = 'primary', size = 'md', className = '', 
-  onClick, disabled, loading, type = "button", ...props 
+  onClick, disabled, loading, type = "button", sound = CUES.UI_CLICK, ...props 
 }, ref) => {
   
   const variants = {
-    primary: "bg-zinc-900 text-zinc-300 border border-zinc-700 hover:bg-brand hover:text-white hover:border-brand-glow hover:shadow-neon hover:scale-[1.02]",
+    primary: "bg-zinc-900 text-zinc-300 border border-zinc-700 hover:bg-brand hover:text-white hover:border-brand-glow hover:shadow-neon",
     secondary: "bg-tactical/30 text-zinc-400 border border-tactical hover:bg-tactical hover:text-white",
     danger: "bg-red-950/20 text-red-500 border border-red-900/50 hover:bg-red-600 hover:text-white",
     success: "bg-emerald-950/20 text-emerald-500 border border-emerald-900/50 hover:bg-emerald-600 hover:text-white",
-    brand: "bg-brand text-white border border-brand-glow shadow-neon hover:bg-brand-dim"
+    brand: "bg-brand text-white border border-brand-glow shadow-neon hover:bg-brand-dim",
+    ghost: "bg-transparent text-zinc-500 hover:text-white hover:bg-white/5 border-transparent"
   };
 
   const sizes = {
@@ -32,35 +40,54 @@ export const Button = forwardRef(({
     lg: "px-8 py-4 text-sm"
   };
 
+  const handleClick = (e) => {
+    if (!disabled && !loading) {
+      SoundNexus.play(sound);
+      onClick && onClick(e);
+    }
+  };
+
+  const handleHover = () => {
+    if (!disabled && !loading) {
+      SoundNexus.play(CUES.UI_HOVER, { volume: 0.1 }); // Subtle tick
+    }
+  };
+
   return (
-    <button
+    <motion.button
       ref={ref}
       type={type}
+      whileTap={{ scale: 0.96 }}
+      onMouseEnter={handleHover}
       className={cn(
-        "rounded-sm font-black uppercase tracking-widest transition-all duration-300 flex items-center justify-center gap-2 active:scale-95 touch-manipulation select-none relative overflow-hidden",
+        "rounded-sm font-black uppercase tracking-widest transition-colors duration-200 flex items-center justify-center gap-2 select-none relative overflow-hidden",
         variants[variant],
         sizes[size],
-        (disabled || loading) && "opacity-40 grayscale cursor-not-allowed pointer-events-none",
+        (disabled || loading) && "opacity-50 grayscale cursor-not-allowed pointer-events-none",
         className
       )}
-      onClick={onClick}
+      onClick={handleClick}
       disabled={disabled || loading}
       {...props}
     >
       {loading ? <Loader2 size={16} className="animate-spin" /> : children}
-    </button>
+    </motion.button>
   );
 });
 Button.displayName = 'Button';
 
-export const Input = forwardRef(({ label, error, className, ...props }, ref) => (
+export const Input = forwardRef(({ label, error, className, onFocus, ...props }, ref) => (
   <div className="w-full space-y-1.5">
     {label && <label className="text-[10px] uppercase tracking-[0.2em] text-zinc-500 font-black ml-1">{label}</label>}
     <div className="relative group">
       <input
         ref={ref}
+        onFocus={(e) => {
+            SoundNexus.play(CUES.UI_HOVER, { volume: 0.2 });
+            onFocus && onFocus(e);
+        }}
         className={cn(
-          "w-full bg-black/40 border border-white/10 p-3.5 text-sm text-gray-200 outline-none transition-all rounded-sm",
+          "w-full bg-black/40 border border-white/10 p-3.5 text-sm text-gray-200 outline-none transition-all rounded-sm font-mono",
           "focus:border-brand/60 focus:bg-black placeholder:text-zinc-700",
           "disabled:opacity-50 disabled:cursor-not-allowed",
           error && "border-red-500/50 focus:border-red-500",
@@ -81,25 +108,26 @@ export const Select = forwardRef(({ label, options = [], placeholder, error, cla
     {label && <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold ml-1">{label}</label>}
     <div className="relative">
         <select 
-        ref={ref}
-        className={cn(
-            "w-full bg-black/40 border border-white/10 p-3 text-sm text-gray-200 outline-none transition-all appearance-none cursor-pointer rounded-sm",
+          ref={ref}
+          className={cn(
+            "w-full bg-black/40 border border-white/10 p-3 text-sm text-gray-200 outline-none transition-all appearance-none cursor-pointer rounded-sm font-mono",
             "focus:border-brand focus:shadow-[0_0_15px_rgba(var(--color-brand)/0.2)]",
             error && "border-red-500",
             className
-        )}
-        {...props}
+          )}
+          onClick={() => SoundNexus.play(CUES.UI_CLICK)}
+          {...props}
         >
-        {placeholder && <option value="" disabled selected>{placeholder}</option>}
-        {options.map((opt, i) => (
+          {placeholder && <option value="" disabled selected>{placeholder}</option>}
+          {options.map((opt, i) => (
             <option key={i} value={opt.value} className="bg-zinc-900 text-gray-300">
-            {opt.label}
+              {opt.label}
             </option>
-        ))}
+          ))}
         </select>
         {/* Custom Arrow */}
         <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-500">
-            <svg width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            <ChevronDown size={14} />
         </div>
     </div>
   </div>
@@ -109,10 +137,13 @@ Select.displayName = 'Select';
 export const FileInput = ({ label, onFileSelect, accept = "image/*,audio/*", error, fileName }) => (
   <div className="w-full space-y-2">
     {label && <label className="text-[10px] uppercase tracking-[0.2em] text-zinc-500 font-black">{label}</label>}
-    <label className={cn(
-      "flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-white/10 rounded-sm bg-white/5 cursor-pointer hover:bg-white/10 hover:border-brand/40 transition-all group overflow-hidden relative",
-      error && "border-red-500/50"
-    )}>
+    <label 
+      onClick={() => SoundNexus.play(CUES.UI_CLICK)}
+      className={cn(
+        "flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-white/10 rounded-sm bg-white/5 cursor-pointer hover:bg-white/10 hover:border-brand/40 transition-all group overflow-hidden relative",
+        error && "border-red-500/50"
+      )}
+    >
       <div className="flex flex-col items-center justify-center pt-5 pb-6">
         <UploadCloud className={cn("w-8 h-8 mb-2 transition-colors", fileName ? "text-brand" : "text-zinc-600 group-hover:text-brand")} />
         <p className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest group-hover:text-zinc-300 transition-colors">
@@ -142,9 +173,16 @@ export const Badge = ({ children, color = 'gray', className = '' }) => {
 // ==========================================
 
 export const SkewButton = ({ children, onClick, className = "", disabled = false, type = "button", loading = false }) => (
-  <button 
+  <motion.button 
     type={type}
-    onClick={disabled || loading ? undefined : onClick} 
+    whileTap={{ scale: 0.98 }}
+    onMouseEnter={() => !disabled && SoundNexus.play(CUES.UI_HOVER)}
+    onClick={(e) => {
+        if (!disabled && !loading) {
+            SoundNexus.play(CUES.UI_CLICK);
+            onClick && onClick(e);
+        }
+    }}
     disabled={disabled || loading}
     className={cn(
       "relative group px-10 py-4 transform -skew-x-[12deg] transition-all duration-300 overflow-hidden",
@@ -159,7 +197,7 @@ export const SkewButton = ({ children, onClick, className = "", disabled = false
     </span>
     {/* Glitch Decor */}
     <div className="absolute top-0 right-0 w-2 h-2 bg-brand/40 group-hover:bg-white/50 transform skew-x-[12deg]" />
-  </button>
+  </motion.button>
 );
 
 export const HudPanel = ({ children, className = "", title, icon: Icon, glow = false }) => (
@@ -189,8 +227,12 @@ export const HudPanel = ({ children, className = "", title, icon: Icon, glow = f
 
 export const Modal = ({ isOpen, onClose, title, children, size = 'md' }) => {
   useEffect(() => {
-    if (!isOpen) return;
-    document.body.style.overflow = 'hidden';
+    if (isOpen) {
+        document.body.style.overflow = 'hidden';
+        SoundNexus.play(CUES.NAVIGATION_SWISH); // 🔊 Whoosh Sound
+    } else {
+        document.body.style.overflow = 'unset';
+    }
     const handleEsc = (e) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', handleEsc);
     return () => { document.body.style.overflow = 'unset'; window.removeEventListener('keydown', handleEsc); };
@@ -201,15 +243,34 @@ export const Modal = ({ isOpen, onClose, title, children, size = 'md' }) => {
   const widthClass = { sm: 'max-w-md', md: 'max-w-xl', lg: 'max-w-4xl', full: 'max-w-[95vw]' }[size];
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-300">
-      <div className={cn("relative w-full bg-[#09090b] border border-white/10 shadow-2xl flex flex-col max-h-[90vh]", widthClass)}
-        style={{ clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 20px), calc(100% - 20px) 100%, 0 100%)' }}>
-        <div className="flex justify-between items-center p-6 border-b border-white/5 bg-white/[0.02]">
-          <h3 className="text-2xl font-display font-bold text-white uppercase italic tracking-tighter">{title}</h3>
-          <button onClick={onClose} className="text-zinc-500 hover:text-red-500 transition-all hover:rotate-90"><X size={28} /></button>
-        </div>
-        <div className="p-6 overflow-y-auto custom-scrollbar">{children}</div>
-      </div>
-    </div>
+    <AnimatePresence>
+        {isOpen && (
+            <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md"
+            >
+              <motion.div 
+                initial={{ scale: 0.95, y: 20 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.95, y: 20 }}
+                className={cn("relative w-full bg-[#09090b] border border-white/10 shadow-2xl flex flex-col max-h-[90vh]", widthClass)}
+                style={{ clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 20px), calc(100% - 20px) 100%, 0 100%)' }}
+              >
+                <div className="flex justify-between items-center p-6 border-b border-white/5 bg-white/[0.02]">
+                  <h3 className="text-2xl font-display font-bold text-white uppercase italic tracking-tighter">{title}</h3>
+                  <button 
+                    onClick={() => { SoundNexus.play(CUES.UI_ERROR); onClose(); }} 
+                    className="text-zinc-500 hover:text-red-500 transition-all hover:rotate-90"
+                  >
+                      <X size={28} />
+                  </button>
+                </div>
+                <div className="p-6 overflow-y-auto custom-scrollbar">{children}</div>
+              </motion.div>
+            </motion.div>
+        )}
+    </AnimatePresence>
   );
 };

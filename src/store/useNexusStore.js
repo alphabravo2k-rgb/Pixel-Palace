@@ -5,20 +5,22 @@ import { normalizeRole, ROLES } from '../lib/roles';
 import { SoundNexus, CUES } from '../lib/soundNexus';
 
 /**
- * 🧠 PIXEL PALACE: NEXUS CORE
- * ---------------------------
- * STATUS: MASTERED (DUBAI STANDARD)
- * VERSION: 4.0.0
+ * 🧠 PIXEL PALACE: NEXUS CORE (MASTER HYBRID)
+ * -------------------------------------------
+ * STATUS: MASTERED (BURJ KHALIFA STANDARD)
+ * VERSION: 4.5.0
  * * ARCHITECTURE:
- * 1. PERSISTENCE: Remembers user identity across page reloads.
- * 2. SELF-HEALING: 'syncNexus' verifies session validity on boot.
- * 3. HYBRID AUTH: Unifies Supabase Users (Admins) and Team Codes (Captains).
+ * 1. IDENTITY: Hybrid Auth (Supabase Admin + Captain PIN).
+ * 2. REALITY: Controls 3D/2D rendering modes based on hardware power.
+ * 3. SENSES: Manages Audio/Haptics global state.
  */
 
 export const useNexusStore = create(
   persist(
     (set, get) => ({
-      // --- CORE STATE ---
+      // =========================================================
+      // 🆔 IDENTITY MODULE (PRESERVED & PROTECTED)
+      // =========================================================
       uid: null,
       profile: null,
       team_id: null,
@@ -28,7 +30,6 @@ export const useNexusStore = create(
       isHydrated: false, // Store Ready Status
 
       // --- ⚡ ACTION: SYSTEM SYNC (Self-Healing) ---
-      // Called on App boot to ensure the session is real
       syncNexus: async () => {
         const { data: { session } } = await supabase.auth.getSession();
         
@@ -53,9 +54,6 @@ export const useNexusStore = create(
         }
         
         // B. If Captain Session (Optimistic Trust)
-        // Captains rely on the persisted 'nexus-storage' in localStorage.
-        // If authType is CAPTAIN_PIN and we have data, we assume it's valid 
-        // until an API call fails (handled by axios/fetch interceptors ideally).
         if (get().authType === 'CAPTAIN_PIN' && get().uid) {
            set({ isLive: true });
            return;
@@ -127,14 +125,36 @@ export const useNexusStore = create(
       // --- ⚡ ACTION: LOGOUT ---
       clearNexus: async () => {
         SoundNexus.play(CUES.NAVIGATION_SWISH);
-        
-        // Only call Supabase signOut if we were logged in via Supabase
         if (get().authType === 'SUPABASE') {
             await supabase.auth.signOut();
         }
-
         set({ uid: null, profile: null, role: ROLES.GUEST, authType: 'GUEST', team_id: null });
         localStorage.removeItem('nexus-storage');
+      },
+
+      // =========================================================
+      // 🏗️ REALITY MODULE (INJECTED FOR 3D UPGRADE)
+      // =========================================================
+      graphicsTier: 'high', // 'low' | 'medium' | 'high' | 'ultra'
+      is3DEnabled: true,
+      
+      setGraphicsTier: (tier) => set({ graphicsTier: tier }),
+      toggle3D: () => set((state) => ({ is3DEnabled: !state.is3DEnabled })),
+
+      // =========================================================
+      // 🔊 SENSORY MODULE (INJECTED FOR 8D AUDIO)
+      // =========================================================
+      volume: { master: 0.8, sfx: 1.0, music: 0.5, voice: 1.0 },
+      isMuted: false,
+      
+      setVolume: (channel, level) => set((state) => ({
+        volume: { ...state.volume, [channel]: level }
+      })),
+      toggleMute: () => {
+        const newMuteState = !get().isMuted;
+        set({ isMuted: newMuteState });
+        // Direct Hardware Link
+        SoundNexus.mute(newMuteState); 
       },
 
       // Internal Hydration Signal
@@ -144,7 +164,6 @@ export const useNexusStore = create(
       name: 'nexus-storage', // Key in LocalStorage
       storage: createJSONStorage(() => localStorage),
       onRehydrateStorage: () => (state) => {
-        // When the app reloads, verify the session
         state?.syncNexus().finally(() => state?.hydrate());
       }
     }

@@ -1,7 +1,7 @@
 /**
  * 📘 PIXEL PALACE: KNOWLEDGE MATRIX
  * --------------------------------
- * STATUS: MASTERED (DUBAI STANDARD)
+ * STATUS: MASTERED (BURJ KHALIFA STANDARD)
  * VERSION: 2.0.0
  * PURPOSE: Central repository for all Standard Operating Procedures (SOPs).
  */

@@ -1,34 +1,20 @@
-/**
- * 🛡️ PIXEL PALACE: OVERSEER COMMAND CENTER
- * VERSION: 4.5.0 (MASTER HYBRID)
- * STATUS: MASTERED
- * * ARCHITECTURE:
- * 1. REAL-TIME INTEL: WebSocket uplink for live match data.
- * 2. HOLOGRAPHIC UI: Glassmorphism panels with 3D depth context.
- * 3. TACTICAL AUDIO: SoundNexus integration for critical alerts.
- */
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../../supabase/client';
-import { useNexusStore } from '../../store/useNexusStore';
-import { SoundNexus, CUES } from '../../lib/soundNexus';
-import { 
-  Shield, Activity, Users, AlertTriangle, 
-  Layout, Sword, FileText, UserCircle, RefreshCw,
-  Terminal, Monitor
-} from 'lucide-react';
+import { Shield, Activity, Users, AlertTriangle, Layout, Sword, FileText, Monitor } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 
-// 🏗️ SUB-MODULES (We will build these next)
+// MASTER CORE
+import { supabase } from '../../supabase/client';
+import { useNexusStore } from '../../store/useNexusStore';
+import { SoundNexus, CUES } from '../../lib/soundNexus';
+
+// 🏗️ SUB-MODULES (REAL IMPORTS)
 import { BracketView } from '../BracketView'; 
 import { SystemDiagnostic } from './SystemDiagnostic';
-
-// --- TEMPORARY STUBS (To be replaced by Priority 3 Files) ---
-const TeamRosterView = () => <div className="p-10 text-center border border-dashed border-zinc-700 rounded-sm text-zinc-500 font-mono">ROSTER MODULE INITIALIZING...</div>;
-const StaffManagement = () => <div className="p-10 text-center border border-dashed border-zinc-700 rounded-sm text-zinc-500 font-mono">STAFF MODULE INITIALIZING...</div>;
-const AdminProfile = () => <div className="p-10 text-center border border-dashed border-zinc-700 rounded-sm text-zinc-500 font-mono">IDENTITY MODULE INITIALIZING...</div>;
+import { TeamRosterView } from './TeamRosterView'; // ✅ NOW REAL
+import { StaffManagement } from './StaffManagement'; // ✅ NOW REAL
+import { AdminAuditLog } from './AdminAuditLog'; // ✅ REUSED
 
 // 🧩 SUB-COMPONENT: Live Match Row
 const LiveMatchRow = ({ match, onWarRoom }) => (
@@ -75,7 +61,6 @@ const StatsCard = ({ title, value, icon: Icon, className }) => (
         <Icon size={18} />
       </div>
     </div>
-    {/* Decorative Glow */}
     <div className="absolute -bottom-4 -right-4 w-24 h-24 bg-brand/5 rounded-full blur-2xl group-hover:bg-brand/10 transition-colors" />
   </div>
 );
@@ -86,16 +71,13 @@ export const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('OVERVIEW');
   const [stats, setStats] = useState({ teams: 0, matches: 0, disputes: 0 });
   const [liveMatches, setLiveMatches] = useState([]);
-  const [auditLogs, setAuditLogs] = useState([]);
-  const [activeWarRoomId, setActiveWarRoomId] = useState(null);
 
   // 1️⃣ INTEL UPLINK
   const fetchDashboardIntel = useCallback(async (silent = false) => {
     try {
-        const [teamsRes, matchesRes, logsRes] = await Promise.all([
+        const [teamsRes, matchesRes] = await Promise.all([
             supabase.from('teams').select('id', { count: 'exact', head: true }),
-            supabase.from('matches').select('*, team1:team1_id(name), team2:team2_id(name)').or('status.eq.live,status.eq.disputed,status.eq.veto').order('round_number', { ascending: true }),
-            supabase.from('audit_logs').select('*').order('created_at', { ascending: false }).limit(5)
+            supabase.from('matches').select('*, team1:team1_id(name), team2:team2_id(name)').or('status.eq.live,status.eq.disputed,status.eq.veto').order('round_number', { ascending: true })
         ]);
 
         const newStats = {
@@ -110,7 +92,6 @@ export const AdminDashboard = () => {
 
         setStats(newStats);
         setLiveMatches(matchesRes.data || []);
-        setAuditLogs(logsRes.data || []);
     } catch (err) {
         console.error("Nexus Intel Failure:", err);
     }
@@ -121,7 +102,6 @@ export const AdminDashboard = () => {
     fetchDashboardIntel();
     const channel = supabase.channel('admin_global_intel')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, () => fetchDashboardIntel(true))
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'audit_logs' }, () => fetchDashboardIntel(true))
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [fetchDashboardIntel]);
@@ -133,7 +113,6 @@ export const AdminDashboard = () => {
           case 'DIAGNOSTICS': return <SystemDiagnostic />;
           case 'ROSTER': return <TeamRosterView />;
           case 'STAFF': return <StaffManagement />;
-          case 'PROFILE': return <AdminProfile />;
           case 'OVERVIEW':
           default:
             return (
@@ -179,8 +158,8 @@ export const AdminDashboard = () => {
                                       <Sword size={16} className="text-brand" /> Live Deployments
                                   </h3>
                                   <div className="flex items-center gap-2">
-                                    <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
-                                    <span className="text-[9px] font-black font-mono text-zinc-500 uppercase tracking-widest">Real-time</span>
+                                      <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
+                                      <span className="text-[9px] font-black font-mono text-zinc-500 uppercase tracking-widest">Real-time</span>
                                   </div>
                               </div>
                               <div className="divide-y divide-white/5">
@@ -198,30 +177,8 @@ export const AdminDashboard = () => {
                           </div>
                       </div>
 
-                      {/* AUDIT LOG */}
-                      <div className="bg-black/40 border border-white/5 rounded-sm overflow-hidden h-fit backdrop-blur-sm">
-                          <div className="p-4 border-b border-white/5 bg-white/[0.02] flex items-center gap-2">
-                              <FileText size={16} className="text-zinc-500" />
-                              <h3 className="font-display font-black text-white uppercase italic tracking-tighter">Command Ledger</h3>
-                          </div>
-                          <div className="p-4 space-y-4">
-                              {auditLogs.length === 0 ? (
-                                  <div className="text-center text-zinc-700 text-[9px] uppercase font-mono tracking-widest py-2">Ledger Empty</div>
-                              ) : (
-                                  auditLogs.map(log => (
-                                      <div key={log.id} className="relative pl-4 border-l border-white/10 pb-1 group">
-                                          <div className="absolute left-[-2.5px] top-1 w-1 h-1 rounded-full bg-zinc-700 group-hover:bg-brand transition-colors" />
-                                          <p className="text-[8px] text-zinc-600 font-black font-mono uppercase tracking-widest mb-0.5">
-                                              {formatDistanceToNow(new Date(log.created_at), { addSuffix: true })}
-                                          </p>
-                                          <p className="text-[10px] font-bold text-zinc-300 uppercase leading-tight group-hover:text-brand transition-colors">
-                                            {log.action_type?.replace(/_/g, ' ')}
-                                          </p>
-                                      </div>
-                                  ))
-                              )}
-                          </div>
-                      </div>
+                      {/* AUDIT LOG (Reusing the dedicated component) */}
+                      <AdminAuditLog className="h-full max-h-[600px]" />
                   </div>
               </div>
             );
@@ -258,7 +215,7 @@ export const AdminDashboard = () => {
                {[
                    { id: 'OVERVIEW', icon: Activity, label: 'Radar' },
                    { id: 'BRACKET', icon: Layout, label: 'Tactical' },
-                   { id: 'DIAGNOSTICS', icon: Monitor, label: 'Kernel' }, // 🩺 NEW
+                   { id: 'DIAGNOSTICS', icon: Monitor, label: 'Kernel' },
                    { id: 'ROSTER', icon: Users, label: 'Units' },
                    { id: 'STAFF', icon: Shield, label: 'Clearance' }
                ].map(tab => (

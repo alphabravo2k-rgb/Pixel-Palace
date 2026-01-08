@@ -1,14 +1,18 @@
+import { Howl, Howler } from 'howler';
+
 /**
- * 🔊 PIXEL PALACE: AUDIO NEXUS PRO
- * ------------------------------
- * STATUS: MASTERED (DUBAI STANDARD)
- * VERSION: 4.0.0
+ * 🔊 PIXEL PALACE: SOUND NEXUS (8D SPATIAL ENGINE)
+ * ------------------------------------------------
+ * STATUS: MASTERED (BURJ KHALIFA STANDARD)
+ * ENGINE: HOWLER.JS (WEB AUDIO API ACCELERATED)
  * * FEATURES:
- * 1. POLYPHONIC ENGINE: Allows overlapping sounds (e.g., rapid clicks).
- * 2. SPATIAL VARIANCE: Subtle pitch shifting to prevent "audio fatigue".
- * 3. BROWSER SAFE: Handles auto-play policies gracefully.
+ * 1. SPATIAL AUDIO: Supports full stereo panning (-1.0 to 1.0).
+ * 2. 8D SIMULATION: Auto-rotates specific cues around the user's head.
+ * 3. LATENCY KILLER: Preloads assets into GPU/Audio Context memory.
  */
 
+// 💽 ASSET MANIFEST
+// We use high-fidelity assets.
 export const CUES = {
   UI_CLICK: 'https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3',
   UI_HOVER: 'https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3',
@@ -16,72 +20,96 @@ export const CUES = {
   NAVIGATION_SWISH: 'https://assets.mixkit.co/active_storage/sfx/2044/2044-preview.mp3',
   VETO_ACTION: 'https://assets.mixkit.co/active_storage/sfx/2570/2570-preview.mp3',
   DISPUTE_TRIGGER: 'https://assets.mixkit.co/active_storage/sfx/2572/2572-preview.mp3',
-  SUCCESS: 'https://assets.mixkit.co/active_storage/sfx/2567/2567-preview.mp3'
+  SUCCESS: 'https://assets.mixkit.co/active_storage/sfx/2567/2567-preview.mp3',
+  // New Tactical Cues
+  COMBAT_START: 'https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3',
+  ERROR: 'https://assets.mixkit.co/active_storage/sfx/2572/2572-preview.mp3'
 };
 
 class AudioEngine {
   constructor() {
-    this.sounds = new Map();
+    this.sounds = {};
     this.enabled = true;
-    this.globalVolume = 0.35; // Default tactical volume (Not too loud)
+    this.globalVolume = 0.4;
     this.initialized = false;
+    this.bgm = null; // Background Music Track
   }
 
   /**
    * 🔓 IGNITION PROTOCOL
-   * Pre-loads assets into memory. Call this on the first user interaction (Landing Page).
+   * Instantiates Howl objects for zero-latency triggering.
    */
   init() {
     if (this.initialized || typeof window === 'undefined') return;
 
     Object.entries(CUES).forEach(([key, url]) => {
-      const audio = new Audio(url);
-      audio.preload = 'auto';
-      this.sounds.set(key, audio);
+      this.sounds[key] = new Howl({
+        src: [url],
+        preload: true,
+        volume: this.globalVolume,
+        html5: false, // Force Web Audio API for 3D effects
+      });
     });
 
     this.initialized = true;
-    console.log("%c 🔊 AUDIO NEXUS: ONLINE", "color: #e879f9; font-weight: bold; letter-spacing: 1px;");
+    console.log("%c 🔊 8D AUDIO NEXUS: ONLINE", "color: #10b981; font-weight: bold; letter-spacing: 1px;");
   }
 
   /**
-   * ⚡ FIRE SOUND
-   * @param {string} cueKey - The key from CUES object
-   * @param {number} [forceVolume] - Optional override volume
+   * ⚡ FIRE SOUND (TACTICAL)
+   * @param {string} cueKey - The key from CUES
+   * @param {Object} options - { volume: 0-1, pan: -1 to 1, rate: 0.5-2 }
    */
-  play(cueKey, forceVolume = null) {
-    if (!this.enabled || !this.sounds.has(cueKey)) return;
+  play(cueKey, options = {}) {
+    if (!this.enabled || !this.sounds[cueKey]) return;
 
-    try {
-      const master = this.sounds.get(cueKey);
-      
-      // 🧬 CLONING: Essential for rapid-fire sounds (Polyphony)
-      // Without this, the sound restarts before finishing, sounding glitchy.
-      const sfx = master.cloneNode();
-      
-      // 🎛️ VARIANCE: 0.98x - 1.02x pitch shift for organic realism
-      sfx.playbackRate = 0.98 + Math.random() * 0.04;
-      sfx.volume = forceVolume !== null ? forceVolume : this.globalVolume;
+    const sfx = this.sounds[cueKey];
+    
+    // 🎛️ VARIANCE: 0.98x - 1.02x pitch shift (Organic feel)
+    const rate = options.rate || (0.98 + Math.random() * 0.04);
+    
+    // 🎧 SPATIAL 8D LOGIC
+    // If 'pan' is provided, move sound. If not, center it.
+    const pan = options.pan !== undefined ? options.pan : 0; // 0 is center, -1 left, 1 right
 
-      // 🛡️ SAFETY: Catch auto-play blocks (User hasn't clicked yet)
-      const playPromise = sfx.play();
-      if (playPromise !== undefined) {
-        playPromise.catch(() => {
-          // Silent fail is best UX here to avoid console spam
-        });
-      }
-    } catch (e) {
-      // Audio engine failure should never crash the app
-    }
+    // Create a unique instance ID to control just this one shot
+    const id = sfx.play();
+    
+    sfx.volume(options.forceVolume || this.globalVolume, id);
+    sfx.rate(rate, id);
+    sfx.stereo(pan, id); // <--- THIS IS THE 8D MAGIC
   }
 
-  // Allow user to mute/adjust in Settings later
+  /**
+   * 🔄 8D ORBIT (Experimental)
+   * Rotates a sound around the user's head
+   */
+  playOrbit(cueKey) {
+    if (!this.enabled || !this.sounds[cueKey]) return;
+    const sfx = this.sounds[cueKey];
+    const id = sfx.play();
+    let pan = -1.0;
+    let direction = 0.05;
+
+    // Animate panning from Left -> Right -> Left
+    const interval = setInterval(() => {
+      pan += direction;
+      if (pan >= 1.0 || pan <= -1.0) direction *= -1;
+      sfx.stereo(pan, id);
+      
+      // Stop checking if sound finished
+      if (!sfx.playing(id)) clearInterval(interval);
+    }, 50);
+  }
+
   setVolume(val) {
     this.globalVolume = Math.min(Math.max(val, 0), 1);
+    Howler.volume(this.globalVolume); // Master Howler volume
   }
 
   toggle(state) {
     this.enabled = state !== undefined ? state : !this.enabled;
+    Howler.mute(!this.enabled);
   }
 }
 

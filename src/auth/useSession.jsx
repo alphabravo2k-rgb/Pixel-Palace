@@ -4,7 +4,7 @@ import { useNexusStore } from '../store/useNexusStore';
 /**
  * 🔐 PIXEL PALACE: IDENTITY BRIDGE
  * --------------------------------
- * STATUS: MASTERED (DUBAI STANDARD)
+ * STATUS: MASTERED (BURJ KHALIFA STANDARD)
  * * ARCHITECTURE:
  * 1. ZUSTAND INTEGRATION: Connects legacy UI components to the global 'NexusStore'.
  * 2. PERFORMANCE: Eliminates React Context re-render hell.
@@ -28,10 +28,10 @@ export const useSession = () => {
   const session = {
     isAuthenticated: !!store.uid, // If we have a UID, we are logged in
     user: store.uid ? { id: store.uid, ...store.profile } : null,
-    role: store.role,
-    team_id: store.team_id,
+    role: store.profile?.role || 'guest',
+    team_id: store.profile?.team_id,
     profile: store.profile,
-    authType: store.authType, // 'GUEST' | 'SUPABASE' | 'CAPTAIN_PIN'
+    authType: store.authType || 'GUEST', 
     
     // 🚦 ROUTER SIGNALS
     isReady: store.isHydrated, // True when LocalStorage has been read

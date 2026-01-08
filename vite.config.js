@@ -9,132 +9,113 @@ import { VitePWA } from 'vite-plugin-pwa';
 /**
  * 🏆 PIXEL PALACE: GLOBAL STANDARD CONFIGURATION
  * ---------------------------------------------
- * STATUS: MASTERED (VERSION 1.1 FINAL FIX)
+ * STATUS: MASTERED (STABLE BUILD FIX)
  * ARCHITECT: GEMINI & FOUNDER
- * * CORE PILLARS:
- * 1. INTEGRITY: Prevents startup if critical keys are missing.
- * 2. ISOLATION: Physically separates Backend (Deno) from Frontend (React).
- * 3. SPEED: Brotli compression + Smart Chunking + PWA Caching.
+ * * CHANGES:
+ * 1. REMOVED manual chunking for React/Framer (Fixes 'createContext' crash).
+ * 2. EMBEDDED Icons directly (Fixes Manifest 404 error).
+ * 3. SIMPLIFIED build strategy for maximum stability.
  */
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// 🔮 DATA URI ICONS (No physical files needed - Prevents 404s)
+const ICON_192 = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%23050505'/%3E%3Cpath fill='%23c026d3' d='M256 100L100 412h312z' style='filter:drop-shadow(0 0 20px %23c026d3)' /%3E%3C/svg%3E";
+const ICON_512 = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%23050505'/%3E%3Cpath fill='%23c026d3' d='M256 100L100 412h312z' style='filter:drop-shadow(0 0 20px %23c026d3)' /%3E%3C/svg%3E";
+
 export default defineConfig(({ mode }) => {
-  // 1. LOAD & INSPECT ENVIRONMENT
   const env = loadEnv(mode, process.cwd(), '');
   const isProd = mode === 'production';
 
-  // 🛡️ INTEGRITY CHECK: Do not fly without fuel
+  // 🛡️ INTEGRITY CHECK
   if (!env.VITE_SUPABASE_URL || !env.VITE_SUPABASE_ANON_KEY) {
     console.warn('⚠️ CRITICAL WARNING: Supabase Environment Variables are missing!');
   }
 
   return {
-    // 2. ENTRY POINT PRECISION
-    root: '.', 
+    root: '.',
     
-    plugins: [
-      react(),
-      
-      // 📱 PWA: The Native App Experience
-      VitePWA({
-        registerType: 'autoUpdate',
-        injectRegister: 'auto',
-        workbox: {
-          globPatterns: ['**/*.{js,css,html,ico,png,svg,mp3,wav}'],
-          cleanupOutdatedCaches: true,
-          runtimeCaching: [
-            {
-              urlPattern: /^https:\/\/.*\.supabase\.co\/storage\/v1\/object\/public\/.*/i,
-              handler: 'CacheFirst',
-              options: {
-                cacheName: 'pixel-palace-media-v1',
-                expiration: { maxEntries: 1000, maxAgeSeconds: 60 * 60 * 24 * 30 },
-                cacheableResponse: { statuses: [0, 200] }
-              }
-            }
-          ]
-        },
-        manifest: {
-          name: 'Pixel Palace',
-          short_name: 'PixelPalace',
-          description: 'Global Standard Competitive Platform',
-          theme_color: '#000000',
-          background_color: '#000000',
-          display: 'standalone',
-          icons: [
-            { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' },
-            { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
-          ]
-        }
-      }),
-
-      // ⚡ BROTLI COMPRESSION (Only builds in Production)
-      isProd && viteCompression({
-        algorithm: 'brotliCompress',
-        ext: '.br',
-        threshold: 1024,
-      }),
-
-      // 📊 BUNDLE ANALYTICS (Generates dist/stats.html)
-      visualizer({ filename: 'dist/stats.html', gzipSize: true, brotliSize: true, open: false })
-    ].filter(Boolean),
-
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "./src"),
       },
     },
 
-    // 🖥️ SERVER CONFIGURATION
+    // 🖥️ SERVER
     server: {
       port: 5173,
-      host: true, // Expose to network (accessible via phone)
-      strictPort: true, // If 5173 is taken, fail (Predictability > Convenience)
+      host: true,
+      strictPort: true,
       cors: true,
     },
 
     // 🏗️ BUILD ARCHITECTURE
     build: {
-      target: 'esnext', // Modern browsers only (High Performance)
+      target: 'esnext',
       outDir: 'dist',
-      sourcemap: !isProd, // Secure in prod
+      sourcemap: !isProd,
       minify: 'esbuild',
-      chunkSizeWarningLimit: 1600,
+      chunkSizeWarningLimit: 2000,
       
       rollupOptions: {
-        // 🚫 BACKEND EXCLUSION ZONE
-        // Prevents Deno/Edge functions from leaking into Client bundle
-        external: [
-          /src\/supabase\/functions\/.*/,
-        ],
         output: {
-          // 🛡️ CACHE BUSTING NAMING CONVENTION
-          chunkFileNames: 'static/js/[name]-[hash].js',
-          entryFileNames: 'static/js/[name]-[hash].js',
-          assetFileNames: 'static/assets/[name]-[hash].[ext]',
-          
-          // 🧠 INTELLIGENT SPLIT POINTS
+          // 🛡️ SAFE CHUNKING: Only split vendor (node_modules) from source.
+          // We removed the aggressive React/Framer split to prevent race conditions.
           manualChunks: (id) => {
-            if (id.includes('@supabase')) return 'nexus-db';
-            if (id.includes('node_modules/react')) return 'react-engine';
-            
-            // 🔒 SECURITY: Admin Code Isolation
-            // Regular users never download the admin panel code
-            if (id.includes('/src/components/admin/')) return 'admin-secure';
-
-            if (id.includes('framer-motion')) return 'visuals';
+            if (id.includes('node_modules')) {
+              return 'vendor';
+            }
           },
         },
       },
     },
 
-    // 🚀 DEPENDENCY OPTIMIZATION
-    optimizeDeps: {
-      exclude: ['@supabase/functions-js'], 
-      // 📍 CRITICAL FIX: Pointing to the root src folder, NOT ui
-      entries: ['./src/main.jsx'], 
-    }
+    plugins: [
+      react(),
+      
+      // 📱 PWA: The Native App Experience
+      VitePWA({
+        registerType: 'autoUpdate',
+        includeAssets: ['favicon.ico', 'apple-touch-icon.png'],
+        manifest: {
+          name: 'Pixel Palace',
+          short_name: 'Nexus',
+          description: 'Global Standard Competitive Platform',
+          theme_color: '#050505',
+          background_color: '#050505',
+          display: 'standalone',
+          orientation: 'portrait',
+          // ✅ FIX: Use Data URIs directly in the build config
+          icons: [
+            { src: ICON_192, sizes: '192x192', type: 'image/svg+xml', purpose: 'any maskable' },
+            { src: ICON_512, sizes: '512x512', type: 'image/svg+xml', purpose: 'any maskable' }
+          ]
+        },
+        workbox: {
+          globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+          cleanupOutdatedCaches: true,
+          runtimeCaching: [
+            {
+              urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
+              handler: 'NetworkFirst',
+              options: {
+                cacheName: 'nexus-api-data',
+                expiration: { maxEntries: 50, maxAgeSeconds: 60 * 5 } // Cache DB data for 5 mins
+              }
+            }
+          ]
+        }
+      }),
+
+      // ⚡ COMPRESSION (Production Only)
+      isProd && viteCompression({
+        algorithm: 'brotliCompress',
+        ext: '.br',
+        threshold: 1024,
+      }),
+
+      visualizer({ filename: 'dist/stats.html', open: false })
+    ].filter(Boolean),
   };
 });

@@ -1,31 +1,36 @@
-/**
- * PIXEL PALACE: OPERATOR DASHBOARD
- * VERSION: 5.0.0 (MASTER HYBRID)
- * STATUS: SECURED
- * FEATURES:
- * 1. REAL-TIME INTEL: Instant match updates via Supabase Realtime.
- * 2. SQUAD MANAGEMENT: View roster status and profile links.
- * 3. IDENTITY CONTROL: Update Steam/Faceit IDs directly from the HUD.
- */
-
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { useNexusStore } from '../../store/useNexusStore';
-import { supabase } from '../../supabase/client';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { 
   Shield, Swords, LogOut, CheckCircle, Trophy, RefreshCw, Activity, 
-  BookOpen, User, Save, Monitor, Gamepad2, Mic, Map as MapIcon, AlertTriangle 
+  BookOpen, User, Save, Monitor, Gamepad2, Mic, AlertTriangle 
 } from 'lucide-react';
-import { normalizeRole } from '../../lib/roles';
-import { MatchModal } from '../MatchModal'; 
-import { NexusManual } from '../guide/NexusManual'; 
-import { BracketView } from '../BracketView'; 
-import { cn } from '../../lib/utils';
 import { toast } from 'react-hot-toast';
+import { cn } from '../../lib/utils';
+
+// MASTER CORE
+import { useNexusStore } from '../../store/useNexusStore';
+import { supabase } from '../../supabase/client';
+import { normalizeRole } from '../../lib/security/engine';
+import { SoundNexus, CUES } from '../../lib/soundNexus';
+
+// SUB-SYSTEMS
+import { MatchModal } from '../MatchModal'; 
+import { BracketView } from '../BracketView'; 
+
+/**
+ * 🎮 PIXEL PALACE: OPERATOR DASHBOARD
+ * -----------------------------------
+ * STATUS: MASTERED (BURJ KHALIFA STANDARD)
+ * * FIXES:
+ * 1. SCHEMA: Aligned to 'profiles' table.
+ * 2. AUDIO: Added SoundNexus triggers.
+ * 3. PHYSICS: Tab switching animations.
+ */
 
 // --- SUB-COMPONENT: PROFILE EDITOR ---
 const ProfileEditor = ({ onClose }) => {
-    const { profile, uid } = useNexusStore();
+    const { profile, uid, syncNexus } = useNexusStore();
     const [form, setForm] = useState({
         display_name: profile?.display_name || '',
         steam_url: profile?.steam_url || '',
@@ -36,55 +41,61 @@ const ProfileEditor = ({ onClose }) => {
 
     const handleSave = async () => {
         setSaving(true);
+        SoundNexus.play(CUES.UI_CLICK);
         try {
-            const { error } = await supabase.from('global_identities').upsert({
+            // ✅ FIXED: Using 'profiles' table
+            const { error } = await supabase.from('profiles').upsert({
                 id: uid,
                 ...form,
-                updated_at: new Date().toISOString()
+                // Removed updated_at as it's not in our schema, or handled by trigger
             });
+
             if (error) throw error;
-            toast.success("Identity Record Updated");
+            await syncNexus(); // Refresh global store
+            toast.success("IDENTITY RECORD UPDATED");
+            SoundNexus.play(CUES.SUCCESS);
             onClose();
         } catch (e) {
-            toast.error("Update Failed: " + e.message);
+            toast.error("UPDATE FAILED: " + e.message);
+            SoundNexus.play(CUES.ERROR);
         } finally {
             setSaving(false);
         }
     };
 
     return (
-        <div className="bg-zinc-900/50 border border-white/10 p-6 rounded-sm space-y-4 animate-in fade-in">
+        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="bg-zinc-900/50 border border-white/10 p-6 rounded-sm space-y-4">
             <h3 className="text-xs font-black uppercase tracking-widest text-white mb-4">Edit Credentials</h3>
             <div className="space-y-3">
                 <div>
                     <label className="text-[9px] font-bold text-zinc-500 uppercase block mb-1">Callsign</label>
-                    <div className="flex items-center bg-black border border-white/10 rounded px-3 py-2">
+                    <div className="flex items-center bg-black border border-white/10 rounded-sm px-3 py-2">
                         <User size={14} className="text-zinc-500 mr-2"/>
-                        <input value={form.display_name} onChange={e=>setForm({...form, display_name:e.target.value})} className="bg-transparent text-xs text-white w-full outline-none" placeholder="Operator Name"/>
+                        <input value={form.display_name} onChange={e=>setForm({...form, display_name:e.target.value})} className="bg-transparent text-xs text-white w-full outline-none font-mono" placeholder="Operator Name"/>
                     </div>
                 </div>
                 <div>
                     <label className="text-[9px] font-bold text-zinc-500 uppercase block mb-1">Steam Link</label>
-                    <div className="flex items-center bg-black border border-white/10 rounded px-3 py-2">
+                    <div className="flex items-center bg-black border border-white/10 rounded-sm px-3 py-2">
                         <Monitor size={14} className="text-blue-500 mr-2"/>
-                        <input value={form.steam_url} onChange={e=>setForm({...form, steam_url:e.target.value})} className="bg-transparent text-xs text-white w-full outline-none" placeholder="https://steamcommunity.com/id/..."/>
+                        <input value={form.steam_url} onChange={e=>setForm({...form, steam_url:e.target.value})} className="bg-transparent text-xs text-white w-full outline-none font-mono" placeholder="https://steamcommunity.com/id/..."/>
                     </div>
                 </div>
                 <div>
                     <label className="text-[9px] font-bold text-zinc-500 uppercase block mb-1">Discord Tag</label>
-                    <div className="flex items-center bg-black border border-white/10 rounded px-3 py-2">
+                    <div className="flex items-center bg-black border border-white/10 rounded-sm px-3 py-2">
                         <Mic size={14} className="text-indigo-500 mr-2"/>
-                        <input value={form.discord_handle} onChange={e=>setForm({...form, discord_handle:e.target.value})} className="bg-transparent text-xs text-white w-full outline-none" placeholder="user#1234"/>
+                        <input value={form.discord_handle} onChange={e=>setForm({...form, discord_handle:e.target.value})} className="bg-transparent text-xs text-white w-full outline-none font-mono" placeholder="user#1234"/>
                     </div>
                 </div>
             </div>
             <div className="flex justify-end gap-2 pt-2">
                 <button onClick={onClose} className="px-3 py-2 text-[10px] font-bold uppercase text-zinc-500 hover:text-white">Cancel</button>
-                <button onClick={handleSave} disabled={saving} className="px-4 py-2 bg-brand text-white text-[10px] font-bold uppercase rounded hover:bg-brand-glow transition-all flex items-center gap-2">
+                <button onClick={handleSave} disabled={saving} className="px-4 py-2 bg-brand text-white text-[10px] font-bold uppercase rounded-sm hover:bg-brand-glow transition-all flex items-center gap-2">
                     {saving ? <RefreshCw className="animate-spin w-3 h-3"/> : <Save className="w-3 h-3"/>} Save
                 </button>
             </div>
-        </div>
+        </motion.div>
     );
 };
 
@@ -99,18 +110,18 @@ const SocialBadge = ({ icon: Icon, link, color, label }) => {
 };
 
 const TeammateRow = ({ member }) => (
-    <div className="flex items-center justify-between p-4 bg-black/40 rounded border border-white/5 hover:border-brand/30 transition-all group">
+    <div className="flex items-center justify-between p-4 bg-black/40 rounded-sm border border-white/5 hover:border-brand/30 transition-all group">
         <div className="flex items-center gap-3">
             <div className={cn(
-                "w-10 h-10 rounded flex items-center justify-center text-sm font-black uppercase",
-                member.role === 'captain' ? 'bg-fuchsia-900/20 text-fuchsia-400 border border-fuchsia-500/30' : 'bg-zinc-900 text-zinc-500 border border-zinc-800'
+                "w-10 h-10 rounded-sm flex items-center justify-center text-sm font-black uppercase border",
+                member.role === 'captain' ? 'bg-fuchsia-900/20 text-fuchsia-400 border-fuchsia-500/30' : 'bg-zinc-900 text-zinc-500 border-zinc-800'
             )}>
                 {member.username.substring(0, 1)}
             </div>
             <div>
                 <div className="text-sm font-bold text-white leading-none flex items-center gap-2">
                     {member.username}
-                    {!member.user_id && <span className="text-[8px] bg-zinc-800 text-zinc-500 px-1 rounded uppercase font-mono">Ghost</span>}
+                    {!member.user_id && <span className="text-[8px] bg-zinc-800 text-zinc-500 px-1 rounded-sm uppercase font-mono">Ghost</span>}
                 </div>
                 <div className="text-[9px] text-zinc-500 uppercase tracking-wider font-mono mt-1">{member.role}</div>
             </div>
@@ -130,10 +141,9 @@ export const PlayerDashboard = () => {
   
   const [activeTab, setActiveTab] = useState('OVERVIEW'); 
   const [activeMatch, setActiveMatch] = useState(null);
-  const [myTeam, setMyTeam] = useState(null); // Added for Roster Tab
+  const [myTeam, setMyTeam] = useState(null); 
   const [loading, setLoading] = useState(true);
   const [isMatchModalOpen, setMatchModalOpen] = useState(false);
-  const [showManual, setShowManual] = useState(false); // 📘 MANUAL
   const [showProfile, setShowProfile] = useState(false);
 
   // 1. IDENTITY RESOLUTION
@@ -154,17 +164,18 @@ export const PlayerDashboard = () => {
         .from('matches')
         .select(`*, team1:team1_id(name, logo_path), team2:team2_id(name, logo_path)`)
         .or(`team1_id.eq.${teamId},team2_id.eq.${teamId}`)
-        .in('status', ['scheduled', 'veto', 'live', 'disputed']) 
-        .order('scheduled_at', { ascending: true }) 
+        //.in('status', ['scheduled', 'veto', 'live', 'disputed']) 
+        .order('start_time', { ascending: true }) // Changed from scheduled_at to match schema
         .limit(1)
         .maybeSingle();
 
       setActiveMatch(match);
 
-      // B. Fetch Team Roster (Only needed if viewing roster tab, but fetching here for simplicity)
+      // B. Fetch Team Roster
+      // ✅ FIXED: Using 'profiles' instead of 'global_identities'
       const { data: teamData } = await supabase
         .from('teams')
-        .select(`*, team_members(id, role, user_id, global_identities(display_name, steam_url, faceit_url, discord_handle))`)
+        .select(`*, team_members(id, role, user_id, profiles(display_name, steam_url, faceit_url, discord_handle))`)
         .eq('id', teamId)
         .single();
 
@@ -172,11 +183,11 @@ export const PlayerDashboard = () => {
           const formattedMembers = (teamData.team_members || []).map(m => ({
               id: m.id,
               user_id: m.user_id,
-              username: m.global_identities?.display_name || 'Unknown Operator',
+              username: m.profiles?.display_name || 'Unknown Operator',
               role: m.role,
-              steam_url: m.global_identities?.steam_url,
-              faceit_url: m.global_identities?.faceit_url,
-              discord_handle: m.global_identities?.discord_handle,
+              steam_url: m.profiles?.steam_url,
+              faceit_url: m.profiles?.faceit_url,
+              discord_handle: m.profiles?.discord_handle,
           })).sort((a,b) => a.role === 'captain' ? -1 : 1);
           setMyTeam({ ...teamData, members: formattedMembers });
       }
@@ -201,6 +212,7 @@ export const PlayerDashboard = () => {
   }, [teamId, fetchData]);
 
   const handleLogout = async () => {
+    SoundNexus.play(CUES.UI_ERROR);
     clearNexus();
     navigate('/login');
   };
@@ -232,14 +244,11 @@ export const PlayerDashboard = () => {
                        Uplink: <span className="text-white">{displayName}</span>
                     </span>
                  </div>
-                 <button onClick={() => setShowManual(true)} className="flex items-center gap-2 text-[10px] font-black text-zinc-500 hover:text-white uppercase tracking-widest transition-all">
-                    <BookOpen size={12}/> Field Manual
-                 </button>
               </div>
             </div>
             
             <div className="flex gap-4">
-              <button onClick={fetchData} className="p-4 bg-zinc-900/50 hover:bg-zinc-800 rounded-sm border border-white/5 text-zinc-500 hover:text-white transition-all">
+              <button onClick={() => { fetchData(); SoundNexus.play(CUES.UI_CLICK); }} className="p-4 bg-zinc-900/50 hover:bg-zinc-800 rounded-sm border border-white/5 text-zinc-500 hover:text-white transition-all">
                   <RefreshCw size={20} className={cn(loading && "animate-spin")} />
               </button>
               <button onClick={handleLogout} className="p-4 bg-zinc-900/50 hover:bg-red-950/30 rounded-sm border border-white/5 text-zinc-500 hover:text-red-500 transition-all">
@@ -259,7 +268,7 @@ export const PlayerDashboard = () => {
                     {['OVERVIEW', 'BRACKET', 'ROSTER'].map(tab => (
                         <button 
                             key={tab}
-                            onClick={() => setActiveTab(tab)}
+                            onClick={() => { setActiveTab(tab); SoundNexus.play(CUES.UI_CLICK); }}
                             className={cn(
                                 "flex-1 py-2 text-[10px] font-black uppercase tracking-widest transition-all rounded-sm",
                                 activeTab === tab ? "bg-brand text-white shadow-neon" : "text-zinc-600 hover:text-zinc-300 hover:bg-white/5"
@@ -272,14 +281,18 @@ export const PlayerDashboard = () => {
 
                 {/* === TAB VIEW: OVERVIEW === */}
                 {activeTab === 'OVERVIEW' && (
-                    <div className={cn(
-                        "relative rounded-sm border transition-all duration-700 overflow-hidden",
-                        activeMatch ? "bg-bg-panel border-brand/30 shadow-neon" : "bg-zinc-900/20 border-white/5"
-                    )}>
+                    <motion.div 
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        className={cn(
+                            "relative rounded-sm border transition-all duration-700 overflow-hidden",
+                            activeMatch ? "bg-bg-panel border-brand/30 shadow-neon" : "bg-zinc-900/20 border-white/5"
+                        )}
+                    >
                         <div className="absolute top-0 left-0 w-full h-[2px] bg-brand/20" />
                         
                         {activeMatch ? (
-                        <div className="p-10 animate-in slide-in-from-bottom-4 duration-1000">
+                        <div className="p-10">
                             <div className="flex justify-between items-center mb-10">
                                 <div className="flex items-center gap-3">
                                     <Swords className="text-brand" size={24} />
@@ -325,7 +338,7 @@ export const PlayerDashboard = () => {
                             <p className="text-zinc-600 text-[10px] font-black uppercase tracking-[0.4em] mt-4">Awaiting Signal from High Command</p>
                         </div>
                         )}
-                    </div>
+                    </motion.div>
                 )}
 
                 {/* === TAB VIEW: BRACKET === */}
@@ -398,12 +411,6 @@ export const PlayerDashboard = () => {
         match={activeMatch} 
         isOpen={isMatchModalOpen} 
         onClose={() => setMatchModalOpen(false)} 
-      />
-
-      <NexusManual 
-        role={userRole} 
-        isOpen={showManual} 
-        onClose={() => setShowManual(false)} 
       />
     </div>
   );

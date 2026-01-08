@@ -1,37 +1,32 @@
-/**
- * 📡 PIXEL PALACE: GLOBAL CHAT NEXUS
- * VERSION: 4.2.0 (MASTER HYBRID)
- * STATUS: OPERATIONAL
- * - Hardware Accelerated Scroll Math
- * - Multi-Tier Haptic Audio Feedback
- * - Secure Transmission Cooldowns
- */
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useNexusStore } from '../../store/useNexusStore';
-import { supabase } from '../../supabase/client';
-import { SoundNexus, CUES } from '../../lib/soundNexus';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   MessageSquare, Send, Minimize2, Hash, 
-  Shield, Crown, Mic, Activity, AlertCircle 
+  Shield, Crown, Mic, Activity 
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { format } from 'date-fns';
 
-const COOLDOWN_MS = 1500; // Anti-spam protocol
+// MASTER CORE
+import { useNexusStore } from '../../store/useNexusStore';
+import { supabase } from '../../supabase/client';
+import { SoundNexus, CUES } from '../../lib/soundNexus';
+import { getRoleTheme } from '../../lib/security/theme';
 
-// --- 🎨 ROLE STYLING ENGINE ---
-const getRoleStyle = (role) => {
-  const r = String(role).toLowerCase();
-  if (r === 'owner') return { color: 'text-yellow-500', icon: Crown, bg: 'bg-yellow-500/10' };
-  if (r === 'admin') return { color: 'text-brand', icon: Shield, bg: 'bg-brand/10' };
-  if (r === 'caster') return { color: 'text-purple-400', icon: Mic, bg: 'bg-purple-500/10' };
-  if (r === 'captain') return { color: 'text-emerald-400', icon: Hash, bg: 'bg-emerald-500/10' };
-  return { color: 'text-zinc-400', icon: null, bg: 'bg-zinc-800' };
-};
+/**
+ * 📡 PIXEL PALACE: GLOBAL CHAT NEXUS
+ * ----------------------------------
+ * STATUS: MASTERED (BURJ KHALIFA STANDARD)
+ * * UPGRADES:
+ * 1. PHYSICS: Spring-loaded open/close animations.
+ * 2. THEME SYNC: Uses global role themes for consistency.
+ * 3. ANTI-SPAM: Throttle logic secured.
+ */
+
+const COOLDOWN_MS = 1500;
 
 export const GlobalChatNexus = () => {
-  const { profile, uid } = useNexusStore();
+  const { profile, uid, isLive } = useNexusStore(); // Assuming isLive tracks tournament status
   
   // State
   const [isOpen, setIsOpen] = useState(false);
@@ -65,7 +60,6 @@ export const GlobalChatNexus = () => {
         table: 'messages' 
       }, (payload) => {
         const msg = payload.new;
-        // Keep buffer at 50 to prevent DOM bloat
         setMessages(prev => [...prev.slice(-49), msg]); 
         
         // 🔊 HAPTIC PRIORITY AUDIO
@@ -83,7 +77,6 @@ export const GlobalChatNexus = () => {
   // 2️⃣ GPU-ACCELERATED SCROLL
   useEffect(() => {
     if (isOpen && scrollRef.current) {
-      // Use requestAnimationFrame for buttery smooth auto-scroll
       requestAnimationFrame(() => {
         scrollRef.current.scrollTo({
           top: scrollRef.current.scrollHeight,
@@ -99,13 +92,12 @@ export const GlobalChatNexus = () => {
     e.preventDefault();
     const now = Date.now();
     
-    // Validation: Empty, Sending, or Cooldown active
     if (!inputText.trim() || isSending || (now - lastSent < COOLDOWN_MS)) return;
 
     setIsSending(true);
     setLastSent(now);
     const content = inputText;
-    setInputText(''); // Optimistic clear
+    setInputText(''); 
 
     try {
       const { error } = await supabase.from('messages').insert({
@@ -117,118 +109,144 @@ export const GlobalChatNexus = () => {
       });
 
       if (error) throw error;
-      SoundNexus.play(CUES.UI_CLICK); // Soft click on send
+      SoundNexus.play(CUES.UI_CLICK);
     } catch (err) {
       console.error("Transmission Error:", err);
-      setInputText(content); // Restore text on failure
+      setInputText(content); 
       SoundNexus.play(CUES.DISPUTE_TRIGGER);
     } finally {
       setIsSending(false);
     }
   };
 
-  // --- RENDER: MINIMIZED ---
-  if (!isOpen) return (
-    <button 
-      onClick={() => { setIsOpen(true); SoundNexus.play(CUES.NAVIGATION_SWISH); }}
-      className="fixed bottom-8 right-8 z-[200] flex items-center gap-4 bg-black/80 backdrop-blur-xl border border-white/10 p-5 rounded-sm shadow-neon hover:border-brand transition-all group active:scale-95"
-    >
-      <div className="relative">
-        <MessageSquare className="text-brand w-6 h-6" />
-        {unreadCount > 0 && (
-          <div className="absolute -top-3 -right-3 px-1.5 py-0.5 bg-red-600 text-white text-[8px] font-black rounded-sm shadow-neon-red animate-pulse border border-red-400">
-            {unreadCount} NEW
-          </div>
-        )}
-      </div>
-      <span className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500 group-hover:text-white transition-colors hidden md:block">
-        Nexus Comms
-      </span>
-    </button>
-  );
+  // HELPER: Get Role Icon
+  const getRoleIcon = (role) => {
+      const r = String(role).toLowerCase();
+      if (r === 'owner') return Crown;
+      if (r === 'admin') return Shield;
+      if (r === 'caster') return Mic;
+      if (r === 'captain') return Hash;
+      return null;
+  };
 
-  // --- RENDER: EXPANDED ---
   return (
-    <div className="fixed bottom-8 right-8 z-[200] w-[380px] h-[550px] bg-[#09090b]/95 backdrop-blur-2xl border border-white/5 rounded-sm shadow-2xl flex flex-col animate-in slide-in-from-bottom-6 duration-500 overflow-hidden">
-      
-      {/* 🟢 HUD HEADER */}
-      <div className="p-5 bg-white/[0.02] border-b border-white/5 flex justify-between items-center relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-full h-[1px] bg-brand animate-scan opacity-20" />
-        <div className="flex items-center gap-3">
-          <Activity size={14} className="text-brand animate-pulse" />
-          <h3 className="text-[10px] font-black text-white uppercase tracking-[0.4em]">Global Uplink</h3>
-        </div>
-        <button onClick={() => setIsOpen(false)} className="p-2 hover:bg-white/5 rounded-sm text-zinc-700 hover:text-white transition-all">
-          <Minimize2 size={18} />
-        </button>
-      </div>
-
-      {/* 📜 MESSAGE VIEWPORT */}
-      <div 
-        ref={scrollRef} 
-        className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.01)_1px,transparent_1px)] bg-[size:20px_20px]"
-      >
-        {messages.length === 0 && (
-          <div className="text-center text-zinc-600 text-[10px] font-mono mt-20">
-            --- CHANNEL SILENT ---
-          </div>
-        )}
-        
-        {messages.map((msg) => {
-          const style = getRoleStyle(msg.role);
-          const RoleIcon = style.icon;
-          const isMe = msg.user_id === uid;
-
-          return (
-            <div key={msg.id} className={cn("flex flex-col animate-in fade-in slide-in-from-bottom-1", isMe ? "items-end" : "items-start")}>
+    <AnimatePresence>
+        {/* MINIMIZED STATE */}
+        {!isOpen ? (
+            <motion.button 
+              key="minimized"
+              initial={{ scale: 0, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0, opacity: 0 }}
+              onClick={() => { setIsOpen(true); SoundNexus.play(CUES.NAVIGATION_SWISH); }}
+              className="fixed bottom-8 right-8 z-[200] flex items-center gap-4 bg-black/80 backdrop-blur-xl border border-white/10 p-5 rounded-sm shadow-neon hover:border-brand transition-all group active:scale-95"
+            >
+              <div className="relative">
+                <MessageSquare className="text-brand w-6 h-6" />
+                {unreadCount > 0 && (
+                  <div className="absolute -top-3 -right-3 px-1.5 py-0.5 bg-red-600 text-white text-[8px] font-black rounded-sm shadow-neon-red animate-pulse border border-red-400">
+                    {unreadCount} NEW
+                  </div>
+                )}
+              </div>
+              <span className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500 group-hover:text-white transition-colors hidden md:block">
+                Nexus Comms
+              </span>
+            </motion.button>
+        ) : (
+            /* EXPANDED STATE */
+            <motion.div 
+              key="expanded"
+              initial={{ opacity: 0, y: 50, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 50, scale: 0.95 }}
+              transition={{ type: "spring", stiffness: 300, damping: 25 }}
+              className="fixed bottom-8 right-8 z-[200] w-[90vw] md:w-[380px] h-[550px] bg-[#09090b]/95 backdrop-blur-2xl border border-white/5 rounded-sm shadow-2xl flex flex-col overflow-hidden"
+            >
               
-              {/* Meta Data */}
-              <div className="flex items-center gap-2 mb-2 opacity-80">
-                {RoleIcon && !isMe && <RoleIcon size={10} className={style.color} />}
-                <span className={cn("text-[9px] font-black uppercase tracking-widest", style.color)}>
-                  {msg.display_name}
-                </span>
-                <span className="text-[8px] text-zinc-700 font-mono italic">
-                  {format(new Date(msg.created_at), 'HH:mm')}
-                </span>
+              {/* HEADER */}
+              <div className="p-5 bg-white/[0.02] border-b border-white/5 flex justify-between items-center relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-[1px] bg-brand animate-scan opacity-20" />
+                <div className="flex items-center gap-3">
+                  <Activity size={14} className="text-brand animate-pulse" />
+                  <h3 className="text-[10px] font-black text-white uppercase tracking-[0.4em]">Global Uplink</h3>
+                </div>
+                <button 
+                    onClick={() => { setIsOpen(false); SoundNexus.play(CUES.UI_CLICK); }} 
+                    className="p-2 hover:bg-white/5 rounded-sm text-zinc-700 hover:text-white transition-all"
+                >
+                  <Minimize2 size={18} />
+                </button>
               </div>
 
-              {/* Bubble */}
-              <div className={cn(
-                "max-w-[90%] p-4 text-[11px] font-medium leading-relaxed border transition-all duration-500",
-                isMe 
-                  ? "bg-brand/5 border-brand/20 text-white rounded-sm rounded-tr-none" 
-                  : "bg-black border-white/5 text-zinc-400 rounded-sm rounded-tl-none hover:border-white/10"
-              )}>
-                {msg.content}
+              {/* MESSAGES */}
+              <div 
+                ref={scrollRef} 
+                className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.01)_1px,transparent_1px)] bg-[size:20px_20px]"
+              >
+                {messages.length === 0 && (
+                  <div className="text-center text-zinc-600 text-[10px] font-mono mt-20">
+                    --- CHANNEL SILENT ---
+                  </div>
+                )}
+                
+                {messages.map((msg) => {
+                  const theme = getRoleTheme(msg.role);
+                  const RoleIcon = getRoleIcon(msg.role);
+                  const isMe = msg.user_id === uid;
+
+                  return (
+                    <motion.div 
+                        initial={{ opacity: 0, x: isMe ? 20 : -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        key={msg.id} 
+                        className={cn("flex flex-col", isMe ? "items-end" : "items-start")}
+                    >
+                      <div className="flex items-center gap-2 mb-2 opacity-80">
+                        {RoleIcon && !isMe && <RoleIcon size={10} className={theme.color} />}
+                        <span className={cn("text-[9px] font-black uppercase tracking-widest", theme.color)}>
+                          {msg.display_name}
+                        </span>
+                        <span className="text-[8px] text-zinc-700 font-mono italic">
+                          {format(new Date(msg.created_at), 'HH:mm')}
+                        </span>
+                      </div>
+
+                      <div className={cn(
+                        "max-w-[90%] p-4 text-[11px] font-medium leading-relaxed border transition-all duration-300",
+                        isMe 
+                          ? "bg-brand/5 border-brand/20 text-white rounded-sm rounded-tr-none" 
+                          : "bg-black border-white/5 text-zinc-400 rounded-sm rounded-tl-none hover:border-white/10"
+                      )}>
+                        {msg.content}
+                      </div>
+                    </motion.div>
+                  );
+                })}
               </div>
-            </div>
-          );
-        })}
-      </div>
 
-      {/* ⌨️ COMMAND INPUT */}
-      <form onSubmit={handleSend} className="p-4 bg-black/60 border-t border-white/5 flex gap-3 items-center">
-        <div className="flex-1 relative group">
-           <input 
-             value={inputText}
-             onChange={(e) => setInputText(e.target.value)}
-             placeholder="Transmit intelligence..."
-             className="w-full bg-zinc-900/50 border border-white/5 rounded-sm px-4 py-3 text-xs text-white placeholder:text-zinc-800 focus:border-brand/40 outline-none transition-all"
-           />
-           {/* Animated Underline */}
-           {inputText.length > 0 && (
-             <div className="absolute bottom-[-2px] left-0 h-[1px] bg-brand w-full scale-x-0 group-focus-within:scale-x-100 transition-transform origin-left" />
-           )}
-        </div>
-        <button 
-          disabled={!inputText.trim() || isSending}
-          className="p-3 bg-brand text-white rounded-sm shadow-neon hover:brightness-110 disabled:opacity-20 disabled:grayscale transition-all"
-        >
-          <Send size={18} className={cn(isSending && "animate-pulse")} />
-        </button>
-      </form>
+              {/* INPUT */}
+              <form onSubmit={handleSend} className="p-4 bg-black/60 border-t border-white/5 flex gap-3 items-center">
+                <div className="flex-1 relative group">
+                   <input 
+                     value={inputText}
+                     onChange={(e) => setInputText(e.target.value)}
+                     placeholder="Transmit..."
+                     disabled={!profile}
+                     className="w-full bg-zinc-900/50 border border-white/5 rounded-sm px-4 py-3 text-xs text-white placeholder:text-zinc-800 focus:border-brand/40 outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                   />
+                   <div className="absolute bottom-[-2px] left-0 h-[1px] bg-brand w-full scale-x-0 group-focus-within:scale-x-100 transition-transform origin-left" />
+                </div>
+                <button 
+                  disabled={!inputText.trim() || isSending}
+                  className="p-3 bg-brand text-white rounded-sm shadow-neon hover:brightness-110 disabled:opacity-20 disabled:grayscale transition-all"
+                >
+                  <Send size={18} className={cn(isSending && "animate-pulse")} />
+                </button>
+              </form>
 
-    </div>
+            </motion.div>
+        )}
+    </AnimatePresence>
   );
 };

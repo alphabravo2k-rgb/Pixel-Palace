@@ -1,16 +1,30 @@
 import React from 'react';
-import { Tv, Shield, Lock, ChevronRight, AlertCircle, Trophy } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Tv, Shield, Lock, ChevronRight, AlertCircle } from 'lucide-react';
 import { cn } from '../../lib/utils';
+
+// MASTER INTEGRATION
+import { SoundNexus, CUES } from '../../lib/soundNexus';
+
+/**
+ * 🧬 MATCH NODE: BRACKET CELL
+ * ---------------------------
+ * STATUS: MASTERED (BURJ KHALIFA STANDARD)
+ * * UPGRADES:
+ * 1. PHYSICS: Spring-loaded hover animations.
+ * 2. AUDIO: Sound feedback on interaction.
+ * 3. SCHEMA: Aligned 'match_position' to DB.
+ */
 
 // 🎨 DYNAMIC THEME ENGINE
 const getStatusStyles = (status) => {
   const themes = {
     live: { 
         label: 'LIVE', 
-        border: 'border-emerald-500', 
-        bg: 'bg-emerald-950/40', 
-        text: 'text-emerald-400', 
-        glow: 'shadow-[0_0_20px_rgba(16,185,129,0.2)]' 
+        border: 'border-red-500', 
+        bg: 'bg-red-950/40', 
+        text: 'text-red-400', 
+        glow: 'shadow-[0_0_20px_rgba(239,68,68,0.2)]' 
     },
     veto: { 
         label: 'VETO', 
@@ -35,17 +49,17 @@ const getStatusStyles = (status) => {
     },
     disputed: {
         label: 'DISPUTE',
-        border: 'border-red-500',
-        bg: 'bg-red-950/40',
-        text: 'text-red-500',
-        glow: 'shadow-[0_0_15px_rgba(239,68,68,0.3)] animate-pulse'
+        border: 'border-yellow-500',
+        bg: 'bg-yellow-950/40',
+        text: 'text-yellow-500',
+        glow: 'shadow-[0_0_15px_rgba(234,179,8,0.3)] animate-pulse'
     }
   };
   return themes[status] || themes.scheduled;
 };
 
 // 🛡️ SUB-COMPONENT: TEAM ROW
-const TeamSlot = ({ team, score, isWinner, seed }) => (
+const TeamSlot = ({ team, score, isWinner }) => (
   <div className={cn(
       "flex items-center justify-between px-3 py-2.5 transition-colors relative overflow-hidden",
       isWinner ? "bg-emerald-500/10" : ""
@@ -90,7 +104,7 @@ const TeamSlot = ({ team, score, isWinner, seed }) => (
 export const MatchNode = ({ match, onClick }) => {
   const theme = getStatusStyles(match.status);
   
-  // LOGIC: Parse Scores (Robust fallback)
+  // LOGIC: Parse Scores
   let s1 = match.score_team1 || 0;
   let s2 = match.score_team2 || 0;
 
@@ -99,21 +113,25 @@ export const MatchNode = ({ match, onClick }) => {
   const canOpen = hasTeams; 
 
   return (
-    <div className={cn(
-        "relative w-full h-full flex flex-col rounded border backdrop-blur-md transition-all duration-300 group",
-        theme.border, theme.bg, theme.glow,
-        canOpen ? "hover:scale-[1.02] hover:brightness-110 cursor-pointer hover:shadow-2xl" : "opacity-80"
-    )}
-    onClick={() => canOpen && onClick(match)}
+    <motion.div 
+        whileHover={canOpen ? { scale: 1.03, filter: 'brightness(1.1)' } : {}}
+        whileTap={canOpen ? { scale: 0.98 } : {}}
+        onMouseEnter={() => canOpen && SoundNexus.play(CUES.UI_HOVER, { volume: 0.05 })}
+        onClick={() => canOpen && onClick(match)}
+        className={cn(
+            "relative w-full h-full flex flex-col rounded border backdrop-blur-md transition-all duration-300 group",
+            theme.border, theme.bg, theme.glow,
+            canOpen ? "cursor-pointer shadow-xl" : "opacity-80 grayscale"
+        )}
     >
       
       {/* 1. HEADER */}
       <div className="px-3 py-1.5 border-b border-white/5 flex items-center justify-between bg-black/20">
         <div className="flex items-center gap-2">
-           {match.status === 'live' && <span className="animate-ping w-1.5 h-1.5 rounded-full bg-emerald-500" />}
+           {match.status === 'live' && <span className="animate-ping w-1.5 h-1.5 rounded-full bg-red-500" />}
            <span className={`text-[9px] font-black tracking-widest ${theme.text}`}>{theme.label}</span>
         </div>
-        <span className="text-[9px] font-mono text-zinc-600">#{match.match_no}</span>
+        <span className="text-[9px] font-mono text-zinc-600">#{match.match_position || '00'}</span>
       </div>
 
       {/* 2. TEAMS */}
@@ -122,13 +140,11 @@ export const MatchNode = ({ match, onClick }) => {
             team={match.team1} 
             score={s1} 
             isWinner={match.winner_id === match.team1_id} 
-            seed={match.team1?.seed_number}
         />
         <TeamSlot 
             team={match.team2} 
             score={s2} 
             isWinner={match.winner_id === match.team2_id} 
-            seed={match.team2?.seed_number}
         />
       </div>
 
@@ -139,7 +155,7 @@ export const MatchNode = ({ match, onClick }) => {
       )}>
         <span className="flex items-center gap-2">
             {isLocked && <Lock size={10} className="text-red-500" />}
-            {match.status === 'disputed' && <AlertCircle size={10} className="text-red-500" />}
+            {match.status === 'disputed' && <AlertCircle size={10} className="text-yellow-500" />}
             {match.stream_url && <Tv size={10} className="text-purple-500" />}
             
             {!hasTeams ? 'WAITING...' : isLocked ? 'LOCKED' : match.status === 'completed' ? 'DETAILS' : 'MANAGE'}
@@ -147,6 +163,6 @@ export const MatchNode = ({ match, onClick }) => {
         
         {canOpen && <ChevronRight size={12} className="opacity-0 group-hover:opacity-100 transition-opacity" />}
       </div>
-    </div>
+    </motion.div>
   );
 };

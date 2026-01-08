@@ -1,26 +1,24 @@
-/**
- * PIXEL PALACE: COMBAT COMMAND COCKPIT
- * VERSION: 4.1.0 (MASTER HYBRID)
- * STATUS: OPERATIONAL
- * - Hardware Accelerated WebGL Engine
- * - Real-time Nexus Data Stream
- * - Tactical Audio-Tactile Feedback
- */
-
 import React, { useRef, useEffect, Suspense, useMemo } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { PerspectiveCamera, Stars, Float, Text } from '@react-three/drei';
+import { PerspectiveCamera, Stars, Float } from '@react-three/drei';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Monitor, Radio, Crosshair, Users, Shield, 
-  Cpu, Activity, Zap, Terminal, AlertCircle 
-} from 'lucide-react';
+import { Monitor, Crosshair, Shield, Cpu, Activity, Zap, Terminal } from 'lucide-react';
 import { clsx } from 'clsx';
 
 // MASTER CORE
 import { useNexusStore } from '../../store/useNexusStore';
 import { SoundNexus, CUES } from '../../lib/soundNexus';
-import { ROLE_THEMES } from '../../lib/security/theme';
+import { getRoleTheme } from '../../lib/security/theme'; // ✅ Using the Safety Function
+
+/**
+ * ⚔️ COMBAT HUD: COMMAND COCKPIT
+ * ------------------------------
+ * STATUS: MASTERED (BURJ KHALIFA STANDARD)
+ * * UPGRADES:
+ * 1. SAFETY: Uses 'getRoleTheme()' to prevent crashes on null roles.
+ * 2. AUDIO: Boot sequence synchronization.
+ * 3. 3D: Reactive tactical sphere based on match status.
+ */
 
 // 🌌 3D COMPONENT: TACTICAL SPHERE
 const TacticalSphere = ({ tier, status }) => {
@@ -30,7 +28,6 @@ const TacticalSphere = ({ tier, status }) => {
   useFrame((state) => {
     if (mesh.current) {
       mesh.current.rotation.y += 0.001;
-      // Pulse animation based on match activity
       const scale = 1 + Math.sin(state.clock.elapsedTime * 2) * 0.02;
       mesh.current.scale.set(scale, scale, scale);
     }
@@ -54,8 +51,10 @@ const TacticalSphere = ({ tier, status }) => {
 };
 
 export const CombatHUD = ({ matchData }) => {
-  const { graphicsTier, is3DEnabled, profile, isLive } = useNexusStore();
-  const theme = useMemo(() => ROLE_THEMES[profile?.role] || ROLE_THEMES.player, [profile]);
+  const { graphicsTier, is3DEnabled, profile } = useNexusStore();
+  
+  // ✅ ROBUST THEME RESOLUTION
+  const theme = useMemo(() => getRoleTheme(profile?.role), [profile]);
 
   // 🔊 BOOT SEQUENCE
   useEffect(() => {
@@ -73,15 +72,7 @@ export const CombatHUD = ({ matchData }) => {
           <Canvas dpr={[1, 2]}>
             <PerspectiveCamera makeDefault position={[0, 0, 10]} />
             <Suspense fallback={null}>
-              <Stars 
-                radius={50} 
-                depth={50} 
-                count={graphicsTier === 'ultra' ? 4000 : 1000} 
-                factor={4} 
-                saturation={0} 
-                fade 
-                speed={1.5} 
-              />
+              <Stars radius={50} depth={50} count={graphicsTier === 'ultra' ? 4000 : 1000} factor={4} saturation={0} fade speed={1.5} />
               <TacticalSphere tier={graphicsTier} status={matchData?.status} />
             </Suspense>
           </Canvas>
@@ -90,8 +81,8 @@ export const CombatHUD = ({ matchData }) => {
 
       {/* 🔴 LAYER 2: TEXTURE & OVERLAYS */}
       <div className="absolute inset-0 z-[1] pointer-events-none">
-        <div className="scanlines opacity-[0.03]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(var(--brand-rgb),0.05),transparent)]" />
+        <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.03]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(16,185,129,0.05),transparent)]" />
         <div className="absolute inset-0 shadow-[inset_0_0_100px_rgba(0,0,0,0.8)]" />
       </div>
 
@@ -117,7 +108,7 @@ export const CombatHUD = ({ matchData }) => {
             </div>
             
             <h1 className="text-7xl font-display font-black text-white italic tracking-tighter uppercase leading-none">
-              SECTOR <span className="text-zinc-800">#</span>{matchData?.match_no || '00'}
+              SECTOR <span className="text-zinc-800">#</span>{matchData?.match_position || '00'}
             </h1>
           </motion.div>
 
@@ -135,7 +126,7 @@ export const CombatHUD = ({ matchData }) => {
                   {profile?.display_name || 'IDENT_PENDING'}
                 </p>
                 <p className="text-[8px] text-zinc-600 font-mono uppercase tracking-[0.3em] mt-1">
-                  Uplink: Verified // {profile?.role}
+                  Uplink: Verified // {profile?.role || 'GUEST'}
                 </p>
               </div>
               <div className={clsx("w-12 h-12 rounded-sm border flex items-center justify-center shadow-neon", theme.border)}>
@@ -203,7 +194,7 @@ export const CombatHUD = ({ matchData }) => {
                  <p className="text-[8px] text-zinc-700 font-black uppercase tracking-widest">Data Stream</p>
                  <div className="flex items-center gap-3">
                     <Terminal size={14} className="text-zinc-700" />
-                    <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">0.0.0.0:27015</span>
+                    <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">SECURE</span>
                  </div>
               </div>
            </div>
@@ -211,8 +202,8 @@ export const CombatHUD = ({ matchData }) => {
            <div className="text-right space-y-2">
               <p className="text-[8px] text-zinc-800 font-mono uppercase tracking-[0.4em]">Pixel Palace // Genesis Protocol</p>
               <div className="flex items-center gap-3 justify-end">
-                 <div className={clsx("w-1.5 h-1.5 rounded-full", isLive ? "bg-emerald-500 shadow-neon-emerald" : "bg-red-500")} />
-                 <span className="text-[9px] font-black text-zinc-600 uppercase tracking-widest">Nexus Link {isLive ? 'Active' : 'Lost'}</span>
+                 <div className={clsx("w-1.5 h-1.5 rounded-full", matchData ? "bg-emerald-500 shadow-neon-emerald" : "bg-red-500")} />
+                 <span className="text-[9px] font-black text-zinc-600 uppercase tracking-widest">Nexus Link {matchData ? 'Active' : 'Lost'}</span>
               </div>
            </div>
         </footer>

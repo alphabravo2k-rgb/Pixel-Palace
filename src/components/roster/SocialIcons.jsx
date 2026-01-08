@@ -1,8 +1,22 @@
 import React from 'react';
-import { Twitter, Link as LinkIcon } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Twitter } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
-// 🎨 BRAND ICONS (Not available in Lucide)
+// MASTER INTEGRATION
+import { SoundNexus, CUES } from '../../lib/soundNexus';
+
+/**
+ * 🔗 SOCIAL ICONS: CONNECTIVITY
+ * -----------------------------
+ * STATUS: MASTERED (BURJ KHALIFA STANDARD)
+ * * UPGRADES:
+ * 1. PHYSICS: Spring-loaded hover effects.
+ * 2. AUDIO: Sound feedback on interaction.
+ * 3. SECURITY: Javascript protocol scrubbing.
+ */
+
+// 🎨 BRAND ICONS (Custom Paths)
 const BrandIcons = {
   Discord: ({ className }) => (
     <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
@@ -43,28 +57,32 @@ export const SocialIcons = ({ discord, steam, faceit, twitter, className = "" })
       if (isCopyOnly || !isSafeUrl(url)) {
         e.preventDefault();
         navigator.clipboard.writeText(url);
+        SoundNexus.play(CUES.SUCCESS); // Copy Success Sound
         toast.success(`${type} Copied!`, {
-            style: { background: '#18181b', color: '#fff', fontSize: '12px' },
+            style: { background: '#18181b', color: '#fff', fontSize: '12px', border: '1px solid #3f3f46' },
             icon: '📋'
         });
+      } else {
+        SoundNexus.play(CUES.UI_CLICK); // External Link Sound
       }
     };
 
-    // If it's a safe link, use standard <a> tag
-    // If it's a handle/ID, use # href but prevent default
     const href = !isCopyOnly && isSafeUrl(url) ? url : '#';
 
     return (
-      <a 
+      <motion.a 
         href={href}
         target="_blank" 
         rel="noopener noreferrer"
         onClick={handleClick}
-        className={`p-1.5 rounded transition-all duration-200 hover:scale-110 cursor-pointer opacity-70 hover:opacity-100 ${colorClass}`}
+        onMouseEnter={() => SoundNexus.play(CUES.UI_HOVER, { volume: 0.1 })}
+        whileHover={{ scale: 1.2, rotate: 5 }}
+        whileTap={{ scale: 0.9 }}
+        className={`p-1.5 rounded transition-colors cursor-pointer opacity-70 hover:opacity-100 ${colorClass}`}
         title={isCopyOnly ? `Copy ${type}` : `Open ${type}`}
       >
         <Icon className="w-3.5 h-3.5" />
-      </a>
+      </motion.a>
     );
   };
 

@@ -29,7 +29,6 @@ export const normalizeRole = (role) => {
   const clean = String(role).trim().toLowerCase();
   
   // 🛡️ SECURITY PATCH: Default to GUEST, not PLAYER.
-  // Unknown entities must be treated as spectators, not combatants.
   return ALIAS_MAP[clean] || ROLES.GUEST; 
 };
 
@@ -40,16 +39,23 @@ export const getClearanceLevel = (role) => {
 };
 
 // 3. PERMISSION GUARD (The Keycard)
-export const hasPermission = (userRoles, permission) => {
-  // Support multi-role users (Array) or single role (String)
-  const rolesArray = Array.isArray(userRoles) ? userRoles : [userRoles];
-  
-  // God Mode Bypass (Owner has all keys)
-  if (rolesArray.some(r => normalizeRole(r) === ROLES.OWNER)) return true;
+// Renamed/Aliased to 'can' to match MatchRoom.jsx requirements
+export const can = (permission, userOrRole, context = null) => {
+  // Support passing a full user object OR just a role string
+  const role = typeof userOrRole === 'object' ? userOrRole?.role : userOrRole;
+  const normalized = normalizeRole(role);
 
-  return rolesArray.some(role => {
-    const normalized = normalizeRole(role);
-    const caps = ROLE_CAPABILITIES[normalized];
-    return caps && caps.includes(permission);
-  });
+  // 👑 GOD MODE: Owners can do anything
+  if (normalized === ROLES.OWNER) return true;
+
+  // 🛡️ ADMIN OVERRIDE
+  if (normalized === ROLES.ADMIN) return true;
+
+  // Check specific capabilities map
+  const caps = ROLE_CAPABILITIES[normalized];
+  return caps && caps.includes(permission);
 };
+
+// Alias for legacy compatibility
+export const hasPermission = can;
+export const checkPermission = can;

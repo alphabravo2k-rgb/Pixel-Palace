@@ -1,17 +1,7 @@
-/**
- * PIXEL PALACE: SYSTEM KERNEL DIAGNOSTIC
- * VERSION: 4.5.0 (MASTER HYBRID)
- * STATUS: SECURED
- * - Real-time FPS & Memory Telemetry
- * - Sub-ms Database Handshake
- * - 8D Audio Verification Suite
- */
-
 import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { 
-  Activity, Database, Speaker, Cpu, Wifi, 
-  AlertTriangle, CheckCircle2, Terminal, Clock, Monitor
+  Activity, Database, Speaker, Cpu, Monitor, Terminal
 } from 'lucide-react';
 import { clsx } from 'clsx';
 
@@ -19,11 +9,23 @@ import { clsx } from 'clsx';
 import { useNexusStore } from '../../store/useNexusStore';
 import { SoundNexus, CUES } from '../../lib/soundNexus';
 import { supabase } from '../../supabase/client';
-import { ROLE_THEMES } from '../../lib/security/theme';
+import { getRoleTheme } from '../../lib/security/theme'; // ✅ Safe Import
+
+/**
+ * 🩺 SYSTEM DIAGNOSTIC: KERNEL MONITOR
+ * ------------------------------------
+ * STATUS: MASTERED (BURJ KHALIFA STANDARD)
+ * * UPGRADES:
+ * 1. ROBUST PING: Pings 'profiles' table to ensure valid DB handshake.
+ * 2. THEME SAFETY: Uses 'getRoleTheme' to prevent crashes on null roles.
+ * 3. MEMORY TRACKING: Real-time JS Heap monitoring (Chrome/Edge).
+ */
 
 export const SystemDiagnostic = () => {
   const { graphicsTier, is3DEnabled, toggle3D, profile } = useNexusStore();
-  const theme = ROLE_THEMES[profile?.role] || ROLE_THEMES.player;
+  
+  // ✅ SAFE THEME RESOLUTION
+  const theme = getRoleTheme(profile?.role);
   
   const [latency, setLatency] = useState(0);
   const [dbStatus, setDbStatus] = useState('idle');
@@ -62,15 +64,18 @@ export const SystemDiagnostic = () => {
     const start = performance.now();
     
     try {
-      // Stress test: Fetch a single row with no caching
-      const { error } = await supabase.from('audit_logs').select('id').limit(1).single();
-      if (error) throw error;
+      // ✅ FIXED: Ping a table guaranteed to exist ('profiles')
+      const { error } = await supabase.from('profiles').select('id').limit(1).single();
+      
+      // Allow "Row not found" as success (means connection worked, just empty DB)
+      if (error && error.code !== 'PGRST116') throw error;
       
       const end = performance.now();
       setLatency(Math.round(end - start));
       setDbStatus('online');
       SoundNexus.play(CUES.SUCCESS);
     } catch (err) {
+      console.error("Ping Failed:", err);
       setDbStatus('offline');
       SoundNexus.play(CUES.DISPUTE_TRIGGER);
     }
@@ -91,7 +96,7 @@ export const SystemDiagnostic = () => {
           </div>
         </div>
         <div className={clsx("px-4 py-2 border rounded-sm text-[10px] font-black uppercase tracking-widest bg-black shadow-neon", theme.border, theme.color)}>
-          Clearance: {profile?.role}
+          Clearance: {profile?.role || 'UNKNOWN'}
         </div>
       </div>
 
@@ -131,7 +136,7 @@ export const SystemDiagnostic = () => {
                <div className="w-full h-1 bg-zinc-900 rounded-full overflow-hidden mt-2">
                  <motion.div 
                     initial={{ width: 0 }}
-                    animate={{ width: `${(fps / 144) * 100}%` }}
+                    animate={{ width: `${Math.min((fps / 144) * 100, 100)}%` }}
                     className="h-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]" 
                  />
                </div>
@@ -172,8 +177,8 @@ export const SystemDiagnostic = () => {
                     <span className="text-xl font-display font-black text-zinc-300 italic">{memory?.used || '--'} MB</span>
                     <div className="flex-1 h-2 bg-zinc-900 rounded-full overflow-hidden">
                        <motion.div 
-                        animate={{ width: `${(memory?.used / memory?.limit) * 100 || 0}%` }}
-                        className="h-full bg-zinc-600" 
+                         animate={{ width: `${(memory?.used / memory?.limit) * 100 || 0}%` }}
+                         className="h-full bg-zinc-600" 
                        />
                     </div>
                     <span className="text-[10px] text-zinc-700 font-mono">MAX: {memory?.limit || '--'}MB</span>
@@ -202,15 +207,6 @@ export const SystemDiagnostic = () => {
            </div>
         </div>
 
-      </div>
-
-      {/* FOOTER TERMINAL */}
-      <div className="px-8 py-4 bg-black border-t border-white/5 flex justify-between items-center font-mono text-[9px] text-zinc-700 uppercase tracking-widest">
-         <div className="flex items-center gap-4">
-            <span className="flex items-center gap-2"><Wifi size={10} /> 1Gbps Uplink</span>
-            <span className="flex items-center gap-2"><Clock size={10} /> Sync: +0.02ms</span>
-         </div>
-         <span>Kernel: Genesis_Protocol_v4.5.0</span>
       </div>
     </div>
   );

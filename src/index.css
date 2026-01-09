@@ -1,6 +1,7 @@
 /* ------------------------------------------------------------------
- * 🎨 PIXEL PALACE: THE VISUAL CORE (VERSION 2.0)
- * STATUS: MASTERED & LOCKED
+ * 🧬 NEXUS OMNI: THE VISUAL ENGINE (GENESIS 2050)
+ * STATUS: OPERATIONAL // HARDENED
+ * ARCHITECT: PIXEL PALACE
  * ------------------------------------------------------------------ */
 
 /* 1. TYPOGRAPHY INJECTION */
@@ -13,26 +14,36 @@
 /* 2. THE FOUNDATION */
 @layer base {
   :root {
-    /* ⚡ THE VORTEX PALETTE (Matches tailwind.config.js) */
-    /* Values are R G B for Tailwind opacity support */
-    --color-brand: 192 38 211;       /* #c026d3 (Fuchsia-600) */
-    --color-brand-dim: 112 26 117;   /* #701a75 (Fuchsia-800) */
-    --color-brand-glow: 232 121 249; /* #e879f9 (Fuchsia-400) */
+    /* ⚡ THE OMNI PALETTE (RGB for dynamic opacity) */
+    --brand-rgb: 192 38 211;      /* #c026d3 (Executive Fuchsia) */
+    --brand-dim-rgb: 112 26 117;  /* #701a75 (Shadow) */
+    --brand-glow-rgb: 232 121 249; /* #e879f9 (Neon) */
     
     color-scheme: dark;
   }
 
   html {
     @apply antialiased scroll-smooth;
-    text-rendering: optimizeLegibility;
+    /* 🖥️ 144Hz OPTIMIZATION: Fixes micro-stutter in 3D scenes */
+    text-rendering: optimizeSpeed; 
+    background-color: #020202;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
   body {
-    @apply h-full bg-bg text-gray-100 font-sans overflow-x-hidden selection:bg-brand/30 selection:text-brand-glow;
-    /* 📱 NATIVE FEEL: Prevents "rubber-banding" on iOS */
-    overscroll-behavior-y: none; 
+    @apply min-h-screen bg-bg text-zinc-100 font-sans overflow-x-hidden selection:bg-brand/30 selection:text-brand-glow;
+    /* 🚫 PREVENTS MOBILE GHOSTING */
+    overscroll-behavior-y: none;
+    background-attachment: fixed;
+  }
+
+  /* 🌌 THE NEURAL GRAIN: Industrial texture that lasts decades */
+  body::before {
+    content: "";
+    @apply pointer-events-none fixed inset-0 z-[999] opacity-[0.03];
+    background-image: url('https://grainy-gradients.vercel.app/noise.svg');
+    filter: contrast(150%) brightness(100%);
   }
 
   /* 🚫 AUTOFILL FIX: Forces dark background on Chrome autofill */
@@ -47,26 +58,45 @@
 
   /* ♿ ACCESSIBILITY: Beautiful but visible focus rings */
   :focus-visible {
-    @apply outline-none ring-2 ring-brand ring-offset-2 ring-offset-bg;
+    @apply outline-none ring-1 ring-brand ring-offset-2 ring-offset-bg;
   }
 }
 
 /* 3. COMPONENT ARCHITECTURE */
 @layer components {
-  /* 📺 CRT SCANLINES: Optimized for performance */
-  .scanlines {
-    @apply pointer-events-none fixed inset-0 z-[50] mix-blend-overlay;
-    background: repeating-linear-gradient(
-      to bottom,
-      transparent 0%,
-      transparent 50%,
-      rgba(0, 0, 0, 0.4) 50%,
-      rgba(0, 0, 0, 0.4) 100%
-    );
-    background-size: 100% 4px;
-    opacity: 0.05;
+  /* 💎 GLASS-HARD: The Faceit-Standard Panel */
+  .glass-hard {
+    @apply bg-zinc-950/60 backdrop-blur-xl border border-white/5 shadow-2xl;
+    box-shadow: inset 0 0 20px rgba(255, 255, 255, 0.01), 0 20px 50px rgba(0,0,0,0.5);
   }
 
+  /* 📐 3D COCKPIT CONTAINER: Enables UI Tilting */
+  .perspective-container {
+    perspective: 1000px;
+    transform-style: preserve-3d;
+  }
+
+  .perspective-card {
+    transition: transform 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+    will-change: transform;
+    transform-style: preserve-3d;
+  }
+
+  .perspective-card:hover {
+    transform: rotateX(2deg) rotateY(-2deg) translateZ(10px);
+  }
+
+  /* 📺 THE MASTER SCANLINE: Cinematic Overlay */
+  .scanline-overlay {
+    @apply pointer-events-none fixed inset-0 z-[100] opacity-[0.02] mix-blend-overlay;
+    background: linear-gradient(
+      to bottom,
+      transparent 50%,
+      rgba(0, 0, 0, 0.5) 50%
+    );
+    background-size: 100% 4px;
+  }
+  
   /* 🛡️ TACTICAL CARD SHAPE: The "Cut Corner" Aesthetic */
   .tactical-panel {
     clip-path: polygon(
@@ -80,70 +110,61 @@
   /* ⚡ GLITCH TEXT: Hardware Accelerated */
   .glitch-text {
     @apply relative inline-block;
-    transform-style: preserve-3d;
   }
 
   .glitch-text::before,
   .glitch-text::after {
     @apply absolute inset-0 opacity-80;
     content: attr(data-text);
-    background: #050505;
-    will-change: transform, clip-path;
+    background: #020202;
+    overflow: hidden;
   }
 
   .glitch-text::before {
     @apply -left-[2px] text-brand;
-    text-shadow: 2px 0 rgb(var(--color-brand));
+    text-shadow: 2px 0 rgb(var(--brand-rgb));
+    clip-path: inset(0 0 0 0);
     animation: glitch-anim-1 2.5s infinite linear alternate-reverse;
   }
 
   .glitch-text::after {
     @apply left-[2px] text-brand-glow;
-    text-shadow: -2px 0 rgb(var(--color-brand-glow));
+    text-shadow: -2px 0 rgb(var(--brand-glow-rgb));
+    clip-path: inset(0 0 0 0);
     animation: glitch-anim-2 3.5s infinite linear alternate-reverse;
-  }
-  
-  /* 💎 GLASSMORPHISM */
-  .glass-panel {
-    @apply bg-bg-panel/60 backdrop-blur-md border border-white/5 shadow-glass;
   }
 }
 
 /* 4. UTILITIES */
 @layer utilities {
-  /* 🖱️ CUSTOM SCROLLBARS: Dynamic Theming Support */
+  /* 🖱️ OMNI-SCROLLBAR */
   .custom-scrollbar {
     scrollbar-width: thin;
-    scrollbar-color: rgb(var(--color-brand-dim)) #09090b;
+    scrollbar-color: rgb(var(--brand-dim-rgb)) #09090b;
   }
-
   .custom-scrollbar::-webkit-scrollbar {
-    @apply w-[6px] h-[6px];
+    @apply w-1.5 h-1.5;
   }
-
   .custom-scrollbar::-webkit-scrollbar-track {
-    @apply bg-bg-panel;
+    @apply bg-transparent;
   }
-
   .custom-scrollbar::-webkit-scrollbar-thumb {
-    background-color: rgb(var(--color-brand-dim));
-    border-radius: 9999px;
-    transition: background-color 0.3s;
-  }
-  
-  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background-color: rgb(var(--color-brand));
+    @apply bg-white/10 border border-black/20 rounded-full transition-colors hover:bg-brand;
   }
 
-  /* 🌬️ HEAVY BREATHING: For "Live" indicators */
-  .animate-breathe-heavy {
-    animation: breathe 4s infinite ease-in-out;
-    backface-visibility: hidden;
-    perspective: 1000px;
+  /* 🌬️ BREATHING GLOW: For Live Match Nodes */
+  .glow-breathe {
+    filter: drop-shadow(0 0 8px rgb(var(--brand-rgb) / 0.5));
+    animation: breathe-neon 3s infinite ease-in-out;
   }
 }
 
-/* 5. KEYFRAMES */
+/* 5. KEYFRAMES: PERCEPTUAL PERFORMANCE */
+@keyframes breathe-neon {
+  0%, 100% { filter: drop-shadow(0 0 5px rgb(var(--brand-rgb) / 0.3)); opacity: 0.8; }
+  50% { filter: drop-shadow(0 0 15px rgb(var(--brand-rgb) / 0.6)); opacity: 1; }
+}
+
 @keyframes glitch-anim-1 {
   0%, 100% { clip-path: inset(80% 0 1% 0); transform: translate3d(0,0,0); }
   20% { clip-path: inset(10% 0 60% 0); transform: translate3d(-2px, 2px, 0); }

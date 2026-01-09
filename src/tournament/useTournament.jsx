@@ -5,7 +5,7 @@
  */
 
 import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../supabase/client';
 import { useNexusStore } from '../store/useNexusStore';
 import { ROLE_DEF } from '../lib/roles';
 // Note: Ensure SoundNexus exists. Safe navigation used below.

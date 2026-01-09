@@ -1,23 +1,20 @@
-import React, { useEffect, forwardRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { X, Loader2, AlertTriangle, UploadCloud, ChevronDown } from 'lucide-react';
-import { cn } from '../lib/utils';
-
-// 🔊 SENSORY ENGINE
-import { SoundNexus, CUES } from '../lib/soundNexus';
-
 /**
- * 🧱 PIXEL PALACE: ATOMIC UI (SENSORY EDITION)
- * --------------------------------------------
- * STATUS: MASTERED (BURJ KHALIFA STANDARD)
- * * UPGRADES:
- * 1. HAPTIC AUDIO: All interactions trigger SoundNexus events.
- * 2. PHYSICS: Framer Motion integration for tactile press feedback.
- * 3. ACCESSIBILITY: Full ref forwarding and aria support.
+ * 🧱 PIXEL PALACE: ATOMIC UI (GENESIS OMNI)
+ * VERSION: 2050.5.0
+ * STATUS: OPERATIONAL // 3D & 8D ENABLED
  */
 
+import React, { useEffect, forwardRef, useState, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { X, Loader2, AlertTriangle, UploadCloud, ChevronDown, ShieldCheck } from 'lucide-react';
+import { cn } from '../lib/utils';
+
+// 🔊 SENSORY ENGINE (Ensure /lib/soundNexus.js exists)
+// If the file is missing, the app will crash. We will create it next.
+import { SoundNexus, CUES } from '../lib/soundNexus'; 
+
 // ==========================================
-// 1. ATOMS (Primitives)
+// 1. ATOMS: PRIMITIVES
 // ==========================================
 
 export const Button = forwardRef(({ 
@@ -42,14 +39,14 @@ export const Button = forwardRef(({
 
   const handleClick = (e) => {
     if (!disabled && !loading) {
-      SoundNexus.play(sound);
+      try { SoundNexus.play(sound); } catch(e) {} // Safe fail if audio engine not ready
       onClick && onClick(e);
     }
   };
 
   const handleHover = () => {
     if (!disabled && !loading) {
-      SoundNexus.play(CUES.UI_HOVER, { volume: 0.1 }); // Subtle tick
+      try { SoundNexus.play(CUES.UI_HOVER, { volume: 0.1 }); } catch(e) {}
     }
   };
 
@@ -83,7 +80,7 @@ export const Input = forwardRef(({ label, error, className, onFocus, ...props },
       <input
         ref={ref}
         onFocus={(e) => {
-            SoundNexus.play(CUES.UI_HOVER, { volume: 0.2 });
+            try { SoundNexus.play(CUES.UI_HOVER, { volume: 0.2 }); } catch(e) {}
             onFocus && onFocus(e);
         }}
         className={cn(
@@ -115,7 +112,7 @@ export const Select = forwardRef(({ label, options = [], placeholder, error, cla
             error && "border-red-500",
             className
           )}
-          onClick={() => SoundNexus.play(CUES.UI_CLICK)}
+          onClick={() => { try { SoundNexus.play(CUES.UI_CLICK); } catch(e) {} }}
           {...props}
         >
           {placeholder && <option value="" disabled selected>{placeholder}</option>}
@@ -138,7 +135,7 @@ export const FileInput = ({ label, onFileSelect, accept = "image/*,audio/*", err
   <div className="w-full space-y-2">
     {label && <label className="text-[10px] uppercase tracking-[0.2em] text-zinc-500 font-black">{label}</label>}
     <label 
-      onClick={() => SoundNexus.play(CUES.UI_CLICK)}
+      onClick={() => { try { SoundNexus.play(CUES.UI_CLICK); } catch(e) {} }}
       className={cn(
         "flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-white/10 rounded-sm bg-white/5 cursor-pointer hover:bg-white/10 hover:border-brand/40 transition-all group overflow-hidden relative",
         error && "border-red-500/50"
@@ -169,17 +166,72 @@ export const Badge = ({ children, color = 'gray', className = '' }) => {
 };
 
 // ==========================================
-// 2. MOLECULES (Complex)
+// 2. MOLECULES: COMPLEX INPUTS
+// ==========================================
+
+export const PinInput = ({ length = 6, onComplete }) => {
+  const [pins, setPins] = useState(new Array(length).fill(""));
+  const inputRefs = useRef([]);
+
+  const handleChange = (val, index) => {
+    if (isNaN(val)) return;
+    const newPins = [...pins];
+    newPins[index] = val.substring(val.length - 1);
+    setPins(newPins);
+
+    if (val && index < length - 1) inputRefs.current[index + 1].focus();
+    if (newPins.every(p => p !== "")) onComplete(newPins.join(""));
+  };
+
+  return (
+    <div className="flex gap-2 justify-center perspective-container">
+      {pins.map((p, i) => (
+        <motion.input
+          key={i}
+          ref={el => inputRefs.current[i] = el}
+          type="text"
+          value={p}
+          onChange={(e) => handleChange(e.target.value, i)}
+          onFocus={() => { try { SoundNexus.playSpatial(CUES.UI_TICK); } catch(e) {} }}
+          className="w-12 h-16 bg-black/60 border border-white/10 text-brand text-2xl font-black text-center focus:border-brand-glow focus:shadow-neon outline-none rounded-sm transition-all"
+          whileFocus={{ translateZ: 20, scale: 1.1 }}
+        />
+      ))}
+    </div>
+  );
+};
+
+export const RoleBadge = ({ roleDef, className = "" }) => {
+  if (!roleDef) return null;
+  return (
+    <motion.div 
+      initial={{ opacity: 0, x: -10 }}
+      animate={{ opacity: 1, x: 0 }}
+      className={cn(
+        "px-3 py-1 border text-[10px] font-black uppercase tracking-[0.2em] italic flex items-center gap-2 rounded-sm clip-path-slant",
+        roleDef.badge,
+        roleDef.color,
+        className
+      )}
+    >
+      <ShieldCheck size={12} className="animate-pulse" />
+      {roleDef.label}
+    </motion.div>
+  );
+};
+
+// ==========================================
+// 3. ORGANISMS: CONTAINERS
 // ==========================================
 
 export const SkewButton = ({ children, onClick, className = "", disabled = false, type = "button", loading = false }) => (
   <motion.button 
     type={type}
     whileTap={{ scale: 0.98 }}
-    onMouseEnter={() => !disabled && SoundNexus.play(CUES.UI_HOVER)}
+    onMouseEnter={() => !disabled && (function(){ try { SoundNexus.play(CUES.UI_HOVER); } catch(e){} })()}
     onClick={(e) => {
         if (!disabled && !loading) {
-            SoundNexus.play(CUES.UI_CLICK);
+            try { SoundNexus.play(CUES.UI_CLICK); } catch(e) {}
             onClick && onClick(e);
         }
     }}
@@ -200,36 +252,45 @@ export const SkewButton = ({ children, onClick, className = "", disabled = false
   </motion.button>
 );
 
-export const HudPanel = ({ children, className = "", title, icon: Icon, glow = false }) => (
-  <div className={cn(
-    "relative bg-black/80 backdrop-blur-md p-6 border border-white/5 group",
-    glow && "shadow-[0_0_50px_-12px_rgba(var(--color-brand)/0.2)]",
-    className
-  )}
-    style={{ clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 20px), calc(100% - 20px) 100%, 0 100%)' }}
-  >
-    <div className="absolute top-0 left-0 w-[2px] h-full bg-gradient-to-b from-brand to-transparent opacity-40 group-hover:opacity-100 transition-opacity" />
-    {title && (
-      <div className="flex justify-between items-center mb-6 border-b border-white/5 pb-4">
-        <div className="flex items-center gap-3">
-          {Icon && <Icon size={20} className="text-brand-glow" />}
-          <h3 className="text-xl font-display font-bold text-white uppercase tracking-wider italic">{title}</h3>
+export const HudPanel = ({ children, title, icon: Icon, glow = false, variant = "default", className="" }) => {
+  return (
+    <motion.div 
+      whileHover={{ scale: 1.01 }}
+      className={cn(
+        "relative p-6 border transition-all duration-500 glass-hard perspective-card",
+        glow ? "border-brand/30 shadow-neon" : "border-white/5",
+        variant === "danger" && "border-red-500/30 bg-red-500/5 shadow-neon-red",
+        className
+      )}
+      style={{ clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 15px), calc(100% - 15px) 100%, 0 100%)' }}
+    >
+      {/* 🚀 THE SCANLINE EFFECT (Uses CSS class from index.css) */}
+      <div className="absolute inset-0 scanline-overlay pointer-events-none opacity-10 animate-scan" />
+      
+      {title && (
+        <div className="flex items-center justify-between mb-6 border-b border-white/5 pb-4">
+          <div className="flex items-center gap-3">
+            {Icon && <Icon size={18} className="text-brand animate-flicker" />}
+            <h2 className="text-lg font-display font-black italic uppercase tracking-widest text-white underline-offset-8 decoration-brand/50 decoration-2">
+              {title}
+            </h2>
+          </div>
+          <div className="flex gap-1">
+            <div className="w-1 h-1 bg-brand rounded-full animate-ping" />
+            <div className="w-4 h-1 bg-zinc-800 rounded-full" />
+          </div>
         </div>
-        <div className="flex gap-1.5">
-          <div className="w-1 h-1 bg-brand animate-ping" />
-          <div className="w-1.5 h-1.5 bg-zinc-800 rounded-full" />
-        </div>
-      </div>
-    )}
-    {children}
-  </div>
-);
+      )}
+      <div className="relative z-10">{children}</div>
+    </motion.div>
+  );
+};
 
 export const Modal = ({ isOpen, onClose, title, children, size = 'md' }) => {
   useEffect(() => {
     if (isOpen) {
         document.body.style.overflow = 'hidden';
-        SoundNexus.play(CUES.NAVIGATION_SWISH); // 🔊 Whoosh Sound
+        try { SoundNexus.play(CUES.NAVIGATION_SWISH); } catch(e) {}
     } else {
         document.body.style.overflow = 'unset';
     }
@@ -261,7 +322,7 @@ export const Modal = ({ isOpen, onClose, title, children, size = 'md' }) => {
                 <div className="flex justify-between items-center p-6 border-b border-white/5 bg-white/[0.02]">
                   <h3 className="text-2xl font-display font-bold text-white uppercase italic tracking-tighter">{title}</h3>
                   <button 
-                    onClick={() => { SoundNexus.play(CUES.UI_ERROR); onClose(); }} 
+                    onClick={() => { try { SoundNexus.play(CUES.UI_ERROR); } catch(e) {} onClose(); }} 
                     className="text-zinc-500 hover:text-red-500 transition-all hover:rotate-90"
                   >
                       <X size={28} />

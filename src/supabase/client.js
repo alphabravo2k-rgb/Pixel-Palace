@@ -1,83 +1,82 @@
-import { createClient } from '@supabase/supabase-js';
-
 /**
- * 🔌 PIXEL PALACE: SUPABASE NEXUS
- * ------------------------------
- * STATUS: MASTERED (DUBAI STANDARD)
- * * FEATURES:
- * 1. INTEGRITY GUARD: Prevents app startup if API keys are missing.
- * 2. STORAGE NEXUS: Helper utilities for handling Team Logos/Banners.
- * 3. ISOLATED AUTH: Uses a unique LocalStorage key to prevent conflicts.
+ * 🔌 PIXEL PALACE: SUPABASE OMNI-LINK
+ * VERSION: 2050.5.0 (MASTER OMNI)
+ * STATUS: SECURED // REALTIME ENABLED
  */
 
-// 1. 🔍 ENVIRONMENT EXTRACTION
+import { createClient } from '@supabase/supabase-js';
+
+// 1. 🔍 ENVIRONMENT VAULT EXTRACTION
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const isDev = import.meta.env.DEV;
 
-// 2. 🛡️ INTEGRITY GUARD
+// 2. 🛡️ INTEGRITY HANDSHAKE
 if (!supabaseUrl || !supabaseKey) {
-  // 🚨 CRITICAL ERROR: Shows if Cloudflare/Vercel Env Vars are missing
-  const style = 'background: #ef4444; color: white; padding: 4px; border-radius: 2px; font-weight: bold;';
-  console.error('%c🔥 NEXUS OFFLINE: Credentials Missing', style);
+  const style = 'background: #ef4444; color: white; padding: 6px; border-radius: 4px; font-family: "JetBrains Mono";';
+  console.error('%c🔥 CRITICAL: NEXUS UPLINK DISCONNECTED', style);
   console.table({
-    'URL': supabaseUrl ? '✅ Loaded' : '❌ MISSING',
-    'KEY': supabaseKey ? '✅ Loaded' : '❌ MISSING'
+    "Infrastructure URL": supabaseUrl ? 'LOCKED' : 'VACANT',
+    "Security Key": supabaseKey ? 'LOCKED' : 'VACANT'
   });
-  throw new Error("Nexus Uplink Failure: Check Environment Vault.");
+  // We throw to prevent the app from booting into a zombie state
+  throw new Error("Genesis Failure: Environment variables missing from the Vault.");
 }
 
-// 3. 🔌 THE MASTER CLIENT
+// 3. 🔌 THE MASTER KERNEL
 export const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
-    // 🔒 ISOLATION: Unique key prevents conflicts with other localhost apps
-    storageKey: 'pp-nexus-auth', 
-    // 🔒 SECURITY: PKCE Flow makes mobile login (iOS/Safari) reliable
-    flowType: 'pkce', 
+    storageKey: 'pp-nexus-auth-v5', // Versioned storage to prevent localhost conflicts
+    flowType: 'pkce', // Modern standard for secure redirects
   },
   db: {
     schema: 'public',
   },
-  // ⚡ REALTIME SHIELDING
+  // ⚡ REALTIME SYNC (Faceit-Standard Throttling)
   realtime: {
     params: {
-      eventsPerSecond: 10, // Throttles updates to prevent UI stuttering
+      eventsPerSecond: 10, // Prevents 3D UI lag during high-traffic matches
     },
   },
 });
 
-// 4. 📁 STORAGE NEXUS (Media Utilities)
-// Standardized helpers to handle Pictures, Audio, and GIFs
+// 4. 📁 STORAGE NEXUS (Media Optimization)
 export const storageNexus = {
-  // Generate a reliable public URL for any hard file
+  /**
+   * Resolve a public URL with cache-busting logic
+   * (Fixes the issue where changing a team logo doesn't update immediately)
+   */
   getUrl: (bucket, path) => {
     if (!path) return null;
-    return supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl;
+    const { data } = supabase.storage.from(bucket).getPublicUrl(path);
+    // Append timestamp to bypass browser cache
+    return `${data.publicUrl}?t=${new Date().getTime()}`; 
   },
   
-  // High-performance upload with cache control
+  /**
+   * Atomic Upload with Overwrite Capability
+   */
   upload: async (bucket, path, file) => {
     const { data, error } = await supabase.storage
       .from(bucket)
       .upload(path, file, {
         cacheControl: '3600',
-        upsert: true // Overwrites old version to keep storage clean
+        upsert: true 
       });
     if (error) throw error;
     return data;
   }
 };
 
-// 5. 🛠️ GOD MODE (Dev Only)
+// 5. 🛠️ COMMAND LINE INTERFACE (Dev Access)
 if (isDev) {
-  window.sb = supabase; // Standard shorthand
-  window.nexus = supabase; // Cool shorthand
+  window.nexus = supabase; // Type 'nexus' in console to access DB
   console.log(
-    `%c⚡ NEXUS CONNECTED: ${supabaseUrl.slice(0, 20)}...`,
-    'color: #10b981; font-weight: bold; font-family: monospace;'
+    `%c🛰️ NEXUS LINK ESTABLISHED // ${new URL(supabaseUrl).hostname}`,
+    'color: #c026d3; font-weight: 900; font-family: "Rajdhani"; text-transform: uppercase; letter-spacing: 0.2em;'
   );
 }
 

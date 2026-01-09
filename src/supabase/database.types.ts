@@ -1,135 +1,174 @@
 /**
- * 🧬 USE DATABASE: HIGH-LEVEL CRUD ENGINE
+ * 🗄️ DATABASE TYPES: THE NEXUS SCHEMA CONTRACT
  * VERSION: 2050.5.0 (MASTER OMNI)
- * STATUS: SECURED // REAL-TIME // SENSORY-LINKED
+ * STATUS: FULLY SYNCHRONIZED
  */
 
-import { useState, useEffect, useCallback } from 'react';
-import { supabase } from './client';
-// Note: Ensure audio engine exists. Safe navigation used below.
-import { SoundNexus, CUES } from '../lib/soundNexus'; 
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
 
-/**
- * 📡 USE RECORD: SINGLE-ENTITY NEURAL LINK
- * Ideal for Player Profiles, specific Match Rooms, or Team Dossiers.
- * Automatically subscribes to real-time updates.
- */
-export const useRecord = (table, id) => {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    if (!id) return;
-    
-    const fetchRecord = async () => {
-      setLoading(true);
-      const { data: record, error: dbError } = await supabase
-        .from(table)
-        .select('*')
-        .eq('id', id)
-        .single();
-        
-      if (dbError) {
-        // Don't log 406 errors (standard for "no single row found" when creating new profiles)
-        if (dbError.code !== 'PGRST116') console.error("Nexus Record Error:", dbError);
-        setError(dbError.message);
-      } else {
-        setData(record);
+export interface Database {
+  public: {
+    Tables: {
+      profiles: {
+        Row: {
+          id: string
+          display_name: string | null
+          avatar_url: string | null
+          role_id: string // Unified Dynamic Role Link (e.g. 'owner', 'admin')
+          elo_rating: number // The Master Skill Rating
+          rank_tier: number // Cached Tier (1-10)
+          steam_id: string | null
+          discord_id: string | null
+          country_code: string | null
+          ac_status: boolean // Anti-Cheat Active?
+          last_ac_heartbeat: string | null
+          is_verified: boolean
+          created_at: string
+        }
+        Insert: {
+          id: string
+          display_name?: string | null
+          role_id?: string
+          elo_rating?: number
+          avatar_url?: string | null
+        }
+        Update: {
+          display_name?: string | null
+          avatar_url?: string | null
+          role_id?: string
+          elo_rating?: number
+          ac_status?: boolean
+          last_ac_heartbeat?: string | null
+        }
       }
-      setLoading(false);
-    };
-
-    fetchRecord();
-
-    // 🔄 REAL-TIME SYNC: Listens for external updates (e.g., Admin changing a score)
-    const channel = supabase
-      .channel(`live:${table}:${id}`)
-      .on('postgres_changes', { 
-        event: 'UPDATE', 
-        schema: 'public', 
-        table: table, 
-        filter: `id=eq.${id}` 
-      }, (payload) => {
-        setData(payload.new);
-        // 🔊 Subtle ping to notify the UI has updated silently
-        try { SoundNexus.playSpatial(CUES.UI_TICK, { volume: 0.1 }); } catch(e){}
-      })
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, [table, id]);
-
-  return { data, loading, error };
-};
-
-/**
- * 📚 USE COLLECTION: MULTI-ENTITY MATRIX
- * Ideal for Tournament Lists, Leaderboards, or Team Rosters.
- */
-export const useCollection = (table, options = {}) => {
-  const [data, setData] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  // Memoize options key to prevent infinite fetch loops
-  const optKey = JSON.stringify(options);
-
-  const fetchCollection = useCallback(async () => {
-    setLoading(true);
-    let query = supabase.from(table).select(options.select || '*');
-    
-    // Dynamic Filtering
-    if (options.eq) query = query.eq(options.eq.field, options.eq.value);
-    if (options.orderBy) query = query.order(options.orderBy, { ascending: options.asc ?? false });
-    if (options.limit) query = query.limit(options.limit);
-
-    const { data: records, error } = await query;
-    
-    if (!error) setData(records || []);
-    setLoading(false);
-  }, [table, optKey]);
-
-  useEffect(() => { fetchCollection(); }, [fetchCollection]);
-
-  return { data, loading, refresh: fetchCollection };
-};
-
-/**
- * 🛠️ USE MUTATIONS: THE DATA FORGE
- * Handles the creation and destruction of records with haptic feedback.
- */
-export const useMutations = (table) => {
-  
-  const create = async (payload) => {
-    const { data, error } = await supabase.from(table).insert(payload).select().single();
-    if (error) {
-      try { SoundNexus.play(CUES.UI_ERROR); } catch(e){}
-      throw error;
+      teams: {
+        Row: {
+          id: string
+          name: string
+          short_name: string | null
+          logo_url: string | null
+          captain_id: string | null
+          elo_average: number
+          created_at: string
+        }
+        Insert: {
+          name: string
+          short_name?: string | null
+          captain_id?: string | null
+          logo_url?: string | null
+        }
+        Update: {
+          name?: string
+          logo_url?: string | null
+          elo_average?: number
+        }
+      }
+      matches: {
+        Row: {
+          id: string
+          match_type: 'pug' | 'tournament' | 'scrim'
+          team1_id: string | null
+          team2_id: string | null
+          score_team1: number
+          score_team2: number
+          winner_id: string | null
+          status: 'scheduled' | 'veto' | 'live' | 'completed' | 'disputed'
+          map_name: string | null
+          server_ip: string | null
+          server_pass: string | null // Protected by RLS policies
+          ac_required: boolean
+          tournament_id: string | null
+          created_at: string
+        }
+        Insert: {
+          match_type?: 'pug' | 'tournament' | 'scrim'
+          team1_id?: string | null
+          team2_id?: string | null
+          ac_required?: boolean
+        }
+        Update: {
+          score_team1?: number
+          score_team2?: number
+          status?: 'scheduled' | 'veto' | 'live' | 'completed' | 'disputed'
+          map_name?: string | null
+          winner_id?: string | null
+        }
+      }
+      tournaments: {
+        Row: {
+          id: string
+          name: string
+          slug: string
+          status: 'upcoming' | 'live' | 'completed'
+          start_date: string | null
+          server_config: Json // Stores { max_rounds, knife_round, etc. }
+          theme_config: Json // Stores { primary_color, accent_color }
+        }
+        Insert: {
+          name: string
+          slug: string
+          server_config?: Json
+          theme_config?: Json
+        }
+        Update: {
+          status?: 'upcoming' | 'live' | 'completed'
+          theme_config?: Json
+        }
+      }
+      elo_history: {
+        Row: {
+          id: string
+          user_id: string
+          match_id: string | null
+          elo_change: number
+          new_total: number
+          created_at: string
+        }
+        Insert: {
+          user_id: string
+          match_id?: string | null
+          elo_change: number
+          new_total: number
+        }
+      }
+      audit_logs: {
+        Row: {
+          id: string
+          actor_id: string
+          action_type: string // e.g., 'MATCH_FORCE_WIN', 'BAN_USER'
+          target_id: string | null
+          metadata: Json
+          created_at: string
+        }
+        Insert: {
+          actor_id: string
+          action_type: string
+          target_id?: string | null
+          metadata?: Json
+        }
+      }
     }
-    try { SoundNexus.playSpatial(CUES.UI_SUCCESS); } catch(e){}
-    return data;
-  };
-
-  const update = async (id, payload) => {
-    const { data, error } = await supabase.from(table).update(payload).eq('id', id).select().single();
-    if (error) {
-      try { SoundNexus.play(CUES.UI_ERROR); } catch(e){}
-      throw error;
+    Views: {
+      global_rankings: {
+        Row: {
+          player_id: string
+          display_name: string
+          elo_rating: number
+          rank_position: number
+        }
+      }
+      api_match_config: {
+        Row: {
+          match_id: string
+          final_config: Json
+        }
+      }
     }
-    // Subtle "Lock-in" sound for updates
-    try { SoundNexus.playSpatial(CUES.UI_TICK, { pitch: 1.2 }); } catch(e){}
-    return data;
-  };
-
-  const remove = async (id) => {
-    const { error } = await supabase.from(table).delete().eq('id', id);
-    if (error) {
-      try { SoundNexus.play(CUES.UI_ERROR); } catch(e){}
-      throw error;
-    }
-    // "Deletion/De-materialize" sound
-    try { SoundNexus.playSpatial(CUES.UI_ERROR, { volume: 0.5, pitch: 0.8 }); } catch(e){}
-  };
-
-  return { create, update, remove };
-};
+  }
+}

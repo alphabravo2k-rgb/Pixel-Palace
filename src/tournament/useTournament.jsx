@@ -1,61 +1,54 @@
+/**
+ * 🏆 PIXEL PALACE: OPERATIONAL COMMAND NEXUS
+ * VERSION: 2050.5.0 (MASTER OMNI)
+ * STATUS: SECURED // REAL-TIME SYNC // THEME INJECTION
+ */
+
 import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from 'react';
-import { supabase } from '../supabase/client';
-import { useSession } from '../auth/useSession';
+import { supabase } from '../lib/supabase';
+import { useNexusStore } from '../store/useNexusStore';
+import { ROLE_DEF } from '../lib/roles';
+// Note: Ensure SoundNexus exists. Safe navigation used below.
+import { SoundNexus, CUES } from '../lib/soundNexus';
 
 const TournamentContext = createContext(null);
 
-/**
- * 🏆 PIXEL PALACE: TOURNAMENT NEXUS
- * --------------------------------
- * STATUS: MASTERED (DUBAI STANDARD)
- * * CORE FEATURES:
- * 1. REAL-TIME SYNC: Websocket connection for instant status/bracket updates.
- * 2. THEME INJECTION: Repaints the entire app UI based on Tournament colors.
- * 3. MEDIA RESOLVER: Auto-generates public URLs for logos and banners.
- * 4. SECURITY: Strict lifecycle & ownership checks.
- */
-
-export const TournamentProvider = ({ children, defaultId }) => {
-  const { session } = useSession();
+export const TournamentProvider = ({ children }) => {
+  const { profile } = useNexusStore();
   
   // 1. ATOMIC STATE
-  const [selectedTournamentId, setSelectedTournamentId] = useState(defaultId || null);
-  const [tournaments, setTournaments] = useState([]);
-  const [tournamentData, setTournamentData] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [activeTournamentId, setActiveTournamentId] = useState(() => localStorage.getItem('pp_active_tid') || null);
+  const [tournaments, setTournaments] = useState([]); // List of available events
+  const [tournamentData, setTournamentData] = useState(null); // Full details of active event
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const [lifecycle, setLifecycle] = useState({
-    status: 'LOADING',
-    isLocked: true,
-    isRegistrationOpen: false,
-    canGenerateBracket: false,
-    isAdmin: false // 🛡️ UID Security
-  });
-
-  // 2. THEME ENGINE (Hardware Accelerated)
-  // Injects CSS variables directly into the document root for instant recoloring
-  const paintTheme = useCallback((data) => {
-    if (!data) return;
+  // 2. DYNAMIC THEME ENGINE (Visual Recalibration)
+  // Repaints the UI (CSS Variables) to match the Tournament's brand identity
+  const recalibrateVisuals = useCallback((theme) => {
+    if (!theme) return;
     const root = document.documentElement;
     
-    // Helper: Hex -> Space-separated RGB (for Tailwind opacity modifiers)
+    // Helper: Hex -> RGB for Tailwind opacity modifiers (e.g. bg-brand/50)
     const hexToRgb = (hex) => {
       const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
       return result ? `${parseInt(result[1], 16)} ${parseInt(result[2], 16)} ${parseInt(result[3], 16)}` : '192 38 211';
     };
 
-    if (data.theme_color) root.style.setProperty('--color-brand', hexToRgb(data.theme_color));
-    if (data.theme_color_dim) root.style.setProperty('--color-brand-dim', hexToRgb(data.theme_color_dim));
-    if (data.theme_color_glow) root.style.setProperty('--color-brand-glow', hexToRgb(data.theme_color_glow));
+    if (theme.primary_color) root.style.setProperty('--brand-rgb', hexToRgb(theme.primary_color));
+    if (theme.secondary_color) root.style.setProperty('--brand-dim-rgb', hexToRgb(theme.secondary_color));
+    if (theme.accent_color) root.style.setProperty('--brand-glow-rgb', hexToRgb(theme.accent_color));
+    
+    // 🔊 Auditory confirmation of visual shift
+    try { SoundNexus.playSpatial(CUES.UI_POWER_UP, { volume: 0.2 }); } catch(e) {}
   }, []);
 
-  // 3. FETCH GLOBAL LIST (On Mount)
+  // 3. FETCH GLOBAL OPERATIONS (List View)
   useEffect(() => {
     const fetchTournaments = async () => {
       const { data, error: fetchError } = await supabase
         .from('tournaments')
-        .select('id, name, status, start_date')
+        .select('id, name, slug, status, start_date')
         .order('start_date', { ascending: false });
       
       if (fetchError) {
@@ -63,117 +56,99 @@ export const TournamentProvider = ({ children, defaultId }) => {
         return setError(fetchError.message);
       }
 
-      if (data) {
-        setTournaments(data);
-        // Smart Restore: If no ID selected, try to restore from LocalStorage, else pick newest
-        if (!selectedTournamentId && data.length > 0) {
-          const lastId = localStorage.getItem('pp_active_tid');
-          const isValid = data.find(t => t.id === lastId);
-          setSelectedTournamentId(isValid ? lastId : data[0].id);
-        }
+      setTournaments(data || []);
+      
+      // Auto-select most recent if none selected
+      if (!activeTournamentId && data?.length > 0) {
+        setActiveTournamentId(data[0].id);
       }
+      setLoading(false);
     };
     fetchTournaments();
-  }, []); // Run once on mount
+  }, []); 
 
-  // 4. ACTIVE TOURNAMENT DATA & REAL-TIME UPLINK
+  // 4. REAL-TIME UPLINK (The "Pulse")
   useEffect(() => {
-    if (!selectedTournamentId) return;
+    if (!activeTournamentId) return;
     
-    // Persist selection
-    localStorage.setItem('pp_active_tid', selectedTournamentId);
+    localStorage.setItem('pp_active_tid', activeTournamentId);
     setLoading(true);
 
     // 4a. Initial Data Load
-    const loadData = async () => {
-      try {
-        const { data, error: dbError } = await supabase
-          .from('tournaments')
-          .select('*')
-          .eq('id', selectedTournamentId)
-          .single();
-        
-        if (dbError) throw dbError;
-        processTournamentUpdate(data);
-      } catch (err) {
-        console.error("Nexus Detail Error:", err);
-        setError(err.message);
-      } finally {
-        setLoading(false);
+    const syncTournament = async () => {
+      const { data, error } = await supabase
+        .from('tournaments')
+        .select('*')
+        .eq('id', activeTournamentId)
+        .single();
+
+      if (data) {
+        setTournamentData(data);
+        // Assuming 'theme_config' is a JSON column in your DB: { primary_color: "#ff0000", ... }
+        if (data.theme_config) recalibrateVisuals(data.theme_config);
       }
+      setLoading(false);
     };
+    syncTournament();
 
-    loadData();
-
-    // 4b. Real-Time Subscription (The "Pulse")
+    // 4b. Real-time Listener
     const channel = supabase
-      .channel(`tournament:${selectedTournamentId}`)
+      .channel(`tournament:${activeTournamentId}`)
       .on('postgres_changes', { 
         event: 'UPDATE', 
         schema: 'public', 
         table: 'tournaments', 
-        filter: `id=eq.${selectedTournamentId}` 
+        filter: `id=eq.${activeTournamentId}` 
       }, (payload) => {
         console.log("⚡ Nexus Update Received:", payload.new);
-        processTournamentUpdate(payload.new);
+        setTournamentData(payload.new);
+        
+        // If status changes to LIVE, play alert
+        if (payload.new.status === 'live' && payload.old.status !== 'live') {
+           try { SoundNexus.playSpatial(CUES.NOTIFICATION); } catch(e) {}
+        }
+        
+        // Live Theme Updates
+        if (payload.new.theme_config) recalibrateVisuals(payload.new.theme_config);
       })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [selectedTournamentId, session?.user?.id]); // Re-run if ID or User changes
+  }, [activeTournamentId, recalibrateVisuals]);
 
-  // 5. DATA PROCESSING CORE
-  const processTournamentUpdate = (data) => {
-    if (!data) return;
-
-    // Resolve Media URLs (Cloud Storage -> Public URL)
-    const media = {
-      logo: data.logo_path 
-        ? supabase.storage.from('tournaments').getPublicUrl(data.logo_path).data.publicUrl 
-        : null,
-      banner: data.banner_path 
-        ? supabase.storage.from('tournaments').getPublicUrl(data.banner_path).data.publicUrl 
-        : null,
-    };
-
-    setTournamentData({ ...data, media });
-    paintTheme(data);
-
-    // Calculate Lifecycle State
-    const status = data.status || 'setup';
-    setLifecycle({
-      status: status.toUpperCase(),
-      isLocked: ['active', 'completed'].includes(status),
-      isRegistrationOpen: status === 'setup',
-      canGenerateBracket: status === 'seeding',
-      isAdmin: data.owner_id === session?.user?.id // 🛡️ Ownership Check
-    });
+  // 5. SOVEREIGN ACTIONS (Secured by Logic Layer)
+  const actions = {
+    // Organizers can force a status change (e.g., "Start Tournament")
+    updateStatus: async (newStatus) => {
+      // 🛡️ Security Check
+      const userRole = profile?.role || 'guest';
+      const userLevel = ROLE_DEF[userRole.toUpperCase()]?.level || 0;
+      
+      // Level 50 = ORGANIZER
+      if (userLevel < 50) {
+        try { SoundNexus.play(CUES.UI_ERROR); } catch(e){}
+        throw new Error("ACCESS_DENIED: Insufficient Clearance.");
+      }
+      
+      const { error } = await supabase
+        .from('tournaments')
+        .update({ status: newStatus })
+        .eq('id', activeTournamentId);
+      
+      if (error) throw error;
+      try { SoundNexus.play(CUES.UI_SUCCESS); } catch(e){}
+    }
   };
 
-  // 6. ADMIN ACTIONS
-  const updateStatus = async (newStatus) => {
-    if (!lifecycle.isAdmin) throw new Error("ACCESS_DENIED: You do not have Overlord privileges.");
-    
-    const { error } = await supabase
-      .from('tournaments')
-      .update({ status: newStatus })
-      .eq('id', selectedTournamentId);
-    
-    if (error) throw error;
-    // Note: No need to set state here manually; the Real-time subscription will catch the DB change and update UI.
-  };
-
-  // 7. MEMOIZED CONTEXT
   const value = useMemo(() => ({
-    selectedTournamentId,
-    setSelectedTournamentId,
+    activeTournamentId,
+    setActiveTournamentId,
     tournaments,
     tournamentData,
-    lifecycle,
     loading,
     error,
-    actions: { updateStatus }
-  }), [selectedTournamentId, tournaments, tournamentData, lifecycle, loading, error]);
+    actions
+  }), [activeTournamentId, tournaments, tournamentData, loading, error, profile]);
 
   return (
     <TournamentContext.Provider value={value}>
@@ -186,4 +161,4 @@ export const useTournament = () => {
   const context = useContext(TournamentContext);
   if (!context) throw new Error('useTournament must be used within a TournamentProvider');
   return context;
-};
+};s

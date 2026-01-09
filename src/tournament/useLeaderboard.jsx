@@ -5,7 +5,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../supabase/client';
 import { getTierFromElo } from './tournamentUtils';
 // Note: Safe navigation used for audio to prevent crashes if engine is loading
 import { SoundNexus, CUES } from '../lib/soundNexus';

@@ -5,7 +5,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../supabase/client';
 // Note: Ensure SoundNexus exists in /lib/soundNexus.js.
 // Safe navigation handles missing audio engine.
 import { SoundNexus, CUES } from '../lib/soundNexus';

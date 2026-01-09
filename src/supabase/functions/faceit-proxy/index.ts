@@ -1,4 +1,9 @@
-// supabase/functions/faceit-proxy/index.ts
+/**
+ * 🛰️ FACEIT PROXY KERNEL: DATA REFINERY
+ * VERSION: 2050.5.0
+ * STATUS: SECURED // OPTIMIZED
+ */
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
 const corsHeaders = {
@@ -7,23 +12,22 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-  // 1. Handle CORS Preflight Request
+  // 1. Handle CORS Preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    // 2. Get the nickname from the request body
     const { nickname } = await req.json()
-    if (!nickname) throw new Error('Nickname is required')
+    if (!nickname) throw new Error('Nickname target required for uplink.')
 
-    // 3. Get your API Key from Supabase Secrets
-    // Run this in terminal: supabase secrets set FACEIT_API_KEY=your_key_here
+    // Retrieve API Key from Vault
     const FACEIT_KEY = Deno.env.get('FACEIT_API_KEY')
+    if (!FACEIT_KEY) throw new Error('Proxy Secret Vault is empty.')
 
-    // 4. Call Faceit API (Server to Server - No CORS issues here)
+    // 2. FETCH DATA FROM SOURCE
     const response = await fetch(
-      `https://open.faceit.com/data/v4/players?nickname=${nickname}`,
+      `https://open.faceit.com/data/v4/players?nickname=${encodeURIComponent(nickname)}`,
       {
         headers: {
           'Authorization': `Bearer ${FACEIT_KEY}`,
@@ -32,12 +36,33 @@ serve(async (req) => {
       }
     )
 
-    const data = await response.json()
+    if (!response.ok) {
+      // Graceful 404 handling if player doesn't exist
+      return new Response(JSON.stringify({ error: 'Player not found in Faceit database' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 404,
+      })
+    }
 
-    // 5. Return data to your React App
-    return new Response(JSON.stringify(data), {
+    const rawData = await response.json()
+
+    // 3. DATA REFINERY (The Faceit-Killer Optimization)
+    // We only send exactly what the 3D HUD needs. This reduces latency.
+    const refinedData = {
+      player_id: rawData.player_id,
+      nickname: rawData.nickname,
+      avatar: rawData.avatar,
+      country: rawData.country,
+      // Priority: CS2 -> CSGO -> Default 1000
+      elo: rawData.games?.cs2?.faceit_elo || rawData.games?.csgo?.faceit_elo || 1000,
+      level: rawData.games?.cs2?.skill_level || rawData.games?.csgo?.skill_level || 1,
+      steam_id: rawData.steam_id_64 || rawData.steam_user_id, // Ensure we get the 64-bit ID
+      faceit_url: rawData.faceit_url?.replace('{lang}', 'en')
+    }
+
+    return new Response(JSON.stringify(refinedData), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: response.status,
+      status: 200,
     })
 
   } catch (error) {

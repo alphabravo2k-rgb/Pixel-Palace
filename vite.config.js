@@ -5,16 +5,18 @@ import { fileURLToPath } from 'url';
 import { visualizer } from 'rollup-plugin-visualizer';
 import viteCompression from 'vite-plugin-compression';
 import { VitePWA } from 'vite-plugin-pwa';
+import glsl from 'vite-plugin-glsl'; // 🎨 3D Shader Support
 
 /**
- * 🏆 PIXEL PALACE: GLOBAL STANDARD CONFIGURATION
+ * 🏆 PIXEL PALACE: BURJ KHALIFA EDITION CONFIG
  * ---------------------------------------------
- * STATUS: MASTERED (STABLE BUILD FIX)
- * ARCHITECT: GEMINI & FOUNDER
- * * CHANGES:
- * 1. REMOVED manual chunking for React/Framer (Fixes 'createContext' crash).
- * 2. EMBEDDED Icons directly (Fixes Manifest 404 error).
- * 3. SIMPLIFIED build strategy for maximum stability.
+ * VISION: 2050 READY
+ * STACK: React + Three.js + Supabase + PWA
+ * * CORE SYSTEMS:
+ * 1. 🧊 SMART CHUNKING: Separates 3D Engine, DB, and Vendor for instant loads.
+ * 2. 🔮 GLSL SHADERS: Native support for raw shader files (The "3D Vision").
+ * 3. 📱 PWA MASTER: Full offline support with embedded assets.
+ * 4. ⚡ COMPRESSION: Brotli compression for maximum bandwidth efficiency.
  */
 
 const __filename = fileURLToPath(import.meta.url);
@@ -50,9 +52,9 @@ export default defineConfig(({ mode }) => {
       cors: true,
     },
 
-    // 🏗️ BUILD ARCHITECTURE
+    // 🏗️ BUILD ARCHITECTURE (The 25-Year Standard)
     build: {
-      target: 'esnext',
+      target: 'esnext', // 🚀 Future-proof JS
       outDir: 'dist',
       sourcemap: !isProd,
       minify: 'esbuild',
@@ -60,9 +62,22 @@ export default defineConfig(({ mode }) => {
       
       rollupOptions: {
         output: {
-          // 🛡️ SAFE CHUNKING: Only split vendor (node_modules) from source.
-          // We removed the aggressive React/Framer split to prevent race conditions.
+          // 🧠 INTELLIGENT CACHING STRATEGY
+          // This ensures that updating your 3D code doesn't force users to re-download the database code.
           manualChunks: (id) => {
+            // 1. The 3D Engine (Heavy, but updates rarely)
+            if (id.includes('three') || id.includes('@react-three')) {
+              return '3d-engine';
+            }
+            // 2. The Database Core (Critical security & logic)
+            if (id.includes('supabase')) {
+              return 'database-core';
+            }
+            // 3. UI Libraries (Animation, styling)
+            if (id.includes('framer-motion') || id.includes('lucide')) {
+              return 'ui-core';
+            }
+            // 4. Everything else (React, etc)
             if (id.includes('node_modules')) {
               return 'vendor';
             }
@@ -73,6 +88,22 @@ export default defineConfig(({ mode }) => {
 
     plugins: [
       react(),
+
+      // 🎨 3D VISION: Native GLSL Support
+      // Allows importing .glsl, .vert, .frag files directly for custom shaders
+      glsl({
+        include: [                   // Glob pattern, or array of glob patterns to import
+          '**/*.glsl', '**/*.wgsl',
+          '**/*.vert', '**/*.frag',
+          '**/*.vs', '**/*.fs'
+        ],
+        exclude: undefined,          // Glob pattern, or array of glob patterns to ignore
+        warnDuplicatedImports: true, // Warn if the same chunk was imported multiple times
+        defaultExtension: 'glsl',    // Shader suffix when no extension is specified
+        compress: isProd,            // Compress output shader code
+        watch: true,                 // Recompile shader on change
+        root: '/'                    // Directory for root imports
+      }),
       
       // 📱 PWA: The Native App Experience
       VitePWA({
@@ -81,19 +112,18 @@ export default defineConfig(({ mode }) => {
         manifest: {
           name: 'Pixel Palace',
           short_name: 'Nexus',
-          description: 'Global Standard Competitive Platform',
+          description: 'The World Standard for Competitive Gaming Infrastructure.',
           theme_color: '#050505',
           background_color: '#050505',
           display: 'standalone',
           orientation: 'portrait',
-          // ✅ FIX: Use Data URIs directly in the build config
           icons: [
             { src: ICON_192, sizes: '192x192', type: 'image/svg+xml', purpose: 'any maskable' },
             { src: ICON_512, sizes: '512x512', type: 'image/svg+xml', purpose: 'any maskable' }
           ]
         },
         workbox: {
-          globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+          globPatterns: ['**/*.{js,css,html,ico,png,svg,glsl,vert,frag}'], // Cache shaders too!
           cleanupOutdatedCaches: true,
           runtimeCaching: [
             {
@@ -101,7 +131,7 @@ export default defineConfig(({ mode }) => {
               handler: 'NetworkFirst',
               options: {
                 cacheName: 'nexus-api-data',
-                expiration: { maxEntries: 50, maxAgeSeconds: 60 * 5 } // Cache DB data for 5 mins
+                expiration: { maxEntries: 50, maxAgeSeconds: 60 * 5 } 
               }
             }
           ]
@@ -109,12 +139,14 @@ export default defineConfig(({ mode }) => {
       }),
 
       // ⚡ COMPRESSION (Production Only)
+      // Crushes 3D assets and code down to minimal size
       isProd && viteCompression({
         algorithm: 'brotliCompress',
         ext: '.br',
         threshold: 1024,
       }),
 
+      // 📊 ANALYTICS
       visualizer({ filename: 'dist/stats.html', open: false })
     ].filter(Boolean),
   };

@@ -1,30 +1,44 @@
-import { supabase } from '../supabase/client';
-
 /**
  * 🔒 SECURITY SERVICE: ANTI-FRAUD & INTEGRITY
- * VERSION: 2050.5.0
- * STATUS: ACTIVE // FINGERPRINTING ENABLED
+ * VERSION: 2050.5.0 (SENTINEL OMNI)
+ * STATUS: ACTIVE // CANVAS ENFORCED
  */
+
+import { supabase } from '../supabase/client';
 
 export const SecurityService = {
   
   /**
-   * 🕵️ GENERATE DEVICE FINGERPRINT
-   * Creates a unique hash based on browser/screen/OS data.
-   * Used to detect alts/smurfs sharing the same PC.
+   * 🕵️ GENERATE HARDWARE FINGERPRINT
+   * Uses Canvas rendering and Hardware traits to create a unique ID.
+   * This detects unique hardware even if the IP or User-Agent changes.
    */
   getFingerprint: async () => {
-    // Combine hardware traits
+    // 1. Create a hidden canvas to extract unique GPU rendering artifacts
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    ctx.textBaseline = "top";
+    ctx.font = "14px 'Arial'";
+    ctx.textBaseline = "alphabetic";
+    ctx.fillStyle = "#f60";
+    ctx.fillRect(125, 1, 62, 20);
+    ctx.fillStyle = "#069";
+    ctx.fillText("Nexus_Sentinel_Auth", 2, 15);
+    ctx.fillStyle = "rgba(102, 204, 0, 0.7)";
+    ctx.fillText("Nexus_Sentinel_Auth", 4, 17);
+    const canvasData = canvas.toDataURL();
+
+    // 2. Combine with Hardware Traits
     const traits = [
       navigator.userAgent,
       navigator.language,
       screen.colorDepth,
       new Date().getTimezoneOffset(),
       navigator.hardwareConcurrency || 'unknown',
-      // navigator.deviceMemory || 'unknown' // (Chrome only)
+      canvasData
     ].join('||');
 
-    // Simple Hash Function (SHA-256 equivalent for strings)
+    // 3. Cryptographic SHA-256 Hashing
     const msgBuffer = new TextEncoder().encode(traits);
     const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
@@ -32,30 +46,44 @@ export const SecurityService = {
   },
 
   /**
-   * 🛑 SANITIZE INPUT
-   * Strips dangerous characters to prevent XSS (Cross-Site Scripting) in chat/names.
+   * 🛑 XSS SHIELD
+   * Prevents malicious script injection in public text fields.
    */
   sanitize: (input) => {
     if (typeof input !== 'string') return input;
-    return input
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#039;");
+    const map = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#039;'
+    };
+    return input.replace(/[&<>"']/g, (m) => map[m]);
   },
 
   /**
-   * 🚨 REPORT SUSPICIOUS ACTIVITY
-   * Logs an event to the audit_logs table if a fingerprint matches a banned user.
+   * 🚨 AUDIT TELEMETRY
+   * Logs security events silently in the background.
    */
   auditLog: async (actorId, action, metadata = {}) => {
-    const fingerprint = await SecurityService.getFingerprint();
-    
-    await supabase.from('audit_logs').insert({
-      actor_id: actorId,
-      action_type: action,
-      metadata: { ...metadata, fingerprint }
-    });
+    try {
+      const fingerprint = await SecurityService.getFingerprint();
+      
+      // Fire-and-forget: Don't await the insert so UI doesn't lag
+      supabase.from('audit_logs').insert({
+        actor_id: actorId,
+        action_type: action,
+        metadata: { 
+          ...metadata, 
+          fingerprint,
+          timestamp: new Date().toISOString(),
+          resolution: `${window.screen.width}x${window.screen.height}`
+        }
+      }).then(({ error }) => {
+        if (error) console.warn("Sentinel Log Failed", error);
+      });
+    } catch (e) {
+      // Fail silently to prevent UI disruption
+    }
   }
 };

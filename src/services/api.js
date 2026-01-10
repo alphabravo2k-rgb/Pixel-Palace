@@ -1,14 +1,10 @@
-import { supabase } from '../supabase/client';
-
 /**
- * 🔌 PIXEL PALACE: DATA SERVICE LAYER
- * -----------------------------------
- * STATUS: MASTERED (BURJ KHALIFA STANDARD)
- * * PURPOSE:
- * 1. SCHEMA ABSTRACTION: Decouples UI from DB column names.
- * 2. TYPE SAFETY: Ensures numbers are numbers, not strings.
- * 3. FALLBACKS: Prevents "undefined" crashes in UI.
+ * 🔌 PIXEL PALACE: DATA SERVICE LAYER (GENESIS OMNI)
+ * VERSION: 2050.5.0
+ * STATUS: OPERATIONAL // SCHEMA-AGNOSTIC
  */
+
+import { supabase } from '../supabase/client';
 
 const ROLE_PRIORITY = {
   'CAPTAIN': 1,
@@ -17,7 +13,10 @@ const ROLE_PRIORITY = {
   'COACH': 4
 };
 
-// 1. FETCH TEAM ROSTER
+// ==========================================
+// 1. ROSTER OPERATIONS: TEAM DYNAMICS
+// ==========================================
+
 export const fetchTeamRoster = async (teamId) => {
   if (!teamId) return [];
 
@@ -31,10 +30,10 @@ export const fetchTeamRoster = async (teamId) => {
           id,
           display_name,
           avatar_url,
-          discord_handle,
-          steam_url,
-          faceit_url,
-          faceit_elo
+          discord_id,
+          steam_id,
+          elo_rating,
+          rank_tier
         )
       `)
       .eq('team_id', teamId);
@@ -44,18 +43,16 @@ export const fetchTeamRoster = async (teamId) => {
     return data
       .map(member => ({
         id: member.id,
-        userId: member.profile?.id,
-        name: member.profile?.display_name || 'Unknown Agent',
+        uid: member.profile?.id,
+        name: member.profile?.display_name || 'REDACTED AGENT',
         avatar: member.profile?.avatar_url || null,
-        discordHandle: member.profile?.discord_handle || null,
-        steamUrl: member.profile?.steam_url || null,
-        faceitUrl: member.profile?.faceit_url || null,
-        elo: member.profile?.faceit_elo || 1000,
+        elo: member.profile?.elo_rating || 1000,
+        tier: member.profile?.rank_tier || 1,
         role: member.role,
         isCaptain: member.role === 'CAPTAIN',
       }))
       .sort((a, b) => {
-        // Sort: Captain -> High ELO -> Low ELO
+        // Sort Priority: Hierarchy -> Skill Level
         const pA = ROLE_PRIORITY[a.role] || 99;
         const pB = ROLE_PRIORITY[b.role] || 99;
         if (pA !== pB) return pA - pB;
@@ -68,7 +65,10 @@ export const fetchTeamRoster = async (teamId) => {
   }
 };
 
-// 2. FETCH MATCH DETAILS (War Room / HUD)
+// ==========================================
+// 2. MATCH OPERATIONS: WAR ROOM DATA
+// ==========================================
+
 export const fetchMatchDetails = async (matchId) => {
   if (!matchId) return null;
 
@@ -77,8 +77,8 @@ export const fetchMatchDetails = async (matchId) => {
       .from('matches')
       .select(`
         *,
-        team1:team1_id(id, name, logo_url, region, wins, losses),
-        team2:team2_id(id, name, logo_url, region, wins, losses),
+        team1:team1_id(id, name, logo_url, elo_average),
+        team2:team2_id(id, name, logo_url, elo_average),
         vetoes:match_vetoes(*)
       `)
       .eq('id', matchId)
@@ -86,9 +86,11 @@ export const fetchMatchDetails = async (matchId) => {
 
     if (error) throw error;
     
-    // Sort vetoes chronologically for the playback engine
-    if (data && data.vetoes) {
-        data.vetoes.sort((a, b) => a.pick_order - b.pick_order);
+    // 🧬 Chronological Veto Sequence for 3D HUD Playback
+    if (data?.vetoes) {
+      data.vetoes.sort((a, b) => 
+        new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      );
     }
     
     return data;
@@ -99,40 +101,37 @@ export const fetchMatchDetails = async (matchId) => {
   }
 };
 
-// 3. FETCH BRACKET (Tournament Tree)
-export const fetchBracketMatches = async (tournamentId) => {
-    if (!tournamentId) return [];
-    
-    try {
-        const { data, error } = await supabase
-            .from('matches')
-            .select(`
-                id, 
-                round_number, 
-                match_position, 
-                status, 
-                start_time,
-                score_team1, 
-                score_team2, 
-                winner_id,
-                team1:team1_id(id, name, logo_url, seed_number),
-                team2:team2_id(id, name, logo_url, seed_number)
-            `)
-            .eq('tournament_id', tournamentId)
-            .order('round_number', { ascending: true })
-            .order('match_position', { ascending: true });
-            
-        if (error) throw error;
-        
-        // 🛠️ NORMALIZATION: Ensure 'round_number' exists for Bracket.jsx
-        return data.map(m => ({
-            ...m,
-            // Fallback if DB uses 'round' instead of 'round_number'
-            round_number: m.round_number || m.round || 1
-        }));
+// ==========================================
+// 3. TOURNAMENT OPERATIONS: BRACKET KERNEL
+// ==========================================
 
-    } catch (err) {
-        console.error("❌ Bracket Fetch Error:", err);
-        return [];
-    }
+export const fetchBracketMatches = async (tournamentId) => {
+  if (!tournamentId) return [];
+  
+  try {
+    const { data, error } = await supabase
+      .from('matches')
+      .select(`
+        id, 
+        round_number, 
+        match_position, 
+        status, 
+        score_team1, 
+        score_team2, 
+        winner_id,
+        team1:team1_id(id, name, logo_url),
+        team2:team2_id(id, name, logo_url)
+      `)
+      .eq('tournament_id', tournamentId)
+      .order('round_number', { ascending: true })
+      .order('match_position', { ascending: true });
+      
+    if (error) throw error;
+    
+    return data;
+
+  } catch (err) {
+    console.error("❌ Bracket Fetch Error:", err);
+    return [];
+  }
 };

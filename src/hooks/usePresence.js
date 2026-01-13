@@ -1,65 +1,83 @@
 /**
  * 📡 USE PRESENCE: REAL-TIME LOBBY TRACKING
- * VERSION: 2050.5.0
- * STATUS: CONNECTED
+ * VERSION: 2050.5.0 (MASTER OMNI)
+ * STATUS: SECURED // LOW-LATENCY
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../supabase/client';
-import { useSession } from '../auth/useSession';
+import { useNexus } from './useNexus';
+import { Telemetry, EVENTS } from '../lib/telemetry';
 
 export const usePresence = (roomId) => {
-  const { session } = useSession();
+  // 1. Get User from Nexus (Aligned with your hook)
+  const { user, isAuthenticated } = useNexus();
   const [onlineUsers, setOnlineUsers] = useState([]);
 
-  useEffect(() => {
-    if (!roomId || !session) return;
+  // 2. Sync Handler (Converts raw presence to clean list)
+  const handleSync = useCallback((channel) => {
+    const state = channel.presenceState();
+    
+    // Convert object-map state to a clean, sorted list of operatives
+    const formatted = Object.keys(state).map((key) => {
+      const presence = state[key][0]; // Most recent presence instance
+      return {
+        id: presence.user_id,
+        name: presence.username,
+        role: presence.role,
+        avatar: presence.avatar,
+        status: presence.status || 'online',
+        last_seen: new Date().toISOString()
+      };
+    }).sort((a, b) => a.name.localeCompare(b.name));
 
-    // 1. Create Unique Channel for this Lobby
-    const channel = supabase.channel(`room:${roomId}`, {
+    setOnlineUsers(formatted);
+  }, []);
+
+  useEffect(() => {
+    if (!roomId || !isAuthenticated || !user) return;
+
+    // 3. Initialize Tactical Channel
+    const channel = supabase.channel(`presence:match:${roomId}`, {
       config: {
-        presence: {
-          key: session.user.id,
-        },
+        presence: { key: user.id },
       },
     });
 
-    // 2. Listen for Sync Events (Join/Leave)
+    // 4. Event Listeners with Telemetry
     channel
-      .on('presence', { event: 'sync' }, () => {
-        const newState = channel.presenceState();
-        
-        // Flatten the presence object into a simple array of users
-        const users = Object.values(newState).map(presences => {
-          const user = presences[0]; // Take most recent session
-          return {
-            id: user.user_id, // Map from your tracking payload below
-            name: user.username,
-            role: user.role,
-            avatar: user.avatar,
-            online_at: new Date().toISOString()
-          };
-        });
-        
-        setOnlineUsers(users);
+      .on('presence', { event: 'sync' }, () => handleSync(channel))
+      .on('presence', { event: 'join' }, ({ key, newPresences }) => {
+        Telemetry.log(EVENTS.COMBAT, { action: 'presence_join', roomId, user: key });
       })
-      .subscribe(async (status) => {
-        if (status === 'SUBSCRIBED') {
-          // 3. Broadcast My Presence
-          await channel.track({
-            user_id: session.user.id,
-            username: session.identity?.username || 'Unknown Agent',
-            role: session.role,
-            avatar: session.identity?.avatar_url
-          });
-        }
+      .on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
+        Telemetry.log(EVENTS.COMBAT, { action: 'presence_leave', roomId, user: key });
       });
 
-    // Cleanup: Leave channel on unmount
+    
+
+    // 5. Connect & Broadcast Identity
+    channel.subscribe(async (status) => {
+      if (status === 'SUBSCRIBED') {
+        await channel.track({
+          user_id: user.id,
+          username: user.username || user.email?.split('@')[0],
+          role: user.role,
+          avatar: user.avatar_url,
+          status: 'ready'
+        });
+      }
+    });
+
     return () => {
       channel.unsubscribe();
     };
-  }, [roomId, session]);
+  }, [roomId, isAuthenticated, user, handleSync]);
 
-  return { onlineUsers };
+  return { 
+    onlineUsers,
+    count: onlineUsers.length,
+    // Helper to check if a specific team member is ready
+    isUserOnline: (userId) => onlineUsers.some(u => u.id === userId)
+  };
 };

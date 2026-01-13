@@ -1,13 +1,12 @@
 /**
  * 📘 PIXEL PALACE: KNOWLEDGE MATRIX
- * --------------------------------
- * STATUS: MASTERED (BURJ KHALIFA STANDARD)
- * VERSION: 2.0.0
- * PURPOSE: Central repository for all Standard Operating Procedures (SOPs).
+ * VERSION: 2050.5.0 (MASTER OMNI)
+ * STATUS: SECURED // READ-ONLY
+ * PURPOSE: Central repository for Standard Operating Procedures (SOPs).
  */
 
 export const MANUALS = {
-  // --- LVL 0: PUBLIC ---
+  // 🛰️ LVL 0: CIVILIAN (GUEST)
   guest: {
     title: "Civilian Access Protocol",
     description: "Restricted Access Terminal",
@@ -18,19 +17,18 @@ export const MANUALS = {
     ],
     detailed: `
       # WELCOME TO PIXEL PALACE
+      Pixel Palace is an elite, sovereign competitive ecosystem.
       
-      ## Access Protocols
-      Pixel Palace is an invite-only competitive ecosystem. To participate, you must belong to a registered Unit (Team).
+      ## Access Procedures
+      To enter the active war rooms, you must belong to a registered Unit (Team). 
+      Input your **Unit PIN** at the terminal to sync your device with your team's tactical feed.
       
-      ### Joining a Unit
-      Ask your Team Captain for the unique **Access PIN**. This code links your device to your team's live dashboard.
-      
-      ### Spectating
-      Live matches are broadcast via the "Watch" tab on the public landing page. No login is required for spectators unless you wish to view advanced telemetry.
+      ## Spectating
+      Live matches are broadcast via the "Watch" tab. No login is required for standard spectators.
     `
   },
 
-  // --- LVL 1: OBSERVER ---
+  // 👁️ LVL 1: OBSERVER (SPECTATOR)
   spectator: {
     title: "Spectator Telemetry",
     description: "Premium Observation Suite",
@@ -42,23 +40,23 @@ export const MANUALS = {
     detailed: `
       # OBSERVATION DECK
       
-      As a Premium Spectator, you have access to real-time scoring data that is usually restricted.
+      As a Premium Spectator, you have access to real-time scoring data.
       
       ## Features
       - **Live Brackets:** Watch the tournament tree update instantly.
       - **Roster Inspection:** Click on team names to view player histories.
-      - **Delay Free:** Scoreboard updates are synchronized with the server via WebSocket.
+      - **Zero Latency:** Scoreboard updates are synchronized via WebSocket.
     `
   },
 
-  // --- LVL 2: OPERATOR ---
+  // ⚔️ LVL 2: OPERATOR (PLAYER)
   player: {
     title: "Operator Field Manual",
     description: "Standard Combat Protocols",
     short: [
-      { step: 1, text: "Check 'Next Match' timer on Dashboard." },
-      { step: 2, text: "Wait for Captain to complete Veto." },
-      { step: 3, text: "Copy Server IP and join within 10 minutes." }
+      { step: 1, text: "Sync Anti-Cheat and verify Steam ID." },
+      { step: 2, text: "Monitor Match Status for 'VETO' completion." },
+      { step: 3, text: "Deploy to Server IP within the 10-minute window." }
     ],
     detailed: `
       # OPERATIONAL STANDARDS
@@ -67,14 +65,13 @@ export const MANUALS = {
       1. **Anti-Cheat:** Ensure your AC client is active before the lobby opens.
       2. **Steam ID:** Verify your Steam ID matches the roster registration.
       
-      ## Match Sequence
-      - **Standby:** When match status is "VETO", wait for your Captain.
-      - **Connect:** When status becomes "LIVE", the Server IP will appear in your Match Lobby.
-      - **Execution:** Join the server immediately. Failure to connect results in automatic forfeiture.
+      ## Deployment Phase
+      Once the status shifts to **LIVE**, the Server IP will materialize on your HUD.
+      Failure to establish a connection within the deployment window results in an automatic **Deficiency Forfeit**.
     `
   },
 
-  // --- LVL 3: INTELLIGENCE ---
+  // 🔭 LVL 3: INTELLIGENCE (SCOUT)
   scout: {
     title: "Talent Acquisition Interface",
     description: "Deep Data Access",
@@ -95,32 +92,26 @@ export const MANUALS = {
     `
   },
 
-  // --- LVL 4: COMMANDER ---
+  // 🎖️ LVL 4: COMMANDER (CAPTAIN)
   captain: {
     title: "Squad Command Interface",
-    description: "Unit Management & Tactics",
+    description: "Unit Management & Strategy",
     short: [
-      { step: 1, text: "Manage Roster: Ensure 5/5 active slots." },
-      { step: 2, text: "Veto Phase: You have 30s per ban/pick." },
-      { step: 3, text: "Disputes: Use the 'War Room' request for admin intervention." }
+      { step: 1, text: "Manage Roster: Ensure 5/5 combat-ready slots." },
+      { step: 2, text: "Veto Phase: 30s per strategic decision." },
+      { step: 3, text: "War Room: Request Admin intervention if required." }
     ],
     detailed: `
-      # COMMAND PROTOCOLS
+      # COMMANDER PROTOCOLS
+      You are the singular authority for your Unit. Your actions (Vetoes, Forfeits) are binding.
       
-      ## Responsibility
-      You are the primary link between your unit and the Tournament Operations. Your actions (Vetoes, Forfeits) are binding.
-      
-      ## Veto Authority
-      When a match enters "VETO" state, a specialized UI will unlock on your dashboard.
-      - **Ban:** Remove maps you do not wish to play.
-      - **Pick:** Select your stronghold.
-      - **Side:** Choose CT/T starting side.
-      
-      *Warning: Failure to act within the time limit will result in an automated random selection.*
+      ## Veto Logic
+      During the Veto phase, you must Ban/Pick maps to define the battlefield. 
+      If the timer elapses, the **Nexus AI** will perform a random selection to maintain schedule integrity.
     `
   },
 
-  // --- LVL 5: MEDIA ---
+  // 🎥 LVL 5: MEDIA (STREAMER)
   streamer: {
     title: "Broadcast Partner Kit",
     description: "Media Assets & Feeds",
@@ -133,16 +124,16 @@ export const MANUALS = {
       # BROADCAST GUIDELINES
       
       ## Asset Pack
-      You have access to high-res transparent logos for all teams in the tournament.
+      You have access to high-res transparent logos for all teams.
       
       ## Rules of Engagement
-      - **Delay:** Minimum 90 seconds (120s for Playoffs).
+      - **Delay:** Minimum 90 seconds (120s for Playoffs) to prevent sniping.
       - **HUD:** You may use your own HUD or the official "Clean Feed" provided in the lobby.
       - **Spoiler Free:** Do not reveal results before the delayed feed catches up.
     `
   },
 
-  // --- LVL 6: SUPPORT ---
+  // 🏁 LVL 6: SUPPORT (CREW)
   crew: {
     title: "Operations Crew Handbook",
     description: "Support & Mediation",
@@ -157,11 +148,11 @@ export const MANUALS = {
       ## Duties
       - **Check-in:** Verify all teams are present 15m before start.
       - **Disputes:** Review screenshots/logs for minor rule violations.
-      - **Pauses:** You have rcon access to pause/unpause matches during tech issues.
+      - **Pauses:** You have RCON access to pause/unpause matches during tech issues.
     `
   },
 
-  // --- LVL 7: VOICE ---
+  // 🎙️ LVL 7: VOICE (CASTER)
   caster: {
     title: "Production Uplink",
     description: "Voice of the Arena",
@@ -174,14 +165,14 @@ export const MANUALS = {
       # ON-AIR PROTOCOLS
       
       ## Connectivity
-      Your account is whitelisted for the "Caster Slot" on all servers. Do not share this IP.
+      Your account is whitelisted for the "Caster Slot" on all servers. Do not share this IP; it bypasses the standard delay for live commentary.
       
       ## Production Stats
       Use the Admin Dashboard to see real-time economy and loadout stats that may not be visible in-game.
     `
   },
 
-  // --- LVL 8: ARCHITECT ---
+  // 🏗️ LVL 8: ARCHITECT (ORGANIZER)
   organizer: {
     title: "Tournament Director Log",
     description: "Event Architecture",
@@ -194,14 +185,14 @@ export const MANUALS = {
       # EVENT MANAGEMENT
       
       ## Structure
-      You define the rules: BO1/BO3, Elimination Type (Single/Double), and Prize Pool distribution.
+      You define the rules of engagement: BO1/BO3 formats, Elimination Type (Single/Double), and Prize Pool distribution.
       
       ## Seeding
-      Drag and drop teams in the "Seeds" tab to adjust initial bracket placement.
+      Drag and drop teams in the "Seeds" tab to adjust initial bracket placement before generating the tree.
     `
   },
 
-  // --- LVL 9: OVERSEER ---
+  // 🛡️ LVL 9: OVERSEER (ADMIN)
   admin: {
     title: "System Overseer Manual",
     description: "Full Operational Control",
@@ -217,28 +208,33 @@ export const MANUALS = {
       In the War Room, you can terminate a match and advance a team manually. This is irreversible.
       
       ## Emergency Protocol
-      If the bracket desyncs, use the "Regenerate Bracket" tool. Warning: This wipes current match history.
+      If the bracket desyncs, use the "Regenerate Bracket" tool. 
+      *Warning: This wipes current match history.*
     `
   },
 
-  // --- LVL 10: FOUNDER ---
+  // 👑 LVL 10: FOUNDER (OWNER)
   owner: {
     title: "THE ARCHITECT'S CODEX",
     description: "Genesis Level Clearance",
     short: [
-      { step: 1, text: "The System answers to you." },
-      { step: 2, text: "Manage Admins and Finances." },
-      { step: 3, text: "Global System Configuration." }
+      { step: 1, text: "Total System Sovereignty." },
+      { step: 2, text: "Oversee Admin Infrastructure." },
+      { step: 3, text: "Global Financial & Audit Control." }
     ],
     detailed: `
       # MASTER CONTROL
       
-      You have Level 100 Clearance.
-      - **Financials:** Access Stripe/Payment gateways.
-      - **Audit Logs:** View every action taken by every user.
-      - **System Health:** Monitor server loads and database integrity.
+      You have Level 100 Clearance. Every action on this platform is logged under your surveillance. 
+      Use the **Audit Logs** to track system integrity and the **Financial Vault** for prize distribution.
       
       *With great power comes absolute responsibility.*
     `
   }
 };
+
+/**
+ * 🛠️ UTILITY: MANUAL FETCH
+ * Safely retrieves the manual for a specific role, defaulting to Guest.
+ */
+export const getManual = (role) => MANUALS[role?.toLowerCase()] || MANUALS.guest;

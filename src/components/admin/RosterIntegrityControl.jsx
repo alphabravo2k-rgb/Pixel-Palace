@@ -1,39 +1,44 @@
+/**
+ * 🛡️ ROSTER INTEGRITY: SURGICAL OVERRIDE
+ * VERSION: 2050.5.0 (MASTER OMNI)
+ * STATUS: SECURED // AUDIT-ENFORCED
+ */
+
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShieldAlert, UserCog, UserMinus, Loader2, AlertTriangle } from 'lucide-react';
+import { ShieldAlert, UserCog, UserMinus, Loader2, AlertTriangle, Terminal } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
 // MASTER CORE
 import { supabase } from '../../supabase/client';
+import { useNexus } from '../../hooks/useNexus';
 import { SoundNexus, CUES } from '../../lib/soundNexus';
-
-/**
- * 🛡️ ROSTER INTEGRITY: ADMIN OVERRIDE
- * -----------------------------------
- * STATUS: MASTERED (DIRECT LINK)
- * * PURPOSE:
- * Allows Admins to surgically alter rosters (Kick/Promote) bypassing normal locks.
- * * SECURITY:
- * Relies on RLS policies granting 'DELETE' and 'UPDATE' rights to Admins.
- */
+import { Telemetry, EVENTS } from '../../lib/telemetry';
 
 export const RosterIntegrityControl = ({ player, teamId, onUpdate }) => {
+  const { user: admin, can } = useNexus();
   const [showModal, setShowModal] = useState(false);
-  const [pendingAction, setPendingAction] = useState(null); // { type: 'KICK' | 'ROLE', payload: 'captain' | 'player' }
+  const [pendingAction, setPendingAction] = useState(null); 
   const [reason, setReason] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // 🛡️ SECURITY: Level 90 Clearance for Roster Manipulation
+  const hasClearance = can('CAP_MANAGE_ROSTERS');
+
   const initiateForceAction = (type, payload) => {
+    if (!hasClearance) {
+        SoundNexus.play(CUES.UI_ERROR);
+        return toast.error("INSUFFICIENT CLEARANCE");
+    }
     setPendingAction({ type, payload });
     setShowModal(true);
     setReason('');
-    SoundNexus.play(CUES.DISPUTE_TRIGGER); // Warning sound
+    SoundNexus.play(CUES.DISPUTE_TRIGGER);
   };
 
   const executeAction = async () => {
-    if (reason.length < 5) {
-        toast.error("AUDIT REASON REQUIRED (MIN 5 CHARS)");
-        SoundNexus.play(CUES.ERROR);
+    if (reason.length < 10) {
+        toast.error("FORMAL JUSTIFICATION REQUIRED (MIN 10 CHARS)");
         return;
     }
 
@@ -41,8 +46,16 @@ export const RosterIntegrityControl = ({ player, teamId, onUpdate }) => {
     SoundNexus.play(CUES.UI_CLICK);
 
     try {
+        // 1. LOG TO TELEMETRY FIRST (Audit Trail)
+        Telemetry.log(EVENTS.ACTION, {
+            subsystem: 'ROSTER_INTEGRITY',
+            action: pendingAction.type,
+            target_user: player.user_id,
+            team_id: teamId,
+            justification: reason
+        }, admin.id);
+
         if (pendingAction.type === 'KICK') {
-            // 1. KICK PLAYER
             const { error } = await supabase
                 .from('team_members')
                 .delete()
@@ -50,10 +63,7 @@ export const RosterIntegrityControl = ({ player, teamId, onUpdate }) => {
                 .eq('team_id', teamId);
             
             if (error) throw error;
-            toast.success("PLAYER REMOVED FROM ROSTER");
-
         } else if (pendingAction.type === 'ROLE') {
-            // 2. CHANGE ROLE
             const { error } = await supabase
                 .from('team_members')
                 .update({ role: pendingAction.payload })
@@ -61,90 +71,97 @@ export const RosterIntegrityControl = ({ player, teamId, onUpdate }) => {
                 .eq('team_id', teamId);
 
             if (error) throw error;
-            toast.success(`ROLE SET TO ${pendingAction.payload.toUpperCase()}`);
         }
 
-        SoundNexus.play(CUES.SUCCESS);
+        SoundNexus.play(CUES.UI_SUCCESS);
+        toast.success(`INTEGRITY ACTION EXECUTED`);
         setShowModal(false);
         if (onUpdate) onUpdate();
 
     } catch (err) {
-        console.error("Integrity Error:", err);
-        toast.error(`OPERATION FAILED: ${err.message}`);
-        SoundNexus.play(CUES.ERROR);
+        toast.error(`OVERRIDE FAILED: ${err.message}`);
+        SoundNexus.play(CUES.UI_ERROR);
     } finally {
         setLoading(false);
     }
   };
 
+  if (!hasClearance) return null;
+
   return (
     <>
-      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all duration-300">
         <button 
             onClick={() => initiateForceAction('ROLE', player.role === 'captain' ? 'player' : 'captain')} 
-            className="p-1.5 bg-zinc-900/80 hover:bg-amber-500/20 text-zinc-500 hover:text-amber-500 rounded border border-transparent hover:border-amber-500/50 transition-all"
-            title="Force Toggle Captain Role"
+            className="p-1.5 bg-zinc-900 border border-white/5 hover:border-amber-500/50 text-zinc-500 hover:text-amber-500 rounded-sm transition-all"
+            title="Modify Role"
         >
-          <UserCog size={14} />
+          <UserCog size={13} />
         </button>
         <button 
             onClick={() => initiateForceAction('KICK', null)} 
-            className="p-1.5 bg-zinc-900/80 hover:bg-red-500/20 text-zinc-500 hover:text-red-500 rounded border border-transparent hover:border-red-500/50 transition-all"
-            title="Force Remove Player"
+            className="p-1.5 bg-zinc-900 border border-white/5 hover:border-red-500/50 text-zinc-500 hover:text-red-500 rounded-sm transition-all"
+            title="Surgical Removal"
         >
-          <UserMinus size={14} />
+          <UserMinus size={13} />
         </button>
       </div>
 
       <AnimatePresence>
         {showModal && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
             <motion.div 
                 initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                className="absolute inset-0 bg-black/90 backdrop-blur-sm"
+                className="absolute inset-0 bg-black/95 backdrop-blur-md"
                 onClick={() => setShowModal(false)}
             />
             
             <motion.div 
-                initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
-                className="bg-zinc-950 border-2 border-red-600 w-full max-w-md p-6 rounded-lg shadow-[0_0_50px_rgba(220,38,38,0.2)] relative z-10"
+                initial={{ scale: 0.9, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                className="bg-[#09090b] border border-red-600/50 w-full max-w-md p-8 rounded-sm shadow-[0_0_100px_rgba(220,38,38,0.15)] relative z-10"
             >
-              
-              {/* Header */}
-              <div className="flex items-center gap-3 text-red-500 mb-4 border-b border-red-900/30 pb-4">
-                <ShieldAlert size={28} />
+              {/* SCANLINE OVERLAY */}
+              <div className="absolute inset-0 pointer-events-none opacity-[0.03] bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,118,0.06))] bg-[length:100%_2px,3px_100%]" />
+
+              <div className="flex items-center gap-4 text-red-500 mb-8 border-b border-white/5 pb-6">
+                <ShieldAlert size={32} className="drop-shadow-[0_0_10px_rgba(239,68,68,0.5)]" />
                 <div>
-                  <h2 className="font-display font-black text-2xl uppercase leading-none text-white">Force Action Protocol</h2>
-                  <p className="text-[10px] text-red-400 font-mono tracking-widest mt-1">BYPASSING STANDARD ROSTER LOCKS</p>
+                  <h2 className="font-display font-black text-xl uppercase italic tracking-tighter text-white">Integrity Override</h2>
+                  <p className="text-[9px] text-red-500 font-black uppercase tracking-[0.3em] flex items-center gap-2 mt-1">
+                    <Terminal size={10} /> Bypass Standard Protocol
+                  </p>
                 </div>
               </div>
               
-              {/* Body */}
-              <div className="space-y-4">
-                <div className="text-sm text-zinc-300 leading-relaxed bg-red-950/20 p-3 rounded border border-red-900/30 flex gap-3">
-                  <AlertTriangle className="shrink-0 text-red-500" size={18} />
-                  <div>
-                      You are about to <strong className="text-white">{pendingAction.type}</strong> user <strong className="text-white">{player.username}</strong>.
-                      <br/>
-                      <span className="text-red-400 text-xs uppercase font-bold mt-1 block">This action is immediate and irreversible.</span>
-                  </div>
+              <div className="space-y-6">
+                <div className="text-[11px] text-zinc-400 leading-relaxed bg-red-950/10 p-4 rounded-sm border border-red-900/20 font-mono">
+                    <div className="flex gap-3 mb-2">
+                        <AlertTriangle className="shrink-0 text-red-500" size={16} />
+                        <span className="text-red-200 font-black uppercase tracking-widest underline">Critical Action Notice</span>
+                    </div>
+                    Target: <span className="text-white">{player.username}</span><br/>
+                    Operation: <span className="text-white">{pendingAction.type}</span><br/>
+                    <span className="text-red-400 mt-2 block italic">Action will be recorded in the Global Audit Log.</span>
                 </div>
 
-                <textarea
-                  value={reason}
-                  onChange={(e) => setReason(e.target.value)}
-                  placeholder="REQUIRED: Enter audit justification (e.g., 'Toxic behavior ticket #123')..."
-                  className="w-full bg-black border border-zinc-800 p-3 rounded text-sm h-24 outline-none focus:border-red-500 text-white placeholder:text-zinc-600 font-mono"
-                />
+                <div className="space-y-2">
+                    <label className="text-[9px] uppercase font-black text-zinc-500 tracking-widest">Formal Justification</label>
+                    <textarea
+                      value={reason}
+                      onChange={(e) => setReason(e.target.value)}
+                      placeholder="Input ticket ID or specific violation reason..."
+                      className="w-full bg-black border border-zinc-800 p-4 rounded-sm text-xs h-32 outline-none focus:border-red-600 text-white placeholder:text-zinc-800 transition-all font-mono"
+                    />
+                </div>
                 
-                <div className="flex gap-3">
-                  <button onClick={() => setShowModal(false)} className="flex-1 py-3 text-xs font-bold uppercase text-zinc-500 bg-white/5 rounded hover:bg-white/10 transition-colors">Abort</button>
+                <div className="flex gap-4">
+                  <button onClick={() => setShowModal(false)} className="flex-1 py-4 text-[10px] font-black uppercase tracking-widest text-zinc-500 hover:text-white transition-colors">Abort</button>
                   <button 
                       onClick={executeAction} 
-                      disabled={reason.length < 5 || loading}
-                      className="flex-1 py-3 bg-red-600 text-white text-xs font-bold uppercase rounded flex items-center justify-center gap-2 hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-red-900/20 transition-all"
+                      disabled={reason.length < 10 || loading}
+                      className="flex-1 py-4 bg-red-600 text-white text-[10px] font-black uppercase tracking-[0.2em] rounded-sm flex items-center justify-center gap-3 hover:bg-red-500 shadow-2xl shadow-red-600/20 transition-all active:scale-95 disabled:opacity-20"
                   >
-                    {loading && <Loader2 className="animate-spin w-3 h-3" />} CONFIRM OVERRIDE
+                    {loading ? <Loader2 className="animate-spin w-4 h-4" /> : 'Execute Overwrite'}
                   </button>
                 </div>
               </div>

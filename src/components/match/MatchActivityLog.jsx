@@ -1,31 +1,30 @@
-import React, { useEffect, useState } from 'react';
+/**
+ * 📜 MATCH ACTIVITY LOG: TACTICAL TIMELINE
+ * VERSION: 2050.5.0 (MASTER OMNI)
+ * STATUS: OPERATIONAL // REAL-TIME SYNCED
+ */
+
+import React, { useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ScrollText, Clock, User, ShieldAlert, Map as MapIcon, Ban, CheckCircle } from 'lucide-react';
+import { ScrollText, Clock, ShieldAlert, Ban, CheckCircle, Zap } from 'lucide-react';
 import { format } from 'date-fns';
 
 // MASTER CORE
 import { supabase } from '../../supabase/client';
 import { SoundNexus, CUES } from '../../lib/soundNexus';
-
-/**
- * 📜 MATCH ACTIVITY LOG: TACTICAL TIMELINE
- * ----------------------------------------
- * STATUS: MASTERED (SCHEMA ALIGNED)
- * * PURPOSE:
- * Visualizes the 'match_vetoes' table as a live feed.
- * * FIXES:
- * 1. SCHEMA: Switched from 'match_logs' (non-existent) to 'match_vetoes'.
- * 2. PHYSICS: List items animate in.
- */
+import { Telemetry, EVENTS } from '../../lib/telemetry';
+import { cn } from '../../lib/utils';
 
 export const MatchActivityLog = ({ matchId }) => {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // 1. Initial Load
-  const fetchLogs = async () => {
+  /**
+   * 📡 INTEL RETRIEVAL
+   * Fetches the veto/pick history for the current match sector.
+   */
+  const fetchLogs = useCallback(async () => {
       try {
-        // ✅ FIXED: Querying 'match_vetoes' instead of 'match_logs'
         const { data, error } = await supabase
             .from('match_vetoes')
             .select(`
@@ -38,79 +37,108 @@ export const MatchActivityLog = ({ matchId }) => {
         if (error) throw error;
         setLogs(data || []);
       } catch (e) {
-        console.error("Log Fetch Error:", e);
+        Telemetry.log(EVENTS.ERROR, { subsystem: 'ACTIVITY_LOG', matchId, error: e.message });
       } finally {
         setLoading(false);
       }
-  };
+  }, [matchId]);
 
   useEffect(() => {
     fetchLogs();
 
-    // 2. Real-time Subscription
-    const sub = supabase.channel(`activity-${matchId}`)
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'match_vetoes', filter: `match_id=eq.${matchId}` }, (payload) => {
-            fetchLogs(); // Re-fetch to get the joined Team Name
-            SoundNexus.play(CUES.UI_CLICK);
+    // ⚡ REAL-TIME SUBSCRIPTION: "Postgres Change Listener"
+    const channel = supabase.channel(`match_intel:${matchId}`)
+        .on('postgres_changes', { 
+          event: 'INSERT', 
+          schema: 'public', 
+          table: 'match_vetoes', 
+          filter: `match_id=eq.${matchId}` 
+        }, () => {
+            fetchLogs(); // Sync new record + team relations
+            try { SoundNexus.play(CUES.UI_CLICK); } catch(e){}
         })
         .subscribe();
 
-    return () => supabase.removeChannel(sub);
-  }, [matchId]);
+    return () => supabase.removeChannel(channel);
+  }, [matchId, fetchLogs]);
 
   return (
-    <div className="flex flex-col h-full bg-[#050505] border border-zinc-800 rounded-sm overflow-hidden">
+    <div className="flex flex-col h-full bg-[#09090b] border border-white/5 rounded-sm overflow-hidden shadow-2xl relative">
         
+        {/* SCANLINE ATMOSPHERE */}
+        <div className="absolute inset-0 pointer-events-none opacity-[0.02] bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,118,0.06))] bg-[length:100%_2px,3px_100%] z-0" />
+
         {/* HEADER */}
-        <div className="p-3 border-b border-white/5 bg-zinc-900/50 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-                <ScrollText size={14} className="text-zinc-400"/>
-                <span className="text-xs font-black uppercase text-zinc-300 tracking-widest">Tactical Timeline</span>
+        <div className="p-4 border-b border-white/5 bg-zinc-900/30 flex items-center justify-between relative z-10">
+            <div className="flex items-center gap-3">
+                <ScrollText size={16} className="text-fuchsia-500"/>
+                <span className="text-[10px] font-black uppercase text-white tracking-[0.3em]">Tactical Feed</span>
             </div>
-            <span className="text-[9px] font-mono text-zinc-600">{logs.length} EVENTS</span>
+            <div className="flex items-center gap-2">
+                <Zap size={10} className="text-emerald-500 animate-pulse" />
+                <span className="text-[8px] font-mono text-zinc-500 uppercase tracking-widest">{logs.length} Operations</span>
+            </div>
         </div>
         
-        {/* FEED */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
-            {loading && <div className="text-center text-[10px] text-zinc-600 py-4 animate-pulse font-mono">SYNCING UPLINK...</div>}
-            
-            {!loading && logs.length === 0 ? (
-                <div className="text-center text-[10px] text-zinc-600 py-8 uppercase tracking-widest flex flex-col items-center gap-2">
-                    <ShieldAlert size={16} className="opacity-20"/>
-                    No activity recorded
+        {/* LOG STREAM */}
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-2 relative z-10">
+            {loading ? (
+                <div className="flex flex-col items-center justify-center py-20 gap-4 opacity-40 grayscale">
+                    <div className="w-8 h-8 border border-fuchsia-500/30 border-t-fuchsia-500 rounded-full animate-spin" />
+                    <span className="text-[9px] font-mono text-zinc-500 uppercase tracking-widest">Decoding Uplink...</span>
+                </div>
+            ) : logs.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center py-12 gap-3 opacity-20">
+                    <ShieldAlert size={24} className="text-zinc-500"/>
+                    <p className="text-[9px] font-black uppercase tracking-[0.4em]">Radar Silence</p>
                 </div>
             ) : (
                 <AnimatePresence initial={false}>
                     {logs.map((log, i) => (
                         <motion.div 
                             key={log.id}
-                            initial={{ opacity: 0, x: -10 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: i * 0.05 }}
-                            className="flex gap-3 p-2 rounded-sm bg-white/5 border border-white/5 hover:border-white/10 transition-colors text-xs group"
+                            initial={{ opacity: 0, x: -20, filter: 'blur(10px)' }}
+                            animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
+                            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                            className="flex gap-4 p-3 rounded-sm bg-black/40 border border-white/5 hover:border-fuchsia-500/30 transition-all group relative overflow-hidden"
                         >
-                            {/* Time */}
-                            <div className="flex flex-col items-center gap-1 min-w-[35px] pt-1">
-                                <span className="text-[9px] font-mono text-zinc-600">{format(new Date(log.created_at), 'HH:mm')}</span>
+                            {/* Action Gradient Decorator */}
+                            <div className={cn(
+                                "absolute left-0 top-0 bottom-0 w-[1px] opacity-30",
+                                log.type === 'BAN' ? "bg-red-500 shadow-[0_0_10px_#ef4444]" : "bg-emerald-500 shadow-[0_0_10px_#10b981]"
+                            )} />
+
+                            {/* Timestamp */}
+                            <div className="flex flex-col items-center min-w-[40px] pt-1 border-r border-white/5 pr-2">
+                                <span className="text-[9px] font-mono font-black text-zinc-700 group-hover:text-zinc-400 transition-colors">
+                                  {format(new Date(log.created_at), 'HH:mm')}
+                                </span>
                             </div>
 
-                            {/* Content */}
-                            <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-1">
-                                    <span className={`font-black text-[9px] uppercase px-1.5 py-0.5 rounded-sm border ${
-                                        log.type === 'BAN' 
-                                            ? 'bg-red-900/20 text-red-500 border-red-900/30' 
-                                            : 'bg-emerald-900/20 text-emerald-500 border-emerald-900/30'
-                                    }`}>
-                                        {log.type}
-                                    </span>
-                                    <span className="text-[10px] font-black text-zinc-400 uppercase tracking-wider">
-                                        {log.team?.name || 'SYSTEM'}
-                                    </span>
+                            {/* Content Block */}
+                            <div className="flex-1 space-y-2">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                      <span className={cn(
+                                          "font-black text-[8px] uppercase px-2 py-0.5 rounded-sm border italic tracking-tighter",
+                                          log.type === 'BAN' 
+                                              ? 'bg-red-950/20 text-red-500 border-red-500/20' 
+                                              : 'bg-emerald-950/20 text-emerald-500 border-emerald-500/20'
+                                      )}>
+                                          {log.type === 'BAN' ? '🚫 VETOED' : '✅ SECURED'}
+                                      </span>
+                                      <span className="text-[10px] font-display font-black text-white uppercase italic tracking-tighter group-hover:text-fuchsia-400 transition-colors">
+                                          {log.team?.name || 'CENTRAL_CMD'}
+                                      </span>
+                                    </div>
+                                    <Clock size={10} className="text-zinc-800 group-hover:text-zinc-600" />
                                 </div>
-                                <div className="flex items-center gap-2 text-zinc-300 text-[11px]">
-                                    {log.type === 'BAN' ? <Ban size={10} className="text-red-500"/> : <CheckCircle size={10} className="text-emerald-500"/>}
-                                    <span className="font-mono text-white">{log.map_name}</span>
+                                
+                                <div className="flex items-center gap-3">
+                                    <div className="p-1 bg-white/5 rounded-sm">
+                                      {log.type === 'BAN' ? <Ban size={12} className="text-red-600/50"/> : <CheckCircle size={12} className="text-emerald-500/50"/>}
+                                    </div>
+                                    <span className="font-mono text-zinc-300 text-[11px] uppercase tracking-widest">{log.map_name}</span>
                                 </div>
                             </div>
                         </motion.div>

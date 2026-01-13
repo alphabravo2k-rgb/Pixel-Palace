@@ -1,19 +1,20 @@
 /**
- * PIXEL PALACE - SOURCE OF TRUTH
- * Alignment: Master DB Schema & Competitive Standards
+ * 🏛️ PIXEL PALACE: SOURCE OF TRUTH
+ * VERSION: 2050.5.0 (MASTER OMNI)
+ * STATUS: LOCKED // PRODUCTION READY
  */
 
-// 1. MATCH STATUS
+// 1. MATCH STATUS (Lifecycle States)
 export const MATCH_STATUS = {
-  SCHEDULED: 'scheduled',
-  VETO: 'veto',
-  LIVE: 'live',
-  COMPLETED: 'completed',
-  DISPUTED: 'disputed'
+  SCHEDULED: 'scheduled', // Awaiting players
+  VETO: 'veto',           // Strategy phase
+  LIVE: 'live',           // Active on server
+  COMPLETED: 'completed', // Result recorded
+  DISPUTED: 'disputed',   // Under Admin review
+  CANCELLED: 'cancelled'
 };
 
-// 2. MAP POOL (Active Duty 7)
-// ✅ Updated to use reliable GitHub raw images (No 403 errors)
+// 2. MAP POOL (Active Duty 7 - CS2 Standards)
 const CDN_BASE = "https://raw.githubusercontent.com/Marocco2/cs2-map-images/main/images";
 
 export const MAP_POOL = [
@@ -26,7 +27,8 @@ export const MAP_POOL = [
   { id: 'de_dust2', name: 'Dust 2', image: `${CDN_BASE}/dust2.jpg` }
 ];
 
-// 3. MATCH FORMATS
+// 3. COMPETITIVE SEQUENCES (The Veto Logic)
+// Sequence defines the turn order for the Automated Veto Engine.
 export const MATCH_FORMATS = {
   BO1: {
     id: 1,
@@ -34,20 +36,22 @@ export const MATCH_FORMATS = {
     mapsNeeded: 1,
     description: 'Single map elimination.',
     sequence: [
-      { type: 'BAN', team: 'team1' }, { type: 'BAN', team: 'team1' },
-      { type: 'BAN', team: 'team2' }, { type: 'BAN', team: 'team2' }, { type: 'BAN', team: 'team2' },
-      { type: 'BAN', team: 'team1' }
+      { type: 'BAN', team: 'team1' }, { type: 'BAN', team: 'team2' },
+      { type: 'BAN', team: 'team1' }, { type: 'BAN', team: 'team2' },
+      { type: 'BAN', team: 'team1' }, { type: 'BAN', team: 'team2' }
+      // Result: 1 Map remains (Decider)
     ]
   },
   BO3: {
     id: 3,
     label: 'Best of 3',
-    mapsNeeded: 3, 
+    mapsNeeded: 3,
     description: 'Standard competitive series.',
     sequence: [
       { type: 'BAN', team: 'team1' }, { type: 'BAN', team: 'team2' },
       { type: 'PICK', team: 'team1' }, { type: 'PICK', team: 'team2' },
-      { type: 'BAN', team: 'team2' }, { type: 'BAN', team: 'team1' }
+      { type: 'BAN', team: 'team1' }, { type: 'BAN', team: 'team2' }
+      // Result: 2 Picks + 1 Decider = 3 Maps
     ]
   },
   BO5: {
@@ -59,22 +63,20 @@ export const MATCH_FORMATS = {
       { type: 'BAN', team: 'team1' }, { type: 'BAN', team: 'team2' },
       { type: 'PICK', team: 'team1' }, { type: 'PICK', team: 'team2' },
       { type: 'PICK', team: 'team1' }, { type: 'PICK', team: 'team2' }
+      // Result: 4 Picks + 1 Decider = 5 Maps
     ]
   }
 };
 
-// 4. ROLE TAXONOMY
-export const ROLE_TAXONOMY = {
-  OWNER: { id: 'owner', label: 'Tournament Owner' },
-  ADMIN: { id: 'admin', label: 'Administrator' },
-  CREW: { id: 'crew', label: 'Crew / Observer' },
-  CAPTAIN: { id: 'CAPTAIN', label: 'Team Captain' },
-  PLAYER: { id: 'PLAYER', label: 'Player' },
-  SUBSTITUTE: { id: 'SUBSTITUTE', label: 'Substitute' },
-  COACH: { id: 'COACH', label: 'Coach' }
+/**
+ * 🛠️ UTILS: TACTICAL ASSET RESOLVER
+ */
+export const getMapImage = (mapId) => {
+  const map = MAP_POOL.find(m => m.id === mapId);
+  return map ? map.image : `${CDN_BASE}/random.jpg`;
 };
 
-export const getMapImage = (mapId) => {
-    const map = MAP_POOL.find(m => m.id === mapId);
-    return map ? map.image : `${CDN_BASE}/random.jpg`;
+export const getMapName = (mapId) => {
+  const map = MAP_POOL.find(m => m.id === mapId);
+  return map ? map.name : 'Unknown Sector';
 };

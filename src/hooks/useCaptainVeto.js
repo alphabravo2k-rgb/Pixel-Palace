@@ -1,127 +1,87 @@
+/**
+ * 🎣 USE CAPTAIN VETO: THE STRATEGIC KERNEL
+ * VERSION: 2050.5.0 (MASTER OMNI)
+ * STATUS: OPERATIONAL // REALTIME-SYNCED
+ */
+
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '../supabase/client';
 import { useSession } from '../auth/useSession';
 import { MATCH_FORMATS, MAP_POOL } from '../lib/constants';
 import { SoundNexus, CUES } from '../lib/soundNexus';
+import { Telemetry, EVENTS } from '../lib/telemetry';
 import { toast } from 'react-hot-toast';
-
-/**
- * 🎣 USE CAPTAIN VETO
- * -------------------
- * STATUS: MASTERED (LOGIC FIXED)
- * * PURPOSE:
- * Manages the complex state machine of the Veto/Pick phase.
- * * FIXES:
- * 1. Aligned 'team1'/'team2' check with constants.js.
- * 2. Added 8D Audio triggers.
- */
 
 export const useCaptainVeto = (match, passedTeamId) => {
   const { session } = useSession();
   const [vetoes, setVetoes] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // 1️⃣ RESOLVE IDENTITY (Who am I?)
+  // 1️⃣ IDENTITY RESOLUTION (Tactical Handshake)
   const myTeamId = useMemo(() => {
-    // Priority: Prop > Session > Metadata
-    const sessionTeamId = passedTeamId || session?.team_id || session?.user?.user_metadata?.team_id;
+    const sId = passedTeamId || session?.team_id || session?.user?.user_metadata?.team_id;
+    if (!sId || !match) return null;
     
-    if (!sessionTeamId || !match) return null;
-    
-    // Normalize for comparison
-    const sId = String(sessionTeamId).toLowerCase();
-    if (String(match.team1_id).toLowerCase() === sId) return match.team1_id;
-    if (String(match.team2_id).toLowerCase() === sId) return match.team2_id;
+    // Strict comparison to match match.team1_id (UUID)
+    if (match.team1_id === sId) return match.team1_id;
+    if (match.team2_id === sId) return match.team2_id;
     return null;
   }, [match, session, passedTeamId]);
 
-  // 2️⃣ FORMAT DERIVATION (BO1 vs BO3)
+  // 2️⃣ SEQUENCE CALCULATION
   const formatRules = useMemo(() => {
     if (!match) return MATCH_FORMATS.BO1;
-    const type = match.best_of === 3 ? 'BO3' : match.best_of === 5 ? 'BO5' : 'BO1';
-    return MATCH_FORMATS[type] || MATCH_FORMATS.BO1;
+    const key = match.best_of === 3 ? 'BO3' : match.best_of === 5 ? 'BO5' : 'BO1';
+    return MATCH_FORMATS[key];
   }, [match]);
 
-  // 3️⃣ STATE ENGINE (Whose turn is it?)
+  // 3️⃣ STATE MACHINE (The Enforcer)
   const vetoState = useMemo(() => {
     if (!formatRules || !match) return { isMyTurn: false, action: 'WAIT', availableMaps: MAP_POOL };
 
-    const totalSteps = formatRules.sequence.length;
     const currentStepIndex = vetoes.length;
-    const isComplete = currentStepIndex >= totalSteps;
+    const isComplete = currentStepIndex >= formatRules.sequence.length;
 
-    // 🧠 INTELLIGENT FILTERING
-    // Removes maps that have already been banned/picked
-    const usedMapIds = new Set(vetoes.map(v => v.map_name)); // DB stores 'de_mirage'
+    // Filter out used maps
+    const usedMapIds = new Set(vetoes.map(v => v.map_name));
     const availableMaps = MAP_POOL.filter(m => !usedMapIds.has(m.id));
 
     if (isComplete) {
       return { isMyTurn: false, action: 'COMPLETE', activeTeamId: null, availableMaps: [] };
     }
 
-    // Determine Active Team based on Sequence (team1 vs team2)
     const currentStep = formatRules.sequence[currentStepIndex];
     const activeTeamId = (currentStep.team === 'team1') ? match.team1_id : match.team2_id;
-
-    const isMyTurn = myTeamId && activeTeamId && (String(myTeamId) === String(activeTeamId));
+    const isMyTurn = myTeamId === activeTeamId;
 
     return {
       isMyTurn,
-      action: currentStep.type, // 'BAN' or 'PICK'
+      action: currentStep.type, // 'BAN' | 'PICK'
       activeTeamId,
       stepIndex: currentStepIndex,
-      totalSteps,
+      totalSteps: formatRules.sequence.length,
       availableMaps
     };
   }, [vetoes, formatRules, match, myTeamId]);
 
-  // 4️⃣ DATA FETCHING & SYNC
-  const fetchVetoes = useCallback(async () => {
-    if (!match?.id) return;
-    const { data, error } = await supabase
-      .from('match_vetoes')
-      .select('*')
-      .eq('match_id', match.id)
-      .order('pick_order', { ascending: true });
-
-    if (!error) setVetoes(data || []);
-  }, [match?.id]);
-
+  // 4️⃣ AUDIO-REACTIVE TURN TRIGGER
   useEffect(() => {
-    fetchVetoes();
-    const subscription = supabase
-      .channel(`veto_sync_${match?.id}`)
-      .on('postgres_changes', { 
-        event: '*', 
-        schema: 'public', 
-        table: 'match_vetoes', 
-        filter: `match_id=eq.${match?.id}` 
-      }, (payload) => {
-        // Play sound on ANY update (even if opponent acted)
-        if (payload.eventType === 'INSERT') SoundNexus.play(CUES.VETO_ACTION);
-        fetchVetoes();
-      })
-      .subscribe();
+    if (vetoState.isMyTurn && !loading) {
+      // 🔊 HAPTIC: Alert the captain it is their turn using 8D Audio
+      SoundNexus.playVortex(CUES.NOTIFICATION, 1000);
+      toast("YOUR TURN TO " + vetoState.action, { icon: '⚔️' });
+    }
+  }, [vetoState.isMyTurn, vetoState.action, loading]);
 
-    return () => { supabase.removeChannel(subscription); };
-  }, [match?.id, fetchVetoes]);
-
-  // 5️⃣ ACTION: SUBMIT VETO
+  // 5️⃣ ACTION: SUBMIT DECISION
   const submitVeto = async (mapId) => {
     if (!vetoState.isMyTurn || loading) return;
-    
-    // Guard: Prevent double clicks
-    if (vetoes.some(v => v.map_name === mapId)) {
-      toast.error("MAP ALREADY PROCESSED");
-      return;
-    }
 
     setLoading(true);
-    SoundNexus.play(CUES.UI_CLICK);
+    // ⏱️ Track performance latency
+    const startLog = Telemetry.time('veto_submission');
 
     try {
-      // Direct Insert (Faster than RPC for simple vetoes)
-      // Note: Ensure RLS policies allow captains to insert
       const { error } = await supabase.from('match_vetoes').insert({
         match_id: match.id,
         team_id: myTeamId,
@@ -131,17 +91,51 @@ export const useCaptainVeto = (match, passedTeamId) => {
       });
 
       if (error) throw error;
-      
-      toast.success(`${formatRules.sequence[vetoes.length].type}: ${mapId}`);
-      // Sound handled by subscription listener
+
+      try { SoundNexus.play(CUES.UI_SUCCESS); } catch(e){}
+      startLog.end(session?.user?.id);
     } catch (err) {
-      console.error(err);
+      try { SoundNexus.play(CUES.UI_ERROR); } catch(e){}
       toast.error("VETO FAILED: " + err.message);
-      SoundNexus.play(CUES.ERROR);
     } finally {
       setLoading(false);
     }
   };
+
+  // 6️⃣ REALTIME UPLINK
+  useEffect(() => {
+    if (!match?.id) return;
+
+    // Initial Fetch
+    const fetchInitial = async () => {
+      const { data } = await supabase
+        .from('match_vetoes')
+        .select('*')
+        .eq('match_id', match.id)
+        .order('pick_order', { ascending: true });
+      if (data) setVetoes(data);
+    };
+
+    fetchInitial();
+
+    // Live Sub
+    const channel = supabase
+      .channel(`live_veto:${match.id}`)
+      .on('postgres_changes', { 
+        event: 'INSERT', 
+        schema: 'public', 
+        table: 'match_vetoes', 
+        filter: `match_id=eq.${match.id}` 
+      }, (payload) => {
+        setVetoes(prev => [...prev, payload.new].sort((a,b) => a.pick_order - b.pick_order));
+        
+        // 🔊 Spatial Slam Effect on new veto
+        try { SoundNexus.playSpatial(CUES.VETO_SLAM, Math.random() * 2 - 1); } catch(e){}
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [match?.id]);
 
   return {
     vetoes,

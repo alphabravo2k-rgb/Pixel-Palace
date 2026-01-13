@@ -1,58 +1,57 @@
-import React, { useState, useEffect } from 'react';
+/**
+ * 🏟️ MATCH ROOM: THE BATTLEFIELD (GENESIS OMNI)
+ * VERSION: 2050.5.0
+ * STATUS: OPERATIONAL // REAL-TIME SYNCED
+ */
+
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shield, AlertTriangle, CheckCircle, Lock, Map as MapIcon, Clock, Swords, Trophy, Server, Copy } from 'lucide-react';
+import { 
+  Shield, AlertTriangle, CheckCircle, Lock, 
+  Map as MapIcon, Clock, Swords, Trophy, 
+  Server, Copy, Activity, Zap 
+} from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { cn } from '../../lib/utils';
 
 // MASTER CORE
 import { supabase } from '../../supabase/client';
-import { useNexusStore } from '../../store/useNexusStore';
+import { useNexus } from '../../hooks/useNexus';
 import { SoundNexus, CUES } from '../../lib/soundNexus';
-import { can } from '../../lib/security/engine';
-import { PERMISSIONS } from '../../lib/security/permissions';
+import { Telemetry, EVENTS } from '../../lib/telemetry';
 
 // SUB-SYSTEMS
-import { VetoPanel } from '../VetoPanel'; // ✅ Corrected Import
+import { VetoPanel } from '../VetoPanel';
 
-/**
- * 🏟️ MATCH ROOM: THE BATTLEFIELD
- * ------------------------------
- * STATUS: MASTERED (BURJ KHALIFA STANDARD)
- * * UPGRADES:
- * 1. VETO SYNC: Using the unified <VetoPanel>.
- * 2. 8D AUDIO: Sound feedback on critical events (Dispute, Copy).
- * 3. SECURITY: Role-based view logic.
- */
-
-// Inline Team Card for Layout
-const TeamCard = ({ team, score, isWinner }) => (
+const TeamCard = ({ team, score, isWinner, side }) => (
   <motion.div 
-    initial={{ scale: 0.9, opacity: 0 }}
-    animate={{ scale: 1, opacity: 1 }}
+    initial={{ x: side === 'left' ? -40 : 40, opacity: 0 }}
+    animate={{ x: 0, opacity: 1 }}
     className={cn(
-      "flex flex-col p-8 bg-[#09090b] border rounded-lg shadow-xl relative overflow-hidden transition-all duration-500",
-      isWinner ? "border-yellow-500/50 shadow-[0_0_50px_rgba(234,179,8,0.1)]" : "border-[#27272a] hover:border-fuchsia-500/30"
+      "flex flex-col p-10 bg-[#09090b] border rounded-sm shadow-2xl relative overflow-hidden transition-all duration-700",
+      isWinner ? "border-fuchsia-500 shadow-[0_0_60px_rgba(192,38,211,0.1)]" : "border-zinc-800"
   )}>
-    {/* Background Logo Watermark */}
+    {/* HOLOGRAPHIC WATERMARK */}
     {team?.logo_url && (
-        <img src={team.logo_url} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 opacity-[0.03] grayscale pointer-events-none" />
+        <img src={team.logo_url} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 opacity-[0.02] grayscale pointer-events-none" />
     )}
-
-    {isWinner && <div className="absolute top-4 right-4 text-yellow-500 animate-pulse"><Trophy size={24} /></div>}
 
     <div className="relative z-10 flex flex-col items-center text-center">
         <div className={cn(
-            "w-24 h-24 mb-4 bg-black rounded-full flex items-center justify-center border shadow-inner",
-            isWinner ? "border-yellow-500/30" : "border-white/10"
+            "w-28 h-28 mb-6 rounded-sm flex items-center justify-center border shadow-2xl transition-all duration-500",
+            isWinner ? "border-fuchsia-500 bg-fuchsia-500/5 rotate-3" : "border-zinc-800 bg-black"
         )}>
-             {team?.logo_url ? <img src={team.logo_url} className="w-14 h-14 object-contain" /> : <Shield className="w-8 h-8 text-zinc-700" />}
+             {team?.logo_url ? <img src={team.logo_url} className="w-16 h-16 object-contain" /> : <Shield className="w-12 h-12 text-zinc-800" />}
         </div>
 
-        <div className="text-2xl font-display font-black uppercase tracking-tighter text-white leading-none mb-2">
-            {team?.name || 'TBD'}
+        <div className="text-3xl font-display font-black uppercase italic tracking-tighter text-white leading-none mb-4">
+            {team?.name || 'Awaiting Unit'}
         </div>
         
-        <div className="text-6xl font-display font-black text-zinc-800 select-none">
+        <div className={cn(
+          "text-8xl font-display font-black tracking-tighter tabular-nums",
+          isWinner ? "text-fuchsia-500 drop-shadow-[0_0_20px_#c026d3]" : "text-zinc-900"
+        )}>
             {score ?? 0}
         </div>
     </div>
@@ -60,21 +59,16 @@ const TeamCard = ({ team, score, isWinner }) => (
 );
 
 export const MatchRoom = ({ matchId }) => {
-  const { session, profile } = useNexusStore();
+  const { user, can, identity } = useNexus();
   const [match, setMatch] = useState(null);
   const [loading, setLoading] = useState(true);
   const [disputeReason, setDisputeReason] = useState("");
   const [isDisputing, setIsDisputing] = useState(false);
 
-  // Permission Check
-  // Note: 'session' in store might be different structure than 'useSession' hook. 
-  // Ideally use the hook if component wrapped in provider, or store if global.
-  // Using store here for consistency.
-  
-  const canManage = can(PERMISSIONS.MANAGE_MATCH, { role: profile?.role }); 
-  const isParticipant = (match?.team1_id === profile?.team_id || match?.team2_id === profile?.team_id);
+  const canManage = can('CAP_MANAGE_MATCH'); 
+  const isParticipant = (match?.team1_id === user?.teamId || match?.team2_id === user?.teamId);
 
-  const fetchMatch = async () => {
+  const fetchMatch = useCallback(async () => {
     const { data, error } = await supabase
       .from('matches')
       .select(`*, team1:team1_id(name, logo_url), team2:team2_id(name, logo_url)`)
@@ -83,173 +77,206 @@ export const MatchRoom = ({ matchId }) => {
       
     if (!error) setMatch(data);
     setLoading(false);
-  };
+  }, [matchId]);
 
   useEffect(() => {
     fetchMatch();
     const subscription = supabase
-      .channel(`match_room_${matchId}`)
+      .channel(`tactical_theatre:${matchId}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'matches', filter: `id=eq.${matchId}` }, (payload) => {
         setMatch(prev => ({ ...prev, ...payload.new })); 
-        fetchMatch(); // Refresh relations
-        SoundNexus.play(CUES.NOTIFICATION);
+        fetchMatch(); 
+        try { SoundNexus.play(CUES.UI_NOTIFICATION); } catch(e){}
       })
       .subscribe();
+
+    try { SoundNexus.playSpatial(CUES.UI_POWER_UP, 0); } catch(e){}
+
     return () => { supabase.removeChannel(subscription); };
-  }, [matchId]);
+  }, [matchId, fetchMatch]);
 
   const handleDispute = async () => {
     if (!disputeReason) return;
-    SoundNexus.play(CUES.DISPUTE_TRIGGER);
+    try { SoundNexus.play(CUES.DISPUTE_TRIGGER); } catch(e){}
     try {
-        const { error } = await supabase.from('matches').update({ status: 'disputed', admin_notes: `[DISPUTE]: ${disputeReason}` }).eq('id', matchId);
+        const { error } = await supabase.from('matches').update({ 
+          status: 'disputed', 
+          admin_notes: `[DISPUTE_INIT]: ${disputeReason} | BY: ${user.username}` 
+        }).eq('id', matchId);
+
         if (error) throw error;
+
+        Telemetry.log(EVENTS.ACTION, { action: 'DISPUTE_FILED', matchId, reason: disputeReason }, user.id);
         setIsDisputing(false);
         setDisputeReason("");
-        toast.error("DISPUTE FILED. MATCH LOCKED.");
-    } catch (err) { toast.error("FAILED TO FILE DISPUTE."); }
+        toast.error("PROTOCOL: CONTAINMENT BREACH // MATCH LOCKED");
+    } catch (err) { 
+      toast.error("UPLINK INTERRUPTED"); 
+    }
   };
 
   const handleCopy = (text) => {
       navigator.clipboard.writeText(text);
-      SoundNexus.play(CUES.UI_CLICK);
-      toast.success("COPIED TO CLIPBOARD");
+      try { SoundNexus.play(CUES.UI_CLICK); } catch(e){}
+      toast.success("UPLINK CREDENTIALS COPIED");
   };
 
-  if (loading) return <div className="h-screen bg-bg flex items-center justify-center text-zinc-500 animate-pulse font-mono">ESTABLISHING UPLINK...</div>;
-  if (!match) return <div className="h-screen bg-bg flex items-center justify-center text-red-500 font-mono">MATCH NOT FOUND</div>;
+  if (loading) return <div className="h-screen bg-[#050505] flex items-center justify-center text-zinc-700 animate-pulse font-mono tracking-[0.5em] uppercase text-[10px]">Establishing Uplink...</div>;
+  if (!match) return <div className="h-screen bg-[#050505] flex items-center justify-center text-red-500 font-mono tracking-[0.2em] uppercase">Sector Lost // 404</div>;
 
-  // LOCKED STATE
+  // 🛡️ CONTAINMENT MODE (LOCKED/DISPUTED)
   if (match.is_locked || match.status === 'disputed') {
     return (
-      <div className="min-h-screen bg-bg flex items-center justify-center p-4">
-          <div className="max-w-2xl w-full p-12 bg-red-950/20 border border-red-500/20 rounded-lg text-center animate-in zoom-in-95">
-            <div className="w-24 h-24 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-6"><Lock className="w-12 h-12 text-red-500" /></div>
-            <h2 className="text-4xl font-display font-black text-white uppercase tracking-wide">Match Locked</h2>
-            <p className="text-red-300 font-mono mt-4 mb-8 text-sm uppercase tracking-widest">
-              An integrity lock is active. <br/> Reason: <span className="text-white font-bold">{match.admin_notes || 'Pending Review'}</span>
-            </p>
+      <div className="min-h-screen bg-[#050505] flex items-center justify-center p-6 relative overflow-hidden">
+          <div className="absolute inset-0 bg-red-950/5 animate-pulse" />
+          <div className="max-w-2xl w-full p-16 bg-[#09090b] border border-red-600/30 rounded-sm text-center shadow-2xl relative z-10">
+            <div className="w-24 h-24 bg-red-600/10 border border-red-600/30 rounded-sm flex items-center justify-center mx-auto mb-10 rotate-45 group">
+              <Lock className="w-12 h-12 text-red-600 -rotate-45 drop-shadow-[0_0_10px_#ef4444]" />
+            </div>
+            <h2 className="text-5xl font-display font-black text-white uppercase italic tracking-tighter leading-none mb-6">Sector Locked</h2>
+            <div className="bg-black/60 border border-white/5 p-6 rounded-sm">
+                <p className="text-zinc-500 font-mono text-[10px] uppercase tracking-[0.3em] mb-3">Kernel Exception Trace:</p>
+                <p className="text-red-500 font-mono text-xs uppercase leading-relaxed tracking-widest">
+                  {match.admin_notes || 'AUTOMATIC INTEGRITY LOCK ACTIVE'}
+                </p>
+            </div>
           </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-bg text-white p-6 md:p-12 overflow-x-hidden">
+    <div className="min-h-screen bg-[#050505] text-white p-12 overflow-x-hidden relative">
       
-      {/* MATCH HEADER */}
-      <div className="text-center mb-12 flex flex-col items-center">
-         <div className="inline-flex items-center gap-2 px-3 py-1 bg-zinc-900 border border-zinc-800 rounded-full text-[10px] font-mono text-zinc-500 uppercase tracking-widest mb-4">
-             <Clock size={12} /> Match ID: {match.match_position} • Round {match.round_number}
+      {/* SCANLINES */}
+      <div className="absolute inset-0 pointer-events-none opacity-[0.03] bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,118,0.06))] bg-[length:100%_2px,3px_100%] z-0" />
+
+      {/* MATCH HUD HEADER */}
+      <div className="max-w-7xl mx-auto mb-16 flex flex-col items-center relative z-10">
+         <div className="flex items-center gap-6 px-5 py-2 bg-zinc-900 border border-zinc-800 rounded-sm text-[9px] font-mono text-zinc-500 uppercase tracking-[0.4em] mb-8 shadow-2xl">
+             <div className="flex items-center gap-2"><Activity size={12} className="text-fuchsia-500 animate-pulse" /> S-ID: {match.match_position}</div>
+             <div className="w-px h-3 bg-zinc-800" />
+             <div className="flex items-center gap-2"><Clock size={12} /> Round {match.round_number}</div>
          </div>
-         <h1 className="text-6xl md:text-8xl font-display font-black text-zinc-800 italic uppercase tracking-tighter leading-none select-none">BATTLEFIELD</h1>
-         <div className="mt-4 px-3 py-1 rounded bg-fuchsia-900/20 border border-fuchsia-500/30 text-fuchsia-400 text-xs font-bold uppercase tracking-widest">
-            Best of {match.best_of || 1}
+         <h1 className="text-8xl font-display font-black text-white/5 italic uppercase tracking-[0.2em] leading-none absolute -top-4 pointer-events-none select-none">BATTLEFIELD</h1>
+         <div className="mt-2 px-6 py-2 rounded-sm bg-fuchsia-600 text-white text-[10px] font-black uppercase tracking-[0.4em] shadow-lg shadow-fuchsia-600/20">
+            Protocols: Best of {match.best_of || 1}
          </div>
       </div>
 
-      <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+      <div className="max-w-[1600px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-10 items-start relative z-10">
         
-        {/* TEAM 1 */}
-        <TeamCard team={match.team1} score={match.score_team1} isWinner={match.winner_id === match.team1_id} />
+        {/* TEAM 1 (COL-3) */}
+        <div className="lg:col-span-3">
+          <TeamCard team={match.team1} score={match.score_team1} isWinner={match.winner_id === match.team1_id} side="left" />
+        </div>
 
-        {/* CENTER CONTROL */}
-        <div className="space-y-6">
+        {/* CENTER CONTROL (COL-6) */}
+        <div className="lg:col-span-6 space-y-8">
             
-            {/* SERVER INFO (Secure Display) */}
+            {/* SERVER UPLINK */}
             {match.status === 'live' && (isParticipant || canManage) && match.server_ip && (
                 <motion.div 
-                    initial={{ y: -20, opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    className="bg-emerald-950/20 border border-emerald-500/30 rounded-lg p-4"
+                    initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
+                    className="bg-emerald-600/10 border border-emerald-500/30 rounded-sm p-6 backdrop-blur-xl shadow-2xl"
                 >
-                    <h3 className="text-emerald-500 text-xs font-bold uppercase tracking-widest mb-2 flex items-center gap-2"><Server size={14}/> Server Credentials</h3>
-                    <div className="space-y-2">
-                        <div className="flex justify-between items-center bg-black/40 p-2 rounded border border-emerald-500/10 cursor-pointer hover:bg-black/60" onClick={() => handleCopy(`connect ${match.server_ip}`)}>
-                            <span className="text-xs font-mono text-white">connect {match.server_ip}</span>
-                            <Copy size={12} className="text-zinc-500"/>
+                    <h3 className="text-emerald-500 text-[10px] font-black uppercase tracking-[0.4em] mb-4 flex items-center gap-3">
+                      <Server size={14}/> Secure Relay credentials
+                    </h3>
+                    <div className="space-y-3">
+                        <div 
+                          className="flex justify-between items-center bg-black/60 p-4 rounded-sm border border-emerald-500/20 cursor-pointer hover:border-emerald-500 transition-all group" 
+                          onClick={() => handleCopy(`connect ${match.server_ip}`)}
+                        >
+                            <span className="text-xs font-mono text-zinc-300 group-hover:text-white transition-colors">connect {match.server_ip}</span>
+                            <Copy size={14} className="text-zinc-700 group-hover:text-emerald-500" />
                         </div>
                     </div>
                 </motion.div>
             )}
 
-            {/* VETO / MAP DISPLAY */}
-            {match.status === 'veto' ? (
-                <div className="bg-[#09090b] border border-zinc-800 rounded-lg p-6 shadow-xl">
-                    {/* Unified Veto Panel */}
-                    <VetoPanel match={match} myTeamId={profile?.team_id} />
-                </div>
-            ) : (
-                <div className="bg-zinc-900/50 border border-white/5 rounded-lg p-12 flex flex-col items-center justify-center text-center min-h-[300px]">
-                    {match.status === 'live' ? (
-                        <>
-                            <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mb-4 animate-pulse"><Swords className="w-8 h-8 text-red-500" /></div>
-                            <h3 className="text-xl font-bold text-white uppercase tracking-wider">Match Live</h3>
-                            <p className="text-zinc-500 text-xs mt-2 font-mono">GLHF</p>
-                        </>
-                    ) : match.status === 'completed' ? (
-                        <>
-                            <div className="w-16 h-16 bg-yellow-500/10 rounded-full flex items-center justify-center mb-4"><Trophy className="w-8 h-8 text-yellow-500" /></div>
-                            <h3 className="text-xl font-bold text-white uppercase tracking-wider">Match Completed</h3>
-                            <p className="text-zinc-500 text-xs mt-2 font-mono">GG WP</p>
-                        </>
-                    ) : (
-                        <>
-                            <div className="w-16 h-16 bg-zinc-800 rounded-full flex items-center justify-center mb-4"><MapIcon className="w-8 h-8 text-zinc-600" /></div>
-                            <h3 className="text-zinc-400 font-bold uppercase tracking-wider">Awaiting Veto</h3>
-                            <p className="text-zinc-600 text-xs mt-2 font-mono uppercase">Waiting for captains...</p>
-                        </>
-                    )}
-                </div>
-            )}
+            {/* VETO / MAP ENGINE */}
+            <div className="bg-[#09090b] border border-zinc-800 rounded-sm p-8 shadow-2xl relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-br from-zinc-900/20 to-transparent pointer-events-none" />
+                {match.status === 'veto' ? (
+                    <VetoPanel match={match} myTeamId={user?.teamId} />
+                ) : (
+                    <div className="flex flex-col items-center justify-center text-center min-h-[350px] space-y-8 relative z-10">
+                        {match.status === 'live' ? (
+                            <>
+                                <div className="relative">
+                                  <Swords size={80} className="text-fuchsia-500 animate-pulse absolute blur-xl opacity-20" />
+                                  <Swords size={80} className="text-fuchsia-500" />
+                                </div>
+                                <div>
+                                  <h3 className="text-3xl font-display font-black text-white uppercase italic tracking-tighter">Engagement Active</h3>
+                                  <p className="text-zinc-600 text-[9px] mt-4 uppercase tracking-[0.5em] font-mono">Signal frequency: stable // GLHF</p>
+                                </div>
+                            </>
+                        ) : match.status === 'completed' ? (
+                            <>
+                                <div className="w-24 h-24 bg-fuchsia-600/10 rounded-sm border border-fuchsia-500/30 flex items-center justify-center rotate-45 shadow-2xl">
+                                  <Trophy size={40} className="text-fuchsia-500 -rotate-45" />
+                                </div>
+                                <h3 className="text-3xl font-display font-black text-white uppercase italic tracking-tighter">Mission Concluded</h3>
+                            </>
+                        ) : (
+                            <>
+                                <MapIcon size={64} className="text-zinc-800" />
+                                <h3 className="text-xl font-black text-zinc-700 uppercase tracking-[0.4em]">Awaiting tactical Veto</h3>
+                            </>
+                        )}
+                    </div>
+                )}
+            </div>
 
-            {/* ACTION BAR */}
+            {/* ACTION INTERFACE */}
             {(canManage || isParticipant) && !['completed'].includes(match.status) && (
-                <div className="grid grid-cols-2 gap-3">
-                   {canManage && (
-                       <button 
-                          className="p-4 bg-emerald-900/20 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-900/40 rounded border font-bold uppercase text-xs tracking-widest flex items-center justify-center gap-2 transition-all"
-                          onClick={() => { SoundNexus.play(CUES.UI_CLICK); toast.success("READY CHECK SENT"); }}
-                       >
-                          <CheckCircle size={16} /> Ready Check
-                       </button>
-                   )}
+                <div className="grid grid-cols-2 gap-4 pt-4">
                    <button 
-                      onClick={() => setIsDisputing(!isDisputing)}
-                      className="p-4 bg-red-950/20 border border-red-900/30 hover:bg-red-900/40 text-red-500 rounded font-bold uppercase text-xs tracking-widest flex items-center justify-center gap-2 transition-all"
+                      className="p-5 bg-zinc-900 border border-zinc-800 text-zinc-500 hover:text-white hover:border-emerald-500/50 rounded-sm font-black uppercase text-[10px] tracking-[0.4em] flex items-center justify-center gap-3 transition-all active:scale-95 shadow-xl"
+                      onClick={() => { try{SoundNexus.play(CUES.UI_CLICK);}catch(e){} toast.success("READY SIGNAL TRANSMITTED"); }}
                    >
-                      <AlertTriangle size={16} /> Dispute
+                      <CheckCircle size={14} /> Ready Signal
+                   </button>
+                   <button 
+                      onClick={() => { setIsDisputing(!isDisputing); try{SoundNexus.play(CUES.UI_CLICK_HEAVY);}catch(e){} }}
+                      className="p-5 bg-red-600/5 border border-red-900/20 hover:border-red-600/50 text-red-600 rounded-sm font-black uppercase text-[10px] tracking-[0.4em] flex items-center justify-center gap-3 transition-all active:scale-95"
+                   >
+                      <AlertTriangle size={14} /> File Dispute
                    </button>
                 </div>
             )}
 
-            {/* DISPUTE FORM */}
+            {/* DISPUTE CONSOLE */}
             <AnimatePresence>
                 {isDisputing && (
                     <motion.div 
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        className="p-6 bg-[#18181b] border border-red-500/50 rounded-lg shadow-2xl relative overflow-hidden"
+                        initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}
+                        className="p-8 bg-black border-2 border-red-600 shadow-[0_0_80px_rgba(220,38,38,0.15)] rounded-sm relative overflow-hidden"
                     >
-                        <div className="absolute top-0 left-0 w-full h-1 bg-red-500 animate-pulse" />
-                        <h4 className="text-red-500 font-bold uppercase text-xs tracking-widest mb-4">File Official Dispute</h4>
+                        <div className="absolute top-0 left-0 w-full h-1 bg-red-600 animate-pulse" />
+                        <h4 className="text-red-500 font-black uppercase text-[11px] tracking-[0.4em] mb-6 flex items-center gap-3">
+                          <Zap size={14} /> Critical Action: Emergency Dispute
+                        </h4>
                         <textarea 
-                            className="w-full bg-black border border-zinc-800 rounded p-4 text-sm text-white mb-4 focus:border-red-500 outline-none font-mono"
-                            placeholder="Describe the issue..." rows={4}
+                            className="w-full bg-zinc-950 border border-zinc-900 p-5 text-sm text-white mb-6 focus:border-red-600 outline-none font-mono min-h-[120px] transition-all"
+                            placeholder="State the integrity breach details..." 
                             value={disputeReason} onChange={(e) => setDisputeReason(e.target.value)}
                         />
-                        <div className="flex justify-end gap-3">
-                            <button onClick={() => setIsDisputing(false)} className="px-4 py-2 text-xs text-zinc-500 hover:text-white transition-colors uppercase font-bold">Cancel</button>
-                            <button onClick={handleDispute} className="px-6 py-2 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded uppercase tracking-widest transition-colors shadow-lg shadow-red-900/20">Lock Match</button>
+                        <div className="flex justify-end gap-5">
+                            <button onClick={() => setIsDisputing(false)} className="text-[10px] text-zinc-600 hover:text-white transition-colors uppercase font-black tracking-widest">Abort</button>
+                            <button onClick={handleDispute} className="px-8 py-3 bg-red-600 hover:bg-red-500 text-white text-[10px] font-black rounded-sm uppercase tracking-[0.3em] transition-all shadow-2xl active:scale-95">Commit Lock</button>
                         </div>
                     </motion.div>
                 )}
             </AnimatePresence>
         </div>
 
-        {/* TEAM 2 */}
-        <TeamCard team={match.team2} score={match.score_team2} isWinner={match.winner_id === match.team2_id} />
+        {/* TEAM 2 (COL-3) */}
+        <div className="lg:col-span-3">
+          <TeamCard team={match.team2} score={match.score_team2} isWinner={match.winner_id === match.team2_id} side="right" />
+        </div>
 
       </div>
     </div>

@@ -1,20 +1,17 @@
-import React, { useState } from 'react';
-import { motion } from 'framer-motion';
-import { ZoomIn, ZoomOut, Maximize, Move } from 'lucide-react';
+/**
+ * 🔍 ZOOMABLE BRACKET: TACTICAL VIEWPORT
+ * VERSION: 2050.5.0 (MASTER OMNI)
+ * STATUS: OPERATIONAL // HIGH-PHYSICS
+ */
+
+import React, { useState, useEffect, useCallback } from 'react';
+import { motion, useAnimation } from 'framer-motion';
+import { ZoomIn, ZoomOut, Maximize, Move, Crosshair } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
 // MASTER INTEGRATION
 import { SoundNexus, CUES } from '../../lib/soundNexus';
-
-/**
- * 🔍 ZOOMABLE BRACKET: TACTICAL VIEWPORT
- * --------------------------------------
- * STATUS: MASTERED (BURJ KHALIFA STANDARD)
- * * UPGRADES:
- * 1. PHYSICS: Smooth spring animations on reset.
- * 2. AUDIO: Mechanical clicks on control interaction.
- * 3. VISUALS: Dynamic grid background that moves with pan.
- */
+import { Telemetry, EVENTS } from '../../lib/telemetry';
 
 export const ZoomableBracket = ({ children }) => {
   const [scale, setScale] = useState(1);
@@ -22,95 +19,118 @@ export const ZoomableBracket = ({ children }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   
-  // 🖱️ WHEEL ZOOM (Ctrl + Scroll)
-  const handleWheel = (e) => {
+  // 🖱️ WHEEL ZOOM (Precise Delta Calculation)
+  const handleWheel = useCallback((e) => {
+    // Check for Ctrl key (standard browser zoom behavior override)
     if (e.ctrlKey || e.metaKey) {
         e.preventDefault();
-        const delta = e.deltaY * -0.001;
-        setScale(prevScale => Math.min(Math.max(0.5, prevScale + delta), 2));
+        const zoomSpeed = 0.0015;
+        const delta = e.deltaY * -zoomSpeed;
+        setScale(prev => Math.min(Math.max(0.4, prev + delta), 2.5));
     }
-  };
+  }, []);
 
   // 🖱️ PANNING LOGIC
   const startDrag = (e) => {
-    if (e.button !== 0) return;
+    if (e.button !== 0) return; // Only primary mouse button
     setIsDragging(true);
     setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y });
+    try { SoundNexus.play(CUES.UI_HOVER, { volume: 0.02 }); } catch(e){}
   };
 
   const onDrag = (e) => {
-    if (isDragging) {
-      e.preventDefault();
-      setPosition({
-        x: e.clientX - dragStart.x,
-        y: e.clientY - dragStart.y
-      });
-    }
+    if (!isDragging) return;
+    e.preventDefault();
+    setPosition({
+      x: e.clientX - dragStart.x,
+      y: e.clientY - dragStart.y
+    });
   };
 
-  const stopDrag = () => setIsDragging(false);
-
-  // 🎛️ CONTROLS
-  const zoomIn = () => {
-      SoundNexus.play(CUES.UI_CLICK);
-      setScale(prev => Math.min(prev + 0.2, 2));
+  const stopDrag = () => {
+    if (isDragging) setIsDragging(false);
   };
 
-  const zoomOut = () => {
-      SoundNexus.play(CUES.UI_CLICK);
-      setScale(prev => Math.max(prev - 0.2, 0.5));
+  // 🎛️ HUD COMMANDS
+  const updateZoom = (type) => {
+    SoundNexus.play(CUES.UI_CLICK);
+    setScale(prev => {
+      const next = type === 'in' ? prev + 0.25 : prev - 0.25;
+      return Math.min(Math.max(0.4, next), 2.5);
+    });
   };
 
   const resetView = () => { 
-      SoundNexus.play(CUES.NAVIGATION_SWISH);
-      setScale(1); 
-      setPosition({x: 0, y: 0}); 
+    try { SoundNexus.playSpatial(CUES.NAVIGATION_SWISH, 0); } catch(e){}
+    Telemetry.log(EVENTS.ACTION, { action: 'bracket_view_reset' });
+    setScale(1); 
+    setPosition({x: 0, y: 0}); 
   };
 
   return (
     <div 
-        className="relative w-full h-full overflow-hidden bg-[#050505] rounded-sm group select-none cursor-grab active:cursor-grabbing border border-white/5"
+        className={cn(
+          "relative w-full h-full overflow-hidden bg-[#050505] rounded-sm group select-none border border-white/5 shadow-inner",
+          isDragging ? "cursor-grabbing" : "cursor-grab"
+        )}
         onMouseDown={startDrag}
         onMouseMove={onDrag}
         onMouseUp={stopDrag}
         onMouseLeave={stopDrag}
         onWheel={handleWheel}
     >
-      {/* 📐 TACTICAL GRID BACKGROUND */}
-      <div className="absolute inset-0 opacity-[0.05] pointer-events-none" 
-           style={{ 
-               backgroundImage: `linear-gradient(#ffffff 1px, transparent 1px), linear-gradient(90deg, #ffffff 1px, transparent 1px)`,
-               backgroundSize: '40px 40px',
-               transform: `translate(${position.x % 40}px, ${position.y % 40}px) scale(${scale})`
-           }} 
+      {/* 📐 TACTICAL COORDINATE GRID */}
+      <div 
+        className="absolute inset-0 opacity-[0.03] pointer-events-none transition-transform duration-75" 
+        style={{ 
+            backgroundImage: `
+              linear-gradient(to right, #ffffff 1px, transparent 1px),
+              linear-gradient(to bottom, #ffffff 1px, transparent 1px)
+            `,
+            backgroundSize: `${40 * scale}px ${40 * scale}px`,
+            backgroundPosition: `${position.x}px ${position.y}px`
+        }} 
       />
 
-      {/* 🎛️ HUD CONTROLS */}
-      <div className="absolute bottom-6 right-6 z-50 flex gap-2 bg-zinc-900/90 p-1.5 rounded-sm border border-white/10 shadow-xl backdrop-blur-md">
-         <button onClick={zoomIn} className="p-2 hover:bg-white/10 rounded-sm text-zinc-400 hover:text-white transition-colors" title="Zoom In"><ZoomIn size={18}/></button>
-         <div className="w-px bg-white/10 my-1"></div>
-         <button onClick={zoomOut} className="p-2 hover:bg-white/10 rounded-sm text-zinc-400 hover:text-white transition-colors" title="Zoom Out"><ZoomOut size={18}/></button>
-         <div className="w-px bg-white/10 my-1"></div>
-         <button onClick={resetView} className="p-2 hover:bg-white/10 rounded-sm text-zinc-400 hover:text-white transition-colors" title="Reset View"><Maximize size={18}/></button>
+      {/* 🎛️ FLOATING HUD CONTROLS */}
+      <div className="absolute bottom-8 right-8 z-50 flex flex-col gap-3 bg-zinc-900/40 p-2 rounded-sm border border-white/10 shadow-2xl backdrop-blur-xl animate-in slide-in-from-right-4">
+          <button onClick={() => updateZoom('in')} className="p-2.5 hover:bg-fuchsia-500/20 rounded-sm text-zinc-500 hover:text-fuchsia-500 transition-all active:scale-90" title="Zoom In">
+            <ZoomIn size={20}/>
+          </button>
+          <div className="h-px bg-white/5 mx-2"></div>
+          <button onClick={() => updateZoom('out')} className="p-2.5 hover:bg-fuchsia-500/20 rounded-sm text-zinc-500 hover:text-fuchsia-500 transition-all active:scale-90" title="Zoom Out">
+            <ZoomOut size={20}/>
+          </button>
+          <div className="h-px bg-white/5 mx-2"></div>
+          <button onClick={resetView} className="p-2.5 hover:bg-emerald-500/20 rounded-sm text-zinc-500 hover:text-emerald-500 transition-all active:scale-90" title="Recenter View">
+            <Maximize size={20}/>
+          </button>
       </div>
 
-      {/* ℹ️ INSTRUCTION PILL */}
-      <div className="absolute top-4 left-4 z-50 flex items-center gap-2 px-3 py-1.5 bg-black/60 backdrop-blur text-zinc-500 text-[10px] font-mono uppercase border border-white/5 rounded-full pointer-events-none transition-opacity opacity-30 group-hover:opacity-100">
-        <Move size={12} />
-        <span>Drag to Pan • Ctrl+Scroll to Zoom</span>
+      {/* 🛰️ TELEMETRY PILL */}
+      <div className="absolute top-6 left-6 z-50 flex items-center gap-3 px-4 py-2 bg-black/80 backdrop-blur-md border border-white/5 rounded-sm pointer-events-none opacity-0 group-hover:opacity-100 transition-all duration-500">
+        <div className="flex items-center gap-2 text-[9px] font-black font-mono text-zinc-500 uppercase tracking-widest">
+          <Move size={12} className="text-fuchsia-500" />
+          <span>Pan: Active</span>
+          <div className="w-1 h-1 bg-zinc-800 rounded-full" />
+          <Crosshair size={12} className="text-emerald-500" />
+          <span>Zoom: {Math.round(scale * 100)}%</span>
+        </div>
       </div>
 
-      {/* 🖼️ THE CANVAS */}
+      {/* 🖼️ THE TOURNAMENT CANVAS */}
       <motion.div 
-        layout
         className="origin-top-left will-change-transform" 
         animate={{ x: position.x, y: position.y, scale: scale }}
-        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+        transition={{ type: "spring", stiffness: 200, damping: 25, mass: 0.8 }}
       >
-        <div className="p-20 min-w-max min-h-max relative z-10">
+        <div className="p-[200px] min-w-max min-h-max flex items-center justify-center">
             {children}
         </div>
       </motion.div>
+
+      {/* VIGNETTE SHADOW */}
+      <div className="absolute inset-0 pointer-events-none shadow-[inset_0_0_100px_rgba(0,0,0,0.5)]" />
     </div>
   );
 };

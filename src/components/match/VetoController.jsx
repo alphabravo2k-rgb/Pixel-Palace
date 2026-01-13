@@ -1,13 +1,22 @@
-import React, { useState, useEffect } from 'react';
+/**
+ * 🗺️ VETO CONTROLLER: STRATEGIC SELECTION
+ * VERSION: 2050.5.0 (MASTER OMNI)
+ * STATUS: OPERATIONAL // REAL-TIME SYNCED
+ */
+
+import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../../supabase/client';
-import { useSession } from '../../auth/useSession';
+import { useNexus } from '../../hooks/useNexus';
 import { 
     Ban, CheckCircle, Clock, Lock, Trophy, Loader2, 
-    Flame, Sun, Building2, Radiation, Leaf, Tornado, Skull 
+    Flame, Sun, Building2, Radiation, Leaf, Tornado, Skull, Zap
 } from 'lucide-react';
 import { MATCH_FORMATS } from '../../lib/constants';
+import { SoundNexus, CUES } from '../../lib/soundNexus';
+import { Telemetry, EVENTS } from '../../lib/telemetry';
+import { cn } from '../../lib/utils';
+import { toast } from 'react-hot-toast';
 
-// ✅ SYNCHRONIZED MAP POOL (Vertigo + Anubis)
 const MAP_POOL = [
   { id: 'de_mirage', name: 'Mirage', icon: Building2, color: 'text-amber-400', border: 'hover:border-amber-400', glow: 'shadow-amber-500/20' },
   { id: 'de_inferno', name: 'Inferno', icon: Flame, color: 'text-red-500', border: 'hover:border-red-500', glow: 'shadow-red-500/20' },
@@ -19,42 +28,53 @@ const MAP_POOL = [
 ];
 
 export const VetoController = ({ match, onUpdate }) => {
-  const { session } = useSession();
+  const { user } = useNexus();
   const [vetoLog, setVetoLog] = useState([]);
   const [loading, setLoading] = useState(false);
 
+  // 🛰️ REAL-TIME UPLINK
   useEffect(() => {
-    const fetch = async () => {
+    const fetchVetoes = async () => {
         const { data } = await supabase.from('match_vetoes').select('*').eq('match_id', match.id).order('pick_order');
         setVetoLog(data || []);
     };
-    fetch();
-    const sub = supabase.channel(`veto-${match.id}`).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'match_vetoes', filter: `match_id=eq.${match.id}` }, p => {
-        setVetoLog(prev => [...prev, p.new]);
-        if(onUpdate) onUpdate();
-    }).subscribe();
-    return () => supabase.removeChannel(sub);
-  }, [match.id]);
+    fetchVetoes();
 
-  // Logic Engine
-  const bestOf = match.best_of || 1; 
-  // Map "1", "3", "5" to "BO1", "BO3", "BO5" keys in constants
-  const formatKey = `BO${bestOf}`;
-  const sequence = MATCH_FORMATS[formatKey]?.sequence || MATCH_FORMATS.BO1.sequence;
+    const channel = supabase.channel(`veto_vortex:${match.id}`)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'match_vetoes', filter: `match_id=eq.${match.id}` }, p => {
+            setVetoLog(prev => [...prev, p.new]);
+            try { SoundNexus.play(CUES.UI_NOTIFICATION); } catch(e){}
+            if(onUpdate) onUpdate();
+        })
+        .subscribe();
+
+    return () => supabase.removeChannel(channel);
+  }, [match.id, onUpdate]);
+
+  // 🧠 LOGIC ENGINE: Protocol Resolution
+  const sequence = useMemo(() => {
+    const formatKey = `BO${match.best_of || 1}`;
+    return MATCH_FORMATS[formatKey]?.sequence || MATCH_FORMATS.BO1.sequence;
+  }, [match.best_of]);
   
   const currentStepIndex = vetoLog.length;
   const isComplete = currentStepIndex >= sequence.length;
   const currentStepData = !isComplete ? sequence[currentStepIndex] : null;
   const currentAction = currentStepData?.type || 'WAIT';
-  const currentActorTeamId = currentStepData ? match[`${currentStepData.team.toLowerCase() === 'team1' ? 'team1' : 'team2'}_id`] : null; // Handle 'team1'/'team2' strings safely
   
-  const myTeamId = session?.identity?.team_id || session?.team_id; 
-  const isMyTurn = myTeamId === currentActorTeamId && !isComplete;
+  // Safely determine which team is active based on step data
+  const activeTeamKey = currentStepData?.team?.toLowerCase() === 'team1' ? 'team1_id' : 'team2_id';
+  const currentActorTeamId = currentStepData ? match[activeTeamKey] : null;
+  
+  const isMyTurn = user?.teamId === currentActorTeamId && !isComplete;
 
   const handleAction = async (mapId) => {
     if (loading || !isMyTurn) return;
-    const actionText = currentAction === 'BAN' ? "BAN" : "PICK";
-    if (!window.confirm(`Confirm: ${actionText} ${MAP_POOL.find(m=>m.id===mapId)?.name}?`)) return;
+    
+    try { SoundNexus.play(CUES.UI_CLICK_HEAVY); } catch(e){}
+    const mapName = MAP_POOL.find(m => m.id === mapId)?.name;
+    
+    if (!window.confirm(`CONFIRM STRATEGIC ${currentAction}: ${mapName}?`)) return;
     
     setLoading(true);
     try {
@@ -62,56 +82,82 @@ export const VetoController = ({ match, onUpdate }) => {
             p_match_id: match.id, p_map_name: mapId, p_type: currentAction 
         });
         if(error) throw error;
-    } catch(e) { alert(e.message); } finally { setLoading(false); }
+
+        Telemetry.log(EVENTS.ACTION, { action: `VETO_${currentAction}`, map: mapId }, user.id);
+        try { SoundNexus.play(CUES.UI_SUCCESS); } catch(e){}
+    } catch(e) { 
+        toast.error(e.message.toUpperCase());
+        try { SoundNexus.play(CUES.UI_ERROR); } catch(e){}
+    } finally { 
+        setLoading(false); 
+    }
   };
 
   const getMapStatus = (mapId) => {
     const entry = vetoLog.find(v => v.map_name === mapId);
-    if (entry) return entry.type; 
-    return 'AVAILABLE';
+    return entry ? entry.type : 'AVAILABLE';
   };
 
+  // 🏆 CONCLUDED STATE: Strategic Result
   if (isComplete) {
-     const pickedMaps = vetoLog.filter(v => v.type === 'PICK').map(v => v.map_name);
-     const bannedMaps = vetoLog.filter(v => v.type === 'BAN').map(v => v.map_name);
-     const deciderId = MAP_POOL.find(m => !pickedMaps.includes(m.id) && !bannedMaps.includes(m.id))?.id;
-     let finalMapIds = bestOf === 1 ? [deciderId] : [...pickedMaps, deciderId];
-     const displayMaps = finalMapIds.filter(id=>id).map(id => MAP_POOL.find(m => m.id === id));
+      const pickedMaps = vetoLog.filter(v => v.type === 'PICK').map(v => v.map_name);
+      const bannedMaps = vetoLog.filter(v => v.type === 'BAN').map(v => v.map_name);
+      const deciderId = MAP_POOL.find(m => !pickedMaps.includes(m.id) && !bannedMaps.includes(m.id))?.id;
+      
+      let finalMapIds = match.best_of === 1 ? [deciderId] : [...pickedMaps, deciderId];
+      // Filter out undefined in case logic fails
+      const displayMaps = finalMapIds.filter(id => id).map(id => MAP_POOL.find(m => m.id === id));
 
-     return (
-        <div className="text-center p-8 bg-emerald-950/20 border border-emerald-500/20 rounded-xl animate-in fade-in">
-            <Trophy className="w-16 h-16 text-emerald-500 mx-auto mb-4" />
-            <h3 className="text-2xl font-black text-white uppercase tracking-widest font-display">Veto Complete</h3>
-            <div className="flex justify-center gap-4 flex-wrap mt-6">
+      return (
+        <div className="text-center p-10 bg-emerald-500/5 border border-emerald-500/20 rounded-sm animate-in zoom-in-95 duration-700 relative overflow-hidden">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(16,185,129,0.05),_transparent)]" />
+            <Trophy className="w-16 h-16 text-emerald-500 mx-auto mb-6 drop-shadow-[0_0_15px_rgba(16,185,129,0.5)]" />
+            <h3 className="text-3xl font-display font-black text-white uppercase italic tracking-tighter">Veto Concluded</h3>
+            <p className="text-[10px] text-zinc-500 font-mono mt-2 uppercase tracking-[0.4em]">Theatre of War Defined</p>
+            
+            <div className="flex justify-center gap-6 flex-wrap mt-10 relative z-10">
                 {displayMaps.map((m, idx) => (
-                    <div key={idx} className="flex flex-col items-center">
-                        <div className={`w-40 h-24 rounded-lg bg-black border border-emerald-500 relative flex items-center justify-center shadow-lg`}>
-                             <m.icon className={`w-10 h-10 ${m.color}`} />
-                             <span className="absolute bottom-2 text-white font-black uppercase text-sm">{m?.name}</span>
-                             {bestOf > 1 && <div className="absolute top-2 right-2 bg-emerald-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">MAP {idx + 1}</div>}
+                    <div key={idx} className="flex flex-col items-center group">
+                        <div className="w-44 h-28 rounded-sm bg-black border border-emerald-500/40 relative flex items-center justify-center shadow-2xl transition-all group-hover:border-emerald-500 group-hover:-translate-y-1">
+                             <m.icon className={cn("w-12 h-12 opacity-40 transition-all group-hover:opacity-100", m.color)} />
+                             <span className="absolute bottom-3 text-white font-black uppercase text-[11px] tracking-widest">{m?.name}</span>
+                             <div className="absolute top-2 right-2 bg-emerald-600 text-white text-[8px] font-black px-2 py-0.5 rounded-sm tracking-tighter">
+                                {idx === displayMaps.length - 1 && match.best_of > 1 ? 'DECIDER' : `MAP ${idx + 1}`}
+                             </div>
                         </div>
                     </div>
                 ))}
             </div>
         </div>
-     );
+      );
   }
 
   return (
-    <div className="space-y-6 animate-in slide-in-from-bottom-2">
-       <div className={`p-4 rounded-xl border flex items-center justify-between transition-all duration-500 ${isMyTurn ? "bg-fuchsia-900/10 border-fuchsia-500 shadow-lg" : "bg-zinc-950 border-zinc-800 opacity-60"}`}>
-          <div className="flex items-center gap-4">
-             <div className={`w-12 h-12 rounded-full flex items-center justify-center border-2 ${isMyTurn ? "border-fuchsia-500 text-fuchsia-400 animate-pulse" : "border-zinc-700 text-zinc-600"}`}>
-                {loading ? <Loader2 className="animate-spin" /> : isMyTurn ? <Clock size={24} /> : <Lock size={24} />}
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+       {/* TURN INDICATOR */}
+       <div className={cn(
+         "p-6 rounded-sm border flex items-center justify-between transition-all duration-700 relative overflow-hidden",
+         isMyTurn ? "bg-fuchsia-600/5 border-fuchsia-500 shadow-[0_0_40px_rgba(192,38,211,0.1)]" : "bg-zinc-950 border-zinc-800 opacity-40 grayscale"
+       )}>
+          <div className="flex items-center gap-6 relative z-10">
+             <div className={cn(
+               "w-14 h-14 rounded-sm flex items-center justify-center border-2 transition-all duration-500 rotate-45",
+               isMyTurn ? "border-fuchsia-500 text-fuchsia-400 animate-pulse bg-fuchsia-500/10" : "border-zinc-800 text-zinc-700"
+             )}>
+                {loading ? <Loader2 className="animate-spin -rotate-45" /> : isMyTurn ? <Zap size={24} className="-rotate-45" /> : <Lock size={24} className="-rotate-45" />}
              </div>
              <div>
-                <h3 className={`text-xl font-black uppercase leading-none font-display ${isMyTurn ? "text-white" : "text-zinc-500"}`}>
-                    {isMyTurn ? `Your Turn to ${currentAction}` : `Opponent is ${currentAction}ING...`}
+                <p className="text-[9px] text-zinc-500 font-mono uppercase tracking-[0.4em]">Protocol Status</p>
+                <h3 className={cn("text-2xl font-display font-black uppercase italic tracking-tighter mt-1", isMyTurn ? "text-white" : "text-zinc-600")}>
+                    {isMyTurn ? `Your Turn to ${currentAction}` : `Awaiting Opponent ${currentAction}...`}
                 </h3>
              </div>
           </div>
+          {isMyTurn && <div className="text-[9px] font-black text-fuchsia-500 uppercase tracking-widest animate-pulse mr-4">Action Required</div>}
        </div>
-       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+
+       {/* MAP GRID */}
+       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 relative">
           {MAP_POOL.map(map => {
              const status = getMapStatus(map.id);
              const isBanned = status === 'BAN';
@@ -120,18 +166,39 @@ export const VetoController = ({ match, onUpdate }) => {
              const Icon = map.icon;
              
              return (
-               <button key={map.id} disabled={!isAvailable || !isMyTurn || loading} onClick={() => handleAction(map.id)}
-                 className={`relative h-28 rounded-xl border-2 transition-all duration-300 group flex flex-col items-center justify-center gap-2 bg-black/40
-                    ${isBanned ? 'border-red-900/30 opacity-30 grayscale cursor-not-allowed' : ''}
-                    ${isPicked ? 'border-emerald-500 shadow-lg bg-emerald-900/10' : ''}
-                    ${isAvailable ? `border-zinc-800 ${map.border}` : ''}
-                    ${isAvailable && isMyTurn ? `hover:scale-[1.03] cursor-pointer hover:shadow-lg ${map.glow}` : ''}`}
+               <button 
+                 key={map.id} 
+                 disabled={!isAvailable || !isMyTurn || loading} 
+                 onClick={() => handleAction(map.id)}
+                 className={cn(
+                   "relative h-32 rounded-sm border transition-all duration-500 group flex flex-col items-center justify-center gap-3 bg-zinc-900/20 overflow-hidden",
+                   isBanned && "border-red-900/30 opacity-20 grayscale cursor-not-allowed",
+                   isPicked && "border-emerald-500 bg-emerald-500/5 shadow-lg",
+                   isAvailable && "border-zinc-800",
+                   isAvailable && isMyTurn && "hover:border-fuchsia-500 hover:bg-fuchsia-500/5 cursor-pointer hover:-translate-y-1 shadow-2xl"
+                 )}
                >
-                 <Icon className={`w-8 h-8 ${map.color} transition-transform group-hover:scale-110 duration-300`} />
-                 <span className="text-white font-black text-lg uppercase tracking-widest font-display">{map.name}</span>
-                 {isBanned && <div className="absolute inset-0 flex items-center justify-center bg-black/60"><Ban className="w-10 h-10 text-red-600 rotate-12"/></div>}
-                 {isPicked && <div className="absolute inset-0 flex items-center justify-center"><CheckCircle className="w-10 h-10 text-emerald-500"/></div>}
-                 {isAvailable && isMyTurn && <div className={`absolute bottom-2 text-[9px] font-bold uppercase opacity-0 group-hover:opacity-100 transition-opacity ${currentAction === 'BAN' ? 'text-red-400' : 'text-emerald-400'}`}>Click to {currentAction}</div>}
+                 <Icon className={cn("w-10 h-10 transition-all duration-700 group-hover:scale-110", map.color)} />
+                 <span className="text-white font-display font-black text-lg uppercase italic tracking-tighter">{map.name}</span>
+                 
+                 {isBanned && (
+                   <div className="absolute inset-0 flex items-center justify-center bg-black/60">
+                     <Ban className="w-12 h-12 text-red-600 rotate-12 opacity-50" />
+                   </div>
+                 )}
+                 {isPicked && (
+                   <div className="absolute inset-0 flex items-center justify-center">
+                     <CheckCircle className="w-12 h-12 text-emerald-500/40" />
+                   </div>
+                 )}
+                 {isAvailable && isMyTurn && (
+                   <div className={cn(
+                     "absolute bottom-2 text-[8px] font-black uppercase tracking-widest transition-all translate-y-4 group-hover:translate-y-0",
+                     currentAction === 'BAN' ? 'text-red-500' : 'text-emerald-500'
+                   )}>
+                     Confirm {currentAction}
+                   </div>
+                 )}
                </button>
              );
           })}

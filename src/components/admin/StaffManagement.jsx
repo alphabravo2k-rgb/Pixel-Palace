@@ -1,12 +1,20 @@
+/**
+ * 👑 STAFF MANAGEMENT: HIERARCHY CONTROL
+ * VERSION: 2050.5.0 (MASTER OMNI)
+ * STATUS: SECURED // RE-AUTH REQUIRED
+ */
+
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../supabase/client';
-import { Shield, Lock, RefreshCw, Crown, AlertTriangle, CheckCircle, Terminal } from 'lucide-react';
+import { Shield, Lock, RefreshCw, Crown, AlertTriangle, Terminal, Cpu, UserPlus } from 'lucide-react';
 import { ROLES } from '../../lib/roles';
+import { useNexus } from '../../hooks/useNexus';
 import { toast } from 'react-hot-toast';
 import { cn } from '../../lib/utils';
-import { Button } from '../../ui/Components';
+import { SoundNexus, CUES } from '../../lib/soundNexus';
+import { Telemetry, EVENTS } from '../../lib/telemetry';
 
-// --- 🔒 SECURITY CONFIRMATION MODAL ---
+// --- 🔒 SECURITY CLEARANCE GATE ---
 const SecurityClearanceModal = ({ isOpen, onClose, onConfirm }) => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -18,66 +26,65 @@ const SecurityClearanceModal = ({ isOpen, onClose, onConfirm }) => {
     e.preventDefault();
     setVerifying(true);
     setError('');
+    SoundNexus.play(CUES.UI_CLICK);
 
     try {
-        // Double-check credentials before allowing sensitive action
         const { data: { user } } = await supabase.auth.getUser();
         const { error: signInError } = await supabase.auth.signInWithPassword({
             email: user.email,
             password: password
         });
 
-        if (signInError) throw new Error("Clearance Denied: Invalid Credentials");
+        if (signInError) throw new Error("ACCESS DENIED: INVALID MASTER PASSWORD");
         
         await onConfirm();
         onClose();
         setPassword(''); 
     } catch (err) {
-        setError(err.message);
+        setError(err.message.toUpperCase());
+        SoundNexus.play(CUES.UI_ERROR);
     } finally {
         setVerifying(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 animate-in fade-in">
-      <div className="bg-red-950/20 border border-red-500/50 w-full max-w-md p-6 rounded-lg shadow-[0_0_50px_rgba(220,38,38,0.2)]">
-        
-        <div className="flex items-center gap-3 mb-4 text-red-500 border-b border-red-500/30 pb-4">
-          <div className="p-2 bg-red-500/20 rounded-full">
-             <Lock className="w-6 h-6" />
-          </div>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-xl p-4 animate-in fade-in duration-300">
+      <div className="bg-[#09090b] border border-red-500/30 w-full max-w-md p-10 rounded-sm shadow-[0_0_100px_rgba(239,68,68,0.1)] relative">
+        <div className="absolute inset-0 pointer-events-none opacity-[0.03] bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,118,0.06))] bg-[length:100%_2px,3px_100%]" />
+
+        <div className="flex items-center gap-4 mb-8 text-red-500 border-b border-white/5 pb-6">
+          <Lock className="w-8 h-8 drop-shadow-[0_0_8px_rgba(239,68,68,0.5)]" />
           <div>
-              <h2 className="text-lg font-black uppercase tracking-tighter leading-none">Security Clearance</h2>
-              <span className="text-[10px] font-mono uppercase tracking-widest text-red-400">Level 5 Authorization Required</span>
+              <h2 className="text-xl font-black uppercase italic tracking-tighter text-white leading-none">Command Verification</h2>
+              <span className="text-[9px] font-mono uppercase tracking-[0.3em] text-red-500 mt-2 block">Level 90 Authorization Required</span>
           </div>
         </div>
         
-        <p className="text-zinc-300 text-sm mb-6 font-mono leading-relaxed">
-            High-level permission change detected. Please re-enter your command password to authorize this promotion sequence.
+        <p className="text-zinc-500 text-[11px] mb-8 font-mono leading-relaxed uppercase tracking-tight">
+            CRITICAL HIERARCHY SHIFT DETECTED. RE-AUTHENTICATE COMMANDER IDENTITY TO COMMIT PERMISSION CHANGES TO THE NEXUS.
         </p>
         
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-6">
           <input 
             type="password" 
             autoFocus 
             value={password} 
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full bg-black border border-red-900/50 text-white p-3 rounded focus:border-red-500 outline-none transition-all placeholder:text-zinc-700"
-            placeholder="ENTER PASSWORD"
+            className="w-full bg-black border border-zinc-800 text-white p-4 rounded-sm focus:border-red-600 outline-none transition-all placeholder:text-zinc-800 font-mono text-sm"
+            placeholder="MASTER_PASSWORD"
           />
           
           {error && (
-              <div className="flex items-center gap-2 text-red-500 text-xs font-bold uppercase bg-red-500/10 p-2 rounded border border-red-500/20">
-                  <AlertTriangle size={12} /> {error}
+              <div className="flex items-center gap-3 text-red-500 text-[10px] font-black uppercase bg-red-500/5 p-3 rounded-sm border border-red-500/20">
+                  <AlertTriangle size={14} /> {error}
               </div>
           )}
           
-          <div className="flex gap-3 justify-end pt-2">
-            <button type="button" onClick={onClose} className="px-4 py-2 text-zinc-500 hover:text-white text-xs font-bold uppercase transition-colors">Cancel</button>
-            <button disabled={verifying} type="submit" className="px-6 py-2 bg-red-600 hover:bg-red-500 text-white text-xs font-bold uppercase rounded shadow-lg shadow-red-900/20 flex items-center gap-2">
-              {verifying ? <RefreshCw className="animate-spin w-3 h-3" /> : <Lock size={12} />}
-              {verifying ? 'VERIFYING...' : 'AUTHORIZE'}
+          <div className="flex gap-4 pt-4">
+            <button type="button" onClick={onClose} className="flex-1 py-4 text-zinc-600 hover:text-white text-[10px] font-black uppercase tracking-widest transition-colors">Abort</button>
+            <button disabled={verifying} type="submit" className="flex-1 py-4 bg-red-600 hover:bg-red-500 text-white text-[10px] font-black uppercase tracking-[0.2em] rounded-sm shadow-2xl flex items-center justify-center gap-2 transition-all active:scale-95">
+              {verifying ? <RefreshCw className="animate-spin w-4 h-4" /> : 'Confirm'}
             </button>
           </div>
         </form>
@@ -88,16 +95,17 @@ const SecurityClearanceModal = ({ isOpen, onClose, onConfirm }) => {
 
 // --- 🛡️ MAIN COMPONENT ---
 export const StaffManagement = () => {
+  const { user, can } = useNexus();
   const [staff, setStaff] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [pendingAction, setPendingAction] = useState(null); // { userId, newRole }
+  const [pendingAction, setPendingAction] = useState(null);
 
   const fetchStaff = async () => {
     setLoading(true);
     const { data } = await supabase
         .from('app_admins')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('role', { ascending: false });
     setStaff(data || []);
     setLoading(false);
   };
@@ -105,97 +113,108 @@ export const StaffManagement = () => {
   useEffect(() => { fetchStaff(); }, []);
 
   const initiatePromotion = (userId, newRole) => {
+    if (!can('CAP_MANAGE_STAFF')) {
+        return toast.error("ACCESS DENIED: INSUFFICIENT CLEARANCE");
+    }
     setPendingAction({ userId, newRole });
+    SoundNexus.play(CUES.UI_CLICK);
   };
 
   const executePromotion = async () => {
     if (!pendingAction) return;
     
-    // ✅ SECURE RPC CALL (Backend Validation)
-    const { data, error } = await supabase.rpc('admin_promote_staff', {
-        p_target_id: pendingAction.userId,
-        p_new_role: pendingAction.newRole
-    });
+    try {
+        const { data, error } = await supabase.rpc('admin_promote_staff', {
+            p_target_id: pendingAction.userId,
+            p_new_role: pendingAction.newRole
+        });
 
-    if (error || !data.success) {
-      toast.error("Promotion Failed: " + (error?.message || data?.message));
-    } else {
-      toast.success("Staff Member Promoted Successfully");
-      fetchStaff(); 
+        if (error || !data.success) throw new Error(error?.message || data?.message);
+
+        Telemetry.log(EVENTS.ACTION, { action: 'STAFF_PROMOTION', target: pendingAction.userId, role: pendingAction.newRole }, user.id);
+        SoundNexus.play(CUES.UI_SUCCESS);
+        toast.success("STAFF HIERARCHY RECONFIGURED");
+        fetchStaff(); 
+    } catch (err) {
+        toast.error("COMMIT FAILED: " + err.message);
+        SoundNexus.play(CUES.UI_ERROR);
     }
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in p-6">
+    <div className="space-y-10 animate-in fade-in duration-700 p-2">
       
-      {/* Header */}
-      <div className="flex justify-between items-end border-b border-white/10 pb-4">
+      {/* HEADER */}
+      <div className="flex justify-between items-end border-b border-white/5 pb-6">
         <div>
-            <h1 className="text-3xl font-display font-black text-white italic uppercase tracking-tighter">
-                STAFF <span className="text-fuchsia-500">HIERARCHY</span>
+            <h1 className="text-5xl font-display font-black text-white italic uppercase tracking-tighter leading-none">
+                Sovereign <span className="text-fuchsia-500">Hierarchy</span>
             </h1>
-            <p className="text-[10px] text-zinc-500 font-mono tracking-widest mt-1 flex items-center gap-2">
-                <Terminal size={10} /> MANAGE PRIVILEGES & ACCESS LEVELS
+            <p className="text-[9px] text-zinc-600 font-mono tracking-[0.4em] mt-3 flex items-center gap-2 uppercase">
+                <Cpu size={12} className="text-fuchsia-500" /> Kernel Clearance Management
             </p>
         </div>
-        <button onClick={fetchStaff} className="p-2 bg-zinc-900 border border-zinc-800 hover:border-white/20 text-white rounded transition-all">
-            <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-        </button>
+        <div className="flex gap-4">
+             <button className="flex items-center gap-2 px-4 py-2 bg-zinc-900 border border-white/5 text-[9px] font-black uppercase text-zinc-500 hover:text-white transition-all">
+                <UserPlus size={12} /> Invite Agent
+             </button>
+             <button onClick={fetchStaff} className="p-2.5 bg-zinc-900 border border-white/5 hover:border-fuchsia-500/50 text-white rounded-sm transition-all shadow-xl">
+                <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+             </button>
+        </div>
       </div>
 
-      {/* Staff Grid */}
-      <div className="grid gap-4">
+      {/* STAFF FEED */}
+      <div className="grid gap-3">
         {staff.map(member => (
-          <div key={member.id} className="bg-bg-panel border border-tactical p-4 rounded-lg flex flex-col md:flex-row items-center justify-between gap-4 group hover:border-fuchsia-500/30 transition-all hover:shadow-lg">
+          <div key={member.id} className="bg-[#09090b] border border-white/5 p-5 rounded-sm flex flex-col lg:flex-row items-center justify-between gap-6 group hover:border-fuchsia-500/20 transition-all relative overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-r from-fuchsia-500/0 via-fuchsia-500/0 to-fuchsia-500/[0.02] translate-x-full group-hover:translate-x-0 transition-transform duration-1000" />
             
-            {/* Identity Info */}
-            <div className="flex items-center gap-4 w-full md:w-1/3">
+            {/* Identity Group */}
+            <div className="flex items-center gap-5 w-full lg:w-1/3 relative z-10">
               <div className={cn(
-                  "w-12 h-12 rounded flex items-center justify-center text-lg font-bold border",
-                  member.role === ROLES.OWNER ? "bg-yellow-500/10 text-yellow-500 border-yellow-500/30" : 
-                  member.role === ROLES.ADMIN ? "bg-red-500/10 text-red-500 border-red-500/30" : 
-                  "bg-zinc-800 text-zinc-500 border-zinc-700"
+                  "w-14 h-14 rounded-sm flex items-center justify-center border transition-all duration-500",
+                  member.role === ROLES.OWNER ? "bg-yellow-500/10 text-yellow-500 border-yellow-500/20 shadow-[0_0_15px_rgba(234,179,8,0.1)]" : 
+                  member.role === ROLES.ADMIN ? "bg-red-500/10 text-red-500 border-red-500/20 shadow-[0_0_15px_rgba(239,68,68,0.1)]" : 
+                  "bg-zinc-900 text-zinc-600 border-zinc-800"
               )}>
-                {member.role === ROLES.OWNER ? <Crown size={20} /> : <Shield size={20} />}
+                {member.role === ROLES.OWNER ? <Crown size={24} /> : <Shield size={24} />}
               </div>
               <div>
-                <h3 className="text-sm font-bold text-white flex items-center gap-2 uppercase tracking-wide">
-                    {member.full_name} 
-                    {member.role === ROLES.OWNER && <Crown size={12} className="text-yellow-500"/>}
+                <h3 className="text-base font-display font-black text-white flex items-center gap-2 uppercase italic tracking-tight">
+                    {member.full_name || 'Anonymous Operative'} 
+                    {member.role === ROLES.OWNER && <Crown size={12} className="text-yellow-500 fill-current"/>}
                 </h3>
-                <p className="text-xs text-zinc-500 font-mono">{member.email}</p>
-                <div className="flex gap-2 mt-1 text-[9px] text-zinc-600 font-mono uppercase">
-                   {member.discord_handle && <span>• {member.discord_handle}</span>}
-                </div>
+                <p className="text-[10px] text-zinc-600 font-mono uppercase mt-1 tracking-widest">{member.discord_handle || 'NO_COMMS_LINK'}</p>
               </div>
             </div>
 
-            {/* Links Display */}
-            <div className="flex gap-2 w-full md:w-1/3 justify-center">
-               {member.steam_link && <a href={member.steam_link} target="_blank" rel="noreferrer" className="text-[9px] bg-[#171a21]/50 text-blue-400 px-2 py-1 rounded border border-blue-900/30 hover:bg-blue-900/40 transition-colors uppercase font-bold">Steam</a>}
-               {member.faceit_link && <a href={member.faceit_link} target="_blank" rel="noreferrer" className="text-[9px] bg-[#ff5500]/10 text-orange-500 px-2 py-1 rounded border border-orange-900/30 hover:bg-orange-900/40 transition-colors uppercase font-bold">Faceit</a>}
+            {/* Tactical Links */}
+            <div className="flex gap-2 w-full lg:w-1/3 justify-center relative z-10">
+               {member.steam_link && <a href={member.steam_link} target="_blank" rel="noreferrer" className="text-[8px] bg-zinc-900 text-blue-400 px-3 py-1.5 rounded-sm border border-blue-900/20 hover:border-blue-500 transition-all font-black uppercase tracking-widest">Signal: Steam</a>}
+               {member.faceit_link && <a href={member.faceit_link} target="_blank" rel="noreferrer" className="text-[8px] bg-zinc-900 text-orange-500 px-3 py-1.5 rounded-sm border border-orange-900/20 hover:border-orange-500 transition-all font-black uppercase tracking-widest">Signal: Faceit</a>}
             </div>
 
-            {/* Role Control */}
-            <div className="w-full md:w-1/3 flex justify-end">
-              <div className="relative group/select">
+            {/* Clearance Logic */}
+            <div className="w-full lg:w-1/4 flex justify-end relative z-10">
+              <div className="relative w-full lg:w-auto">
                   <select 
                     value={member.role}
                     onChange={(e) => initiatePromotion(member.id, e.target.value)}
+                    disabled={member.role === ROLES.OWNER && user.role !== ROLES.OWNER}
                     className={cn(
-                        "bg-black border text-xs font-bold uppercase py-2 pl-4 pr-8 rounded outline-none cursor-pointer transition-all appearance-none",
-                        member.role === ROLES.OWNER ? "border-yellow-600/50 text-yellow-500" :
-                        member.role === ROLES.ADMIN ? "border-red-600/50 text-red-500" :
-                        member.role === ROLES.REFEREE ? "border-blue-600/50 text-blue-500" :
-                        "border-zinc-700 text-zinc-500"
+                        "w-full lg:w-48 bg-black border text-[10px] font-black uppercase tracking-widest py-3 pl-4 pr-10 rounded-sm outline-none cursor-pointer transition-all appearance-none",
+                        member.role === ROLES.OWNER ? "border-yellow-600 text-yellow-500" :
+                        member.role === ROLES.ADMIN ? "border-red-600 text-red-500" :
+                        "border-zinc-800 text-zinc-500 hover:border-zinc-600"
                     )}
                   >
-                    <option value={ROLES.OWNER}>Owner (God Mode)</option>
-                    <option value={ROLES.ADMIN}>Admin (Command)</option>
-                    <option value={ROLES.REFEREE}>Referee (Control)</option>
-                    <option value={ROLES.CREW}>Crew (Restricted)</option>
+                    <option value={ROLES.OWNER}>Clearance 100: Owner</option>
+                    <option value={ROLES.ADMIN}>Clearance 90: Admin</option>
+                    <option value={ROLES.REFEREE}>Clearance 60: Referee</option>
+                    <option value={ROLES.CREW}>Clearance 40: Crew</option>
                   </select>
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none opacity-50">▼</div>
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-20 text-white">▼</div>
               </div>
             </div>
           </div>

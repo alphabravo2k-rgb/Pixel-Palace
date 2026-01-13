@@ -1,43 +1,94 @@
 /**
- * ⚖️ PERMISSION MATRIX
- * Defines the Laws of Physics for the platform.
+ * ⚖️ PERMISSION MATRIX: THE SOVEREIGN CODE
+ * VERSION: 2050.5.0 (MASTER OMNI)
+ * STATUS: ENFORCED // ATOMIC
  */
 
 import { ROLES } from './definitions';
 
-// 1. ATOMIC CAPABILITIES
+// 1. ATOMIC CAPABILITIES (The Keycards)
 export const PERMISSIONS = {
-  // 🛰️ SYSTEM
+  // 🛰️ INFRASTRUCTURE & INTEL
   VIEW_DASHBOARD: 'view_dashboard',
-  VIEW_HIDDEN_DATA: 'view_hidden_data', // IP/Passwords
+  VIEW_IP_RECORDS: 'view_ip_records',   // Sensitive server data
+  MANAGE_USERS: 'manage_users',         // Ban/Unban/Verify
+  
+  // 🏆 TOURNAMENT COMMAND
   MANAGE_TOURNAMENT: 'manage_tournament',
-  MANAGE_MATCH: 'manage_match',
-  OVERRIDE_MATCH: 'override_match',
+  MANAGE_BRACKET: 'manage_bracket',
+  FORCE_WIN: 'force_win',               // Overriding score manually
   
-  // 🎥 MEDIA
-  UPLOAD_MEDIA: 'upload_media',
-  MANAGE_ASSETS: 'manage_assets', // Team Logos/Audio
-  BROADCAST_FEED: 'broadcast_feed',
+  // ⚔️ MATCH OPERATIONS
+  MANAGE_MATCH: 'manage_match',         // Pause/Resume/Start
+  VETO_OVERRIDE: 'veto_override',       // Manually banning/picking
+  BROADCAST_ACCESS: 'broadcast_access', // GOTV/Spectator data
   
-  // 🎮 COMPETITION
+  // 🛡️ TEAM & IDENTITY
   ACT_AS_CAPTAIN: 'act_as_captain',
   EDIT_ROSTER: 'edit_roster',
-  VIEW_PRO_STATS: 'view_pro_stats'
+  UPLOAD_ASSETS: 'upload_assets',       // Team logos/Player banners
+  VIEW_ANALYTICS: 'view_analytics'      // Deep ELO/Stat tracking
 };
 
-// 2. INHERITANCE BLOCKS
-const BLOCK_PLAYER = [PERMISSIONS.UPLOAD_MEDIA, PERMISSIONS.VIEW_PRO_STATS];
-const BLOCK_TEAM   = [...BLOCK_PLAYER, PERMISSIONS.ACT_AS_CAPTAIN, PERMISSIONS.EDIT_ROSTER];
-const BLOCK_STAFF  = [PERMISSIONS.VIEW_DASHBOARD, PERMISSIONS.VIEW_HIDDEN_DATA];
+// 2. INHERITANCE KERNELS (The Blocks)
+// Grouping permissions so they can be distributed efficiently.
+const STAFF_CORE = [
+  PERMISSIONS.VIEW_DASHBOARD,
+  PERMISSIONS.VIEW_ANALYTICS,
+  PERMISSIONS.VIEW_IP_RECORDS
+];
 
-// 3. ASSIGNMENT MATRIX
+const COMPETITIVE_CORE = [
+  PERMISSIONS.ACT_AS_CAPTAIN,
+  PERMISSIONS.EDIT_ROSTER,
+  PERMISSIONS.UPLOAD_ASSETS
+];
+
+// 3. THE MASTER ASSIGNMENT MATRIX
 export const ROLE_CAPABILITIES = {
-  [ROLES.OWNER]:     Object.values(PERMISSIONS), // God Mode
-  [ROLES.ADMIN]:     [...BLOCK_STAFF, PERMISSIONS.MANAGE_TOURNAMENT, PERMISSIONS.MANAGE_MATCH, PERMISSIONS.OVERRIDE_MATCH, PERMISSIONS.MANAGE_ASSETS],
-  [ROLES.ORGANIZER]: [...BLOCK_STAFF, PERMISSIONS.MANAGE_TOURNAMENT],
-  [ROLES.CASTER]:    [...BLOCK_STAFF, PERMISSIONS.MANAGE_MATCH, PERMISSIONS.BROADCAST_FEED],
-  [ROLES.CREW]:      [...BLOCK_STAFF, PERMISSIONS.MANAGE_MATCH],
-  [ROLES.CAPTAIN]:   BLOCK_TEAM,
-  [ROLES.PLAYER]:    BLOCK_PLAYER,
-  [ROLES.GUEST]:     []
+  // 👑 GOD-MODE: Full Array Access
+  [ROLES.OWNER]: Object.values(PERMISSIONS),
+
+  // 🛡️ ADMINISTRATION
+  [ROLES.ADMIN]: [
+    ...STAFF_CORE,
+    PERMISSIONS.MANAGE_USERS,
+    PERMISSIONS.MANAGE_TOURNAMENT,
+    PERMISSIONS.MANAGE_MATCH,
+    PERMISSIONS.FORCE_WIN,
+    PERMISSIONS.VETO_OVERRIDE
+  ],
+
+  // 🏟️ ORGANIZER
+  [ROLES.ORGANIZER]: [
+    ...STAFF_CORE,
+    PERMISSIONS.MANAGE_TOURNAMENT,
+    PERMISSIONS.MANAGE_BRACKET
+  ],
+
+  // 🎥 MEDIA / CASTING
+  [ROLES.CASTER]: [
+    PERMISSIONS.VIEW_DASHBOARD,
+    PERMISSIONS.BROADCAST_ACCESS,
+    PERMISSIONS.VIEW_ANALYTICS
+  ],
+
+  // 🏁 MATCH CREW (Referees)
+  [ROLES.CREW]: [
+    PERMISSIONS.VIEW_DASHBOARD,
+    PERMISSIONS.MANAGE_MATCH,
+    PERMISSIONS.VIEW_IP_RECORDS
+  ],
+
+  // 🎖️ COMPETITORS
+  [ROLES.CAPTAIN]: [...COMPETITIVE_CORE],
+  [ROLES.PLAYER]: [PERMISSIONS.UPLOAD_ASSETS, PERMISSIONS.VIEW_ANALYTICS],
+  
+  // 👤 PUBLIC
+  [ROLES.SPECTATOR]: [PERMISSIONS.VIEW_ANALYTICS],
+  [ROLES.GUEST]: []
 };
+
+// Freeze to prevent runtime injection of permissions
+Object.freeze(PERMISSIONS);
+Object.freeze(ROLE_CAPABILITIES);

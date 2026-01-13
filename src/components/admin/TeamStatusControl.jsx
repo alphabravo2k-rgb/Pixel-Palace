@@ -1,21 +1,38 @@
+/**
+ * 🛡️ TEAM STATUS CONTROL: ELIGIBILITY & DQ
+ * VERSION: 2050.5.0 (MASTER OMNI)
+ * STATUS: OPERATIONAL // ATOMIC UPDATES
+ */
+
 import React, { useState } from 'react';
 import { supabase } from '../../supabase/client';
-import { Save, AlertTriangle, ShieldBan, CheckCircle, RefreshCw } from 'lucide-react';
+import { Save, AlertTriangle, ShieldBan, CheckCircle, RefreshCw, Zap } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { cn } from '../../lib/utils';
 
+// MASTER CORE
+import { SoundNexus, CUES } from '../../lib/soundNexus';
+import { Telemetry, EVENTS } from '../../lib/telemetry';
+import { useNexus } from '../../hooks/useNexus';
+
 export const TeamStatusControl = ({ team, onUpdate }) => {
+  const { user: admin } = useNexus();
   const [seed, setSeed] = useState(team.seed_number || '');
   const [loading, setLoading] = useState(false);
   const [isDQ, setIsDQ] = useState(team.is_disqualified || false);
 
-  // LOGIC: Check Roster Health
+  // 🧠 INTELLIGENT ROSTER ANALYSIS
   const playerCount = team.members?.length || 0;
   const isRosterFull = playerCount >= (team.max_players || 5);
-  const hasCaptain = team.members?.some(m => m.role === 'CAPTAIN' || m.role === 'captain');
+  const hasCaptain = team.members?.some(m => m.role?.toLowerCase() === 'captain');
 
+  /**
+   * ⚡ SEED CONFIGURATION
+   */
   const handleSaveSeed = async () => {
     setLoading(true);
+    SoundNexus.play(CUES.UI_CLICK);
+    
     try {
         const { error } = await supabase
             .from('teams')
@@ -23,97 +40,113 @@ export const TeamStatusControl = ({ team, onUpdate }) => {
             .eq('id', team.id);
 
         if (error) throw error;
-        toast.success("Seed Updated");
+        
+        Telemetry.log(EVENTS.ACTION, { action: 'UPDATE_SEED', team: team.name, seed }, admin.id);
+        toast.success(`UNIT SEED UPDATED: ${seed}`);
         if (onUpdate) onUpdate();
     } catch (err) {
-        toast.error("Failed to update seed");
+        toast.error("DATA LINK FAILURE");
+        SoundNexus.play(CUES.UI_ERROR);
     } finally {
         setLoading(false);
     }
   };
 
+  /**
+   * 🚫 DISQUALIFICATION PROTOCOL
+   */
   const toggleDQ = async () => {
-    if (!window.confirm(isDQ ? "Re-qualify this team?" : "DISQUALIFY this team? They will be removed from matchmaking.")) return;
+    const action = isDQ ? "RE-QUALIFY" : "DISQUALIFY";
+    if (!window.confirm(`${action} this combat unit? Matchmaking access will be ${isDQ ? 'restored' : 'revoked'}.`)) return;
     
     setLoading(true);
+    SoundNexus.play(CUES.DISPUTE_TRIGGER);
+    
     try {
-        // Assuming 'is_disqualified' column exists, or we use metadata. 
-        // For v1, we'll try updating the column directly.
         const { error } = await supabase
             .from('teams')
-            .update({ is_disqualified: !isDQ })
+            .update({ 
+                is_disqualified: !isDQ,
+                status: !isDQ ? 'DISQUALIFIED' : 'ACTIVE'
+            })
             .eq('id', team.id);
 
         if (error) throw error;
+        
         setIsDQ(!isDQ);
-        toast.success(isDQ ? "Team Re-qualified" : "Team Disqualified");
+        Telemetry.log(EVENTS.ACTION, { action, team: team.name }, admin.id);
+        toast.success(`UNIT STATUS: ${action}ED`);
         if (onUpdate) onUpdate();
     } catch (err) {
-        toast.error("DQ Update Failed");
+        toast.error("STATUS UPDATE FAILED");
     } finally {
         setLoading(false);
     }
   };
 
   return (
-    <div className="flex items-center gap-4 bg-black/20 p-2 rounded border border-white/5">
+    <div className="flex items-center gap-4 bg-zinc-950/50 p-2.5 rounded-sm border border-white/5 backdrop-blur-md">
         
         {/* 1. SEED CONTROL */}
-        <div className="flex items-center gap-2">
-            <span className="text-[10px] text-zinc-500 font-bold uppercase">Seed:</span>
-            <input 
-                type="number" 
-                className="w-12 bg-black border border-zinc-700 text-white text-xs font-mono p-1 text-center focus:border-brand outline-none rounded"
-                value={seed}
-                onChange={(e) => setSeed(e.target.value)}
-                placeholder="-"
-            />
-            {seed != team.seed_number && (
-                <button 
-                    onClick={handleSaveSeed} 
-                    disabled={loading}
-                    className="p-1 bg-brand/20 text-brand-glow rounded hover:bg-brand/40 transition-colors"
-                >
-                    <Save size={12} />
-                </button>
-            )}
+        <div className="flex items-center gap-3">
+            <span className="text-[9px] text-zinc-600 font-black uppercase tracking-widest">Index:</span>
+            <div className="relative group">
+                <input 
+                    type="number" 
+                    className="w-14 bg-black border border-zinc-800 text-white text-[10px] font-mono p-1.5 text-center focus:border-fuchsia-500 outline-none rounded-sm transition-all"
+                    value={seed}
+                    onChange={(e) => setSeed(e.target.value)}
+                    placeholder="-"
+                />
+                {seed != team.seed_number && (
+                    <button 
+                        onClick={handleSaveSeed} 
+                        disabled={loading}
+                        className="absolute -right-8 top-1/2 -translate-y-1/2 p-1.5 bg-fuchsia-600/20 text-fuchsia-400 rounded-sm hover:bg-fuchsia-600 hover:text-white transition-all shadow-lg animate-in fade-in slide-in-from-left-2"
+                    >
+                        <Save size={12} />
+                    </button>
+                )}
+            </div>
         </div>
 
-        <div className="w-px h-6 bg-white/10" />
+        <div className="w-px h-8 bg-white/5" />
 
-        {/* 2. HEALTH STATUS */}
+        {/* 2. READINESS DIAGNOSTIC */}
         <div className="flex items-center gap-3">
             {!hasCaptain ? (
-                <span className="text-[10px] text-red-500 font-bold flex items-center gap-1 bg-red-950/20 px-2 py-0.5 rounded border border-red-900/30">
-                    <AlertTriangle size={10} /> NO CAPTAIN
-                </span>
+                <div className="flex items-center gap-2 px-3 py-1 bg-red-950/20 border border-red-500/30 rounded-sm">
+                    <AlertTriangle size={12} className="text-red-500" />
+                    <span className="text-[9px] text-red-400 font-black uppercase tracking-tighter">No Captain Linked</span>
+                </div>
             ) : !isRosterFull ? (
-                <span className="text-[10px] text-yellow-500 font-bold flex items-center gap-1 bg-yellow-950/20 px-2 py-0.5 rounded border border-yellow-900/30">
-                    <AlertTriangle size={10} /> {playerCount}/5
-                </span>
+                <div className="flex items-center gap-2 px-3 py-1 bg-amber-950/20 border border-amber-500/30 rounded-sm">
+                    <Zap size={12} className="text-amber-500" />
+                    <span className="text-[9px] text-amber-400 font-black uppercase tracking-tighter">Incomplete: {playerCount}/5</span>
+                </div>
             ) : (
-                <span className="text-[10px] text-emerald-500 font-bold flex items-center gap-1 bg-emerald-950/20 px-2 py-0.5 rounded border border-emerald-900/30">
-                    <CheckCircle size={10} /> READY
-                </span>
+                <div className="flex items-center gap-2 px-3 py-1 bg-emerald-950/20 border border-emerald-500/30 rounded-sm">
+                    <CheckCircle size={12} className="text-emerald-500" />
+                    <span className="text-[9px] text-emerald-400 font-black uppercase tracking-tighter">Combat Ready</span>
+                </div>
             )}
         </div>
 
-        <div className="w-px h-6 bg-white/10" />
+        <div className="w-px h-8 bg-white/5" />
 
-        {/* 3. DQ TOGGLE */}
+        {/* 3. DQ COMMAND */}
         <button 
-            onClick={toggleDQ}
+            onClick={toggleDQ} 
             disabled={loading}
             className={cn(
-                "px-2 py-1 rounded text-[10px] font-bold uppercase transition-all flex items-center gap-1",
+                "px-4 py-1.5 rounded-sm text-[9px] font-black uppercase tracking-[0.2em] transition-all flex items-center gap-2 border",
                 isDQ 
-                    ? "bg-red-500 text-white hover:bg-red-600 shadow-[0_0_10px_rgba(220,38,38,0.5)]" 
-                    : "bg-zinc-800 text-zinc-500 hover:text-red-400 hover:bg-zinc-700"
+                    ? "bg-red-600 text-white border-red-500 shadow-[0_0_15px_rgba(220,38,38,0.3)] animate-pulse" 
+                    : "bg-zinc-900 text-zinc-500 border-zinc-800 hover:text-red-500 hover:border-red-900/50"
             )}
-            title="Disqualify Team"
         >
-            <ShieldBan size={10} />
-            {isDQ ? 'DISQUALIFIED' : 'DQ'}
+            <ShieldBan size={12} />
+            {isDQ ? 'Disqualified' : 'DQ Unit'}
         </button>
 
     </div>

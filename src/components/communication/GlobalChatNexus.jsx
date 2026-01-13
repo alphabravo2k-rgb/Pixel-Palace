@@ -1,34 +1,29 @@
+/**
+ * 📡 GLOBAL CHAT NEXUS: TRANSCEIVER OMNI
+ * VERSION: 2050.5.0 (MASTER OMNI)
+ * STATUS: OPERATIONAL // REAL-TIME UPLINK
+ */
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   MessageSquare, Send, Minimize2, Hash, 
-  Shield, Crown, Mic, Activity 
+  Shield, Crown, Mic, Activity, Zap 
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { format } from 'date-fns';
 
 // MASTER CORE
-import { useNexusStore } from '../../store/useNexusStore';
+import { useNexus } from '../../hooks/useNexus';
 import { supabase } from '../../supabase/client';
 import { SoundNexus, CUES } from '../../lib/soundNexus';
-import { getRoleTheme } from '../../lib/security/theme';
+import { Telemetry, EVENTS } from '../../lib/telemetry';
 
-/**
- * 📡 PIXEL PALACE: GLOBAL CHAT NEXUS
- * ----------------------------------
- * STATUS: MASTERED (BURJ KHALIFA STANDARD)
- * * UPGRADES:
- * 1. PHYSICS: Spring-loaded open/close animations.
- * 2. THEME SYNC: Uses global role themes for consistency.
- * 3. ANTI-SPAM: Throttle logic secured.
- */
-
-const COOLDOWN_MS = 1500;
+const COOLDOWN_MS = 1200;
 
 export const GlobalChatNexus = () => {
-  const { profile, uid, isLive } = useNexusStore(); // Assuming isLive tracks tournament status
+  const { user, theme, isAuthenticated } = useNexus();
   
-  // State
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
@@ -38,7 +33,7 @@ export const GlobalChatNexus = () => {
   
   const scrollRef = useRef(null);
 
-  // 1️⃣ UPLINK ENGINE
+  // 1️⃣ SYNC ENGINE
   const fetchHistory = useCallback(async () => {
     const { data } = await supabase
       .from('messages')
@@ -53,7 +48,7 @@ export const GlobalChatNexus = () => {
     fetchHistory();
 
     const channel = supabase
-      .channel('nexus_comms_global')
+      .channel('nexus_global_comms')
       .on('postgres_changes', { 
         event: 'INSERT', 
         schema: 'public', 
@@ -63,31 +58,29 @@ export const GlobalChatNexus = () => {
         setMessages(prev => [...prev.slice(-49), msg]); 
         
         // 🔊 HAPTIC PRIORITY AUDIO
-        if (msg.user_id !== uid) {
+        if (msg.user_id !== user?.id) {
           const isStaff = ['owner', 'admin'].includes(msg.role);
-          SoundNexus.play(isStaff ? CUES.NOTIFICATION : CUES.UI_CLICK);
+          try { SoundNexus.play(isStaff ? CUES.NOTIFICATION : CUES.UI_CLICK); } catch(e){}
           if (!isOpen) setUnreadCount(c => c + 1);
         }
       })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [uid, isOpen, fetchHistory]);
+  }, [user?.id, isOpen, fetchHistory]);
 
-  // 2️⃣ GPU-ACCELERATED SCROLL
+  // 2️⃣ DYNAMIC AUTO-SCROLL
   useEffect(() => {
     if (isOpen && scrollRef.current) {
-      requestAnimationFrame(() => {
-        scrollRef.current.scrollTo({
-          top: scrollRef.current.scrollHeight,
-          behavior: 'smooth'
-        });
+      scrollRef.current.scrollTo({
+        top: scrollRef.current.scrollHeight,
+        behavior: 'smooth'
       });
       setUnreadCount(0);
     }
   }, [messages, isOpen]);
 
-  // 3️⃣ TRANSMISSION LOGIC
+  // 3️⃣ TRANSMISSION HANDLER
   const handleSend = async (e) => {
     e.preventDefault();
     const now = Date.now();
@@ -101,122 +94,113 @@ export const GlobalChatNexus = () => {
 
     try {
       const { error } = await supabase.from('messages').insert({
-        user_id: uid,
-        display_name: profile?.display_name || 'Unknown Operator',
-        role: profile?.role || 'guest',
+        user_id: user?.id,
+        display_name: user?.username || 'Unknown Agent',
+        role: user?.role || 'guest',
         content,
-        team_id: profile?.team_id
+        team_id: user?.teamId
       });
 
       if (error) throw error;
+      
+      Telemetry.log(EVENTS.ACTION, { action: 'CHAT_SENT' }, user?.id);
       SoundNexus.play(CUES.UI_CLICK);
     } catch (err) {
-      console.error("Transmission Error:", err);
       setInputText(content); 
-      SoundNexus.play(CUES.DISPUTE_TRIGGER);
+      SoundNexus.play(CUES.UI_ERROR);
+      // toast.error("SIGNAL INTERRUPTED"); // Optional toast
     } finally {
       setIsSending(false);
     }
   };
 
-  // HELPER: Get Role Icon
   const getRoleIcon = (role) => {
-      const r = String(role).toLowerCase();
-      if (r === 'owner') return Crown;
-      if (r === 'admin') return Shield;
-      if (r === 'caster') return Mic;
-      if (r === 'captain') return Hash;
-      return null;
+    const r = String(role).toLowerCase();
+    if (r === 'owner') return <Crown size={10} className="text-yellow-500" />;
+    if (r === 'admin') return <Shield size={10} className="text-red-500" />;
+    if (r === 'caster') return <Mic size={10} className="text-fuchsia-500" />;
+    if (r === 'captain') return <Hash size={10} className="text-emerald-500" />;
+    return null;
   };
 
   return (
     <AnimatePresence>
-        {/* MINIMIZED STATE */}
         {!isOpen ? (
             <motion.button 
               key="minimized"
-              initial={{ scale: 0, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0, opacity: 0 }}
-              onClick={() => { setIsOpen(true); SoundNexus.play(CUES.NAVIGATION_SWISH); }}
-              className="fixed bottom-8 right-8 z-[200] flex items-center gap-4 bg-black/80 backdrop-blur-xl border border-white/10 p-5 rounded-sm shadow-neon hover:border-brand transition-all group active:scale-95"
+              initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0, opacity: 0 }}
+              onClick={() => { setIsOpen(true); try{SoundNexus.play(CUES.NAVIGATION_SWISH);}catch(e){} }}
+              className="fixed bottom-8 right-8 z-[200] flex items-center gap-4 bg-[#09090b]/80 backdrop-blur-xl border border-white/10 p-5 rounded-sm shadow-2xl hover:border-fuchsia-500/50 transition-all group"
             >
               <div className="relative">
-                <MessageSquare className="text-brand w-6 h-6" />
+                <MessageSquare className="text-fuchsia-500 w-6 h-6" />
                 {unreadCount > 0 && (
-                  <div className="absolute -top-3 -right-3 px-1.5 py-0.5 bg-red-600 text-white text-[8px] font-black rounded-sm shadow-neon-red animate-pulse border border-red-400">
+                  <div className="absolute -top-3 -right-3 px-1.5 py-0.5 bg-red-600 text-white text-[8px] font-black rounded-sm shadow-lg animate-pulse border border-red-400">
                     {unreadCount} NEW
                   </div>
                 )}
               </div>
-              <span className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500 group-hover:text-white transition-colors hidden md:block">
+              <span className="text-[10px] font-black uppercase tracking-[0.4em] text-zinc-500 group-hover:text-white transition-colors hidden md:block">
                 Nexus Comms
               </span>
             </motion.button>
         ) : (
-            /* EXPANDED STATE */
             <motion.div 
               key="expanded"
-              initial={{ opacity: 0, y: 50, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 50, scale: 0.95 }}
+              initial={{ opacity: 0, y: 50, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 50, scale: 0.95 }}
               transition={{ type: "spring", stiffness: 300, damping: 25 }}
-              className="fixed bottom-8 right-8 z-[200] w-[90vw] md:w-[380px] h-[550px] bg-[#09090b]/95 backdrop-blur-2xl border border-white/5 rounded-sm shadow-2xl flex flex-col overflow-hidden"
+              className="fixed bottom-8 right-8 z-[200] w-[90vw] md:w-[400px] h-[600px] bg-[#09090b] border border-white/5 rounded-sm shadow-2xl flex flex-col overflow-hidden"
             >
-              
+              {/* SCANLINE OVERLAY */}
+              <div className="absolute inset-0 pointer-events-none opacity-[0.02] bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,118,0.06))] bg-[length:100%_2px,3px_100%] z-20" />
+
               {/* HEADER */}
-              <div className="p-5 bg-white/[0.02] border-b border-white/5 flex justify-between items-center relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-[1px] bg-brand animate-scan opacity-20" />
+              <div className="p-5 bg-zinc-900/30 border-b border-white/5 flex justify-between items-center relative z-30">
                 <div className="flex items-center gap-3">
-                  <Activity size={14} className="text-brand animate-pulse" />
-                  <h3 className="text-[10px] font-black text-white uppercase tracking-[0.4em]">Global Uplink</h3>
+                  <Zap size={14} className="text-fuchsia-500 animate-pulse" />
+                  <h3 className="text-[10px] font-black text-white uppercase tracking-[0.5em]">Global Relay</h3>
                 </div>
                 <button 
-                    onClick={() => { setIsOpen(false); SoundNexus.play(CUES.UI_CLICK); }} 
-                    className="p-2 hover:bg-white/5 rounded-sm text-zinc-700 hover:text-white transition-all"
+                    onClick={() => { setIsOpen(false); try{SoundNexus.play(CUES.UI_CLICK);}catch(e){} }} 
+                    className="p-2 hover:bg-white/5 rounded-sm text-zinc-600 hover:text-white transition-all"
                 >
                   <Minimize2 size={18} />
                 </button>
               </div>
 
-              {/* MESSAGES */}
+              {/* MESSAGE VORTEX */}
               <div 
                 ref={scrollRef} 
-                className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.01)_1px,transparent_1px)] bg-[size:20px_20px]"
+                className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar bg-black/20 relative z-30"
               >
-                {messages.length === 0 && (
-                  <div className="text-center text-zinc-600 text-[10px] font-mono mt-20">
-                    --- CHANNEL SILENT ---
-                  </div>
-                )}
-                
                 {messages.map((msg) => {
-                  const theme = getRoleTheme(msg.role);
-                  const RoleIcon = getRoleIcon(msg.role);
-                  const isMe = msg.user_id === uid;
+                  const isMe = msg.user_id === user?.id;
+                  const isStaff = ['owner', 'admin', 'caster'].includes(msg.role);
 
                   return (
                     <motion.div 
-                        initial={{ opacity: 0, x: isMe ? 20 : -20 }}
-                        animate={{ opacity: 1, x: 0 }}
+                        initial={{ opacity: 0, x: isMe ? 10 : -10 }} animate={{ opacity: 1, x: 0 }}
                         key={msg.id} 
                         className={cn("flex flex-col", isMe ? "items-end" : "items-start")}
                     >
-                      <div className="flex items-center gap-2 mb-2 opacity-80">
-                        {RoleIcon && !isMe && <RoleIcon size={10} className={theme.color} />}
-                        <span className={cn("text-[9px] font-black uppercase tracking-widest", theme.color)}>
+                      <div className="flex items-center gap-2 mb-2">
+                        {!isMe && getRoleIcon(msg.role)}
+                        <span className={cn(
+                            "text-[9px] font-black uppercase tracking-widest",
+                            isStaff ? "text-fuchsia-500" : "text-zinc-500"
+                        )}>
                           {msg.display_name}
                         </span>
-                        <span className="text-[8px] text-zinc-700 font-mono italic">
+                        <span className="text-[8px] text-zinc-800 font-mono italic">
                           {format(new Date(msg.created_at), 'HH:mm')}
                         </span>
                       </div>
 
                       <div className={cn(
-                        "max-w-[90%] p-4 text-[11px] font-medium leading-relaxed border transition-all duration-300",
+                        "max-w-[85%] p-4 text-[11px] font-medium leading-relaxed border transition-all duration-300 rounded-sm",
                         isMe 
-                          ? "bg-brand/5 border-brand/20 text-white rounded-sm rounded-tr-none" 
-                          : "bg-black border-white/5 text-zinc-400 rounded-sm rounded-tl-none hover:border-white/10"
+                          ? "bg-zinc-900 border-zinc-700 text-white rounded-tr-none" 
+                          : "bg-black/40 border-white/5 text-zinc-400 rounded-tl-none"
                       )}>
                         {msg.content}
                       </div>
@@ -225,26 +209,24 @@ export const GlobalChatNexus = () => {
                 })}
               </div>
 
-              {/* INPUT */}
-              <form onSubmit={handleSend} className="p-4 bg-black/60 border-t border-white/5 flex gap-3 items-center">
+              {/* INPUT MODULE */}
+              <form onSubmit={handleSend} className="p-4 bg-zinc-900/50 border-t border-white/5 flex gap-3 items-center relative z-30">
                 <div className="flex-1 relative group">
                    <input 
                      value={inputText}
                      onChange={(e) => setInputText(e.target.value)}
-                     placeholder="Transmit..."
-                     disabled={!profile}
-                     className="w-full bg-zinc-900/50 border border-white/5 rounded-sm px-4 py-3 text-xs text-white placeholder:text-zinc-800 focus:border-brand/40 outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                     placeholder={isAuthenticated ? "Transmit message..." : "Uplink required to chat"}
+                     disabled={!isAuthenticated || isSending}
+                     className="w-full bg-black border border-zinc-800 rounded-sm px-4 py-3 text-xs text-white placeholder:text-zinc-800 focus:border-fuchsia-500 outline-none transition-all disabled:opacity-30 font-mono"
                    />
-                   <div className="absolute bottom-[-2px] left-0 h-[1px] bg-brand w-full scale-x-0 group-focus-within:scale-x-100 transition-transform origin-left" />
                 </div>
                 <button 
-                  disabled={!inputText.trim() || isSending}
-                  className="p-3 bg-brand text-white rounded-sm shadow-neon hover:brightness-110 disabled:opacity-20 disabled:grayscale transition-all"
+                  disabled={!inputText.trim() || isSending || !isAuthenticated}
+                  className="p-3 bg-fuchsia-600 text-white rounded-sm hover:bg-fuchsia-500 disabled:opacity-20 transition-all active:scale-95 shadow-lg shadow-fuchsia-600/10"
                 >
-                  <Send size={18} className={cn(isSending && "animate-pulse")} />
+                  <Send size={18} />
                 </button>
               </form>
-
             </motion.div>
         )}
     </AnimatePresence>

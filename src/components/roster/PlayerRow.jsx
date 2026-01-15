@@ -1,25 +1,20 @@
+/**
+ * 👤 PLAYER ROW: OPERATOR UNIT
+ * VERSION: 2050.5.0 (MASTER OMNI)
+ * STATUS: OPERATIONAL // HIGH-FIDELITY
+ */
+
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Crown, ShieldAlert, User } from 'lucide-react';
+import { Crown, ShieldAlert, User, Zap } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
 // MASTER CORE
-import { normalizeRole } from '../../lib/security/engine'; // ✅ FIXED IMPORT
+import { normalizeRole } from '../../lib/security/engine'; 
 import { SoundNexus, CUES } from '../../lib/soundNexus';
 import { SocialIcons } from './SocialIcons';
 
-/**
- * 👤 PLAYER ROW: OPERATOR UNIT
- * ----------------------------
- * STATUS: MASTERED (BURJ KHALIFA STANDARD)
- * * UPGRADES:
- * 1. SENSORY: Audio feedback on hover.
- * 2. ROBUSTNESS: Handles null/undefined data gracefully.
- * 3. VISUALS: Role-based coloring (Captain = Emerald/Brand).
- */
-
-// 🛡️ ROBUST INITIALS HELPER
-// Handles special chars, spaces, and single words
+// 🛡️ ROBUST INITIALS ENGINE
 const getInitials = (name) => {
   if (!name) return '??';
   const clean = name.replace(/[^\w\s]/gi, '').trim();
@@ -30,13 +25,13 @@ const getInitials = (name) => {
 };
 
 export const PlayerRow = ({ player, isHovered, index = 0 }) => {
-  const role = normalizeRole(player.role); // 'captain', 'player', 'substitute'
+  const role = normalizeRole(player.role); 
   const isCaptain = role === 'captain';
   const isSub = role === 'substitute';
 
   const initials = getInitials(player.name || player.username);
   
-  // Normalize Data Keys (Handles differences between DB Views vs Direct Queries)
+  // 🛰️ DATA NORMALIZATION MATRIX
   const faceitElo = player.faceit_elo || player.elo || null;
   const discord = player.discord_handle || player.discord_id || player.discord;
   const steam = player.steam_url || player.steam_id || player.steam;
@@ -45,58 +40,76 @@ export const PlayerRow = ({ player, isHovered, index = 0 }) => {
 
   return (
     <motion.div 
-      initial={{ opacity: 0, x: -10 }}
+      initial={{ opacity: 0, x: -15 }}
       animate={{ opacity: 1, x: 0 }}
-      transition={{ delay: index * 0.05 }}
-      onMouseEnter={() => SoundNexus.play(CUES.UI_HOVER, { volume: 0.05 })}
+      transition={{ 
+        type: "spring", 
+        stiffness: 300, 
+        damping: 30, 
+        delay: index * 0.04 
+      }}
+      onMouseEnter={() => { try{ SoundNexus.play(CUES.UI_HOVER, { volume: 0.03 }); }catch(e){} }}
       className={cn(
-        "group flex items-center justify-between p-3 transition-colors duration-200 border-b border-white/5 last:border-0",
-        isHovered ? "bg-white/5" : "bg-transparent",
-        isSub && "bg-yellow-900/5" // Subtle tint for subs
+        "group flex items-center justify-between p-4 transition-all duration-300 border-b border-white/5 last:border-0 relative overflow-hidden",
+        isHovered ? "bg-white/[0.03]" : "bg-transparent",
+        isSub && "bg-amber-500/[0.02]" 
       )}
     >
+      {/* 🧩 SELECTION GLOW (Only on Hover) */}
+      {isHovered && (
+          <motion.div 
+            layoutId="playerGlow"
+            className="absolute inset-y-0 left-0 w-1 bg-fuchsia-500 shadow-[0_0_15px_#f472b6]" 
+          />
+      )}
       
-      {/* LEFT SIDE: Identity */}
-      <div className="flex items-center gap-3">
-        {/* Avatar / Icon */}
+      {/* LEFT SIDE: Identity Cluster */}
+      <div className="flex items-center gap-4 relative z-10">
+        {/* AVATAR SYSTEM */}
         <div className={cn(
-            "w-9 h-9 flex items-center justify-center font-bold text-xs rounded-sm border transition-all shadow-sm",
+            "w-10 h-10 flex items-center justify-center font-black text-xs rounded-sm border transition-all duration-500 rotate-45 group-hover:rotate-0",
             isCaptain 
-                ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.1)]" 
+                ? "bg-fuchsia-500/10 border-fuchsia-500/40 text-fuchsia-500 shadow-[0_0_15px_rgba(244,114,182,0.1)]" 
                 : isSub 
-                    ? "bg-yellow-900/20 border-yellow-700 text-yellow-500" 
-                    : "bg-zinc-800 border-zinc-700 text-zinc-500"
+                    ? "bg-amber-900/20 border-amber-600 text-amber-500" 
+                    : "bg-zinc-900 border-zinc-800 text-zinc-600"
         )}>
-          {isCaptain ? <Crown className="w-4 h-4" /> : isSub ? <ShieldAlert className="w-4 h-4" /> : initials}
+          <div className="-rotate-45 group-hover:rotate-0 transition-transform duration-500">
+            {isCaptain ? <Crown size={16} /> : isSub ? <ShieldAlert size={16} /> : initials}
+          </div>
         </div>
 
         <div className="flex flex-col">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <span className={cn(
-                "font-bold uppercase tracking-wide text-sm leading-none truncate max-w-[140px]",
-                isCaptain ? "text-white" : "text-zinc-300"
+                "font-display font-black uppercase italic tracking-tighter text-base leading-none truncate max-w-[160px] transition-colors",
+                isCaptain ? "text-white" : "text-zinc-400 group-hover:text-zinc-200"
             )}>
-              {player.name || player.username || 'Unknown Agent'}
+              {player.username || player.name || 'ANON_OPERATOR'}
             </span>
             
-            {/* Status Badges */}
-            {isSub && <span className="text-[9px] bg-yellow-500/10 text-yellow-500 px-1 rounded border border-yellow-500/20 font-bold uppercase">Reserve</span>}
-            
+            {/* POWER INDICATORS */}
             {faceitElo > 0 && (
-                <span className="text-[9px] bg-black/40 text-zinc-400 px-1.5 rounded font-mono border border-white/5" title="Faceit ELO">
+                <div className="flex items-center gap-1 bg-black/60 px-2 py-0.5 rounded-sm border border-white/5 font-mono text-[9px] text-zinc-500" title="Faceit ELO">
+                    <Zap size={8} className="text-amber-500" />
                     {faceitElo}
-                </span>
+                </div>
             )}
           </div>
           
-          <span className="text-[9px] text-zinc-600 font-mono uppercase tracking-widest mt-0.5">
-            {isCaptain ? 'Team Captain' : role === 'player' ? 'Operator' : role}
-          </span>
+          <div className="flex items-center gap-2 mt-1.5">
+             <span className={cn(
+               "text-[8px] font-black uppercase tracking-[0.2em]",
+               isCaptain ? "text-fuchsia-500" : "text-zinc-700"
+             )}>
+                {isCaptain ? 'Mission Captain' : isSub ? 'Reserve Unit' : 'Field Operator'}
+             </span>
+          </div>
         </div>
       </div>
 
-      {/* RIGHT SIDE: Socials (Fade in on hover) */}
-      <div className="flex items-center opacity-30 group-hover:opacity-100 transition-opacity duration-300">
+      {/* RIGHT SIDE: Comms Linkage */}
+      <div className="flex items-center opacity-10 group-hover:opacity-100 transition-all duration-500 translate-x-4 group-hover:translate-x-0 relative z-10">
         <SocialIcons 
             discord={discord} 
             steam={steam} 

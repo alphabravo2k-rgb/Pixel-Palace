@@ -1,22 +1,19 @@
+/**
+ * 🔗 SOCIAL ICONS: CONNECTIVITY
+ * VERSION: 2050.5.0 (MASTER OMNI)
+ * STATUS: SECURED // ATOMIC
+ */
+
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Twitter } from 'lucide-react';
+import { Twitter, Copy, ExternalLink } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
 // MASTER INTEGRATION
 import { SoundNexus, CUES } from '../../lib/soundNexus';
+import { Telemetry, EVENTS } from '../../lib/telemetry';
 
-/**
- * 🔗 SOCIAL ICONS: CONNECTIVITY
- * -----------------------------
- * STATUS: MASTERED (BURJ KHALIFA STANDARD)
- * * UPGRADES:
- * 1. PHYSICS: Spring-loaded hover effects.
- * 2. AUDIO: Sound feedback on interaction.
- * 3. SECURITY: Javascript protocol scrubbing.
- */
-
-// 🎨 BRAND ICONS (Custom Paths)
+// 🎨 BRAND ICONS (High-Definition Tactical Paths)
 const BrandIcons = {
   Discord: ({ className }) => (
     <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
@@ -30,14 +27,13 @@ const BrandIcons = {
   ),
   Faceit: ({ className }) => (
     <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
-      <path d="M24 2.6l-1.9-.3c-2.9-.4-5.2.3-6.8 1.9-.3.3-.6.6-.9 1L12.9 2h-1L10.3 3.6 2.6 13.9l.6 2.2 1.9.6 1.9-2.6.3-.3.3-.6c1.6-3.2 4.5-4.5 7.4-4.2l3.6.3 3.5-3.6 1.9-3.1zM2.6 21.4l1.9.3c2.9.4 5.2-.3 6.8-1.9.3-.3.6-.6.9-1L13.7 17h1l1.6-1.6 7.7-10.3-.6-2.2-1.9-.6-1.9 2.6-.3.3-.3.6c-1.6 3.2-4.5 4.5-7.4 4.2l-3.6-.3L4.5 13.3 2.6 16.4v5z" />
+      <path d="M23.999 2.705c-.167-1.446-1.41-2.433-2.802-2.585-6.522-.73-12.603 1.353-12.603 1.353s-6.336 2.456-12.288 3.03C-.62 4.88-.633 6.643 2.053 6.34c3.418-.387 13.923-2.08 13.923-2.08l.385 1.554-15.01 2.37c-1.396.22-1.35 2.03.02 2.24l15.114 2.253.402 1.62-15.187 2.155c-1.48.212-1.31 2.14.07 2.21 4.545.232 14.832-.852 14.832-.852l.52 2.102-14.898 3.522c-1.8.426-1.077 2.924.787 2.502 6.556-1.48 13.116-2.923 13.116-2.923s5.88-1.528 7.625-5.914c1.19-2.99 1.483-11.233.178-14.394" />
     </svg>
   )
 };
 
 export const SocialIcons = ({ discord, steam, faceit, twitter, className = "" }) => {
   
-  // Security: Prevent javascript: links
   const isSafeUrl = (url) => {
     try {
       if (!url) return false;
@@ -51,19 +47,21 @@ export const SocialIcons = ({ discord, steam, faceit, twitter, className = "" })
   const SocialLink = ({ url, icon: Icon, colorClass, type, isCopyOnly = false }) => {
     if (!url) return null;
 
-    const handleClick = (e) => {
-      // Logic: If it's a handle (like Discord) or unsafe URL, copy it.
-      // Otherwise, open it.
+    const handleInteraction = (e) => {
       if (isCopyOnly || !isSafeUrl(url)) {
         e.preventDefault();
         navigator.clipboard.writeText(url);
-        SoundNexus.play(CUES.SUCCESS); // Copy Success Sound
-        toast.success(`${type} Copied!`, {
-            style: { background: '#18181b', color: '#fff', fontSize: '12px', border: '1px solid #3f3f46' },
-            icon: '📋'
+        
+        try { SoundNexus.play(CUES.UI_SUCCESS); } catch(e){}
+        Telemetry.log(EVENTS.ACTION, { action: 'handle_copied', type });
+        
+        toast.success(`${type} COPIED`, {
+            style: { background: '#09090b', color: '#fff', fontSize: '10px', border: '1px solid #ffffff10', letterSpacing: '0.1em' },
+            icon: <Copy size={12} className="text-zinc-400" />
         });
       } else {
-        SoundNexus.play(CUES.UI_CLICK); // External Link Sound
+        try { SoundNexus.play(CUES.UI_CLICK); } catch(e){}
+        Telemetry.log(EVENTS.ACTION, { action: 'external_link_open', type });
       }
     };
 
@@ -74,24 +72,50 @@ export const SocialIcons = ({ discord, steam, faceit, twitter, className = "" })
         href={href}
         target="_blank" 
         rel="noopener noreferrer"
-        onClick={handleClick}
-        onMouseEnter={() => SoundNexus.play(CUES.UI_HOVER, { volume: 0.1 })}
-        whileHover={{ scale: 1.2, rotate: 5 }}
-        whileTap={{ scale: 0.9 }}
-        className={`p-1.5 rounded transition-colors cursor-pointer opacity-70 hover:opacity-100 ${colorClass}`}
-        title={isCopyOnly ? `Copy ${type}` : `Open ${type}`}
+        onClick={handleInteraction}
+        onMouseEnter={() => { try{ SoundNexus.play(CUES.UI_HOVER, { volume: 0.05 }); }catch(e){} }}
+        whileHover={{ y: -2, scale: 1.1, filter: 'brightness(1.2)' }}
+        whileTap={{ scale: 0.95 }}
+        className={`p-2 rounded-sm border border-transparent transition-all cursor-pointer opacity-40 hover:opacity-100 flex items-center justify-center relative group ${colorClass}`}
+        title={isCopyOnly ? `Copy ${type}` : `Redirect to ${type}`}
       >
         <Icon className="w-3.5 h-3.5" />
+        
+        {/* ACTION HINT INDICATOR */}
+        <div className="absolute -top-1 -right-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            {isCopyOnly ? <Copy size={6} /> : <ExternalLink size={6} />}
+        </div>
       </motion.a>
     );
   };
 
   return (
-    <div className={`flex items-center gap-1 ${className}`}>
-      <SocialLink url={faceit} icon={BrandIcons.Faceit} colorClass="text-[#ff5500] hover:bg-[#ff5500]/10" type="Faceit" />
-      <SocialLink url={steam} icon={BrandIcons.Steam} colorClass="text-[#66c0f4] hover:bg-[#66c0f4]/10" type="Steam" />
-      <SocialLink url={discord} icon={BrandIcons.Discord} colorClass="text-[#5865F2] hover:bg-[#5865F2]/10" type="Discord" isCopyOnly={true} />
-      <SocialLink url={twitter} icon={Twitter} colorClass="text-[#1DA1F2] hover:bg-[#1DA1F2]/10" type="Twitter" />
+    <div className={`flex items-center gap-0.5 ${className}`}>
+      <SocialLink 
+        url={faceit} 
+        icon={BrandIcons.Faceit} 
+        colorClass="text-[#ff5500] hover:bg-[#ff5500]/5 hover:border-[#ff5500]/20" 
+        type="FACEIT" 
+      />
+      <SocialLink 
+        url={steam} 
+        icon={BrandIcons.Steam} 
+        colorClass="text-[#66c0f4] hover:bg-[#66c0f4]/5 hover:border-[#66c0f4]/20" 
+        type="STEAM" 
+      />
+      <SocialLink 
+        url={discord} 
+        icon={BrandIcons.Discord} 
+        colorClass="text-[#5865F2] hover:bg-[#5865F2]/5 hover:border-[#5865F2]/20" 
+        type="DISCORD" 
+        isCopyOnly={true} 
+      />
+      <SocialLink 
+        url={twitter} 
+        icon={Twitter} 
+        colorClass="text-white hover:bg-white/5 hover:border-white/20" 
+        type="X" 
+      />
     </div>
   );
 };

@@ -1,48 +1,45 @@
+/**
+ * PIXEL PALACE: BATTLE MAP (BRACKET VIEW)
+ * VERSION: 2050.5.0 (MASTER OMNI)
+ * STATUS: OPERATIONAL // REAL-TIME SYNCED
+ */
+
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { supabase, storageNexus } from '../supabase/client';
 import { useTournament } from '../tournament/useTournament';
-import { useNexusStore } from '../store/useNexusStore';
-import { getClearanceLevel } from '../lib/roles';
+import { useNexus } from '../hooks/useNexus';
 import { SoundNexus, CUES } from '../lib/soundNexus';
-import { RefreshCw, WifiOff, Loader2, Trophy, Layout, Activity, ShieldAlert } from 'lucide-react'; 
+import { Telemetry, EVENTS } from '../lib/telemetry';
+import { 
+  RefreshCw, WifiOff, Loader2, Trophy, Layout, 
+  Activity, ShieldAlert, Zap, Crosshair 
+} from 'lucide-react'; 
 import { cn } from '../lib/utils';
 import { toast } from 'react-hot-toast';
 
-// 🏗️ SUB-COMPONENTS (Assumed to exist or will be built next)
-import Bracket from './Bracket'; 
+// 🏗️ SUB-COMPONENTS
+import { Bracket } from './Bracket'; 
 import { MatchWarRoom } from './admin/MatchWarRoom'; 
 import { MatchModal } from './MatchModal'; 
 
-/**
- * PIXEL PALACE: BATTLE MAP (BRACKET VIEW)
- * ---------------------------------------
- * STATUS: MASTERED (DUBAI STANDARD)
- * VERSION: 4.0.0
- * * FEATURES:
- * 1. GPU ACCELERATION: 'translateZ(0)' forces hardware compositing for smooth panning.
- * 2. ASSET RESOLUTION: Auto-converts logo paths to CDN URLs.
- * 3. REAL-TIME NODE SYNC: Updates specific match nodes without full re-render.
- */
-
 export const BracketView = ({ adminMode = false }) => {
-  const { profile } = useNexusStore(); // Global Brain
-  const { selectedTournamentId, tournamentData, loading: contextLoading } = useTournament(); // Tournament Context
+  const { user, can } = useNexus();
+  const { selectedTournamentId, tournamentData, loading: contextLoading } = useTournament(); 
   
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState(null);
   
-  // Modal State
   const [selectedMatch, setSelectedMatch] = useState(null);
   const [warRoomMatchId, setWarRoomMatchId] = useState(null);
 
-  // 🛡️ SECURITY RESOLUTION
-  const clearance = useMemo(() => getClearanceLevel(profile?.role), [profile]);
-  // Level 90+ (Admin) gets write access
-  const isAdmin = adminMode || clearance >= 90;
+  const isAdmin = adminMode || can('CAP_ACCESS_GOD_MODE');
 
-  // 🔄 DATA SYNC ENGINE
+  /**
+   * 🔄 DATA SYNC ENGINE
+   * Pulls the entire tournament structure and resolves cloud assets.
+   */
   const fetchBracket = useCallback(async () => {
     if (!selectedTournamentId) return;
     setLoading(true);
@@ -60,8 +57,7 @@ export const BracketView = ({ adminMode = false }) => {
 
       if (error) throw error;
 
-      // 📁 HARD FILE RESOLUTION: Map logos through the Storage Nexus
-      // This ensures <img> tags get valid https:// urls, not raw paths
+      // 📁 ASSET RESOLUTION: Map internal paths to public CDN URLs
       const resolvedMatches = data.map(match => ({
         ...match,
         team1: match.team1 ? { ...match.team1, logo: storageNexus.getUrl('team-assets', match.team1.logo_path) } : null,
@@ -70,70 +66,74 @@ export const BracketView = ({ adminMode = false }) => {
 
       setMatches(resolvedMatches);
       setError(null);
+      Telemetry.log(EVENTS.ACTION, { action: 'bracket_sync_complete', tournamentId: selectedTournamentId });
     } catch (err) {
-      console.error(err);
       setError("Nexus Sync Interrupted");
-      toast.error("Bracket Uplink Failed");
+      toast.error("BRACKET UPLINK FAILED");
     } finally {
       setLoading(false);
     }
   }, [selectedTournamentId]);
 
-  // ⚡ COMMAND: BRACKET GENERATION
+  /**
+   * ⚡ COMMAND: ATOMIC BRACKET GENERATION
+   * Nukes and rebuilds the tournament geometry.
+   */
   const handleGenerate = async () => {
-    // Only Owner (Level 100) can nuke the bracket
-    if (clearance < 100) {
-      SoundNexus.play(CUES.DISPUTE_TRIGGER);
+    if (!can('CAP_RECONSTRUCT_BRACKET')) {
+      try{SoundNexus.play(CUES.DISPUTE_TRIGGER);}catch(e){}
       toast.error("UNAUTHORIZED: Level 100 Clearance Required.");
       return;
     }
     
-    if (!window.confirm("⚠️ DESTRUCTIVE ACTION: Wipe match history and rebuild bracket?")) return;
+    if (!window.confirm("☢️ NUCLEAR OPTION: Wipe match history and rebuild bracket geometry?")) return;
 
-    SoundNexus.play(CUES.UI_CLICK);
+    try{SoundNexus.play(CUES.UI_CLICK_HEAVY);}catch(e){}
     setGenerating(true);
-    const { error } = await supabase.rpc('admin_generate_bracket', { 
-        p_tournament_id: selectedTournamentId 
-    });
     
-    if (error) {
-        toast.error(error.message);
-    } else {
-        SoundNexus.play(CUES.SUCCESS || CUES.NOTIFICATION);
-        toast.success("Bracket Reconstructed Successfully");
+    try {
+        const { error } = await supabase.rpc('admin_generate_bracket', { 
+            p_tournament_id: selectedTournamentId 
+        });
+        
+        if (error) throw error;
+
+        Telemetry.log(EVENTS.ACTION, { action: 'BRACKET_RECONSTRUCTED' }, user.id);
+        try{SoundNexus.play(CUES.UI_SUCCESS);}catch(e){}
+        toast.success("TOURNAMENT GEOMETRY INITIALIZED");
         fetchBracket();
+    } catch (err) {
+        toast.error(err.message);
+        try{SoundNexus.play(CUES.UI_ERROR);}catch(e){}
+    } finally {
+        setGenerating(false);
     }
-    setGenerating(false);
   };
 
-  // 📡 REAL-TIME SUBSCRIPTION
   useEffect(() => {
     if (!selectedTournamentId) return;
     fetchBracket();
     
     const channel = supabase
-      .channel(`bracket:${selectedTournamentId}`)
+      .channel(`bracket_live:${selectedTournamentId}`)
       .on('postgres_changes', { 
           event: '*', 
           schema: 'public', 
           table: 'matches', 
           filter: `tournament_id=eq.${selectedTournamentId}` 
       }, () => {
-          // Debounce could be added here for high traffic
           fetchBracket();
+          try{SoundNexus.play(CUES.UI_NOTIFICATION);}catch(e){}
       }) 
       .subscribe();
       
     return () => supabase.removeChannel(channel);
   }, [selectedTournamentId, fetchBracket]);
 
-  // 🖱️ INTERACTION HANDLER
   const handleMatchClick = (match) => {
-    // Prevent clicking empty slots unless Admin
     if (!match.team1_id && !match.team2_id && !isAdmin) return; 
 
-    SoundNexus.play(CUES.UI_CLICK);
-
+    try{SoundNexus.play(CUES.UI_CLICK);}catch(e){}
     if (isAdmin) {
       setWarRoomMatchId(match.id);
     } else {
@@ -141,92 +141,106 @@ export const BracketView = ({ adminMode = false }) => {
     }
   };
 
-  if (contextLoading) return <div className="h-full flex flex-col items-center justify-center bg-black"><Loader2 className="animate-spin text-brand w-10 h-10" /></div>;
+  if (contextLoading) return (
+    <div className="h-full flex flex-col items-center justify-center bg-black gap-4">
+      <Loader2 className="animate-spin text-fuchsia-500 w-12 h-12 opacity-20" />
+      <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-[0.5em]">Synchronizing Nexus...</span>
+    </div>
+  );
   
-  // Logic: Separate 3rd Place for specific rendering
   const mainBracketMatches = matches.filter(m => !m.is_third_place);
   const thirdPlaceMatch = matches.find(m => m.is_third_place);
 
   return (
-    <div className="h-full flex flex-col bg-[#020202] relative overflow-hidden">
+    <div className="h-full flex flex-col bg-[#050505] relative overflow-hidden font-sans">
         
        {/* 1. COMMAND HUD OVERLAY */}
-       <div className="absolute top-6 left-6 right-6 flex justify-between items-start pointer-events-none z-50">
-         <div className="bg-bg-panel/80 backdrop-blur-xl border border-white/5 p-5 rounded-sm pointer-events-auto flex items-center gap-5">
-           <div className="relative">
-              <div className={cn("absolute -inset-1 rounded-full blur-sm", matches.some(m => m.status === 'live') ? "bg-emerald-500/20" : "bg-brand/20")} />
-              <Activity className={cn("relative w-5 h-5", matches.some(m => m.status === 'live') ? "text-emerald-500 animate-pulse" : "text-brand")} />
-           </div>
-           <div>
-              <h2 className="text-2xl font-display font-black text-white italic uppercase tracking-tighter leading-none">
-                  {tournamentData?.name || 'GENESIS MAP'}
+       <div className="absolute top-8 left-8 right-8 flex justify-between items-start pointer-events-none z-50">
+         <div className="bg-[#09090b]/80 backdrop-blur-3xl border border-white/5 p-6 rounded-sm pointer-events-auto flex items-center gap-6 shadow-2xl relative overflow-hidden group">
+            {/* SCANLINE DECORATOR */}
+            <div className="absolute inset-0 bg-fuchsia-500/[0.02] opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+            
+            <div className="relative">
+              <div className={cn(
+                "absolute -inset-2 rounded-full blur-md opacity-20", 
+                matches.some(m => m.status === 'live') ? "bg-red-500 animate-pulse" : "bg-fuchsia-500"
+              )} />
+              <Activity className={cn("relative w-6 h-6", matches.some(m => m.status === 'live') ? "text-red-500 animate-pulse" : "text-fuchsia-500")} />
+            </div>
+            <div>
+              <h2 className="text-3xl font-display font-black text-white italic uppercase tracking-tighter leading-none">
+                  {tournamentData?.name || 'GENESIS_PROTOCOL'}
               </h2>
-              <p className="text-[9px] text-zinc-600 font-black tracking-[0.3em] uppercase mt-1">
-                  {matches.length} NODES OPERATIONAL // {matches.filter(m => m.status === 'completed').length} SECURED
-              </p>
-           </div>
+              <div className="flex items-center gap-3 mt-3">
+                  <Zap size={10} className="text-emerald-500" />
+                  <p className="text-[9px] text-zinc-500 font-black tracking-[0.4em] uppercase">
+                    {matches.length} NODES // {matches.filter(m => m.status === 'completed').length} SECURED
+                  </p>
+              </div>
+            </div>
          </div>
 
-         <div className="flex gap-3 pointer-events-auto">
-             {clearance >= 100 && (
+         <div className="flex gap-4 pointer-events-auto">
+             {isAdmin && (
                  <button 
                     onClick={handleGenerate} 
                     disabled={generating || loading}
-                    className="px-5 py-3 bg-red-950/20 hover:bg-red-600 border border-red-500/30 text-red-500 hover:text-white rounded-sm flex items-center gap-3 transition-all duration-300 group"
+                    className="px-6 py-3 bg-red-600/10 hover:bg-red-600 border border-red-500/30 text-red-500 hover:text-white rounded-sm flex items-center gap-3 transition-all duration-500 group shadow-2xl"
                  >
-                    {generating ? <Loader2 className="w-4 h-4 animate-spin"/> : <Layout className="w-4 h-4 group-hover:rotate-90 transition-transform"/>}
-                    <span className="text-[10px] font-black uppercase tracking-widest">Reconstruct</span>
+                    {generating ? <Loader2 className="w-4 h-4 animate-spin"/> : <Layout className="w-4 h-4 group-hover:rotate-90 transition-transform duration-500"/>}
+                    <span className="text-[10px] font-black uppercase tracking-[0.2em]">Reconstruct</span>
                  </button>
              )}
 
-             <button onClick={fetchBracket} className="p-4 bg-zinc-900/80 backdrop-blur border border-white/5 hover:border-brand/50 text-zinc-500 hover:text-white transition-all">
+             <button onClick={fetchBracket} className="p-4 bg-zinc-900/50 backdrop-blur-xl border border-white/5 hover:border-fuchsia-500/50 text-zinc-500 hover:text-white transition-all rounded-sm shadow-2xl">
                <RefreshCw className={cn("w-5 h-5", loading && "animate-spin")} />
              </button>
          </div>
        </div>
 
-       {/* 2. UPLINK FAILURE WARNING */}
+       {/* 2. ATMOSPHERIC WARNINGS */}
        {error && (
-         <div className="absolute top-32 left-1/2 -translate-x-1/2 bg-red-600 px-6 py-2 rounded-full text-white text-[10px] font-black uppercase tracking-widest z-[60] flex items-center gap-3 animate-bounce">
-           <WifiOff size={14} /> {error}
+         <div className="absolute top-40 left-1/2 -translate-x-1/2 bg-red-600 px-8 py-3 rounded-sm text-white text-[10px] font-black uppercase tracking-[0.4em] z-[60] flex items-center gap-4 shadow-[0_0_50px_rgba(220,38,38,0.5)] animate-in slide-in-from-top-4">
+           <WifiOff size={16} /> {error}
          </div>
        )}
 
-       {/* 3. THE BRACKET ENGINE: GPU ACCELERATED CONTAINER */}
+       {/* 3. THE BRACKET ENGINE: GPU ACCELERATED */}
        <div className="flex-1 overflow-hidden relative cursor-grab active:cursor-grabbing will-change-transform" style={{ transform: 'translateZ(0)' }}>
           <Bracket matches={mainBracketMatches} onMatchClick={handleMatchClick} />
        </div>
 
-       {/* 4. 3RD PLACE MATCH (Floating Overlay) */}
+       {/* 4. 3RD PLACE MATCH (TACTICAL INSET) */}
        {thirdPlaceMatch && (
-           <div className="absolute bottom-8 right-8 z-40 animate-in slide-in-from-bottom-8">
+           <div className="absolute bottom-10 right-10 z-40 animate-in slide-in-from-right-8 duration-1000">
                <div 
                    onClick={() => handleMatchClick(thirdPlaceMatch)}
-                   className="bg-zinc-900/90 backdrop-blur border border-zinc-700 p-4 rounded-lg shadow-2xl cursor-pointer hover:border-amber-600/50 hover:scale-105 transition-all group"
+                   className="bg-[#09090b]/90 backdrop-blur-2xl border border-zinc-800 p-6 rounded-sm shadow-2xl cursor-pointer hover:border-amber-500/50 transition-all group overflow-hidden"
                >
-                   <h3 className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mb-2 text-center flex items-center justify-center gap-2 group-hover:text-amber-500 transition-colors">
-                       <Trophy size={10} className="text-amber-700"/> Bronze Match
+                   <div className="absolute inset-0 bg-amber-500/[0.02] opacity-0 group-hover:opacity-100 transition-opacity" />
+                   <h3 className="text-zinc-600 text-[9px] font-black uppercase tracking-[0.4em] mb-4 text-center flex items-center justify-center gap-3 group-hover:text-amber-500 transition-colors">
+                       <Crosshair size={12} className="text-amber-900"/> Bronze Engagement
                    </h3>
-                   <div className="flex flex-col gap-px w-48">
-                       <div className="flex justify-between px-3 py-2 bg-black border border-zinc-800 rounded-t text-xs font-bold text-zinc-300">
-                           <span>{thirdPlaceMatch.team1?.name || 'TBD'}</span>
-                           <span className="font-mono">{thirdPlaceMatch.team1_score}</span>
-                       </div>
-                       <div className="flex justify-between px-3 py-2 bg-black border border-t-0 border-zinc-800 rounded-b text-xs font-bold text-zinc-300">
-                           <span>{thirdPlaceMatch.team2?.name || 'TBD'}</span>
-                           <span className="font-mono">{thirdPlaceMatch.team2_score}</span>
-                       </div>
+                   <div className="flex flex-col gap-1 w-56 relative z-10">
+                       {[
+                         { name: thirdPlaceMatch.team1?.name, score: thirdPlaceMatch.team1_score },
+                         { name: thirdPlaceMatch.team2?.name, score: thirdPlaceMatch.team2_score }
+                       ].map((t, idx) => (
+                        <div key={idx} className="flex justify-between px-4 py-3 bg-black/60 border border-white/5 text-[11px] font-black text-zinc-400 group-hover:text-white transition-colors">
+                            <span className="truncate italic uppercase tracking-tighter">{t.name || 'AWAITING_DATA'}</span>
+                            <span className="font-mono text-fuchsia-500">{t.score ?? '0'}</span>
+                        </div>
+                       ))}
                    </div>
                </div>
            </div>
        )}
 
-       {/* 5. ADMIN COMMAND TERMINAL */}
+       {/* 5. ADMIN OVERRIDE TERMINAL */}
        {warRoomMatchId && (
-         <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/95 backdrop-blur-md p-6 animate-in zoom-in-95 duration-300">
+         <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/98 backdrop-blur-2xl p-8 animate-in zoom-in-95 duration-500">
             <div className="absolute inset-0" onClick={() => setWarRoomMatchId(null)} />
-            <div className="relative z-10 w-full max-w-[1600px] h-[90vh] shadow-2xl border border-white/5">
-                {/* 🛑 STUB: Ensure MatchWarRoom exists or app breaks */}
+            <div className="relative z-10 w-full max-w-[1700px] h-[92vh] shadow-[0_0_100px_rgba(0,0,0,1)] border border-white/10 rounded-sm overflow-hidden">
                 <MatchWarRoom 
                     matchId={warRoomMatchId} 
                     onClose={() => setWarRoomMatchId(null)} 
@@ -235,7 +249,7 @@ export const BracketView = ({ adminMode = false }) => {
          </div>
        )}
 
-       {/* 6. PLAYER LOBBY */}
+       {/* 6. OPERATOR LOBBY */}
        {selectedMatch && (
          <MatchModal 
            match={selectedMatch} 

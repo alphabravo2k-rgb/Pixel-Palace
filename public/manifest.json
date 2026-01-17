@@ -1,26 +1,38 @@
 {
   "name": "Pixel Palace // Tournament OS",
-  "short_name": "Nexus",
-  "description": "High-fidelity eSports management and tactical bracket engine.",
-  "start_url": "/?source=pwa",
+  "short_name": "Nexus Omni",
+  "description": "2050-Standard high-fidelity eSports management and tactical bracket engine.",
+  "start_url": "/?source=pwa_uplink",
   "display": "standalone",
+  "display_override": ["window-controls-overlay", "minimal-ui"],
   "orientation": "portrait",
-  "background_color": "#050505",
-  "theme_color": "#050505",
-  "categories": ["games", "sports", "productivity"],
+  "background_color": "#020202",
+  "theme_color": "#c026d3",
+  "categories": ["games", "sports", "entertainment"],
+  "screenshots": [
+    {
+      "src": "https://raw.githubusercontent.com/alphabravo2k-rgb/pixel-palace-registration/1a7d90c43796fd037316bdaf4f3b4de9a485d615/image_4379f9.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Tactical War Room View"
+    }
+  ],
   "icons": [
     {
-      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%23050505'/%3E%3Cpath fill='%23c026d3' d='M256 100L100 412h312z' style='filter:drop-shadow(0 0 20px %23c026d3)' /%3E%3C/svg%3E",
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%23020202'/%3E%3Cpath fill='%23c026d3' d='M256 120L120 412h272z' style='filter:drop-shadow(0 0 30px %23c026d3)' /%3E%3C/svg%3E",
       "sizes": "192x192",
       "type": "image/svg+xml",
       "purpose": "any maskable"
     },
     {
-      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%23050505'/%3E%3Cpath fill='%23c026d3' d='M256 100L100 412h312z' style='filter:drop-shadow(0 0 20px %23c026d3)' /%3E%3C/svg%3E",
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%23020202'/%3E%3Ccircle cx='256' cy='256' r='200' fill='none' stroke='%23c026d3' stroke-width='10' opacity='0.2'/%3E%3Cpath fill='%23c026d3' d='M256 120L120 412h272z' /%3E%3C/svg%3E",
       "sizes": "512x512",
       "type": "image/svg+xml",
       "purpose": "any maskable"
     }
   ],
-  "prefer_related_applications": false
+  "prefer_related_applications": false,
+  "dir": "ltr",
+  "lang": "en-US"
 }

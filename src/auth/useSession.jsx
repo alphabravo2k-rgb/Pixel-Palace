@@ -1,48 +1,74 @@
+/**
+ * 🔐 PIXEL PALACE: IDENTITY BRIDGE (GENESIS OMNI)
+ * VERSION: 2050.5.0 (MASTER OMNI)
+ * STATUS: OPERATIONAL // DATA-DECOUPLED
+ */
+
 import React from 'react';
 import { useNexusStore } from '../store/useNexusStore';
 
 /**
- * 🔐 PIXEL PALACE: IDENTITY BRIDGE
- * --------------------------------
- * STATUS: MASTERED (BURJ KHALIFA STANDARD)
- * * ARCHITECTURE:
- * 1. ZUSTAND INTEGRATION: Connects legacy UI components to the global 'NexusStore'.
- * 2. PERFORMANCE: Eliminates React Context re-render hell.
- * 3. COMPATIBILITY: Maintains the exact API expected by Router and Login.
+ * THE PROVIDER (Legacy Architecture Wrapper)
+ * Retained for root-level component hierarchy compatibility.
+ * In the Omni architecture, state lives in the Store, not Context.
  */
-
-// 1. THE PROVIDER (Legacy Wrapper)
-// We keep this component so App.jsx doesn't crash, but it no longer holds state.
-// The state now lives in the high-performance 'useNexusStore'.
 export const SessionProvider = ({ children }) => {
   return <>{children}</>;
 };
 
-// 2. THE HOOK (The Bridge)
+/**
+ * THE HOOK (The Bridge)
+ * High-fidelity interface between Zustand and React components.
+ */
 export const useSession = () => {
-  // 🧠 Access the Global Brain directly
   const store = useNexusStore();
 
-  // 🔄 MAP STATE: Zustand -> Session Interface
-  // This ensures 'router.jsx' and 'UnifiedLogin.jsx' get exactly what they expect.
-  const session = {
-    isAuthenticated: !!store.uid, // If we have a UID, we are logged in
+  /**
+   * 🔄 IDENTITY MATRIX
+   * Maps high-performance Zustand state into the tactical session object.
+   */
+  const sessionData = {
+    // 🚦 STATE SIGNALS
+    isAuthenticated: !!store.uid,
+    isReady: store.isHydrated,
+    isLoading: !store.isHydrated,
+
+    // 👤 USER INTELLIGENCE
+    uid: store.uid,
     user: store.uid ? { id: store.uid, ...store.profile } : null,
-    role: store.profile?.role || 'guest',
-    team_id: store.profile?.team_id,
     profile: store.profile,
-    authType: store.authType || 'GUEST', 
     
-    // 🚦 ROUTER SIGNALS
-    isReady: store.isHydrated, // True when LocalStorage has been read
-    isLoading: !store.isHydrated
+    // 🛡️ CLEARANCE & HIERARCHY
+    role: store.profile?.role || 'guest',
+    teamId: store.profile?.team_id || null, // Normalized to camelCase for modern components
+    team_id: store.profile?.team_id || null, // Legacy support for older components
+    authType: store.authType || 'GUEST',
+
+    // 🧩 METADATA
+    lastSync: store.lastSync
   };
 
-  // ⚡ ACTION PROXIES
+  /**
+   * ⚡ EXECUTION LAYER
+   * Proxies for global store actions and exposes state directly.
+   */
   return {
-    session,
+    // Legacy Session Object (for router.jsx compatibility)
+    session: sessionData,
+    
+    // Direct Access API (Preferred for new components)
+    isAuthenticated: sessionData.isAuthenticated,
+    isReady: sessionData.isReady,
+    isLoading: sessionData.isLoading,
+    user: sessionData.user,
+    role: sessionData.role,
+    
+    // Auth Commands
     loginAdmin: store.loginAdmin,
     loginCaptain: store.loginCaptain,
-    logout: store.clearNexus
+    logout: store.clearNexus,
+    
+    // Management
+    sync: store.syncNexus
   };
 };

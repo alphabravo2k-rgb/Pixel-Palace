@@ -1,27 +1,23 @@
-import React, { useState, useEffect } from 'react';
+/**
+ * 🛡️ TEAM ROSTER: THE BARRACKS (GENESIS OMNI)
+ * VERSION: 2050.5.0 (MASTER OMNI)
+ * STATUS: OPERATIONAL // DATA-ENRICHED
+ */
+
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Search, RefreshCw, Shield, Crown, Minus, 
-  ArrowUpRight, AlertTriangle, Users, Trophy, User
+  Search, RefreshCw, Shield, Crown, 
+  Users, Trophy, User, Zap, Activity, Target
 } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { Loader2 } from 'lucide-react';
 
 // MASTER CORE
 import { supabase } from '../supabase/client';
 import { SoundNexus, CUES } from '../lib/soundNexus';
+import { Telemetry, EVENTS } from '../lib/telemetry';
 
-/**
- * 🛡️ TEAM ROSTER: THE BARRACKS
- * ----------------------------
- * STATUS: MASTERED (BURJ KHALIFA STANDARD)
- * * UPGRADES:
- * 1. SCHEMA SYNC: Switched 'global_identities' -> 'profiles'.
- * 2. 8D AUDIO: Sonic feedback on player hover/interaction.
- * 3. PHYSICS: Staggered entry for squad cards.
- */
-
-// --- 1. ASSETS & ICONS ---
+// --- 1. ASSETS & BRANDING ---
 const Icons = {
   Faceit: ({ className }) => (
     <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
@@ -35,252 +31,202 @@ const Icons = {
   )
 };
 
-// --- 2. LOGIC HELPERS ---
-const getFaceitLevel = (elo) => {
-    if (!elo || elo < 1) return 1;
-    if (elo <= 800) return 1;
-    if (elo <= 950) return 2;
-    if (elo <= 1100) return 3;
-    if (elo <= 1250) return 4;
-    if (elo <= 1400) return 5;
-    if (elo <= 1550) return 6;
-    if (elo <= 1700) return 7;
-    if (elo <= 1850) return 8;
-    if (elo <= 2000) return 9;
-    return 10;
-};
-
-const getLevelColor = (level) => {
-    if (level === 10) return "text-red-500";
-    if (level >= 8) return "text-orange-500";
-    if (level >= 5) return "text-yellow-500";
-    return "text-zinc-400";
+// --- 2. LOGIC: POWER INDEX ---
+const getLevelColor = (elo) => {
+    if (elo >= 2000) return "text-red-500 shadow-[0_0_10px_#ef4444]";
+    if (elo >= 1500) return "text-fuchsia-500";
+    if (elo >= 1000) return "text-emerald-500";
+    return "text-zinc-600";
 };
 
 // --- 3. SUB-COMPONENTS ---
-const SocialButton = ({ href, type }) => {
-  const Icon = Icons[type];
-  if (!href) return <div className="p-1.5 opacity-10 cursor-not-allowed"><Icon className="w-3.5 h-3.5 grayscale" /></div>;
-  
-  const colors = {
-      Faceit: 'hover:text-[#ff5500]',
-      Steam: 'hover:text-blue-400'
-  }[type];
-
-  return (
-    <a href={href} target="_blank" rel="noreferrer" onClick={(e) => { e.stopPropagation(); SoundNexus.play(CUES.UI_CLICK); }} 
-       className={`p-1 text-zinc-500 transition-all duration-200 ${colors} hover:scale-125`}>
-      <Icon className="w-3.5 h-3.5" />
-    </a>
-  );
-};
-
-const StatsCard = ({ title, value, icon: Icon, color = "text-white" }) => (
-  <motion.div 
-    whileHover={{ y: -2 }}
-    className="bg-zinc-900/50 border border-white/5 rounded-sm p-4 flex flex-col justify-between h-full relative overflow-hidden group hover:border-white/10"
-  >
-    <div className="absolute -right-4 -top-4 opacity-[0.03] group-hover:opacity-[0.07] transition-opacity">
-      <Icon size={100} />
-    </div>
-    <div className="flex justify-between items-start z-10">
-      <span className="text-[10px] uppercase text-zinc-500 font-black tracking-wider">{title}</span>
-    </div>
-    <div className="mt-2 z-10">
-      <span className={cn("text-3xl font-black font-display italic tracking-tighter", color)}>{value}</span>
-    </div>
-  </motion.div>
-);
-
-const PlayerRow = ({ member }) => {
-    const normalizedRole = member.role?.toUpperCase() || 'PLAYER';
-    const isCaptain = normalizedRole === 'CAPTAIN';
-    const level = getFaceitLevel(member.elo);
+const PlayerRow = ({ member, index }) => {
+    const isCaptain = member.role?.toUpperCase() === 'CAPTAIN';
     
     return (
         <motion.div 
-            whileHover={{ x: 4, backgroundColor: 'rgba(255,255,255,0.03)' }}
-            onMouseEnter={() => SoundNexus.play(CUES.UI_HOVER, { volume: 0.1 })}
-            className="relative group w-full h-11 border-b border-white/5 last:border-0 overflow-hidden transition-all"
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: index * 0.03 }}
+            onMouseEnter={() => { try{ SoundNexus.play(CUES.UI_HOVER, { volume: 0.05 }); }catch(e){} }}
+            className="flex items-center justify-between px-4 h-12 border-b border-white/5 last:border-0 hover:bg-white/[0.02] group transition-colors"
         >
-            {/* DATA LAYER */}
-            <div className="absolute inset-0 flex items-center justify-between px-4">
-                <div className="flex items-center gap-3">
-                    <div className={cn(
-                        "w-6 h-6 rounded-sm flex items-center justify-center text-[10px] font-black border shadow-sm",
-                        isCaptain ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30" : "bg-zinc-800 text-zinc-500 border-zinc-700"
-                    )}>
-                        {isCaptain ? <Crown size={12} /> : <User size={12} />}
+            <div className="flex items-center gap-4">
+                <div className={cn(
+                    "w-7 h-7 rounded-sm flex items-center justify-center border transition-all duration-500 rotate-45 group-hover:rotate-0",
+                    isCaptain ? "bg-fuchsia-600/10 border-fuchsia-500/40 text-fuchsia-500" : "bg-zinc-900 border-zinc-800 text-zinc-600"
+                )}>
+                    <div className={cn("-rotate-45 group-hover:rotate-0 transition-transform", isCaptain ? "text-fuchsia-500" : "text-zinc-700")}>
+                        {isCaptain ? <Crown size={14} /> : <User size={14} />}
                     </div>
-                    <span className={cn("text-xs font-bold uppercase tracking-wide truncate max-w-[140px]", isCaptain ? "text-white" : "text-zinc-400")}>
-                        {member.username}
-                    </span>
                 </div>
-                
-                {/* METRICS */}
-                <div className="flex items-center gap-3">
-                   {member.elo > 0 && (
-                       <div className="flex items-center gap-1.5" title={`ELO: ${member.elo}`}>
-                           <span className={cn("text-[10px] font-black tracking-wider", getLevelColor(level))}>LVL {level}</span>
-                       </div>
-                   )}
-                   <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <SocialButton href={member.faceit_url} type="Faceit" />
-                        <SocialButton href={member.steam_url} type="Steam" />
-                   </div>
+                <span className={cn(
+                  "text-xs font-black uppercase italic tracking-tighter transition-colors",
+                  isCaptain ? "text-white" : "text-zinc-400 group-hover:text-zinc-300"
+                )}>
+                    {member.username}
+                </span>
+            </div>
+
+            <div className="flex items-center gap-4">
+                {member.elo > 0 && (
+                    <div className="flex items-center gap-1.5 font-mono text-[10px] font-black tracking-widest">
+                        <Zap size={10} className="text-amber-500" />
+                        <span className={getLevelColor(member.elo)}>{member.elo}</span>
+                    </div>
+                )}
+                <div className="flex gap-2 opacity-10 group-hover:opacity-100 transition-opacity">
+                    {member.faceit_url && <a href={member.faceit_url} target="_blank" rel="noreferrer"><Icons.Faceit className="w-3.5 h-3.5 text-zinc-600 hover:text-[#ff5500]" /></a>}
+                    {member.steam_url && <a href={member.steam_url} target="_blank" rel="noreferrer"><Icons.Steam className="w-3.5 h-3.5 text-zinc-600 hover:text-blue-400" /></a>}
                 </div>
             </div>
         </motion.div>
     );
 };
 
-// --- 4. MAIN COMPONENT ---
+// --- 4. MAIN BARRACKS COMPONENT ---
 export const TeamRoster = () => {
   const [teams, setTeams] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
 
-  const fetchTeams = async () => {
+  const fetchTeams = useCallback(async () => {
     setLoading(true);
-    SoundNexus.play(CUES.UI_CLICK);
+    const startLog = Telemetry.time('roster_uplink');
     
     try {
-      // 1. Get Teams
-      // 
-      const { data, error } = await supabase
+      const { data: teamsData, error: teamsError } = await supabase
         .from('teams')
-        .select(`
-          id, name, logo_url, seed_number,
-          team_members ( id, role, user_id )
-        `)
+        .select(`id, name, logo_url, seed_number, team_members(id, role, user_id)`)
         .order('name');
 
-      if (error) throw error;
+      if (teamsError) throw teamsError;
 
-      // 2. Get Profiles Manually (Schema Aligned: 'profiles')
-      const allUserIds = data.flatMap(t => t.team_members.map(m => m.user_id)).filter(Boolean);
-      let profileMap = {};
+      const allUserIds = teamsData.flatMap(t => t.team_members.map(m => m.user_id)).filter(Boolean);
       
-      if (allUserIds.length > 0) {
-          const { data: profiles } = await supabase
-            .from('profiles') // ✅ FIXED: Was 'global_identities'
-            .select('id, display_name, faceit_elo, faceit_url, steam_url, discord_handle')
-            .in('id', allUserIds);
-          profileMap = (profiles || []).reduce((acc, p) => ({ ...acc, [p.id]: p }), {});
-      }
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, display_name, faceit_elo, faceit_url, steam_url')
+        .in('id', allUserIds);
 
-      // 3. Merge & Sort
-      const formatted = data.map(team => {
-        const members = (team.team_members || []).map(tm => {
-          const profile = profileMap[tm.user_id] || {};
-          return {
-            id: tm.id,
-            role: tm.role,
-            username: profile.display_name || 'Unknown Agent',
-            faceit_url: profile.faceit_url,
-            steam_url: profile.steam_url,
-            elo: profile.faceit_elo || 0
-          };
-        }).sort((a, b) => (b.role === 'CAPTAIN' ? 1 : -1)); 
+      const profileMap = profiles?.reduce((acc, p) => ({ ...acc, [p.id]: p }), {}) || {};
 
-        return { ...team, members };
-      });
+      const formatted = teamsData.map(team => ({
+        ...team,
+        members: team.team_members.map(tm => ({
+          id: tm.id,
+          role: tm.role,
+          username: profileMap[tm.user_id]?.display_name || 'Anonymous',
+          elo: profileMap[tm.user_id]?.faceit_elo || 0,
+          faceit_url: profileMap[tm.user_id]?.faceit_url,
+          steam_url: profileMap[tm.user_id]?.steam_url
+        })).sort((a, b) => (b.role === 'captain' ? 1 : -1))
+      }));
 
       setTeams(formatted);
+      startLog.end();
     } catch (err) {
-      console.error("Roster Error:", err);
+      console.error("Uplink Interrupted:", err);
+      try { SoundNexus.play(CUES.UI_ERROR); } catch(e){}
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  useEffect(() => { fetchTeams(); }, []);
+  useEffect(() => { fetchTeams(); }, [fetchTeams]);
 
-  // Filter Logic
   const filteredTeams = teams.filter(t => 
       t.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
       t.members.some(m => m.username.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  const totalPlayers = teams.reduce((acc, t) => acc + t.members.length, 0);
-  const avgElo = Math.round(teams.reduce((acc, t) => acc + t.members.reduce((s, m) => s + (m.elo || 1000), 0), 0) / (totalPlayers || 1));
+  const stats = {
+    squads: teams.length,
+    ops: teams.reduce((acc, t) => acc + t.members.length, 0),
+    power: Math.round(teams.reduce((acc, t) => acc + t.members.reduce((s, m) => s + (m.elo || 0), 0), 0) / (teams.reduce((acc, t) => acc + t.members.length, 0) || 1))
+  };
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500 p-6 md:p-8 bg-bg min-h-screen text-white">
-      
-      {/* HUD Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <StatsCard title="Registered Squads" value={teams.length} icon={Shield} color="text-white" />
-        <StatsCard title="Active Operators" value={totalPlayers} icon={Users} color="text-brand-glow" />
-        <StatsCard title="Average ELO" value={avgElo} icon={Trophy} color="text-yellow-500" />
+    <div className="p-10 space-y-12 bg-[#050505] min-h-screen relative overflow-hidden font-sans">
+      <div className="absolute inset-0 pointer-events-none opacity-5"><div className="scanlines" /></div>
+
+      {/* TACTICAL HUD STATS */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 relative z-10">
+        {[
+          { label: 'Registered Squads', val: stats.squads, icon: Shield, col: 'text-white' },
+          { label: 'Active Operators', val: stats.ops, icon: Users, col: 'text-fuchsia-500' },
+          { label: 'Average Power Index', val: stats.power, icon: Zap, col: 'text-amber-500' }
+        ].map((s, i) => (
+          <motion.div key={i} whileHover={{ y: -2 }} className="bg-[#09090b] border border-white/5 p-6 rounded-sm shadow-2xl relative overflow-hidden group">
+            <s.icon className="absolute -right-4 -bottom-4 w-24 h-24 text-white opacity-[0.02] group-hover:opacity-[0.05] transition-opacity" />
+            <p className="text-[9px] font-black uppercase tracking-[0.4em] text-zinc-600 mb-3">{s.label}</p>
+            <h4 className={cn("text-4xl font-display font-black italic tracking-tighter leading-none", s.col)}>{s.val}</h4>
+          </motion.div>
+        ))}
       </div>
 
-      {/* Toolbar */}
-      <div className="flex flex-col md:flex-row justify-between items-end gap-4 border-b border-white/10 pb-6">
+      {/* CONTROL TERMINAL */}
+      <div className="flex flex-col lg:flex-row justify-between items-end gap-6 border-b border-white/5 pb-8 relative z-10">
         <div>
-            <h2 className="text-4xl font-display font-black italic tracking-tighter uppercase">
-                Roster <span className="text-brand">Intel</span>
+            <h2 className="text-6xl font-display font-black italic tracking-tighter uppercase leading-none text-white">
+                The <span className="text-fuchsia-600">Barracks</span>
             </h2>
-            <p className="text-zinc-500 text-[10px] font-mono uppercase tracking-widest mt-1">
-                LIVE DATABASE // {teams.length} SQUADS ONLINE
+            <p className="text-zinc-600 text-[10px] font-mono uppercase tracking-[0.6em] mt-4 flex items-center gap-3">
+               <Activity size={12} className="text-fuchsia-500 animate-pulse" /> Personnel Registry // Secure Uplink Active
             </p>
         </div>
-        <div className="flex items-center gap-3 w-full md:w-auto">
-            <div className="relative w-full md:w-64 group">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 group-focus-within:text-brand transition-colors" />
+        <div className="flex items-center gap-4 w-full lg:w-auto">
+            <div className="relative group flex-1 lg:w-80">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-700 group-focus-within:text-fuchsia-500 transition-colors" />
                 <input 
                     type="text" 
-                    placeholder="FIND SQUAD OR OPERATOR..." 
-                    className="w-full bg-black/40 border border-white/10 pl-10 pr-4 py-2 rounded-sm text-xs font-mono uppercase text-white focus:border-brand outline-none transition-all placeholder:text-zinc-700"
+                    placeholder="Search Operator/Squad..." 
+                    className="w-full bg-zinc-900/40 border border-zinc-800 pl-12 pr-4 py-4 rounded-sm text-[10px] font-mono uppercase text-white focus:border-fuchsia-500 outline-none transition-all placeholder:text-zinc-800"
                     onChange={(e) => setSearchTerm(e.target.value)}
                 />
             </div>
-            <button 
-                onClick={fetchTeams} 
-                className="p-2 bg-black/40 border border-white/10 hover:border-brand text-zinc-400 hover:text-white transition-colors rounded-sm active:scale-95"
-            >
-                <RefreshCw className={cn("w-4 h-4", loading && "animate-spin")} />
+            <button onClick={fetchTeams} className="p-4 bg-zinc-900 border border-zinc-800 hover:border-fuchsia-500 text-zinc-600 hover:text-white transition-all active:scale-95">
+                <RefreshCw size={18} className={cn(loading && "animate-spin")} />
             </button>
         </div>
       </div>
 
-      {/* Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6">
-        <AnimatePresence>
+      {/* SQUAD GRID */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-8 relative z-10">
+        <AnimatePresence mode="popLayout">
             {filteredTeams.map((team, i) => (
                <motion.div 
                  key={team.id}
-                 initial={{ opacity: 0, y: 20 }}
-                 animate={{ opacity: 1, y: 0 }}
-                 transition={{ delay: i * 0.05 }}
-                 className="group bg-zinc-900/20 border border-white/5 hover:border-brand/50 transition-all duration-300 flex flex-col overflow-hidden relative rounded-sm"
+                 layout
+                 initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
+                 transition={{ duration: 0.4, delay: i * 0.02 }}
+                 className="bg-[#09090b] border border-white/5 hover:border-fuchsia-500/40 transition-all duration-500 flex flex-col rounded-sm overflow-hidden shadow-2xl relative group"
                >
-                   {/* Team Header */}
-                   <div className="p-4 bg-white/[0.02] border-b border-white/5 flex items-center justify-between">
-                       <div className="flex items-center gap-3">
-                           <div className="w-10 h-10 bg-black border border-white/10 rounded-sm flex items-center justify-center p-1">
-                               {team.logo_url ? <img src={team.logo_url} className="w-full h-full object-contain" /> : <Shield className="w-5 h-5 text-zinc-700" />}
+                   <div className="p-6 bg-zinc-900/20 border-b border-white/5 flex items-center justify-between relative overflow-hidden">
+                       <div className="flex items-center gap-5 relative z-10">
+                           <div className="w-12 h-12 bg-black border border-white/5 rounded-sm flex items-center justify-center p-2 shadow-inner group-hover:border-fuchsia-500/20 transition-colors">
+                               {team.logo_url ? <img src={team.logo_url} className="w-full h-full object-contain" alt=""/> : <Shield className="w-6 h-6 text-zinc-800" />}
                            </div>
                            <div>
-                               <h3 className="text-sm font-black uppercase italic tracking-tighter text-white truncate max-w-[150px]">{team.name}</h3>
-                               <span className="text-[10px] text-zinc-500 font-mono tracking-widest">
-                                   {team.seed_number ? `SEED #${team.seed_number}` : 'UNRANKED'}
-                               </span>
+                               <h3 className="text-xl font-display font-black uppercase italic tracking-tighter text-white truncate max-w-[160px] group-hover:text-fuchsia-400 transition-colors">{team.name}</h3>
+                               <p className="text-[9px] text-zinc-600 font-mono tracking-widest mt-1 uppercase">Node_{team.seed_number || 'XX'}</p>
                            </div>
                        </div>
-                       <span className="text-[10px] font-mono text-zinc-600 font-bold">{team.members.length}/6</span>
+                       <Trophy size={20} className="text-zinc-900 group-hover:text-amber-500/20 transition-colors" />
                    </div>
 
-                   {/* Members List */}
                    <div className="flex-grow bg-black/20">
-                       {team.members.map(m => <PlayerRow key={m.id} member={m} />)}
-                       {/* Empty Slots */}
-                       {[...Array(Math.max(0, 5 - team.members.length))].map((_, idx) => (
-                           <div key={idx} className="h-11 border-b border-white/5 flex items-center px-4 opacity-30">
-                               <div className="w-6 h-6 rounded-sm bg-white/5 mr-3 border border-white/5" />
-                               <div className="h-2 w-16 bg-white/5 rounded-sm" />
+                       {team.members.map((m, idx) => <PlayerRow key={m.id} member={m} index={idx} />)}
+                       {Array.from({ length: Math.max(0, 5 - team.members.length) }).map((_, idx) => (
+                           <div key={idx} className="h-12 border-b border-white/5 flex items-center px-4 opacity-10 grayscale">
+                               <div className="w-7 h-7 rounded-sm bg-zinc-900 border border-white/5 mr-4 rotate-45" />
+                               <div className="h-1 w-20 bg-zinc-800 rounded-full" />
                            </div>
                        ))}
+                   </div>
+
+                   <div className="p-3 bg-zinc-900/40 flex justify-center">
+                        <span className="text-[8px] font-black text-zinc-800 uppercase tracking-[0.5em]">Sector_Secure</span>
                    </div>
                </motion.div>
             ))}
@@ -289,5 +235,3 @@ export const TeamRoster = () => {
     </div>
   );
 };
-
-export default TeamRoster;

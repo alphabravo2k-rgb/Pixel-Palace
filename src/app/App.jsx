@@ -1,47 +1,46 @@
+/**
+ * ⚡ PIXEL PALACE: CORE ROOT (MASTER OMNI V5.0)
+ * VERSION: 2050.5.0 (MASTER OMNI)
+ * STATUS: OPERATIONAL // SYSTEM_READY
+ */
+
 import React, { useEffect, useState } from 'react';
 import { RouterProvider } from 'react-router-dom';
-import { toast } from 'react-hot-toast';
-import { Wifi, WifiOff } from 'lucide-react';
+import { Toaster, toast } from 'react-hot-toast';
+import { Wifi, WifiOff, Activity, Cpu } from 'lucide-react';
 
-// ✅ CORE MODULES (LEGACY & NEXUS)
-import { SessionProvider, useSession } from '../auth/useSession';
-import { TournamentProvider } from '../tournament/useTournament'; // Keep for legacy hooks if needed
+// MASTER CORE
+import { SessionProvider } from '../auth/useSession';
+import { TournamentProvider } from '../tournament/useTournament';
 import { supabase } from '../supabase/client';
 import { router } from './router';
 
-// 🚀 NEW NEXUS MODULES
+// NEW NEXUS MODULES
 import { useNexusStore } from '../store/useNexusStore';
 import { SoundNexus, CUES } from '../lib/soundNexus';
+import { Telemetry, EVENTS } from '../lib/telemetry';
 import { GlobalChatNexus } from '../components/communication/GlobalChatNexus';
 
-/**
- * ⚡ PIXEL PALACE: CORE ROOT (MASTER HYBRID V4.5)
- * -----------------------------------------------
- * STATUS: MASTERED (BURJ KHALIFA STANDARD)
- * * ARCHITECTURE:
- * 1. HYBRID STATE: Runs Legacy Context + New Zustand Store in parallel.
- * 2. SENSORY ENGINE: Unlocks 8D Audio on first user interaction.
- * 3. GLOBAL OVERLAYS: Chat and Notifications persist across routes.
- */
-
-// 📡 1. NETWORK MONITOR
+// 📡 1. NETWORK MONITOR: SIGNAL INTEGRITY
 const NetworkMonitor = () => {
   useEffect(() => {
     const handleOnline = () => {
-      toast.success("UPLINK ESTABLISHED", {
-        id: 'network-status',
-        icon: <Wifi size={16} className="text-emerald-500" />,
-        style: { border: '1px solid #10b981', color: '#10b981' }
+      Telemetry.log(EVENTS.SYSTEM, { action: 'SIGNAL_RESTORED' });
+      toast.success("UPLINK RESTABLISHED", {
+        id: 'signal-node',
+        icon: <Wifi size={14} className="text-emerald-500" />,
+        style: { background: '#09090b', color: '#10b981', border: '1px solid #10b98120', fontSize: '10px', letterSpacing: '0.2em' }
       });
       useNexusStore.getState().setConnectionStatus('connected');
     };
 
     const handleOffline = () => {
-      toast.error("CONNECTION LOST", {
-        id: 'network-status',
-        icon: <WifiOff size={16} className="text-red-500" />,
+      Telemetry.log(EVENTS.SYSTEM, { action: 'SIGNAL_LOSS' });
+      toast.error("SIGNAL INTERRUPTED", {
+        id: 'signal-node',
+        icon: <WifiOff size={14} className="text-red-500" />,
         duration: Infinity,
-        style: { border: '1px solid #ef4444', color: '#ef4444' }
+        style: { background: '#09090b', color: '#ef4444', border: '1px solid #ef444420', fontSize: '10px', letterSpacing: '0.2em' }
       });
       useNexusStore.getState().setConnectionStatus('offline');
     };
@@ -58,7 +57,7 @@ const NetworkMonitor = () => {
   return null;
 };
 
-// 🎨 2. THEME ENGINE
+// 🎨 2. THEME ENGINE: DYNAMIC DNA SYNC
 const ThemeManager = () => {
   useEffect(() => {
     const syncTheme = async () => {
@@ -72,7 +71,7 @@ const ThemeManager = () => {
         if (data?.theme_color) {
           const root = document.documentElement;
           const toRGB = (hex) => {
-            if (!hex) return '192 38 211';
+            if (!hex) return '192 38 211'; // Default Fuchsia
             const cleanHex = hex.replace('#', '');
             const r = parseInt(cleanHex.substring(0, 2), 16);
             const g = parseInt(cleanHex.substring(2, 4), 16);
@@ -81,11 +80,11 @@ const ThemeManager = () => {
           };
 
           root.style.setProperty('--color-brand', toRGB(data.theme_color));
-          root.style.setProperty('--color-brand-dim', data.theme_color_dim ? toRGB(data.theme_color_dim) : toRGB(data.theme_color));
-          root.style.setProperty('--color-brand-glow', data.theme_color_glow ? toRGB(data.theme_color_glow) : toRGB(data.theme_color));
+          root.style.setProperty('--color-brand-dim', toRGB(data.theme_color_dim || data.theme_color));
+          root.style.setProperty('--color-brand-glow', toRGB(data.theme_color_glow || data.theme_color));
         }
       } catch (e) {
-        // Silent fail
+        console.error("Theme DNA Sync Failure");
       }
     };
     syncTheme();
@@ -93,47 +92,54 @@ const ThemeManager = () => {
   return null;
 };
 
-// 🛑 3. SYSTEM GATE (BOOT SEQUENCE)
+// 🛑 3. SYSTEM GATE: NEURAL LINK CALIBRATION
 const SystemGate = ({ children }) => {
-  const { isHydrated, syncNexus } = useNexusStore(); // New Check
-  const [minLoadTimePassed, setMinLoadTimePassed] = useState(false);
+  const { isHydrated, syncNexus } = useNexusStore();
+  const [bootSequenceComplete, setBootSequenceComplete] = useState(false);
 
   useEffect(() => {
-    // Sync New Store
+    // Stage 1: Store Calibration
     syncNexus();
     
-    // Audio Unlocker
+    // Stage 2: 8D Audio Unlock Protocol
     const unlockAudio = () => {
       SoundNexus.init();
-      window.removeEventListener('click', unlockAudio);
+      Telemetry.log(EVENTS.SYSTEM, { action: 'AUDIO_CORE_UNLOCKED' });
+      window.removeEventListener('mousedown', unlockAudio);
       window.removeEventListener('keydown', unlockAudio);
     };
-    window.addEventListener('click', unlockAudio);
+    window.addEventListener('mousedown', unlockAudio);
     window.addEventListener('keydown', unlockAudio);
 
-    // Min Load Time
-    const timer = setTimeout(() => setMinLoadTimePassed(true), 800);
+    // Stage 3: Min-Load Cinematic Delay
+    const timer = setTimeout(() => {
+        setBootSequenceComplete(true);
+        Telemetry.log(EVENTS.SYSTEM, { action: 'CORE_BOOT_COMPLETE' });
+    }, 1200);
+
     return () => {
       clearTimeout(timer);
-      window.removeEventListener('click', unlockAudio);
+      window.removeEventListener('mousedown', unlockAudio);
       window.removeEventListener('keydown', unlockAudio);
     };
-  }, []);
+  }, [syncNexus]);
 
-  const isBooting = !minLoadTimePassed || !isHydrated;
-
-  if (isBooting) {
+  if (!isHydrated || !bootSequenceComplete) {
     return (
-      <div className="h-screen w-full bg-[#050505] flex flex-col items-center justify-center relative overflow-hidden">
-        <div className="absolute inset-0 scanlines opacity-10 pointer-events-none" />
+      <div className="h-screen w-full bg-[#020202] flex flex-col items-center justify-center relative overflow-hidden">
+        <div className="absolute inset-0 scanlines opacity-20 pointer-events-none" />
         <div className="relative z-10 flex flex-col items-center">
-          <div className="w-16 h-16 border-2 border-brand/20 border-t-brand rounded-full animate-spin shadow-[0_0_30px_rgba(var(--color-brand),0.3)]" />
-          <div className="mt-8 flex flex-col items-center gap-2">
-            <span className="text-white font-display font-bold text-2xl tracking-widest uppercase">Pixel Palace</span>
-            <div className="flex items-center gap-3">
-               <div className="h-[1px] w-8 bg-zinc-800" />
-               <span className="text-brand-glow font-mono text-[10px] uppercase tracking-[0.3em] animate-pulse">Initializing Nexus...</span>
-               <div className="h-[1px] w-8 bg-zinc-800" />
+          <div className="w-24 h-24 bg-zinc-900 border-2 border-brand/20 border-t-brand rounded-sm animate-spin shadow-[0_0_50px_rgba(var(--color-brand),0.2)]" />
+          <div className="mt-12 flex flex-col items-center gap-4">
+            <h1 className="text-white font-display font-black text-4xl italic tracking-tighter uppercase leading-none">
+                Pixel <span className="text-brand">Palace</span>
+            </h1>
+            <div className="flex items-center gap-5">
+               <div className="h-[1px] w-12 bg-zinc-800" />
+               <p className="text-zinc-600 font-mono text-[9px] uppercase tracking-[0.6em] animate-pulse">
+                 Establishing_Neural_Link...
+               </p>
+               <div className="h-[1px] w-12 bg-zinc-800" />
             </div>
           </div>
         </div>
@@ -144,7 +150,7 @@ const SystemGate = ({ children }) => {
   return children;
 };
 
-// 🏛️ 4. APP CORE
+// 🏛️ 4. APP ASSEMBLY: GLOBAL INITIALIZATION
 function App() {
   const { is3DEnabled } = useNexusStore();
 
@@ -153,20 +159,20 @@ function App() {
       <ThemeManager />
       <NetworkMonitor />
       
-      {/* 📡 GLOBAL ATMOSPHERE */}
+      {/* 📡 GLOBAL ATMOSPHERIC OVERLAY */}
       {!is3DEnabled && (
-         <div className="fixed inset-0 pointer-events-none z-[0] opacity-[0.02] bg-[url('https://grainy-gradients.vercel.app/noise.svg')]" />
+         <div className="fixed inset-0 pointer-events-none z-[0] opacity-[0.03] bg-[url('https://grainy-gradients.vercel.app/noise.svg')]" />
       )}
 
-      {/* 🧩 PROVIDER STACK */}
+      {/* 🧱 PROVIDER CONTEXT ARCHITECTURE */}
       <SessionProvider>
         <SystemGate>
           <TournamentProvider>
               
-             {/* 🗺️ THE MAP */}
+             {/* 🗺️ THE MASTER NAVIGATION HUB */}
              <RouterProvider router={router} />
 
-             {/* 💬 GLOBAL COMMS */}
+             {/* 💬 GLOBAL TRANSCEIVER */}
              <GlobalChatNexus />
 
           </TournamentProvider>

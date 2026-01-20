@@ -1,12 +1,15 @@
 /**
  * ⚙️ ADMIN MATCH CONTROLS: MISSION CONFIG (GENESIS OMNI)
  * VERSION: 2050.5.0
- * STATUS: OPERATIONAL // ATOMIC
+ * STATUS: OPERATIONAL // LOGIC-GATED
+ * -----------------------------------------
+ * Tactical control panel for Marshals.
+ * Enforces strict bracket logic to prevent accidental destruction.
  */
 
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Settings, ArrowRightLeft, Trash2, ShieldAlert } from 'lucide-react';
+import { Settings, ArrowRightLeft, Trash2, ShieldAlert, Lock } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { cn } from '../../lib/utils';
 
@@ -20,12 +23,17 @@ export const AdminMatchControls = ({ match, onUpdate }) => {
   const selectedFormat = match?.best_of || 1;
   const isLocked = ['completed'].includes(match.status);
 
+  // 🔒 THE DUBAI RULE: LOGIC > HUMANS
+  // Prevents tampering with bracket progression after the tournament starts.
+  // If we are in Round 2+, teams are fed by the bracket engine, so swapping them manually breaks the chain.
+  const isBracketLocked = (match.round_number || 1) > 1;
+
   // 1. FORMAT COMMAND (BO1 -> BO3 -> BO5)
   const handleFormatChange = async (newFormat) => {
     if (isLocked || loading || newFormat === selectedFormat) return;
 
     setLoading(true);
-    SoundNexus.play(CUES.UI_CLICK);
+    try { SoundNexus.play(CUES.UI_CLICK); } catch(e){}
 
     try {
       const { error } = await supabase.rpc('admin_update_match_format', {
@@ -39,11 +47,11 @@ export const AdminMatchControls = ({ match, onUpdate }) => {
       toast.success(`ENGAGEMENT UPDATED: BEST OF ${newFormat}`, {
         style: { background: '#09090b', color: '#c026d3', border: '1px solid #c026d350' }
       });
-      SoundNexus.play(CUES.UI_SUCCESS);
+      try { SoundNexus.play(CUES.UI_SUCCESS); } catch(e){}
       if (onUpdate) onUpdate();
     } catch (err) {
       toast.error(err.message);
-      SoundNexus.play(CUES.UI_ERROR);
+      try { SoundNexus.play(CUES.UI_ERROR); } catch(e){}
     } finally {
       setLoading(false);
     }
@@ -51,11 +59,16 @@ export const AdminMatchControls = ({ match, onUpdate }) => {
 
   // 2. TEAM INVERSION (The Swap)
   const handleSwap = async () => {
-    if (isLocked || loading) return;
+    // HARD GATE: Reject click if bracket is locked
+    if (isLocked || loading || isBracketLocked) {
+        if (isBracketLocked) toast.error("DENIED: CANNOT SWAP BRACKET-FED TEAMS");
+        return;
+    }
+    
     if (!window.confirm("INVERT SIDES & SCORES?")) return;
       
     setLoading(true);
-    SoundNexus.play(CUES.UI_CLICK);
+    try { SoundNexus.play(CUES.UI_CLICK); } catch(e){}
 
     try {
       const { error } = await supabase.rpc('admin_swap_teams', { 
@@ -66,11 +79,11 @@ export const AdminMatchControls = ({ match, onUpdate }) => {
 
       Telemetry.log(EVENTS.ACTION, { action: 'swap_sides', matchId: match.id });
       toast.success('SIDES INVERTED');
-      SoundNexus.play(CUES.NAVIGATION_SWISH);
+      try { SoundNexus.play(CUES.NAVIGATION_SWISH); } catch(e){}
       if (onUpdate) onUpdate();
     } catch (err) {
       toast.error(err.message);
-      SoundNexus.play(CUES.UI_ERROR);
+      try { SoundNexus.play(CUES.UI_ERROR); } catch(e){}
     } finally {
       setLoading(false);
     }
@@ -84,7 +97,7 @@ export const AdminMatchControls = ({ match, onUpdate }) => {
     if (input !== confirmText) return;
 
     setLoading(true);
-    SoundNexus.play(CUES.DISPUTE_TRIGGER);
+    try { SoundNexus.play(CUES.DISPUTE_TRIGGER); } catch(e){}
 
     try {
       const { error } = await supabase.rpc('admin_reset_match', { 
@@ -161,14 +174,22 @@ export const AdminMatchControls = ({ match, onUpdate }) => {
           <label className="text-[9px] text-zinc-600 uppercase font-black tracking-widest block">Roster Operations</label>
           <div className="flex gap-2 h-[46px]">
             <motion.button 
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+              whileHover={!isBracketLocked ? { scale: 1.02 } : {}}
+              whileTap={!isBracketLocked ? { scale: 0.98 } : {}}
               onClick={handleSwap} 
-              disabled={isLocked || loading}
-              className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-white text-[9px] font-black uppercase tracking-widest rounded-sm border border-zinc-700 flex items-center justify-center gap-2 transition-all disabled:opacity-30"
+              disabled={isLocked || loading || isBracketLocked}
+              title={isBracketLocked ? "LOCKED: CANNOT SWAP BRACKET-FED TEAMS" : "Invert Sides"}
+              className={cn(
+                "flex-1 text-[9px] font-black uppercase tracking-widest rounded-sm border flex items-center justify-center gap-2 transition-all",
+                isBracketLocked 
+                  ? "bg-zinc-950 text-zinc-700 border-zinc-900 cursor-not-allowed" // Visual Lock
+                  : "bg-zinc-800 hover:bg-zinc-700 text-white border-zinc-700"
+              )}
             >
-              <ArrowRightLeft size={14} className="text-zinc-400" /> Invert Sides
+              {isBracketLocked ? <Lock size={12} /> : <ArrowRightLeft size={14} className="text-zinc-400" />} 
+              {isBracketLocked ? "BRACKET LOCKED" : "Invert Sides"}
             </motion.button>
+            
             <motion.button 
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}

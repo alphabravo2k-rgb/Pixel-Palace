@@ -1,10 +1,10 @@
 /**
  * 🎣 USE CAPTAIN VETO: THE STRATEGIC KERNEL (GOD HAND EDITION)
- * VERSION: 2050.5.01
+ * VERSION: 2050.5.2 (PATCH: DUPLICATE_TRAP)
  * STATUS: OPERATIONAL // ADMIN_OVERRIDE_ACTIVE
  * -----------------------------------------
  * Manages the Map Veto logic.
- * Features "God Hand" override for Level 50+ staff to force picks.
+ * Features "God Hand" override and specific Postgres error trapping.
  */
 
 import { useState, useEffect, useMemo } from 'react';
@@ -14,7 +14,7 @@ import { MATCH_FORMATS, MAP_POOL } from '../lib/constants';
 import { SoundNexus, CUES } from '../lib/soundNexus';
 import { Telemetry } from '../lib/telemetry';
 import { toast } from 'react-hot-toast';
-import { getClearanceLevel, CLEARANCE } from '../lib/security/clearance'; // 🛡️ Security Core
+import { getClearanceLevel } from '../lib/security/clearance'; // 🛡️ Security Core
 
 export const useCaptainVeto = (match, passedTeamId) => {
   const { session, user } = useSession();
@@ -84,7 +84,6 @@ export const useCaptainVeto = (match, passedTeamId) => {
       // Different sounds for Admin vs Captain
       if (isGodHand) {
          // Subtle cue for admins monitoring the match
-         // We don't want to deafen them if they are watching 10 matches
       } else {
          // 🔊 HAPTIC: Alert the captain it is their turn
          try { SoundNexus.playVortex(CUES.NOTIFICATION, 1000); } catch(e){}
@@ -93,7 +92,7 @@ export const useCaptainVeto = (match, passedTeamId) => {
     }
   }, [vetoState.isMyTurn, vetoState.action, loading, isGodHand]);
 
-  // 5️⃣ ACTION: SUBMIT DECISION
+  // 5️⃣ ACTION: SUBMIT DECISION (Merged & Hardened)
   const submitVeto = async (mapId) => {
     if (!vetoState.isMyTurn || loading) return;
 
@@ -114,7 +113,13 @@ export const useCaptainVeto = (match, passedTeamId) => {
         pick_order: vetoes.length + 1
       });
 
-      if (error) throw error;
+      // 🛑 TRAP DUPLICATE BANS (Postgres Error 23505)
+      if (error) {
+        if (error.code === '23505' || error.message.includes('duplicate')) {
+          throw new Error("MAP ALREADY ELIMINATED");
+        }
+        throw error;
+      }
 
       try { SoundNexus.play(CUES.UI_SUCCESS); } catch(e){}
       
@@ -125,7 +130,12 @@ export const useCaptainVeto = (match, passedTeamId) => {
       startLog.end(user?.id);
     } catch (err) {
       try { SoundNexus.play(CUES.UI_ERROR); } catch(e){}
-      toast.error("VETO FAILED: " + err.message);
+      
+      // Explicit UI Feedback
+      toast.error(`VETO REJECTED: ${err.message}`, {
+        style: { background: '#450a0a', color: '#f87171', border: '1px solid #7f1d1d' },
+        icon: '🚫'
+      });
     } finally {
       setLoading(false);
     }

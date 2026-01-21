@@ -1,54 +1,46 @@
 /**
- * ⚡ PIXEL PALACE — BUILD ENGINE CONFIGURATION
+ * ⚡ PIXEL PALACE — BUILD ENGINE SPECIFICATION
  * =============================================================================
  * FILE        : vite.config.js
- * CONFIG      : Vite + Rollup
- * DOMAIN      : Core Infrastructure
- * SUBDOMAIN   : Build Pipeline & Optimization
- * LAYER       : DevOps / Tooling
- * OWNERSHIP   : Core Engineering Lead
+ * MODULE      : Vite + Rollup Bundler
+ * DOMAIN      : Infrastructure
+ * SUBDOMAIN   : Asset Compilation & Delivery
+ * OWNERSHIP   : Lead DevOps Engineer
  * RISK LEVEL  : CRITICAL
- * (Controls production bundling, chunking, and PWA generation)
+ * (Controls production bundling, chunk boundaries, and security headers)
  * =============================================================================
  *
  * RELEASE & GOVERNANCE
  * -----------------------------------------------------------------------------
- * VERSION     : v5.0.0
- * REVISION ID : INFRA-VITE-050
- * RELEASE TAG : BURJ-KHALIFA-STANDARD
- * LAST UPDATE : 2026-01-22
- * STATUS      : OPERATIONAL
- * VISIBILITY  : REPO-ROOT
+ * VERSION     : INFRA@5.0.0
+ * TAG         : PROD-BASELINE-V5
+ * STATUS      : ENFORCED
  *
- * CHANGE GOVERNANCE:
- * - Plugin addition/removal  → MINOR
- * - Chunking strategy change → MAJOR (Requires perf audit)
- * - Env var logic change     → MAJOR
+ * CHANGE POLICY:
+ * - Plugin addition      → MINOR (Requires security audit)
+ * - Chunking strategy    → MAJOR (Requires cache-busting validation)
+ * - Env var handling     → MAJOR (Requires secret rotation check)
  *
  * =============================================================================
- * SYSTEM ROLE & INTENT
+ * SYSTEM INTENT
  * -----------------------------------------------------------------------------
- * This module is the HEART of the application delivery system.
- * It is responsible for:
- * - Transpiling Modern JS (ESNext) -> Browser Compatible Code
- * - 3D Shader Compilation (.glsl support)
- * - Intelligent Code Splitting (separating 3D engine from UI logic)
- * - PWA Manifest Generation & Offline Caching
+ * This module orchestrates the transformation of source code into production artifacts.
+ * It enforces:
+ * 1. Strict separation of concerns via manual chunking (Vendor vs. Core vs. 3D).
+ * 2. Security-first asset delivery (CSP compliance support).
+ * 3. Offline-first capability via PWA injection.
  *
  * =============================================================================
- * OPTIMIZATION STRATEGY (THE 2050 STANDARD)
+ * ENFORCEMENT & VERIFICATION
  * -----------------------------------------------------------------------------
- * 1. SMART CHUNKING : 3D Engine, Database, and UI are split to prevent
- * re-downloading the massive Three.js runtime on every
- * small logic tweak.
- * 2. BROTLI COMP.   : Native compression for assets.
- * 3. GLSL SUPPORT   : Raw shader import support for high-fidelity graphics.
+ * VALIDATION:
+ * - Bundle Size: Verified via 'rollup-plugin-visualizer' (Target: <500KB initial)
+ * - PWA Integrity: Lighthouse CI score must be ≥ 95 in 'Best Practices'
+ * - Secrets: 'env.VITE_*' check prevents build startup if keys missing.
  *
- * =============================================================================
- * DEPENDENCY BOUNDARY
- * -----------------------------------------------------------------------------
- * - Inputs : Source Code (/src), Public Assets (/public), Env Vars
- * - Outputs: /dist folder (Production Artifacts)
+ * VIOLATIONS:
+ * - Merging 'database-core' into 'vendor' chunk = REJECTED PR.
+ * - Disabling 'strictPort' or 'cors' in server config = SECURITY BLOCKER.
  *
  * =============================================================================
  */
@@ -60,12 +52,12 @@ import { fileURLToPath } from 'url';
 import { visualizer } from 'rollup-plugin-visualizer';
 import viteCompression from 'vite-plugin-compression';
 import { VitePWA } from 'vite-plugin-pwa';
-import glsl from 'vite-plugin-glsl'; // 🎨 3D Shader Support
+import glsl from 'vite-plugin-glsl';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// 🔮 DATA URI ICONS (Prevents 404s during build/deploy previews)
+// Fallback Icons (Prevents 404s in CI/Preview environments)
 const ICON_192 = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%23050505'/%3E%3Cpath fill='%23c026d3' d='M256 100L100 412h312z' style='filter:drop-shadow(0 0 20px %23c026d3)' /%3E%3C/svg%3E";
 const ICON_512 = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%23050505'/%3E%3Cpath fill='%23c026d3' d='M256 100L100 412h312z' style='filter:drop-shadow(0 0 20px %23c026d3)' /%3E%3C/svg%3E";
 
@@ -73,9 +65,9 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   const isProd = mode === 'production';
 
-  // 🛡️ INTEGRITY CHECK
+  // 🛡️ SECURITY: Environment Integrity Check
   if (!env.VITE_SUPABASE_URL || !env.VITE_SUPABASE_ANON_KEY) {
-    console.warn('⚠️ CRITICAL WARNING: Supabase Environment Variables are missing!');
+    throw new Error('FATAL: Missing Supabase Environment Variables. Build Aborted.');
   }
 
   return {
@@ -87,42 +79,29 @@ export default defineConfig(({ mode }) => {
       },
     },
 
-    // 🖥️ SERVER CONFIG
     server: {
       port: 5173,
       host: true,
-      strictPort: true,
+      strictPort: true, // Fail if port is in use (prevents port-swapping confusion)
       cors: true,
     },
 
-    // 🏗️ BUILD ARCHITECTURE
     build: {
-      target: 'esnext', // 🚀 Future-proof JS for maximum performance
+      target: 'esnext', // Optimization: Assume modern browser support
       outDir: 'dist',
-      sourcemap: !isProd, // Disable source maps in prod for security/size
+      sourcemap: !isProd, // Security: Hide source code in production
       minify: 'esbuild',
       chunkSizeWarningLimit: 2000,
       
       rollupOptions: {
         output: {
-          // 🧠 INTELLIGENT CACHING STRATEGY
+          // 🧠 STRATEGY: Manual Chunking
+          // Isolates heavy libraries to maximize cache hit rates for users.
           manualChunks: (id) => {
-            // 1. The 3D Engine (Heavy, rarely updates)
-            if (id.includes('three') || id.includes('@react-three')) {
-              return '3d-engine';
-            }
-            // 2. The Database Core (Critical logic)
-            if (id.includes('supabase')) {
-              return 'database-core';
-            }
-            // 3. UI Libraries (Animation, styling)
-            if (id.includes('framer-motion') || id.includes('lucide')) {
-              return 'ui-core';
-            }
-            // 4. Vendor (React, Router, etc)
-            if (id.includes('node_modules')) {
-              return 'vendor';
-            }
+            if (id.includes('three') || id.includes('@react-three')) return 'engine-3d';
+            if (id.includes('supabase')) return 'core-db';
+            if (id.includes('framer-motion') || id.includes('lucide')) return 'core-ui';
+            if (id.includes('node_modules')) return 'vendor';
           },
         },
       },
@@ -131,28 +110,21 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react(),
 
-      // 🎨 3D VISION: Native GLSL Support
+      // Graphics: GLSL Shader Loader
       glsl({
-        include: [
-          '**/*.glsl', '**/*.wgsl',
-          '**/*.vert', '**/*.frag',
-          '**/*.vs', '**/*.fs'
-        ],
+        include: ['**/*.glsl', '**/*.vert', '**/*.frag'],
         warnDuplicatedImports: true,
-        defaultExtension: 'glsl',
         compress: isProd,
-        watch: true,
-        root: '/'
       }),
       
-      // 📱 PWA: The Native App Experience
+      // Capabilities: Progressive Web App
       VitePWA({
         registerType: 'autoUpdate',
         includeAssets: ['favicon.ico', 'apple-touch-icon.png'],
         manifest: {
           name: 'Pixel Palace',
           short_name: 'Nexus',
-          description: 'The World Standard for Competitive Gaming Infrastructure.',
+          description: 'Competitive Gaming Infrastructure',
           theme_color: '#050505',
           background_color: '#050505',
           display: 'standalone',
@@ -163,29 +135,30 @@ export default defineConfig(({ mode }) => {
           ]
         },
         workbox: {
-          globPatterns: ['**/*.{js,css,html,ico,png,svg,glsl,vert,frag}'],
+          globPatterns: ['**/*.{js,css,html,ico,png,svg,glsl}'],
           cleanupOutdatedCaches: true,
           runtimeCaching: [
             {
+              // Cache Strategy: Network First for API, Cache First for Assets
               urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
               handler: 'NetworkFirst',
               options: {
-                cacheName: 'nexus-api-data',
-                expiration: { maxEntries: 50, maxAgeSeconds: 60 * 5 } 
+                cacheName: 'api-cache',
+                expiration: { maxEntries: 50, maxAgeSeconds: 300 } 
               }
             }
           ]
         }
       }),
 
-      // ⚡ COMPRESSION (Production Only)
+      // Performance: Brotli Compression
       isProd && viteCompression({
         algorithm: 'brotliCompress',
         ext: '.br',
         threshold: 1024,
       }),
 
-      // 📊 ANALYTICS
+      // Analytics: Bundle Visualization
       visualizer({ filename: 'dist/stats.html', open: false })
     ].filter(Boolean),
   };

@@ -1,6 +1,6 @@
 # -------------------------------------------------------------------
 # 🛡️ PIXEL PALACE // NEXUS OMNI GLOBAL HEADERS
-# VERSION: 2050.5.2 (MASTER OMNI - CSP PATCH)
+# VERSION: 2050.5.3 (MASTER OMNI - CSP PATCH)
 # STATUS: OPERATIONAL // HARDENED
 # -------------------------------------------------------------------
 
@@ -14,8 +14,9 @@
   Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
 
   # ✅ HARDENED CSP: Lock down all vectors while allowing sovereign assets.
-  # Added: 'https://grainy-gradients.vercel.app' to fix texture loading error.
-  # Added: 'https://api.faceit.com' for future integrations.
+  # Added: 'https://grainy-gradients.vercel.app' (Noise Texture)
+  # Added: 'https://api.faceit.com' (Future Proofing)
+  # Added: 'https://images.unsplash.com' (Avatars)
   Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https://*.supabase.co https://raw.githubusercontent.com https://*.dicebear.com https://images.unsplash.com https://grainy-gradients.vercel.app; media-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://mbejyfwiuphpktospkga.supabase.co wss://mbejyfwiuphpktospkga.supabase.co https://api.faceit.com; worker-src 'self' blob:; frame-ancestors 'none'; object-src 'none';
 
 # [PHASE 2]: NEURAL LINK (Index Integrity)

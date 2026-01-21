@@ -1,10 +1,17 @@
 /**
- * 🎣 USE CAPTAIN VETO: THE STRATEGIC KERNEL (GOD HAND EDITION)
- * VERSION: 2050.5.2 (PATCH: DUPLICATE_TRAP)
- * STATUS: OPERATIONAL // ADMIN_OVERRIDE_ACTIVE
+ * ⚡ PIXEL PALACE: USE CAPTAIN VETO
+ * FILE: src/hooks/useCaptainVeto.js
  * -----------------------------------------
- * Manages the Map Veto logic.
- * Features "God Hand" override and specific Postgres error trapping.
+ * VERSION: 2050.5.2 (MASTER OMNI)
+ * DATE: 2026-01-22
+ * STATUS: OPERATIONAL // GOD_HAND_ACTIVE
+ * -----------------------------------------
+ * DESCRIPTION:
+ * The strategic kernel for the Map Veto system.
+ * Manages turn logic, real-time subscriptions, and admin overrides.
+ * * UPGRADES (V5.0):
+ * - [God Hand]: Admins (Level 50+) can force picks for any team.
+ * - [Security Trap]: Specific handling for Postgres Error 23505 (Duplicate Entry).
  */
 
 import { useState, useEffect, useMemo } from 'react';
@@ -14,7 +21,7 @@ import { MATCH_FORMATS, MAP_POOL } from '../lib/constants';
 import { SoundNexus, CUES } from '../lib/soundNexus';
 import { Telemetry } from '../lib/telemetry';
 import { toast } from 'react-hot-toast';
-import { getClearanceLevel } from '../lib/security/clearance'; // 🛡️ Security Core
+import { getClearanceLevel } from '../lib/security/clearance'; 
 
 export const useCaptainVeto = (match, passedTeamId) => {
   const { session, user } = useSession();
@@ -25,7 +32,6 @@ export const useCaptainVeto = (match, passedTeamId) => {
   // Determine if the current user is a "God Hand" (Admin/Referee)
   const isGodHand = useMemo(() => {
     const level = getClearanceLevel(user?.role);
-    // Level 50 (REFEREE) and above can force picks
     return level >= 50; 
   }, [user]);
 
@@ -81,18 +87,15 @@ export const useCaptainVeto = (match, passedTeamId) => {
   // 4️⃣ AUDIO-REACTIVE TRIGGER
   useEffect(() => {
     if (vetoState.isMyTurn && !loading) {
-      // Different sounds for Admin vs Captain
-      if (isGodHand) {
-         // Subtle cue for admins monitoring the match
-      } else {
-         // 🔊 HAPTIC: Alert the captain it is their turn
+      // Admin monitoring doesn't need loud alerts, but Captains do.
+      if (!isGodHand) {
          try { SoundNexus.playVortex(CUES.NOTIFICATION, 1000); } catch(e){}
          toast("YOUR TURN TO " + vetoState.action, { icon: '⚔️' });
       }
     }
   }, [vetoState.isMyTurn, vetoState.action, loading, isGodHand]);
 
-  // 5️⃣ ACTION: SUBMIT DECISION (Merged & Hardened)
+  // 5️⃣ ACTION: SUBMIT DECISION (SECURITY HARDENED)
   const submitVeto = async (mapId) => {
     if (!vetoState.isMyTurn || loading) return;
 
@@ -107,16 +110,17 @@ export const useCaptainVeto = (match, passedTeamId) => {
 
       const { error } = await supabase.from('match_vetoes').insert({
         match_id: match.id,
-        team_id: teamIdToSubmit, // <--- Dynamic ID injection
+        team_id: teamIdToSubmit,
         map_name: mapId,
         type: vetoState.action,
         pick_order: vetoes.length + 1
       });
 
-      // 🛑 TRAP DUPLICATE BANS (Postgres Error 23505)
       if (error) {
-        if (error.code === '23505' || error.message.includes('duplicate')) {
-          throw new Error("MAP ALREADY ELIMINATED");
+        // 🛑 DUBAI STANDARD: CATCH THE HACKER
+        // Error 23505 = Unique Violation (Map + Match ID already exists)
+        if (error.code === '23505') {
+            throw new Error("SECURITY VIOLATION: MAP ALREADY PROCESSED.");
         }
         throw error;
       }
@@ -131,10 +135,10 @@ export const useCaptainVeto = (match, passedTeamId) => {
     } catch (err) {
       try { SoundNexus.play(CUES.UI_ERROR); } catch(e){}
       
-      // Explicit UI Feedback
-      toast.error(`VETO REJECTED: ${err.message}`, {
-        style: { background: '#450a0a', color: '#f87171', border: '1px solid #7f1d1d' },
-        icon: '🚫'
+      // FLUSH TOAST: Alert user of rejection (Preferred Style from Code 1)
+      toast.error(err.message.toUpperCase(), {
+        icon: '🛡️',
+        style: { background: '#000', border: '1px solid #ef4444', color: '#ef4444' }
       });
     } finally {
       setLoading(false);

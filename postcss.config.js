@@ -1,84 +1,81 @@
 /**
- * ⚡ PIXEL PALACE — STYLE COMPILER CONFIGURATION
+ * ⚡ PIXEL PALACE — STYLE COMPILER SPECIFICATION
  * =============================================================================
  * FILE        : postcss.config.js
- * CONFIG      : PostCSS + cssnano
+ * MODULE      : PostCSS Pipeline
  * DOMAIN      : Visual Infrastructure
  * SUBDOMAIN   : CSS Compilation & Optimization
- * LAYER       : Build → Styles
- * OWNERSHIP   : Lead UI/UX Engineer
+ * OWNERSHIP   : Lead UI Engineer
  * RISK LEVEL  : HIGH
- * (Controls CSS minification, prefixing, and 3D stacking context safety)
+ * (Controls CSS minification stability and cross-browser compatibility)
  * =============================================================================
  *
  * RELEASE & GOVERNANCE
  * -----------------------------------------------------------------------------
- * VERSION     : v5.0.0
- * REVISION ID : STYLE-PROC-050
- * RELEASE TAG : BURJ-KHALIFA-STANDARD
- * LAST UPDATE : 2026-01-22
- * STATUS      : OPERATIONAL
- * VISIBILITY  : GLOBAL
+ * VERSION     : STYLE@5.0.0
+ * TAG         : POSTCSS-CORE-V5
+ * STATUS      : ENFORCED
  *
- * CHANGE GOVERNANCE:
- * - Plugin order change      → MAJOR (Can break precedence)
- * - Minification preset      → MINOR
+ * CHANGE POLICY:
+ * - Plugin ordering update   → MAJOR (Breaks cascade precedence)
+ * - Minification preset      → MINOR (Requires regression test on 3D elements)
  *
  * =============================================================================
- * SYSTEM ROLE & INTENT
+ * SYSTEM INTENT
  * -----------------------------------------------------------------------------
- * This module transforms developer-friendly CSS/Tailwind into browser-optimized
- * artifacts.
+ * This module transforms developer-authored CSS into browser-optimized artifacts.
+ * It strictly disables unsafe optimizations (Z-Index rebasing) to preserve the
+ * complex stacking contexts required by the 3D HUD system.
  *
- * CRITICAL SAFEGUARDS:
- * 1. Z-INDEX SAFETY    : cssnano's z-index rebasing is DISABLED.
- * We need absolute z-index control for the 3D HUD layers.
- * 2. ANIMATION SAFETY  : reduceIdents is DISABLED.
- * Prevents keyframe names from being mangled, preserving
- * complex GPU animations defined in tailwind.config.js.
+ * =============================================================================
+ * ENFORCEMENT & VERIFICATION
+ * -----------------------------------------------------------------------------
+ * VALIDATION:
+ * - Browser Support: Validated via Autoprefixer against 'browserslist' config.
+ * - Animation Integrity: 'reduceIdents' must remain FALSE to prevent keyframe breakage.
+ *
+ * VIOLATIONS:
+ * - Enabling 'zindex: true' in cssnano = REJECTED (Breaks 3D overlay stacking).
+ * - Removing 'postcss-import' from start of chain = BLOCKER (Breaks @import handling).
  *
  * =============================================================================
  */
 
 export default {
   plugins: {
-    // 🔗 1. IMPORT MANAGER
-    // Allows separating complex CSS into small, clean files (e.g. @import './admin.css')
-    // Must run first to inline content before processing.
+    // 1. Dependency Resolution
+    // Must be first to inline @import statements before other processing.
     'postcss-import': {},
 
-    // 🏗️ 2. HOLOGRAPHIC NESTING
-    // Wraps the native 'postcss-nesting' plugin.
-    // Essential for organizing the complex hierarchical CSS required for 3D Cockpit HUDs.
+    // 2. CSS Nesting Support
+    // Enables W3C standard nesting syntax (essential for component encapsulation).
     'tailwindcss/nesting': 'postcss-nesting',
 
-    // 🌊 3. TAILWIND KERNEL
-    // The engine that scans your HTML/JSX and generates utility classes.
+    // 3. Utility Generation
+    // Scans content files and generates atomic CSS.
     tailwindcss: {},
 
-    // 🛡️ 4. BROWSER DEFENSE (Autoprefixer)
-    // Automatically adds -webkit-, -moz-, -ms- prefixes.
-    // Ensures 8D audio controls & 3D canvases render on all modern browsers.
+    // 4. Vendor Prefixing
+    // Adds prefixes for cross-browser compatibility (Flexbox, Grid, etc).
     autoprefixer: {},
 
-    // ⚡ 5. QUANTUM COMPRESSION (Production Only)
-    // If we are building for the world (Production), we crush the code size.
-    // If we are developing (Dev), we keep it readable and fast.
+    // 5. Minification (Production Only)
     ...(process.env.NODE_ENV === 'production' ? {
       cssnano: {
         preset: [
-          'default', // Kept 'default' for maximum stability.
+          'default',
           {
-            discardComments: { removeAll: true }, // 🗑️ Deletes all comments to save bytes
-            normalizeWhitespace: true, // 🤏 Removes all spaces/newlines
+            discardComments: { removeAll: true },
+            normalizeWhitespace: true,
             
-            // ⚠️ CRITICAL 3D SAFEGUARDS ⚠️
-            // We disable these optimizations to prevent breaking the 3D HUD.
+            // 🛡️ CRITICAL SAFEGUARDS 🛡️
+            // These optimizations are explicitly DISABLED to prevent breaking
+            // the application's visual architecture.
             
-            // PRESERVES KEYFRAME NAMES: Essential for 'animate-glitch', 'animate-scanline'
+            // PRESERVES KEYFRAMES: Essential for 'animate-glitch', 'animate-scanline'
             reduceIdents: false, 
             
-            // PRESERVES STACKING CONTEXT: Essential for the 15-layer UI Z-index system
+            // PRESERVES STACKING: Essential for 15-layer UI Z-index system
             zindex: false, 
           },
         ],

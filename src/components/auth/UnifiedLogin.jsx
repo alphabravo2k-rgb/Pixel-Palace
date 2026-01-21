@@ -1,10 +1,14 @@
 /**
- * 🔐 OMNI-GATE: SINGLE SOURCE OF TRUTH
- * VERSION: 4.0.0 (SOVEREIGN)
- * STATUS: ACTIVE // CLEARANCE-GATED
+ * ⚡ PIXEL PALACE: UNIFIED AUTHENTICATION
+ * FILE: src/components/auth/UnifiedLogin.jsx
  * -----------------------------------------
- * A unified authentication terminal.
- * Routes users dynamically based on clearance level.
+ * VERSION: 2050.5.0 (MASTER OMNI)
+ * DATE: 2026-01-22
+ * STATUS: OPERATIONAL // OMNI-GATE
+ * -----------------------------------------
+ * DESCRIPTION:
+ * The single-door entry point for all users (Sovereigns, Admins, Captains).
+ * Routes users dynamically based on their clearance level.
  */
 
 import React, { useState } from 'react';
@@ -30,14 +34,11 @@ export const UnifiedLogin = () => {
 
     try {
       // 1. SINGLE PIPELINE AUTHENTICATION
-      // Wraps supabase.auth.signInWithPassword({ email, password })
       const { user, error } = await loginUnified(formData.email, formData.password);
       
       if (error) throw error;
 
       // 2. CLEARANCE RESOLUTION
-      // We check metadata or fall back to a fetch if clearance isn't in JWT yet.
-      // For immediate routing, we trust the profile query handled inside loginUnified logic.
       const clearance = user?.user_metadata?.clearance_level || 0; // Default to Guest
       
       try { SoundNexus.play(CUES.UI_SUCCESS); } catch(e) {}

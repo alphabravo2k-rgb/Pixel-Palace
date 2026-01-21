@@ -1,8 +1,63 @@
+/**
+ * ⚡ PIXEL PALACE — DESIGN ENGINE CONFIGURATION
+ * =============================================================================
+ * FILE        : tailwind.config.js
+ * CONFIG      : Tailwind CSS v3.4+
+ * DOMAIN      : Visual Infrastructure
+ * SUBDOMAIN   : Design Tokens & Theme Physics
+ * LAYER       : UI → Styling → The "Void" Theme
+ * OWNERSHIP   : Lead UI/UX Engineer
+ * RISK LEVEL  : CRITICAL
+ * (Controls 100% of the application's visual presentation and responsiveness)
+ * =============================================================================
+ *
+ * RELEASE & GOVERNANCE
+ * -----------------------------------------------------------------------------
+ * VERSION     : v5.0.0
+ * REVISION ID : DESIGN-TOKENS-050
+ * RELEASE TAG : BURJ-KHALIFA-STANDARD
+ * LAST UPDATE : 2026-01-22
+ * STATUS      : OPERATIONAL
+ * VISIBILITY  : GLOBAL
+ *
+ * CHANGE GOVERNANCE:
+ * - Color palette tweak       → PATCH
+ * - New animation utility     → MINOR
+ * - Breakpoint/Scale change   → MAJOR (Requires full regression test)
+ *
+ * =============================================================================
+ * SYSTEM ROLE & INTENT
+ * -----------------------------------------------------------------------------
+ * This module is the PHYSICS ENGINE of the frontend.
+ * It defines:
+ * - The "Void" Color System (Absolute Zero backgrounds)
+ * - Fluid Typography scales (clamp-based) for 25-year hardware support
+ * - GPU-accelerated animation keyframes
+ * - The Safelist Protocol for dynamic status rendering (Win/Loss/Live)
+ *
+ * =============================================================================
+ * THEME PHILOSOPHY: "THE VOID"
+ * -----------------------------------------------------------------------------
+ * - BACKGROUNDS : #020202 (Not just black, but "Active Black")
+ * - GLASS       : Heavy blur (12px), low opacity borders
+ * - NEON        : Variable-based RGB glow for runtime theme switching
+ * - TYPOGRAPHY  : 'Teko' for impact, 'Rajdhani' for HUD data
+ *
+ * =============================================================================
+ * SAFELIST PROTOCOL (CRITICAL)
+ * -----------------------------------------------------------------------------
+ * We explicitly whitelist dynamic classes (e.g., `bg-status-win`) so the JIT
+ * compiler does not purge them. DO NOT REMOVE THESE PATTERNS.
+ *
+ * =============================================================================
+ */
+
 /** @type {import('tailwindcss').Config} */
 export default {
-  darkMode: 'class', // 🌙 Manual toggle
+  darkMode: 'class', // 🌙 Manual toggle via "dark" class on html tag
   
   // 🎯 PRECISION TARGETING
+  // Scan these files for class usage
   content: [
     './index.html',
     './src/**/*.{js,ts,jsx,tsx}',
@@ -10,7 +65,7 @@ export default {
   
   // 🛡️ SAFELIST PROTOCOL: Prevents dynamic class purging
   safelist: [
-    // 1. Database Statuses (Win/Loss/Live)
+    // 1. Database Statuses (Win/Loss/Live/Draw)
     {
       pattern: /(bg|text|border|ring|stroke|fill)-(status|brand|tactical)-(win|loss|draw|active|glow|dim|highlight)/,
       variants: ['hover', 'group-hover', 'focus-within', 'before', 'after', 'data-[state=open]'],
@@ -20,7 +75,7 @@ export default {
       pattern: /(text|bg|border)-(yellow|fuchsia|blue|red|orange|emerald|zinc|rose)-(400|500|600)/,
       variants: ['hover', 'active', 'before', 'after'],
     },
-    // 3. Critical Animations & 3D Utilities
+    // 3. Critical Animations & 3D Utilities (Ensures they exist even if conditionally rendered)
     'animate-pulse-fast', 
     'animate-glitch', 
     'animate-scanline', 
@@ -48,6 +103,7 @@ export default {
 
     extend: {
       // 📝 FLUID TYPOGRAPHY: Scales perfectly across 25 years of hardware
+      // Uses clamp() to ensure text never breaks layout on extremes
       fontSize: {
         'fluid-xs': 'clamp(0.7rem, 0.6vw + 0.5rem, 0.8rem)',
         'fluid-base': 'clamp(0.9rem, 0.8vw + 0.7rem, 1.1rem)',
@@ -72,7 +128,7 @@ export default {
           glass: 'rgba(5, 5, 5, 0.4)',
         },
         brand: {
-          // 🧠 CSS VAR ABSTRACTION: Allows runtime theme switching
+          // 🧠 CSS VAR ABSTRACTION: Allows runtime theme switching without rebuilds
           DEFAULT: 'rgb(var(--brand-rgb) / <alpha-value>)',
           dim: 'rgb(var(--brand-dim-rgb) / <alpha-value>)',
           glow: 'rgb(var(--brand-glow-rgb) / <alpha-value>)',

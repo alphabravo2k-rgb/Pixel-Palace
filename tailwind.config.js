@@ -1,86 +1,74 @@
 /**
- * ⚡ PIXEL PALACE — DESIGN ENGINE CONFIGURATION
+ * ⚡ PIXEL PALACE — VISUAL PHYSICS SPECIFICATION
  * =============================================================================
  * FILE        : tailwind.config.js
- * CONFIG      : Tailwind CSS v3.4+
- * DOMAIN      : Visual Infrastructure
- * SUBDOMAIN   : Design Tokens & Theme Physics
- * LAYER       : UI → Styling → The "Void" Theme
- * OWNERSHIP   : Lead UI/UX Engineer
- * RISK LEVEL  : CRITICAL
- * (Controls 100% of the application's visual presentation and responsiveness)
+ * MODULE      : Design Token Engine
+ * DOMAIN      : UI / Presentation
+ * OWNERSHIP   : Lead UI Engineer
+ * RISK LEVEL  : HIGH
+ * (Dictates global layout integrity, responsiveness, and accessibility colors)
  * =============================================================================
  *
  * RELEASE & GOVERNANCE
  * -----------------------------------------------------------------------------
- * VERSION     : v5.0.0
- * REVISION ID : DESIGN-TOKENS-050
- * RELEASE TAG : BURJ-KHALIFA-STANDARD
- * LAST UPDATE : 2026-01-22
- * STATUS      : OPERATIONAL
- * VISIBILITY  : GLOBAL
+ * VERSION     : DESIGN@5.0.0
+ * TAG         : VOID-THEME-V5
+ * STATUS      : ENFORCED
  *
- * CHANGE GOVERNANCE:
- * - Color palette tweak       → PATCH
- * - New animation utility     → MINOR
- * - Breakpoint/Scale change   → MAJOR (Requires full regression test)
+ * CHANGE POLICY:
+ * - Color palette tweak       → PATCH (Visual regression test recommended)
+ * - Breakpoint modification   → MAJOR (Requires full device lab audit)
+ * - Animation timing change   → MINOR
  *
  * =============================================================================
- * SYSTEM ROLE & INTENT
+ * SYSTEM INTENT
  * -----------------------------------------------------------------------------
- * This module is the PHYSICS ENGINE of the frontend.
- * It defines:
- * - The "Void" Color System (Absolute Zero backgrounds)
- * - Fluid Typography scales (clamp-based) for 25-year hardware support
- * - GPU-accelerated animation keyframes
- * - The Safelist Protocol for dynamic status rendering (Win/Loss/Live)
+ * This configuration serves as the Single Source of Truth for the application's
+ * visual physics. It implements the "Void" design language:
+ * - Absolute Black (#020202) foundations.
+ * - Optical sizing via fluid typography clamps.
+ * - GPU-accelerated motion primitives.
  *
  * =============================================================================
- * THEME PHILOSOPHY: "THE VOID"
+ * ENFORCEMENT & VERIFICATION
  * -----------------------------------------------------------------------------
- * - BACKGROUNDS : #020202 (Not just black, but "Active Black")
- * - GLASS       : Heavy blur (12px), low opacity borders
- * - NEON        : Variable-based RGB glow for runtime theme switching
- * - TYPOGRAPHY  : 'Teko' for impact, 'Rajdhani' for HUD data
+ * VALIDATION:
+ * - Contrast Ratios: Status colors must meet WCAG AA via CI linting.
+ * - Purge Safety: Dynamic classes (e.g., status badges) are explicitly safelisted.
  *
- * =============================================================================
- * SAFELIST PROTOCOL (CRITICAL)
- * -----------------------------------------------------------------------------
- * We explicitly whitelist dynamic classes (e.g., `bg-status-win`) so the JIT
- * compiler does not purge them. DO NOT REMOVE THESE PATTERNS.
+ * VIOLATIONS:
+ * - Removing Safelist patterns = REJECTED (Breaks dynamic data rendering).
+ * - Adding arbitrary hex values (e.g. text-[#123456]) = WARNING (Use tokens).
  *
  * =============================================================================
  */
 
 /** @type {import('tailwindcss').Config} */
 export default {
-  darkMode: 'class', // 🌙 Manual toggle via "dark" class on html tag
+  darkMode: 'class', 
   
-  // 🎯 PRECISION TARGETING
-  // Scan these files for class usage
   content: [
     './index.html',
     './src/**/*.{js,ts,jsx,tsx}',
   ],
   
-  // 🛡️ SAFELIST PROTOCOL: Prevents dynamic class purging
+  // 🛡️ CRITICAL: SAFELIST PROTOCOL
+  // These patterns prevent the JIT engine from discarding classes derived from database values.
   safelist: [
-    // 1. Database Statuses (Win/Loss/Live/Draw)
+    // Status Indicators (Win/Loss/Live)
     {
       pattern: /(bg|text|border|ring|stroke|fill)-(status|brand|tactical)-(win|loss|draw|active|glow|dim|highlight)/,
       variants: ['hover', 'group-hover', 'focus-within', 'before', 'after', 'data-[state=open]'],
     },
-    // 2. Dynamic Role Colors (Admin Red, Caster Purple, etc.)
+    // Role Hierarchy Colors
     {
       pattern: /(text|bg|border)-(yellow|fuchsia|blue|red|orange|emerald|zinc|rose)-(400|500|600)/,
       variants: ['hover', 'active', 'before', 'after'],
     },
-    // 3. Critical Animations & 3D Utilities (Ensures they exist even if conditionally rendered)
+    // 3D & Animation Utilities (Required for dynamic HUDs)
     'animate-pulse-fast', 
     'animate-glitch', 
     'animate-scanline', 
-    'animate-flicker', 
-    'animate-scan',
     'perspective-1000', 
     'rotate-y-12',
     'shadow-neon-yellow',
@@ -88,7 +76,6 @@ export default {
   ],
 
   theme: {
-    // 🌍 NATIVE E-SPORTS RESOLUTIONS (Mobile to Arena Screens)
     screens: {
       'xs': '375px',
       'sm': '640px',
@@ -96,14 +83,13 @@ export default {
       'lg': '1024px',
       'xl': '1280px',
       '2xl': '1440px',
-      '3xl': '1920px', // Pro Player Native
-      '4xl': '2560px', // Ultrawide / 2K
-      '5xl': '3840px', // 4K Broadcast Standard
+      '3xl': '1920px', // Esports Standard
+      '4xl': '2560px', 
+      '5xl': '3840px', 
     },
 
     extend: {
-      // 📝 FLUID TYPOGRAPHY: Scales perfectly across 25 years of hardware
-      // Uses clamp() to ensure text never breaks layout on extremes
+      // Fluid Typography: Scale = Base + Viewport Modifier
       fontSize: {
         'fluid-xs': 'clamp(0.7rem, 0.6vw + 0.5rem, 0.8rem)',
         'fluid-base': 'clamp(0.9rem, 0.8vw + 0.7rem, 1.1rem)',
@@ -117,48 +103,45 @@ export default {
         'fluid-lg': 'clamp(2rem, 4vw, 4rem)',
       },
       
-      // 🖌️ COLOR PALETTE: The "Void" Theme
       colors: {
         bg: {
-          DEFAULT: '#020202', // Absolute Zero
-          panel: '#09090b',   // Zinc-950 (Cards)
-          surface: '#121214', // Zinc-900 (Inputs)
-          elevated: '#18181b', // Zinc-800 (Popovers)
-          overlay: 'rgba(5, 5, 5, 0.8)', // Glassmorphism base
+          DEFAULT: '#020202', // Void Base
+          panel: '#09090b',   // Zinc-950
+          surface: '#121214', // Zinc-900
+          elevated: '#18181b', // Zinc-800
+          overlay: 'rgba(5, 5, 5, 0.8)',
           glass: 'rgba(5, 5, 5, 0.4)',
         },
         brand: {
-          // 🧠 CSS VAR ABSTRACTION: Allows runtime theme switching without rebuilds
           DEFAULT: 'rgb(var(--brand-rgb) / <alpha-value>)',
           dim: 'rgb(var(--brand-dim-rgb) / <alpha-value>)',
           glow: 'rgb(var(--brand-glow-rgb) / <alpha-value>)',
         },
         tactical: {
-          DEFAULT: '#27272a', // Borders (Zinc-800)
-          active: '#3f3f46',  // Active/Pressed (Zinc-700)
-          highlight: '#52525b', // Icons/Text (Zinc-600)
-          muted: '#71717a',   // Disabled (Zinc-500)
+          DEFAULT: '#27272a',
+          active: '#3f3f46',
+          highlight: '#52525b',
+          muted: '#71717a',
         },
         status: {
-          win: '#10b981',    // Emerald-500
-          loss: '#ef4444',   // Red-500
-          draw: '#eab308',   // Yellow-500
-          active: '#3b82f6', // Blue-500
-          dispute: '#f97316', // Orange-500
-          live: '#22c55e',   // Green-500
-          elo: '#6366f1',    // Indigo-500
-          offline: '#3f3f46', // Zinc-700
+          win: '#10b981',    
+          loss: '#ef4444',   
+          draw: '#eab308',   
+          active: '#3b82f6', 
+          dispute: '#f97316', 
+          live: '#22c55e',   
+          elo: '#6366f1',    
+          offline: '#3f3f46',
         }
       },
       
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
-        mono: ['JetBrains Mono', 'monospace'], // Best for code/stats
-        display: ['Teko', 'sans-serif'],    // Uppercase Headers (Aggressive)
-        hud: ['Rajdhani', 'sans-serif'],    // Numbers/KDA Stats
+        mono: ['JetBrains Mono', 'monospace'],
+        display: ['Teko', 'sans-serif'],
+        hud: ['Rajdhani', 'sans-serif'],
       },
 
-      // 🛠️ 3D & Z-INDEX MASTERY
       zIndex: {
         '60': '60', '70': '70', '80': '80', '90': '90', '100': '100',
       },
@@ -180,11 +163,8 @@ export default {
         'neon-yellow': '0 0 25px -5px rgba(234, 179, 8, 0.5)',
         'glass': '0 8px 32px 0 rgba(0, 0, 0, 0.45)',
         'glass-glow': 'inset 0 0 20px rgba(255, 255, 255, 0.02), 0 10px 30px rgba(0, 0, 0, 0.5)',
-        'inner-glow': 'inset 0 0 20px rgb(var(--brand-rgb) / 0.15)',
-        'card-hover': '0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.4)',
       },
 
-      // 🎬 GPU-ACCELERATED ANIMATIONS (144Hz Ready)
       animation: {
         'breathe': 'breathe 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         'glitch': 'glitch 0.4s cubic-bezier(.25,.46,.45,.94) both infinite',
@@ -231,7 +211,6 @@ export default {
         }
       },
 
-      // 📝 PROSE MASTERY: For Blogs/Rules/Announcements
       typography: (theme) => ({
         DEFAULT: {
           css: {
@@ -248,7 +227,6 @@ export default {
     },
   },
   
-  // 🔌 PLUGINS: The Toolkit
   plugins: [
     require('tailwind-scrollbar')({ nocompatible: true }), 
     require('@tailwindcss/typography'), 
@@ -256,7 +234,7 @@ export default {
     require('@tailwindcss/container-queries'), 
     require('tailwindcss-animate'),
     
-    // 🛠️ CUSTOM UTILITIES FOR GLASS & NEON
+    // Utility injection for complex visual effects
     function({ addUtilities }) {
       addUtilities({
         '.glass-hard': {

@@ -1,3 +1,58 @@
+/**
+ * ⚡ PIXEL PALACE — BUILD ENGINE CONFIGURATION
+ * =============================================================================
+ * FILE        : vite.config.js
+ * CONFIG      : Vite + Rollup
+ * DOMAIN      : Core Infrastructure
+ * SUBDOMAIN   : Build Pipeline & Optimization
+ * LAYER       : DevOps / Tooling
+ * OWNERSHIP   : Core Engineering Lead
+ * RISK LEVEL  : CRITICAL
+ * (Controls production bundling, chunking, and PWA generation)
+ * =============================================================================
+ *
+ * RELEASE & GOVERNANCE
+ * -----------------------------------------------------------------------------
+ * VERSION     : v5.0.0
+ * REVISION ID : INFRA-VITE-050
+ * RELEASE TAG : BURJ-KHALIFA-STANDARD
+ * LAST UPDATE : 2026-01-22
+ * STATUS      : OPERATIONAL
+ * VISIBILITY  : REPO-ROOT
+ *
+ * CHANGE GOVERNANCE:
+ * - Plugin addition/removal  → MINOR
+ * - Chunking strategy change → MAJOR (Requires perf audit)
+ * - Env var logic change     → MAJOR
+ *
+ * =============================================================================
+ * SYSTEM ROLE & INTENT
+ * -----------------------------------------------------------------------------
+ * This module is the HEART of the application delivery system.
+ * It is responsible for:
+ * - Transpiling Modern JS (ESNext) -> Browser Compatible Code
+ * - 3D Shader Compilation (.glsl support)
+ * - Intelligent Code Splitting (separating 3D engine from UI logic)
+ * - PWA Manifest Generation & Offline Caching
+ *
+ * =============================================================================
+ * OPTIMIZATION STRATEGY (THE 2050 STANDARD)
+ * -----------------------------------------------------------------------------
+ * 1. SMART CHUNKING : 3D Engine, Database, and UI are split to prevent
+ * re-downloading the massive Three.js runtime on every
+ * small logic tweak.
+ * 2. BROTLI COMP.   : Native compression for assets.
+ * 3. GLSL SUPPORT   : Raw shader import support for high-fidelity graphics.
+ *
+ * =============================================================================
+ * DEPENDENCY BOUNDARY
+ * -----------------------------------------------------------------------------
+ * - Inputs : Source Code (/src), Public Assets (/public), Env Vars
+ * - Outputs: /dist folder (Production Artifacts)
+ *
+ * =============================================================================
+ */
+
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
@@ -7,22 +62,10 @@ import viteCompression from 'vite-plugin-compression';
 import { VitePWA } from 'vite-plugin-pwa';
 import glsl from 'vite-plugin-glsl'; // 🎨 3D Shader Support
 
-/**
- * 🏆 PIXEL PALACE: BURJ KHALIFA EDITION CONFIG
- * ---------------------------------------------
- * VISION: 2050 READY
- * STACK: React + Three.js + Supabase + PWA
- * * CORE SYSTEMS:
- * 1. 🧊 SMART CHUNKING: Separates 3D Engine, DB, and Vendor for instant loads.
- * 2. 🔮 GLSL SHADERS: Native support for raw shader files (The "3D Vision").
- * 3. 📱 PWA MASTER: Full offline support with embedded assets.
- * 4. ⚡ COMPRESSION: Brotli compression for maximum bandwidth efficiency.
- */
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// 🔮 DATA URI ICONS (No physical files needed - Prevents 404s)
+// 🔮 DATA URI ICONS (Prevents 404s during build/deploy previews)
 const ICON_192 = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%23050505'/%3E%3Cpath fill='%23c026d3' d='M256 100L100 412h312z' style='filter:drop-shadow(0 0 20px %23c026d3)' /%3E%3C/svg%3E";
 const ICON_512 = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%23050505'/%3E%3Cpath fill='%23c026d3' d='M256 100L100 412h312z' style='filter:drop-shadow(0 0 20px %23c026d3)' /%3E%3C/svg%3E";
 
@@ -44,7 +87,7 @@ export default defineConfig(({ mode }) => {
       },
     },
 
-    // 🖥️ SERVER
+    // 🖥️ SERVER CONFIG
     server: {
       port: 5173,
       host: true,
@@ -52,24 +95,23 @@ export default defineConfig(({ mode }) => {
       cors: true,
     },
 
-    // 🏗️ BUILD ARCHITECTURE (The 25-Year Standard)
+    // 🏗️ BUILD ARCHITECTURE
     build: {
-      target: 'esnext', // 🚀 Future-proof JS
+      target: 'esnext', // 🚀 Future-proof JS for maximum performance
       outDir: 'dist',
-      sourcemap: !isProd,
+      sourcemap: !isProd, // Disable source maps in prod for security/size
       minify: 'esbuild',
       chunkSizeWarningLimit: 2000,
       
       rollupOptions: {
         output: {
           // 🧠 INTELLIGENT CACHING STRATEGY
-          // This ensures that updating your 3D code doesn't force users to re-download the database code.
           manualChunks: (id) => {
-            // 1. The 3D Engine (Heavy, but updates rarely)
+            // 1. The 3D Engine (Heavy, rarely updates)
             if (id.includes('three') || id.includes('@react-three')) {
               return '3d-engine';
             }
-            // 2. The Database Core (Critical security & logic)
+            // 2. The Database Core (Critical logic)
             if (id.includes('supabase')) {
               return 'database-core';
             }
@@ -77,7 +119,7 @@ export default defineConfig(({ mode }) => {
             if (id.includes('framer-motion') || id.includes('lucide')) {
               return 'ui-core';
             }
-            // 4. Everything else (React, etc)
+            // 4. Vendor (React, Router, etc)
             if (id.includes('node_modules')) {
               return 'vendor';
             }
@@ -90,19 +132,17 @@ export default defineConfig(({ mode }) => {
       react(),
 
       // 🎨 3D VISION: Native GLSL Support
-      // Allows importing .glsl, .vert, .frag files directly for custom shaders
       glsl({
-        include: [                   // Glob pattern, or array of glob patterns to import
+        include: [
           '**/*.glsl', '**/*.wgsl',
           '**/*.vert', '**/*.frag',
           '**/*.vs', '**/*.fs'
         ],
-        exclude: undefined,          // Glob pattern, or array of glob patterns to ignore
-        warnDuplicatedImports: true, // Warn if the same chunk was imported multiple times
-        defaultExtension: 'glsl',    // Shader suffix when no extension is specified
-        compress: isProd,            // Compress output shader code
-        watch: true,                 // Recompile shader on change
-        root: '/'                    // Directory for root imports
+        warnDuplicatedImports: true,
+        defaultExtension: 'glsl',
+        compress: isProd,
+        watch: true,
+        root: '/'
       }),
       
       // 📱 PWA: The Native App Experience
@@ -123,7 +163,7 @@ export default defineConfig(({ mode }) => {
           ]
         },
         workbox: {
-          globPatterns: ['**/*.{js,css,html,ico,png,svg,glsl,vert,frag}'], // Cache shaders too!
+          globPatterns: ['**/*.{js,css,html,ico,png,svg,glsl,vert,frag}'],
           cleanupOutdatedCaches: true,
           runtimeCaching: [
             {
@@ -139,7 +179,6 @@ export default defineConfig(({ mode }) => {
       }),
 
       // ⚡ COMPRESSION (Production Only)
-      // Crushes 3D assets and code down to minimal size
       isProd && viteCompression({
         algorithm: 'brotliCompress',
         ext: '.br',

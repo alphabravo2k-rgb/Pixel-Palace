@@ -1,10 +1,17 @@
 /**
- * ⚙️ ADMIN MATCH CONTROLS: MISSION CONFIG (GENESIS OMNI)
- * VERSION: 2050.5.0
+ * ⚡ PIXEL PALACE: ADMIN MATCH CONTROLS
+ * FILE: src/components/admin/AdminMatchControls.jsx
+ * -----------------------------------------
+ * VERSION: 2050.5.0 (MASTER OMNI)
+ * DATE: 2026-01-22
  * STATUS: OPERATIONAL // LOGIC-GATED
  * -----------------------------------------
- * Tactical control panel for Marshals.
- * Enforces strict bracket logic to prevent accidental destruction.
+ * DESCRIPTION:
+ * Tactical control panel for Marshals to manage match configuration.
+ * Enforces strict "Dubai Standard" logic: No team swaps after a match goes live.
+ * * UPGRADES (V5.0):
+ * - [Intervention Gate]: Prevents swapping teams if Round > 1 OR Status is Live.
+ * - [Atomic RPCs]: Uses 'admin_update_match_format' and 'admin_swap_teams'.
  */
 
 import React, { useState } from 'react';
@@ -21,16 +28,18 @@ import { Telemetry, EVENTS } from '../../lib/telemetry';
 export const AdminMatchControls = ({ match, onUpdate }) => {
   const [loading, setLoading] = useState(false);
   const selectedFormat = match?.best_of || 1;
-  const isLocked = ['completed'].includes(match.status);
+  const isCompleted = ['completed'].includes(match.status);
 
-  // 🔒 THE DUBAI RULE: LOGIC > HUMANS
-  // Prevents tampering with bracket progression after the tournament starts.
-  // If we are in Round 2+, teams are fed by the bracket engine, so swapping them manually breaks the chain.
-  const isBracketLocked = (match.round_number || 1) > 1;
+  // 🛑 DUBAI STANDARD: THE BRACKET INTEGRITY LOCK
+  // "Humans should never touch the bracket after the first bullet is fired."
+  // 1. Must be Round 1 (Later rounds are fed by the engine).
+  // 2. Must NOT be 'live' (Cannot swap teams while they are playing).
+  // 3. Must NOT be 'completed' (History is immutable).
+  const isInterventionAllowed = (match.round_number === 1) && (match.status !== 'live') && !isCompleted;
 
   // 1. FORMAT COMMAND (BO1 -> BO3 -> BO5)
   const handleFormatChange = async (newFormat) => {
-    if (isLocked || loading || newFormat === selectedFormat) return;
+    if (isCompleted || loading || newFormat === selectedFormat) return;
 
     setLoading(true);
     try { SoundNexus.play(CUES.UI_CLICK); } catch(e){}
@@ -59,9 +68,9 @@ export const AdminMatchControls = ({ match, onUpdate }) => {
 
   // 2. TEAM INVERSION (The Swap)
   const handleSwap = async () => {
-    // HARD GATE: Reject click if bracket is locked
-    if (isLocked || loading || isBracketLocked) {
-        if (isBracketLocked) toast.error("DENIED: CANNOT SWAP BRACKET-FED TEAMS");
+    // SECURITY GATE: Physical rejection of command
+    if (!isInterventionAllowed || loading) {
+        if (!isInterventionAllowed) toast.error("DENIED: ENGINE LOCK ACTIVE");
         return;
     }
     
@@ -132,7 +141,7 @@ export const AdminMatchControls = ({ match, onUpdate }) => {
             <p className="text-[8px] text-zinc-500 font-mono mt-0.5 uppercase tracking-widest">Override active mission parameters</p>
           </div>
         </div>
-        {isLocked && (
+        {!isInterventionAllowed && (
           <div className="flex items-center gap-2 px-3 py-1 bg-zinc-900 border border-zinc-800 rounded-sm text-[9px] text-zinc-500 font-black uppercase tracking-tighter">
             <ShieldAlert size={12} /> Read Only
           </div>
@@ -151,7 +160,7 @@ export const AdminMatchControls = ({ match, onUpdate }) => {
                 key={bo}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                disabled={isLocked || loading}
+                disabled={isCompleted || loading}
                 onClick={() => handleFormatChange(bo)}
                 className={cn(
                   "py-3 text-[10px] font-black uppercase rounded-sm border transition-all relative overflow-hidden group",
@@ -174,20 +183,20 @@ export const AdminMatchControls = ({ match, onUpdate }) => {
           <label className="text-[9px] text-zinc-600 uppercase font-black tracking-widest block">Roster Operations</label>
           <div className="flex gap-2 h-[46px]">
             <motion.button 
-              whileHover={!isBracketLocked ? { scale: 1.02 } : {}}
-              whileTap={!isBracketLocked ? { scale: 0.98 } : {}}
+              whileHover={isInterventionAllowed ? { scale: 1.02 } : {}}
+              whileTap={isInterventionAllowed ? { scale: 0.98 } : {}}
               onClick={handleSwap} 
-              disabled={isLocked || loading || isBracketLocked}
-              title={isBracketLocked ? "LOCKED: CANNOT SWAP BRACKET-FED TEAMS" : "Invert Sides"}
+              // VISUAL LOCK: Grayscale and unclickable if forbidden
+              disabled={!isInterventionAllowed || loading}
               className={cn(
                 "flex-1 text-[9px] font-black uppercase tracking-widest rounded-sm border flex items-center justify-center gap-2 transition-all",
-                isBracketLocked 
-                  ? "bg-zinc-950 text-zinc-700 border-zinc-900 cursor-not-allowed" // Visual Lock
-                  : "bg-zinc-800 hover:bg-zinc-700 text-white border-zinc-700"
+                isInterventionAllowed 
+                  ? "bg-zinc-800 hover:bg-zinc-700 text-white border-zinc-700"
+                  : "bg-zinc-950 text-zinc-700 border-zinc-900 cursor-not-allowed opacity-50"
               )}
             >
-              {isBracketLocked ? <Lock size={12} /> : <ArrowRightLeft size={14} className="text-zinc-400" />} 
-              {isBracketLocked ? "BRACKET LOCKED" : "Invert Sides"}
+              {isInterventionAllowed ? <ArrowRightLeft size={14} className="text-zinc-400" /> : <Lock size={12} />} 
+              {isInterventionAllowed ? "Invert Sides" : "LOCKED BY ENGINE"}
             </motion.button>
             
             <motion.button 

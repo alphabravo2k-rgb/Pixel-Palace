@@ -18,7 +18,6 @@ import { useSession } from '../../auth/useSession';
 import { SoundNexus, CUES } from '../../lib/soundNexus';
 
 export const UnifiedLogin = () => {
-  // NOTE: Ensure useSession is updated to export loginUnified (supabase.auth.signInWithPassword)
   const { loginUnified } = useSession(); 
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
@@ -31,14 +30,14 @@ export const UnifiedLogin = () => {
 
     try {
       // 1. SINGLE PIPELINE AUTHENTICATION
-      // This assumes loginUnified wraps supabase.auth.signInWithPassword({ email, password })
+      // Wraps supabase.auth.signInWithPassword({ email, password })
       const { user, error } = await loginUnified(formData.email, formData.password);
       
       if (error) throw error;
 
       // 2. CLEARANCE RESOLUTION
-      // We check metadata or fall back to a fetch if clearance isn't in JWT yet
-      // For immediate routing, we trust the profile query handled inside loginUnified or fetch it here
+      // We check metadata or fall back to a fetch if clearance isn't in JWT yet.
+      // For immediate routing, we trust the profile query handled inside loginUnified logic.
       const clearance = user?.user_metadata?.clearance_level || 0; // Default to Guest
       
       try { SoundNexus.play(CUES.UI_SUCCESS); } catch(e) {}

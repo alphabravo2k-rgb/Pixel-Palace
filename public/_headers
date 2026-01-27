@@ -1,36 +1,28 @@
-# -------------------------------------------------------------------
-# 🛡️ PIXEL PALACE // NEXUS OMNI GLOBAL HEADERS
-# VERSION: 2050.5.3 (MASTER OMNI - CSP PATCH)
-# STATUS: OPERATIONAL // HARDENED
-# -------------------------------------------------------------------
+# ⚡ PIXEL PALACE — SECURITY HEADERS SPECIFICATION
+# =============================================================================
+# FILE        : public/_headers
+# MODULE      : Cloudflare/Netlify Edge Configuration
+# DOMAIN      : Infrastructure
+# SUBDOMAIN   : Edge Security & Caching
+# OWNERSHIP   : Lead Security Architect
+# RISK LEVEL  : CRITICAL
+# (Controls Content Security Policy, Frame Options, and Browser Security Features)
+# =============================================================================
+#
+# RELEASE & GOVERNANCE
+# -----------------------------------------------------------------------------
+# VERSION     : INFRA@5.0.0
+# TAG         : PROD-BASELINE-V5
+# STATUS      : ENFORCED
+#
+# CHANGE POLICY:
+# - CSP relaxations      → CRITICAL (Requires CEO/CISO sign-off)
+# - Cache changes        → MAJOR (Requires invalidation strategy)
+#
+# =============================================================================
 
-# [PHASE 1]: GLOBAL SECURITY PROTOCOL
 /*
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.supabase.co; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://*.supabase.co https://raw.githubusercontent.com https://*.dicebear.com https://images.unsplash.com https://grainy-gradients.vercel.app; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co;
   X-Frame-Options: DENY
-  X-XSS-Protection: 1; mode=block
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
-  Permissions-Policy: geolocation=(self), microphone=(), camera=(self), payment=(), hid=()
-  Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
-
-  # ✅ HARDENED CSP: Lock down all vectors while allowing sovereign assets.
-  # Added: 'https://grainy-gradients.vercel.app' (Noise Texture)
-  # Added: 'https://api.faceit.com' (Future Proofing)
-  # Added: 'https://images.unsplash.com' (Avatars)
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https://*.supabase.co https://raw.githubusercontent.com https://*.dicebear.com https://images.unsplash.com https://grainy-gradients.vercel.app; media-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://mbejyfwiuphpktospkga.supabase.co wss://mbejyfwiuphpktospkga.supabase.co https://api.faceit.com; worker-src 'self' blob:; frame-ancestors 'none'; object-src 'none';
-
-# [PHASE 2]: NEURAL LINK (Index Integrity)
-# Prevent caching of the app entry point to ensure players always have the latest OS version.
-/index.html
-  Cache-Control: no-cache, no-store, must-revalidate
-  Pragma: no-cache
-  Expires: 0
-
-# [PHASE 3]: ASSET ACCELERATION
-# Cache high-fidelity binary files for 1 year to maximize Burj Khalifa speed.
-/assets/*
-  Cache-Control: public, max-age=31536000, immutable
-
-# Cache manifest and icons for rapid PWA launching.
-/manifest.json
-  Cache-Control: public, max-age=86400
